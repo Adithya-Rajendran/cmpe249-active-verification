@@ -230,13 +230,3 @@ The candidate distinction is the controlled comparison of learned and geometric 
 ## Additional context, not counted
 
 [GOAT-Bench](https://arxiv.org/abs/2404.06609) (Khanna et al., 2024) evaluates lifelong multi-modal navigation and the role of scene memory. It is broader context for where a verification module would sit, not a benchmark for this decision.
-
-## Reading order
-
-1. [10], [7], and [1]: active exploration and geometric change updates. Write down what each does after a revisit returns a miss, and whether the proposed comparison is already evaluated.
-2. [11] and [12]: the budgeted-selection framing and the classification step.
-3. [4] and [5]: what a missed detection is worth, with and without a prior.
-4. [13] and [14]: the components and what their outputs do not establish.
-5. [2], [3], [6], [8], [9]: mapping and memory context; introductions, system diagrams, limitations.
-
-For each paper: inputs, outputs, central assumption, strongest evidence, closest overlap with this proposal, and one claim to check in code or an experiment.
