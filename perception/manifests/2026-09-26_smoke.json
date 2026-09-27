@@ -1,0 +1,592 @@
+{
+ "description": "2026-09-26 perception smoke test inputs: one mug, one camera pose (plus the earlier 11:28 probe pose). Boxes are in source-image pixels; see make_2026-09-26_smoke.py for provenance.",
+ "gt_note": "gt_src is the tight box around the visible mug, hand-annotated by the agent from 100 px grid overlays (not by the student); about +-15 px uncertainty.",
+ "catalog": [
+  "cup",
+  "mug",
+  "book",
+  "bottle",
+  "box"
+ ],
+ "target_classes": {
+  "open_vocab": [
+   "cup",
+   "mug"
+  ],
+  "coco": [
+   "cup"
+  ]
+ },
+ "match_reference": {
+  "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+  "ops": [],
+  "box": [
+   1290,
+   305,
+   2215,
+   993
+  ]
+ },
+ "images": [
+  {
+   "id": "probe_full",
+   "group": "probe",
+   "path": "data/raw/2026-09-26_camera-check/orchestrator_probe_1128.jpg",
+   "ops": [],
+   "gt_src": [
+    0,
+    830,
+    985,
+    1296
+   ],
+   "note": "11:28 orchestrator probe, full auto (AF), camera pose before it was moved; mug cut off at bottom-left and defocused; scene rolled"
+  },
+  {
+   "id": "probe_crop",
+   "group": "probe",
+   "path": "data/raw/2026-09-26_camera-check/orchestrator_probe_1128.jpg",
+   "ops": [
+    [
+     "crop",
+     0,
+     600,
+     1300,
+     1296
+    ]
+   ],
+   "gt_src": [
+    0,
+    830,
+    985,
+    1296
+   ],
+   "note": "hand-picked ROI around the visible part of the mug in the probe"
+  },
+  {
+   "id": "sweep_best_native",
+   "group": "sweep_best",
+   "path": "data/raw/2026-09-26_camera-check/sweep_run2/lp_06.0.jpg",
+   "ops": [],
+   "gt_src": [
+    89,
+    303,
+    1014,
+    991
+   ],
+   "note": "sweep run 2, lens 6.0 D (closest step to the 6.17 D mug sharpness peak), native upside-down orientation, ~17 lux"
+  },
+  {
+   "id": "sweep_best_upright",
+   "group": "sweep_best",
+   "path": "data/raw/2026-09-26_camera-check/sweep_run2/lp_06.0.jpg",
+   "ops": [
+    [
+     "rot180"
+    ]
+   ],
+   "gt_src": [
+    89,
+    303,
+    1014,
+    991
+   ],
+   "note": "same frame rotated 180 deg (upright)"
+  },
+  {
+   "id": "sweep_best_upright_crop",
+   "group": "sweep_best",
+   "path": "data/raw/2026-09-26_camera-check/sweep_run2/lp_06.0.jpg",
+   "ops": [
+    [
+     "rot180"
+    ],
+    [
+     "crop",
+     1090,
+     105,
+     2304,
+     1195
+    ]
+   ],
+   "gt_src": [
+    89,
+    303,
+    1014,
+    991
+   ],
+   "note": "upright, cropped to the mug plus ~200 px margin"
+  },
+  {
+   "glob": "data/raw/pilot/2026-09-26-pilot/PILOT00/*/P1/*.jpg",
+   "id_prefix": "pilot_",
+   "group": "pilot",
+   "ops": [],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "capture-tool pilot frames: locked 66.6 ms / gain 7.84 / lens 6.0 D, --rotation 180, ~4 lux"
+  },
+  {
+   "id": "pilot_calibration",
+   "group": "pilot",
+   "path": "data/raw/pilot/2026-09-26-pilot/calibration/ambient-v1.jpg",
+   "ops": [],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "capture-tool calibration still (auto exposure/AWB, lens 6.0 D)"
+  },
+  {
+   "id": "pilot_ref_t01_crop",
+   "group": "pilot",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "crop",
+     1090,
+     105,
+     2304,
+     1195
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "pilot reference t01 cropped to the mug plus margin"
+  },
+  {
+   "id": "now_lens6_autoexp",
+   "group": "now",
+   "path": "data/raw/2026-09-26_perception-smoke/now_lens6_autoexp.jpg",
+   "ops": [],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "12:16 capture for this check: auto exposure/AWB, lens locked 6.0 D, --rotation 180"
+  },
+  {
+   "id": "now_fullauto",
+   "group": "now",
+   "path": "data/raw/2026-09-26_perception-smoke/now_fullauto.jpg",
+   "ops": [],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "12:16 capture for this check: full auto incl. AF (chose 3.03 D, mug slightly soft), --rotation 180"
+  },
+  {
+   "glob": "data/raw/2026-09-26_camera-check/af/*.jpg",
+   "id_prefix": "af_",
+   "group": "af_bright",
+   "ops": [
+    [
+     "rot180"
+    ]
+   ],
+   "gt_src": [
+    89,
+    303,
+    1014,
+    991
+   ],
+   "note": "AF-stage stills at ~52 lux (before the lights went off); AF chose 0-3 D, so the mug is defocused; rotated upright"
+  },
+  {
+   "glob": "data/raw/2026-09-26_camera-check/sweep_run2/lp_*.jpg",
+   "id_prefix": "sweep2_",
+   "group": "sweep_series",
+   "ops": [
+    [
+     "rot180"
+    ]
+   ],
+   "gt_src": [
+    89,
+    303,
+    1014,
+    991
+   ],
+   "note": "focus sweep run 2 (exposure/AWB locked, ~17 lux; steps 14.0-15.0 D were after a light drop), rotated upright"
+  },
+  {
+   "id": "syn_trunc_left_25",
+   "group": "syn_truncation",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "fill",
+     0,
+     0,
+     1521,
+     1296,
+     114,
+     114,
+     114
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "frame left of x=1521 painted letterbox-grey: the left 25% of the mug is 'outside the frame'; image size unchanged"
+  },
+  {
+   "id": "syn_trunc_left_50",
+   "group": "syn_truncation",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "fill",
+     0,
+     0,
+     1752,
+     1296,
+     114,
+     114,
+     114
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "frame left of x=1752 painted letterbox-grey: the left 50% of the mug is 'outside the frame'; image size unchanged"
+  },
+  {
+   "id": "syn_trunc_left_75",
+   "group": "syn_truncation",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "fill",
+     0,
+     0,
+     1984,
+     1296,
+     114,
+     114,
+     114
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "frame left of x=1984 painted letterbox-grey: the left 75% of the mug is 'outside the frame'; image size unchanged"
+  },
+  {
+   "id": "syn_occl_left_25",
+   "group": "syn_occlusion",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "fill",
+     1280,
+     295,
+     1521,
+     1003,
+     45,
+     45,
+     50
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "flat dark block over the left 25% of the mug width (full mug height); synthetic, not a real occluder"
+  },
+  {
+   "id": "syn_occl_left_50",
+   "group": "syn_occlusion",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "fill",
+     1280,
+     295,
+     1752,
+     1003,
+     45,
+     45,
+     50
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "flat dark block over the left 50% of the mug width (full mug height); synthetic, not a real occluder"
+  },
+  {
+   "id": "syn_occl_left_75",
+   "group": "syn_occlusion",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "fill",
+     1280,
+     295,
+     1984,
+     1003,
+     45,
+     45,
+     50
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "flat dark block over the left 75% of the mug width (full mug height); synthetic, not a real occluder"
+  },
+  {
+   "id": "syn_blur_4",
+   "group": "syn_blur",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "blur",
+     4
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "Gaussian blur sigma=4 px at 2304 px width (= 1.1 px at the 640 px detector input)"
+  },
+  {
+   "id": "syn_blur_8",
+   "group": "syn_blur",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "blur",
+     8
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "Gaussian blur sigma=8 px at 2304 px width (= 2.2 px at the 640 px detector input)"
+  },
+  {
+   "id": "syn_blur_16",
+   "group": "syn_blur",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "blur",
+     16
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "Gaussian blur sigma=16 px at 2304 px width (= 4.4 px at the 640 px detector input)"
+  },
+  {
+   "id": "syn_blur_32",
+   "group": "syn_blur",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "blur",
+     32
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "Gaussian blur sigma=32 px at 2304 px width (= 8.9 px at the 640 px detector input)"
+  },
+  {
+   "id": "syn_roll_15",
+   "group": "syn_roll",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "roll",
+     15
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "rotated 15 deg CCW, canvas expanded with grey; target box = axis-aligned box of the rotated hand box (looser)"
+  },
+  {
+   "id": "syn_roll_30",
+   "group": "syn_roll",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "roll",
+     30
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "rotated 30 deg CCW, canvas expanded with grey; target box = axis-aligned box of the rotated hand box (looser)"
+  },
+  {
+   "id": "syn_roll_45",
+   "group": "syn_roll",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "roll",
+     45
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "rotated 45 deg CCW, canvas expanded with grey; target box = axis-aligned box of the rotated hand box (looser)"
+  },
+  {
+   "id": "syn_roll_90",
+   "group": "syn_roll",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "roll",
+     90
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "rotated 90 deg CCW, canvas expanded with grey; target box = axis-aligned box of the rotated hand box (looser)"
+  },
+  {
+   "id": "syn_roll_180",
+   "group": "syn_roll",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "rot180"
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "rotated 180 deg (as the sensor sees it without --rotation 180)"
+  },
+  {
+   "id": "syn_pilot_gain_2x",
+   "group": "syn_brightness",
+   "path": "data/raw/pilot/2026-09-26-pilot/PILOT00/reference/P1/PILOT00_P1_reference_pilot_ambient_t01.jpg",
+   "ops": [
+    [
+     "gain",
+     2.0
+    ]
+   ],
+   "gt_src": [
+    1290,
+    305,
+    2215,
+    993
+   ],
+   "note": "pilot reference t01 x2 digital gain (mean luma 64 -> ~128); noise is amplified too, so this is not a real exposure change"
+  },
+  {
+   "id": "syn_sweep_gain_0.5x",
+   "group": "syn_brightness",
+   "path": "data/raw/2026-09-26_camera-check/sweep_run2/lp_06.0.jpg",
+   "ops": [
+    [
+     "rot180"
+    ],
+    [
+     "gain",
+     0.5
+    ]
+   ],
+   "gt_src": [
+    89,
+    303,
+    1014,
+    991
+   ],
+   "note": "best-focus sweep frame (17 lux, mean luma 125) x0.5 digital gain -> ~62, close to the pilot frames"
+  },
+  {
+   "id": "syn_af_gain_0.5x",
+   "group": "syn_brightness",
+   "path": "data/raw/2026-09-26_camera-check/af/cont_normal_1.jpg",
+   "ops": [
+    [
+     "rot180"
+    ],
+    [
+     "gain",
+     0.5
+    ]
+   ],
+   "gt_src": [
+    89,
+    303,
+    1014,
+    991
+   ],
+   "note": "bright AF still (52 lux, mean luma 131) x0.5 digital gain -> ~65"
+  }
+ ]
+}
