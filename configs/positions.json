@@ -1,0 +1,26 @@
+{
+  "schema": "cmpe249.positions.v1",
+  "status": "measured: depth & P3 distance taped 2026-10-09; arc stops not yet taped",
+  "note": "Shelf rig, compartment #3 (replaces the design template R=45 cm, +-60 deg, kept at data/raw/2026-10-09_measured-geometry/positions_template_superseded.json; Positions.default() still returns the design values). MEASURED (tape): compartment inner depth 30.5 cm; P3 lens 72.5 cm in front of the shelf front edge. MODELLED: five lens stops on a horizontal arc, R = 90 cm, arc centre 17.5 cm behind the shelf front plane on the compartment centre line (so P3 = the current camera spot); each stop yawed to face the arc centre; same downward tilt at every stop. Replay travel = |delta azimuth| in radians x radius_cm = 35.343 cm per 22.5 deg step. Floor coordinates, frame margins and caps: data/raw/2026-10-09_measured-geometry/arc_measured.txt (layout A).",
+  "radius_cm": 90.0,
+  "arc_centre_behind_front_cm": 17.5,
+  "height_cm": 14.16,
+  "height_note": "Lens height above the TOP of the mug shelf (not the floor), from the 2026-10-05 pose fit re-scaled to the 72.5 cm tape distance (f_eff 1731.3 px): base 14.16, variants 14.15-14.36 cm; tape distance +-0.5 cm moves it about +-0.1 cm (data/raw/2026-10-09_measured-geometry/pose_rescale.txt). Not tape-measured.",
+  "tilt_deg": 6.2,
+  "tilt_note": "Downward pitch from the same re-scaled fit (base 6.20 deg, variants 6.20-6.31 deg). Roll fitted -0.48 deg on frame e after the shim. Not measured with a level.",
+  "stops": [
+    {"name": "P1", "azimuth_deg": -45.0},
+    {"name": "P2", "azimuth_deg": -22.5},
+    {"name": "P3", "azimuth_deg": 0.0},
+    {"name": "P4", "azimuth_deg": 22.5},
+    {"name": "P5", "azimuth_deg": 45.0}
+  ],
+  "start_stop": "P3",
+  "f_order": ["P1", "P2", "P4", "P5"],
+  "tape_arc_cm": {
+    "P1-P2": null,
+    "P2-P3": null,
+    "P3-P4": null,
+    "P4-P5": null
+  }
+}

@@ -30,6 +30,12 @@ S=2026-10-03-A01-A05          # one session = one lock file (e.g. one sitting at
 python3 $T calibrate --session $S --lighting L1 --lens-position 1.75   # ~100 / 57 cm, see notes
 #    (without --lens-position it runs autofocus once, which may lock onto the background)
 #    Camera mounted upside down? add --rotation 180 (only 0/180 exist; fix any roll physically).
+#    Study sittings (0.3.0) instead take the fixed manual controls (shutter, gain, AWB gains, lens,
+#    size) from the lock config; AE/AWB/AF are off. run_arrangement.py `sitting` does this for you:
+python3 $T calibrate --session $S --lighting L1 --lock-config ~/cmpe249/configs/capture_lock.json
+#    --lock-config refuses --copy-from/--lens-position/--af-range/--size/--rotation (the file's
+#    values would silently win); lock_check (incl. ScalerCrop) is recorded and a WARNING is printed
+#    if the camera did not apply them.
 
 # 2. Second lighting condition: its own calibration ...
 python3 $T calibrate --session $S --lighting L2 --lens-position 1.75
@@ -130,6 +136,20 @@ These depend on the physical setup and remain the operator's job:
 - The lighting set-up behind each label. The Lux guard only catches large changes.
 - Matched occluder layouts between occluded-present and removed episodes.
 - Capturing all five query positions for every episode. `status` shows the gaps.
+
+## Study capture tools (module 1)
+
+Interface contract: `MODULE1.md`. All three run on the Pi with system Python; `qc_session.py` also runs on the GB10.
+
+```bash
+python3 run_arrangement.py sitting --session S        # NTP check, locked calibration at P3, pose check, lock copied to L2
+python3 run_arrangement.py arrangement --session S --arrangement A01 --ordering A   # guided P1..P5 sweep
+python3 pose_check.py --image IMG --lock-config ~/cmpe249/configs/capture_lock.json --golden ~/cmpe249/golden/ref_final.jpg
+python3 qc_session.py --session-dir ~/cmpe249/data/S  # hashes, metadata, pixel stats, registration; no target labels
+```
+
+`ecc.py` holds the shared image registration (ECC translation/euclidean). It gives the same results on OpenCV 4.10 (Pi) and 5.0 (GB10).
+The pose thresholds in `configs/capture_lock.json` are proposals, still awaiting decision D17.
 
 ## Tests
 

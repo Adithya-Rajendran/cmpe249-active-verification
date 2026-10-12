@@ -4,6 +4,8 @@
 Runs ON the Raspberry Pi (Python 3.13, standard library only) and wraps `rpicam-still`.
 
     pi_capture.py calibrate --session S --lighting L1          # auto AE/AWB/AF once -> session lock
+    pi_capture.py calibrate --session S --lighting L1 \\
+        --lock-config configs/capture_lock.json                 # or: the study's fixed manual controls
     pi_capture.py shoot --session S --arrangement A01 --position P3 \\
         --role reference --condition visible --lighting L1      # capture with the locked controls
     pi_capture.py status --session S                            # what has been captured so far
@@ -39,8 +41,10 @@ import time
 from pathlib import Path
 
 TOOL_NAME = "pi_capture.py"
-TOOL_VERSION = "0.2.0"  # 0.2.0: validates JPEG + metadata, checks FoV/size, Lux guard fixes, copy-from takes its own Lux shot
+TOOL_VERSION = "0.3.0"  # 0.3.0: calibrate --lock-config (fixed manual controls from configs/capture_lock.json)
+# 0.2.0: validates JPEG + metadata, checks FoV/size, Lux guard fixes, copy-from takes its own Lux shot
 SCHEMA = "cmpe249.capture.v1"
+LOCK_CONFIG_SCHEMA = "cmpe249.capture_lock.v1"
 
 POSITIONS = ("P1", "P2", "P3", "P4", "P5")
 ROLES = ("reference", "query")
@@ -282,6 +286,67 @@ def locked_cmd(rpicam: str, entry: dict, img: Path, meta: Path) -> list[str]:
         "--lens-position", f"{c['lens_position']:g}"]
 
 
+def scaler_crop_ints(v) -> list[int] | None:
+    """ScalerCrop as four integers: rpicam reports "(0, 0)/4608x2592", other tools [0, 0, 4608, 2592]."""
+    if v is None:
+        return None
+    return [int(x) for x in re.findall(r"-?\d+", str(v))]
+
+
+def _is_num(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def load_lock_config(path_str: str) -> tuple[dict, dict]:
+    """Read and validate configs/capture_lock.json. Returns (controls, record) where `record` is
+    the lock entry's `lock_config` block. Any problem is a CaptureError (exit 2)."""
+    path = Path(path_str).expanduser().resolve()
+    try:
+        raw = path.read_bytes()
+        cfg = json.loads(raw)
+    except OSError as e:
+        raise CaptureError(f"--lock-config {path}: cannot read ({e.strerror or e})")
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise CaptureError(f"--lock-config {path}: not valid JSON ({e})")
+    bad = []
+    if not isinstance(cfg, dict) or cfg.get("schema") != LOCK_CONFIG_SCHEMA:
+        raise CaptureError(f"--lock-config {path}: schema must be {LOCK_CONFIG_SCHEMA!r}, got "
+                           f"{cfg.get('schema') if isinstance(cfg, dict) else type(cfg).__name__!r}")
+    lk = cfg.get("lock")
+    if not isinstance(lk, dict):
+        raise CaptureError(f"--lock-config {path}: missing 'lock' object")
+    size = lk.get("size")
+    size_key = (f"{size[0]}x{size[1]}" if isinstance(size, list) and len(size) == 2
+                and all(isinstance(x, int) and not isinstance(x, bool) for x in size) else None)
+    if size_key not in SIZES:
+        bad.append(f"lock.size must be one of {[list(v) for v in SIZES.values()]}, got {size!r}")
+    sh = lk.get("shutter_us")
+    if not (isinstance(sh, int) and not isinstance(sh, bool) and sh > 0):
+        bad.append(f"lock.shutter_us must be an integer > 0, got {sh!r}")
+    g = lk.get("gain")
+    if not (_is_num(g) and g > 0):
+        bad.append(f"lock.gain must be a number > 0, got {g!r}")
+    awb = lk.get("awb_gains")
+    if not (isinstance(awb, list) and len(awb) == 2 and all(_is_num(x) and x > 0 for x in awb)):
+        bad.append(f"lock.awb_gains must be two numbers > 0, got {awb!r}")
+    lp = lk.get("lens_position")
+    if not (_is_num(lp) and 0.0 <= lp <= 15.0):
+        bad.append(f"lock.lens_position must be within 0..15 dioptres, got {lp!r}")
+    crop = lk.get("scaler_crop")
+    if crop is not None and len(scaler_crop_ints(crop)) != 4:
+        bad.append(f"lock.scaler_crop must hold four integers, got {crop!r}")
+    if bad:
+        raise CaptureError(f"--lock-config {path}: " + "; ".join(bad))
+    controls = {"shutter_us": sh, "gain": float(g), "awb_gains": [float(awb[0]), float(awb[1])],
+                "lens_position": float(lp), "lens_source": "lock-config"}
+    record = {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(), "schema": cfg["schema"],
+              "lock_version": cfg.get("lock_version"), "size_key": size_key,
+              "scaler_crop": scaler_crop_ints(crop),
+              "not_enforced": ["frame_duration_limits_us (rpicam-still command does not set it)",
+                               "lens approach direction (rpicam-still sets the lens position directly)"]}
+    return controls, record
+
+
 def lighting_check(cal_lux, lux) -> tuple[dict, str | None]:
     """Compare rpicam's Lux estimate with the calibration shot's. Returns (record, warning or None).
     A missing Lux value is reported, not silently skipped."""
@@ -303,6 +368,17 @@ def cmd_calibrate(a) -> int:
     root = Path(a.root).expanduser()
     sdir = session_dir(root, a.session)
     lighting = check(RE_TOKEN, a.lighting, "lighting label", "L1")
+    cfg_controls = cfg_record = None
+    if a.lock_config:
+        # the controls, size and rotation come from the file; refuse options that would otherwise be
+        # silently ignored (same pattern as --copy-from)
+        given = [f for f, v in (("--copy-from", a.copy_from), ("--lens-position", a.lens_position),
+                                ("--af-range", a.af_range), ("--size", a.size), ("--rotation", a.rotation))
+                 if v is not None]
+        if given:
+            raise CaptureError(f"--lock-config sets the controls, size and rotation from the file; "
+                               f"{', '.join(given)} cannot be combined with it")
+        cfg_controls, cfg_record = load_lock_config(a.lock_config)
     if a.copy_from:
         # a copied lock keeps the source lock's controls and capture settings; refuse options that
         # would otherwise be silently ignored
@@ -312,9 +388,9 @@ def cmd_calibrate(a) -> int:
         if given:
             raise CaptureError(f"--copy-from reuses the source lock's controls and capture settings; "
                                f"{', '.join(given)} cannot be combined with it")
-    size = a.size or DEFAULT_SIZE
+    size = cfg_record.pop("size_key") if cfg_record else (a.size or DEFAULT_SIZE)
     quality = a.quality if a.quality is not None else DEFAULT_QUALITY
-    rotation = a.rotation if a.rotation is not None else DEFAULT_ROTATION
+    rotation = 0 if cfg_record else (a.rotation if a.rotation is not None else DEFAULT_ROTATION)
     shoot_settle_ms = a.shoot_settle_ms if a.shoot_settle_ms is not None else DEFAULT_SHOOT_SETTLE_MS
     af_range = a.af_range or DEFAULT_AF_RANGE
     if size not in SIZES:
@@ -355,7 +431,11 @@ def cmd_calibrate(a) -> int:
         if img.exists() or meta.exists():
             raise CaptureError(f"refusing to overwrite existing calibration file {img}", EXIT_OVERWRITE)
         tmp_img, tmp_meta = cal_dir / f".{lock_id}.partial.jpg", cal_dir / f".{lock_id}.partial.meta.json"
-        if src:
+        if cfg_controls:
+            # The study's fixed manual controls: the same locked-still path as --copy-from (manual
+            # --shutter/--gain/--awbgains/--lens-position turn AE, AWB and AF off in rpicam-still).
+            cmd = locked_cmd(a.rpicam, {"controls": cfg_controls, "capture": capture}, tmp_img, tmp_meta)
+        elif src:
             # Same controls as the source lock, but a still of its own under the new lighting: its Lux
             # is the reference for this lighting's ambient-light guard (the source lock's Lux was
             # measured under the other lighting).
@@ -373,7 +453,15 @@ def cmd_calibrate(a) -> int:
             return 0
         cal_dir.mkdir(parents=True, exist_ok=True)
         wall, md, (iw, ih), log = take_still(cmd, cal_dir, lock_id, img)
-        if src:
+        if cfg_controls:
+            controls = dict(cfg_controls)
+            lc = lock_check(controls, md, None, [iw, ih], [capture["width"], capture["height"]])
+            if cfg_record["scaler_crop"] is not None:
+                rep_crop = scaler_crop_ints(md.get("ScalerCrop"))
+                lc["scaler_crop"] = {"requested": cfg_record["scaler_crop"], "reported": md.get("ScalerCrop"),
+                                     "ok": rep_crop == cfg_record["scaler_crop"]}
+                lc["ok"] = all(v["ok"] for k, v in lc.items() if isinstance(v, dict))
+        elif src:
             controls = dict(src["controls"])
             lc = lock_check(controls, md, src["calibration"].get("metadata"), [iw, ih], [capture["width"], capture["height"]])
         else:
@@ -397,9 +485,11 @@ def cmd_calibrate(a) -> int:
                             "image_size": [iw, ih], "command": cmd, "wall_s": round(wall, 3), "metadata": md,
                             "lux": md.get("Lux"), "af_state": md.get("AfState"),
                             "focus_fom": md.get("FocusFoM"), "lock_check": lc,
-                            "exposure": "locked controls of " + src["lock_id"] if src else "auto AE/AWB",
+                            "exposure": ("manual controls from lock config" if cfg_controls
+                                         else "locked controls of " + src["lock_id"] if src else "auto AE/AWB"),
                             "rpicam_version": rpicam_version(a.rpicam)},
-            "copied_from": src["lock_id"] if src else None, "reason": a.reason, "note": a.note,
+            "copied_from": src["lock_id"] if src else None, "lock_config": cfg_record,
+            "reason": a.reason, "note": a.note,
             "supersedes": prev["lock_id"] if prev else None, "tool_version": TOOL_VERSION}
         write_json_exclusive(meta, {"schema": SCHEMA, "kind": "calibration", "lock": entry})
         lock["locks"][lighting] = entry
@@ -415,7 +505,7 @@ def cmd_calibrate(a) -> int:
           f"lens {c['lens_position']} D ({c['lens_source']}); lux {entry['calibration'].get('lux')}"
           + (f"; controls copied from {entry['copied_from']}" if entry["copied_from"] else ""))
     print(f"lock file: {lock_path}")
-    if not entry["copied_from"] and a.lens_position is None:
+    if not entry["copied_from"] and not cfg_controls and a.lens_position is None:
         print("NOTE: autofocus may lock onto the background rather than the workspace (see "
               "notes/2026-09-26-camera-check.md); prefer --lens-position 100/<distance_cm>.")
     _, warn = lighting_check(entry["calibration"].get("lux"), entry["calibration"].get("lux"))
@@ -423,7 +513,7 @@ def cmd_calibrate(a) -> int:
         print("WARNING:", warn)
     lc = entry["calibration"].get("lock_check")
     if lc and not lc["ok"]:
-        print("WARNING: camera did not apply the copied controls "
+        print(f"WARNING: camera did not apply the {'lock-config' if cfg_controls else 'copied'} controls "
               f"{[k for k, v in lc.items() if isinstance(v, dict) and not v['ok']]}; see the calibration sidecar")
     return 0
 
@@ -640,7 +730,8 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--rpicam", default=os.environ.get("RPICAM_STILL", "rpicam-still"), help=argparse.SUPPRESS)
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    c = sub.add_parser("calibrate", parents=[common], help="auto AE/AWB/AF once and write the session lock")
+    c = sub.add_parser("calibrate", parents=[common],
+                       help="auto AE/AWB/AF once (or fixed controls from --lock-config) and write the session lock")
     c.add_argument("--lighting", required=True, help="lighting label this lock is for, e.g. L1")
     # defaults are applied in cmd_calibrate so that --copy-from can refuse options it would ignore
     c.add_argument("--size", choices=list(SIZES), help=f"default {DEFAULT_SIZE}")
@@ -656,6 +747,9 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--copy-from", metavar="LIGHTING",
                    help="reuse the controls of another lighting's lock; a still is taken with those controls "
                         "under the new lighting as its Lux reference")
+    c.add_argument("--lock-config", metavar="PATH",
+                   help="take shutter, gain, AWB gains, lens position and size from a capture_lock.json "
+                        "(schema cmpe249.capture_lock.v1) instead of running AE/AWB/AF")
     c.add_argument("--recalibrate", action="store_true", help="replace an existing lock (needs --reason)")
     c.add_argument("--reason")
     c.add_argument("--note")

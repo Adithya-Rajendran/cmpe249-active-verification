@@ -1,13 +1,15 @@
 """Analysis for the 2026-09-26 Pi camera check (runs on the GB10, not the Pi).
 
-Run with an ephemeral uv environment, e.g.
-    uv run --no-project --with numpy --with pillow --with matplotlib \
-        python capture/camera_check/analyze_camcheck.py focus --data data/raw/2026-09-26_camera-check
+Run in the project's uv environment (numpy, pillow, matplotlib, opencv), e.g.
+    uv run --no-sync python capture/camera_check/analyze_camcheck.py focus --data data/raw/2026-09-26_camera-check
+(`drift` needs OpenCV for capture/ecc.py; the other subcommands still run in the old ephemeral env
+ `uv run --no-project --with numpy --with pillow --with matplotlib`.)
 
 Subcommands
     focus    sharpness (variance of Laplacian) vs manual lens position, per region of interest
     repeat   frame-to-frame differences and metadata drift, full-auto vs locked controls
-    drift    locked frames spaced in time (ambient-light drift)
+    drift    locked frames spaced in time (ambient-light drift); image shifts by ECC translation
+             (capture/ecc.py, sigma 1.5). --estimator phase selects the deprecated phase_shift.
     fov      footprint of the datasheet field of view at given distances / heights / tilts
     previews small downscaled previews for the lab notebook
 
@@ -358,8 +360,21 @@ def plot_repeat(a, out, stacks):
 
 
 # ----------------------------------------------------------------------------- drift
+def ecc_shift(a: np.ndarray, b: np.ndarray):
+    """Translation of b relative to a (px): (dx, dy, cc) from capture/ecc.py ecc_translation
+    (intensity mode, Gaussian sigma 1.5, 24 px border excluded). Inputs are copied by ecc.py."""
+    cap = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    if cap not in sys.path:
+        sys.path.insert(0, cap)
+    import ecc  # capture/ecc.py; needs OpenCV (project uv env)
+    r = ecc.ecc_translation(a, b, sigma=1.5, mode="intensity")
+    return float(r.dx), float(r.dy), float(r.cc)
+
+
 def phase_shift(a: np.ndarray, b: np.ndarray):
-    """Translation of b relative to a (px) by phase correlation with parabolic sub-pixel peak."""
+    """DEPRECATED - kept only as a comparison (data/raw/2026-09-26_case-check/scripts/
+    shift_recheck_camcheck.py imports it). Unstable at sub-pixel scale (case check section 2.11);
+    use ecc_shift. Translation of b relative to a (px) by phase correlation with parabolic sub-pixel peak."""
     wy = np.hanning(a.shape[0])[:, None]
     wx = np.hanning(a.shape[1])[None, :]
     A = np.fft.fft2((a - a.mean()) * wy * wx)
@@ -391,11 +406,14 @@ def cmd_drift(a):
             if f"-o {rel} " in line:
                 times.append(line.split()[0])
     st["log_times"] = times
+    shift = ecc_shift if a.estimator == "ecc" else phase_shift
+    st["shift_estimator"] = ("ecc_translation (capture/ecc.py, intensity, sigma 1.5)" if a.estimator == "ecc"
+                             else "phase_shift (DEPRECATED)")
     g0 = luma(files[0])
-    st["shift_vs_first_px"] = [phase_shift(g0, luma(f))[:2] for f in files[1:]]
+    st["shift_vs_first_px"] = [shift(g0, luma(f))[:2] for f in files[1:]]
     for ref in a.shift_refs:
         fs = sorted(glob.glob(os.path.join(a.data, ref)))
-        st.setdefault("shift_last_vs_first_other", {})[ref] = phase_shift(luma(fs[0]), luma(fs[-1]))[:2]
+        st.setdefault("shift_last_vs_first_other", {})[ref] = shift(luma(fs[0]), luma(fs[-1]))[:2]
     with open(os.path.join(a.out, "drift_summary.json"), "w") as fo:
         json.dump(st, fo, indent=2)
     print("shift vs first (dx, dy px):", [(round(x, 2), round(y, 2)) for x, y in st["shift_vs_first_px"]])
@@ -638,6 +656,8 @@ def main(argv=None):
     d.add_argument("--out", required=True)
     d.add_argument("--fig")
     d.add_argument("--shift-refs", nargs="*", default=["rep/locked_*.jpg", "rep/auto_*.jpg"])
+    d.add_argument("--estimator", choices=["ecc", "phase"], default="ecc",
+                   help="image-shift estimator: ecc (default, capture/ecc.py) or phase (deprecated phase_shift)")
     v = sub.add_parser("fov")
     v.add_argument("--hfov", type=float, default=66.0)
     v.add_argument("--vfov", type=float, default=41.0)

@@ -376,3 +376,128 @@ string-searched. Table I of INSPECT was read from `curl https://arxiv.org/html/2
 **Not re-checked:** Atanasov et al., VAP-TAMP, the abstract-only screen, and the PlenoCI mention
 (2609.28930). PlenoCI is named in the Method section but not discussed anywhere.
 
+
+## Addendum 2026-10-02: PBD-AG supplement
+
+*Appended October 2, 2026. Earlier sections are unchanged. Prepared with Claude Code for the student to review. This is a literature check and contains no experimental results.*
+
+### Bottom line
+
+1. **The PBD-AG supplementary material is not publicly available.** I could not find the supplement document itself (the PDF/appendix that the paper cites) anywhere I looked (see "Where I looked"). The quantitative results of the "paired acquisition experiments" are therefore **still unverified**.
+2. **There is a public code repository with the frozen protocol for the supplement's active-inspection experiment.** It is `daxiaozhizhiwu/PBD-AG` on GitHub. It contains a file named `FROZEN_PROTOCOL.md` under `configs/simulation/generated/aaai27_supp_active_inspection_20260730_v1/`, headed "Frozen supplementary active-inspection protocol", plus the generated configs and the summary script. The repository is not linked from the arXiv page or the project page, but its README links to the project page. I take it to be the authors' code. That is likely, but the owner handle is not one of the listed author names, so it is not confirmed.
+3. **Verdict: the distinction holds.** The protocol shows that the "paired acquisition experiments" compare rules for choosing *which fixture (support surface) to inspect next*. The score is fine-object mapping F1 in one simulated scene. They do not choose views to decide whether a *specific remembered object* is present, removed, or undecidable. They have no shared decision/stopping rule, no UNKNOWN output, and no occluded-present controls. This verdict rests on the frozen protocol, not on the supplement's reported results (see "What remains unverified").
+
+### Where I looked (October 2, 2026, about 13:20–13:30 PDT)
+
+| Source | What I found |
+| --- | --- |
+| arXiv abstract page, `https://arxiv.org/abs/2608.10449` | Versions v1 (Aug 11, 2026) and v2 (Aug 12, 2026); `/abs/2608.10449v3` returns 404. **No ancillary files**: the page has no "Ancillary files" section. No Comments field. The abstract links to a project page. |
+| arXiv LaTeX source, `https://arxiv.org/src/2608.10449v2` | Contains only `main.tex`, the AAAI-2027 style files, the `.bib` and six figures. **No supplement or appendix file.** `main.tex` refers to the supplement three times (quoted below). It has no commented-out supplementary text. |
+| arXiv HTML and PDF (v1, v2) | Same main text as already read on Sep 26. No appendix. |
+| Project page, `https://shuobao214.github.io/PBD-AG/` (repo `shuobao214/PBD-AG`) | Abstract, figures, headline numbers, two demo videos (`static/videos/simulation-demo.mp4`, `real-robot-demo.mp4`), BibTeX ("Preprint, under review"). **No supplement link.** The full repo tree, listed through the GitHub API, has only `index.html`, CSS, images and the two videos. Guessed paths (`supplementary.pdf`, `static/supplementary.pdf`, `static/pdfs/supplementary.pdf`, `static/pdfs/supplementary_material.pdf`, `supp.pdf`, `static/pdf/supplementary.pdf`) all return 404. |
+| GitHub search "PBD-AG" | `daxiaozhizhiwu/PBD-AG`, a code repository (a DREAM fork with Unitree G1 integration). Read at commit `9668760213b8868ef94275b46923ffaa50beadd3` (Aug 24, 2026; last push Sep 9, 2026). Its README links to the project page. It contains the supplement protocol, configs and summary tooling, but **no supplement document and no result artifacts** for that experiment. |
+| OpenReview API, search "PBD-AG" and the full title | No matching note. If AAAI-27 reviews are on OpenReview, the submissions are not public. |
+| Web search, `"PBD-AG" persistent baseline-delta active graphs supplementary material` | Only the arXiv PDF. No supplement. |
+| Semantic Scholar | Rate-limited (HTTP 429); not used. |
+
+### What the main text says the supplement contains (arXiv source v2)
+
+- §3.3 (Evidence-Gated Persistent Update): "Exact fixture gates and fragment-attachment thresholds are reported in the supplementary material."
+- §4.1 (Experimental Setup): "Development and run-selection provenance, resolved configurations, and artifact hashes are provided in the supplementary material."
+- §4.4 (Physical-Robot Demonstration): "The supplementary video provides the complete temporal rollout together with additional qualitative deployments on multiple robot platforms ... These demonstrations assess system integration and transfer qualitatively and are not included in the quantitative comparisons above."
+- §1 (contributions) promises "three controlled evaluation protocols that separately isolate representation, temporal-memory, and active-acquisition effects: shared fixed-trajectory replay, a shared-observation dynamic benchmark, and paired independent active rollouts." The main text reports only the first two. The third appears only in the Conclusion: "Paired acquisition experiments further support graph-conditioned fixture prioritization under bounded budgets."
+
+### What the supplement adds, as far as the public protocol shows
+
+The source is `FROZEN_PROTOCOL.md` and `matrix_manifest.json` (freeze date 2026-07-30) in the code repository. Item by item:
+
+- **Question.** "For fixtures that have already been promoted into the authoritative graph and still require close-range inspection, does graph-state uncertainty improve the ordering/efficiency trade-off beyond proximity alone?"
+- **Policies compared (fixture target ranking, not view selection).**
+  - `combined` = "0.8 * graph uncertainty + 0.2 * proximity" (the paper's Eq. 5)
+  - `uncertainty_only`
+  - `proximity_only`
+  - `frontier_only`: "fixture inspection disabled; this is an exploration lower bound, not a target ranking method"
+  - The view *within* a fixture is chosen by the same Eq. 6 cost for every policy. The "Fairness lock" says "The only policy-dependent settings are the fixture-priority switch and fixture target-ranking rule."
+- **Budgets.** "each run stops at the first of 300 semantic keyframes or 75 m of executed navigation"; a "Fine-inspection transaction cap: six per run". A post-hoc "equal-call-budget audit" re-scores the stored ledgers at 15, 20, 25 and 30 fine-model calls.
+- **Evaluation size.**
+  - One scene, `hotel_suite_large` (OmniGibson).
+  - Formal paired seeds 37, 47, 57, 67, 77: 4 policies × 5 seeds = "All 20 formal runs".
+  - Dev smoke seed 31, "excluded from every formal aggregate".
+- **Metrics.**
+  - Terminal coarse and fine precision/recall/F1.
+  - Completed, failed, infeasible and redundant inspections.
+  - Path length and model calls.
+  - "fine-recall gain per completed inspection and per metre".
+  - "paired per-seed differences".
+  - **No existence/removal metric, no false-absence metric, and no abstain category** are listed.
+- **How the decision criterion was set.** "The combined policy meets the intended efficiency criterion if its terminal fine F1 is within 0.01 of the best single-term ranking while it reduces failed, redundant, or total inspection transitions ... on a majority of formal seeds. Otherwise ... the conclusion is reported as a ranking trade-off." This is a predeclared, hand-set margin; no statistical test is named.
+- **Thresholds and how they were chosen.**
+  - Everything numeric in the main text is stated as fixed: $(\eta_o,\eta_c,\eta_m,\eta_r)=(1.0,1.8,0.70,2.20)$ "frozen increments"; the 0.15 m depth tolerance; "at least two samples"; publish at $p\ge0.72$; demote $<0.30$; remove $\le0.12$ after $\ge3$ admissible misses; the Eq. 5 and 6 weights.
+  - The text says "All transforms and weights are fixed before evaluation" (§3.4) and "A single scene-level taxonomy and parameterization is held fixed across the three reported seeds, with no seed-specific setting" (§4.1).
+  - **How** these values were chosen is deferred to the "development and run-selection provenance" in the unavailable supplement. The public protocol describes only a development smoke seed, not a threshold-search procedure. **Unverified:** whether any threshold was tuned, and on what.
+- **Any comparison of view-selection policies?** Only at the fixture-target level, as listed above.
+  - The repository also has an older, broader plan: `configs/baseline/pbd_ag_paper_baselines.yaml` lists active methods `nearest, random, frontier, geometry_only, vlfm, pbd_ag`, and a July 21 draft generator (`tools/generate_pbd_ag_aaai_full_paper.py`) describes a "(P3) Active independent rollout" against "VLFM, frontier, nearest-fixture, random, and geometry-only strategies" with all cells "TBD".
+  - These rank *exploration frontiers or fixtures* for mapping. They do not choose views to verify one object. I found no evidence they were run for the submitted version, and the frozen supplement protocol replaced them with the four fixture-ranking policies.
+- **Any abstain/unknown output?** None as a reported output.
+  - The closest thing is the lifecycle `demote` state ($p<0.30$, before `remove` at $\le0.12$; §3.3). Functionally it is an "uncertain, not yet removed" band, but it is not evaluated as a decision category.
+  - Table 2's dagger notes that append-only and static-only have zero false absence only "because disappearance is never resolved". That is an implicit acknowledgement of the coverage–risk trade-off, but no abstention rate is reported.
+- **Occlusion controls?**
+  - In the main text, occlusion enters only through the visibility-gate ablation (§4.3, Table 2: false absence 0.014 with the gate vs 0.262 without; 3 Hotel seeds, 12 scheduled events; false absence "over ground-truth-present eligible checkpoints", count not stated).
+  - The supplement protocol has no occluded-present condition. Nothing pairs an occluded-but-present object with a removed one.
+- **Unrelated side branch.** `branches/large_rect_table_active_inspection/` is an online coverage-driven next-best-view loop for finding objects on a 6 m × 2 m table. Its README says the stopping condition does not read the ground-truth object count. It is a standalone branch, not referenced in the paper, and it is about coverage and discovery, not removal verification.
+
+### Overlap with the project's distinction
+
+The distinction under test:
+- **PLAN G1:** "No paper compares view selectors for present/removed(/unknown) verification of a remembered instance, with occluded-present controls, under shared stopping."
+- **This document:** the recommended distinction statement and failure condition 1, whose "most concrete unchecked lead is the PBD-AG supplement ('paired acquisition experiments ... under bounded budgets')".
+
+| Element of the distinction | PBD-AG main text + public supplement protocol | Overlap? |
+| --- | --- | --- |
+| Compares view-selection policies | Compares *fixture-target* ranking rules (combined / uncertainty / proximity / frontier). The view within a fixture is the same Eq. 6 cost for all. | Partial in form (paired policies under matched path and call budgets). Different object of choice. |
+| Per remembered instance, present / removed / unknown | Map-level fine-object F1. Removal is a passive lifecycle outcome, not the target of the acquisition experiment. No unknown. | No |
+| Occluded-present controls | None in the acquisition experiment. The gate ablation is on a dynamic stream, not paired occluded/removed episodes. | No |
+| Shared stopping / decision rule across policies | The lifecycle update is shared, but runs stop on budget exhaustion (300 keyframes / 75 m / 6 transactions), not on a verification decision. | No (shared update, not shared stopping) |
+| False removals reported per policy | Not a listed metric of the acquisition experiment. | No |
+| Matched view and travel budgets | Yes: matched path cap, keyframe cap and call cap, paired by seed. | **Yes**. This part of our protocol is standard practice, not a distinction. |
+
+### Verdict: the distinction holds
+
+The "paired acquisition experiments" are the only part of PBD-AG I had not seen in a primary source. They are about prioritising *which fixture to inspect* for map completeness. They are not about *which view* settles whether a remembered object is removed or only occluded. The project's distinction therefore stands as written in the recommended statement. Nothing in it needs to change because of the supplement.
+
+What the protocol does show is that matched-budget, paired-seed policy comparisons with a frozen protocol are already the norm in this line of work. The project should not describe "matched budgets" or "paired comparison" as novel, and the current statement does not.
+
+### What remains unverified
+
+- The supplement's **reported numbers** for the 20 formal runs and the equal-call-budget audit. The protocol says what they measure, not what they found. A surprising result, such as an added existence or false-absence analysis, cannot be ruled out.
+- The "**exact fixture gates and fragment-attachment thresholds**" and the "**development and run-selection provenance**", i.e. how PBD-AG's constants were chosen.
+- Whether the submitted supplement matches the July 30 frozen protocol. It could add experiments not in the repository; the main text does not list the supplement's contents.
+- Who owns `daxiaozhizhiwu/PBD-AG`. The link to the paper is strong (same name, the project-page link, `aaai27_supp_*` files and constants that match the paper), but the owner is not named on the paper.
+
+**Proposed default — confirm:** treat G1 as passable on this evidence, and note in the gate record that the PBD-AG supplement document was unavailable (only its public protocol was read). Re-check arXiv for a v3 or ancillary files, and AAAI-27 proceedings, before the final report. This is for the student to accept or reject.
+
+### The three closely related papers named in the Oct 2 literature report, as they bear on the distinction
+
+- **PInVerify (2605.30639 v1), re-checked in full text today.**
+  - The final answer is binary. The adaptive rule resolves "conservative No on ties at the final step. Earlier in the episode, non-converged cases remain Unsure" (§5.1). "Unsure" exists only as an internal state that triggers the next view (selection is triggered "When the fusion returns Unsure").
+  - So PInVerify does not evaluate an UNKNOWN output. Its conservative default is *rejection*, the analogue of our false removal, which is the opposite of our conservative default.
+  - Effect: unchanged. The selector-comparison-under-shared-stopping threat stands (and so does its null result), but it **strengthens** the UNKNOWN part of our distinction.
+- **INSPECT (2609.20615 v1).** The verifier returns supported, contradicted or insufficient, and "insufficient claims remain pending"; view choice subtracts a motion cost with hand-set "λd = 0.05 and τ = 0.02" (§IV-A). Each gearbox setup has six start views, and the Uniform baseline "averages the five alternatives".
+  - Effect: abstention plus cost-aware view selection is **not** a distinction we can claim. That was already conceded on Sep 26.
+  - The removed-vs-occluded decision for a remembered object is still absent: occlusion is only "a quality cue".
+  - Unchanged.
+- **Build Once, Monitor Continuously (2409.15493 v4, Jun 19, 2026; full-text targeted reading today). New to this document.**
+  - Removal is a field-of-view miss: an expected node with no same-category match within distance is "removed ... indicating that the corresponding object is no longer present". Objects "outside the FoV are preserved by default, providing implicit robustness against ... temporary occlusions in unobserved regions" (§III-B). An occluded object *inside* the FoV is therefore removed.
+  - The authors concede "The distance-threshold association cannot tell a missed detection apart from a real removal, so it does not separate evidence of absence ... from absence of evidence", and name as future work "interactive perception, where the robot repositions itself to confirm uncertain detections" (§V).
+  - Effect: **supports** the motivation, since a 2026 real-robot system names our problem as open. It does not weaken the distinction, because it has no view selection for verification, no stopping, no unknown and no occlusion controls.
+  - Suggested (student's call): add it to the survey alongside Khronos as evidence that the gap is acknowledged.
+
+### Method for this addendum
+
+Commands, all run on Oct 2, 2026:
+- `curl -sL` of `arxiv.org/abs/2608.10449`, `/abs/...v3`, `/pdf/...v1`, `/pdf/...v2`, `/html/...v2` and `/src/...v2`. The source was unpacked with `tar xzf`; `main.tex` was read in full for §1 and §3.3 through the Conclusion.
+- The project page and the GitHub API trees of `shuobao214/PBD-AG` and `daxiaozhizhiwu/PBD-AG`; raw files fetched from `raw.githubusercontent.com` at the commit above.
+- The OpenReview API (`api2.openreview.net/notes/search`), one WebSearch query, and the Semantic Scholar API (failed, HTTP 429).
+- `pdftotext` and string search for PInVerify v1, INSPECT v1 and Build Once v4.
+
+Quotes were checked by string search against the retrieved files.
