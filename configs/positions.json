@@ -1,6 +1,7 @@
 {
   "schema": "cmpe249.positions.v1",
-  "status": "measured: depth & P3 distance taped 2026-10-09; arc stops not yet taped",
+  "status": "PENDING (2026-10-12): the camera moved to the far spot (~145 cm from the #3 back wall, lens 98 cm above the floor); the far-spot floor stops are not marked yet, so the geometry below is the OLD close-spot arc (2026-10-09) and does not describe the current rig. Values kept unchanged until the student marks and tapes the five far-spot stops.",
+  "pending_note": "Do not use these values for the far-spot pilot. Draft far-spot arcs (not adopted) are in data/raw/2026-10-10_far-camera/positions_far_*_draft.json; the real ones come from the floor marks and taped distances.",
   "note": "Shelf rig, compartment #3 (replaces the design template R=45 cm, +-60 deg, kept at data/raw/2026-10-09_measured-geometry/positions_template_superseded.json; Positions.default() still returns the design values). MEASURED (tape): compartment inner depth 30.5 cm; P3 lens 72.5 cm in front of the shelf front edge. MODELLED: five lens stops on a horizontal arc, R = 90 cm, arc centre 17.5 cm behind the shelf front plane on the compartment centre line (so P3 = the current camera spot); each stop yawed to face the arc centre; same downward tilt at every stop. Replay travel = |delta azimuth| in radians x radius_cm = 35.343 cm per 22.5 deg step. Floor coordinates, frame margins and caps: data/raw/2026-10-09_measured-geometry/arc_measured.txt (layout A).",
   "radius_cm": 90.0,
   "arc_centre_behind_front_cm": 17.5,

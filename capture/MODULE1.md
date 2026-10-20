@@ -7,7 +7,13 @@ win. Report the conflict in your notes instead of resolving it silently. If you 
 shared file you don't own (`ecc.py`, `configs/capture_lock.json`, `fake_rpicam_still.py`, except
 for the one addition given to builder 0), say so in your notes.
 
-Status: **contract v1**. The thresholds marked *(proposed)* wait on the student's D17 decision.
+Status: **contract v1**. D17 was accepted on 2026-10-12 with the relaxed pose/QC values now in
+`configs/capture_lock.json`, and the pose check has been advisory since run_arrangement 1.3.0
+(DECISIONS 2026-10-13, §3.4).
+
+Current versions: `pi_capture.py` 0.4.0, `pose_check.py` 1.1.0, `run_arrangement.py` 1.3.0,
+`qc_session.py` 1.1.1, `tags.py` 0.2.0, `ecc.py` 1.0.0. The sections below give the original v1
+contract; where the code has moved on since, the text says so.
 
 ## 0. Files, owners and hosts
 
@@ -15,11 +21,11 @@ Status: **contract v1**. The thresholds marked *(proposed)* wait on the student'
 | --- | --- | --- | --- |
 | `capture/ecc.py` | done (contract author) | Pi + GB10 | stdlib, numpy, cv2 |
 | `configs/capture_lock.json` | done (contract author) | data | – |
-| `capture/pi_capture.py` → **0.3.0** (§1) | builder 0 | Pi | stdlib only (unchanged rule) |
+| `capture/pi_capture.py` → **0.3.0** (§1), now 0.4.0 | builder 0 | Pi | stdlib only (unchanged rule) |
 | `capture/tests/fake_rpicam_still.py` (one addition, §1.3) | builder 0 | both | stdlib only |
-| `capture/pose_check.py` | builder 1 | Pi (also GB10) | stdlib, numpy, cv2, `ecc` |
-| `capture/run_arrangement.py` | builder 2 | Pi | **stdlib only**; it calls `pi_capture.py` and `pose_check.py` as subprocesses and never imports them |
-| `capture/qc_session.py` | builder 3 | GB10 or Pi | stdlib, numpy, cv2, `ecc` |
+| `capture/pose_check.py` (1.1.0) | builder 1 | Pi (also GB10) | stdlib, numpy, cv2, `ecc` |
+| `capture/run_arrangement.py` (1.3.0) | builder 2 | Pi | **stdlib only**; it calls `pi_capture.py` and `pose_check.py` as subprocesses and never imports them |
+| `capture/qc_session.py` (1.1.1) | builder 3 | GB10 or Pi | stdlib, numpy, cv2, `ecc` |
 | `capture/tests/test_<module>.py`, plus `fake_timedatectl.py` and `fake_pose_check.py` (builder 2) | the builder of that module | both | the module under test, `ecc`, numpy/cv2 if the module uses them |
 
 - **Imports.** Put the `capture/` directory on `sys.path` and use `import ecc` (and
@@ -65,7 +71,8 @@ pi_capture.py calibrate --session S --lighting L1 --lock-config PATH [--shoot-se
 ```
 
 - `--lock-config` cannot be combined with `--copy-from`, `--lens-position`, `--af-range`, `--size`
-  or `--rotation`. Those values come from the file, and rotation is 0. Giving any of them is a
+  or `--rotation`. Those values come from the file. Rotation comes from the optional `lock.rotation`
+  (0 or 180, default 0; pi_capture >= 0.4.0). Giving any of them is a
   `CaptureError` (exit 2) that names the flags, using the same wording pattern as `--copy-from`.
 - **Reading the file** (stdlib `json`):
   - `schema` must equal `"cmpe249.capture_lock.v1"`.
@@ -148,6 +155,12 @@ python3 pose_check.py --image IMG --lock-config PATH --golden PATH
 4. Build `mask = ecc.regions_mask(cfg["masks"]["static_background"]["by_position"]["P3"], w, h)`.
    `ecc.mask_sha256(mask)` must equal `masks.sha256_P3.static_background`; otherwise exit 3. The
    mask is in golden (ref) coordinates.
+   **Null mask (1.1.0).** If that P3 mask is null, there is no sha check. Step 5 uses
+   `t, mask = ecc.ecc_translation_robust(golden, img, ...)` on the full frame (minus ecc's default
+   24 px border), and step 6 runs on the residual mask it returns. The report has
+   `mask.source = "auto_residual"` and `mask.sha256 = null`. `mask.usable_px` is the size of that
+   residual mask, and null only if the robust translation itself fails. This is the same fallback
+   `qc_session` uses (§4.2 `shift`).
 5. Run the translation: `t = ecc.ecc_translation(golden, img, mask=mask, sigma, iters, eps, mode, levels)`,
    then `shift_px = hypot(t.dx, t.dy)`.
 6. Run the roll: `e = ecc.ecc_euclidean(golden, img, mask=mask, ...)`, with the same parameters.
@@ -266,15 +279,19 @@ arrangement id.
 
 ### 3.3 NTP preflight
 
-The `sitting` and `arrangement` subcommands both run the NTP preflight before anything else:
+The `sitting` and `arrangement` subcommands both run the NTP preflight before anything else. Since
+1.2.0 (DECISIONS 2026-10-12) it is a **warning, not a gate**:
 
 ```
 [timedatectl, "show", "-p", "NTPSynchronized", "--value"]   (timeout 10 s)
 ```
 
-It passes only if the exit code is 0 **and** `stdout.strip() == "yes"`. Anything else, including
-a missing binary or a timeout, refuses with exit 20. Every outcome is logged:
-`{"event": "ntp_preflight", "stdout": ..., "returncode": ..., "ok": ...}`.
+It is ok only if the exit code is 0 **and** `stdout.strip() == "yes"`. Anything else, including
+a missing binary or a timeout, prints `WARNING: NTP is not synchronised ...` to stderr and the run
+goes on. Every outcome is logged:
+`{"event": "ntp_preflight", "stdout": ..., "returncode": ..., "ok": ..., ["error": ...], ["warning": ...]}`,
+and the same record is stored as `ntp` in `sitting.json` and in `<ARR>.json` (`resumed_ntp` on
+each `--resume`). Exit 20 is no longer returned.
 
 ### 3.4 `sitting`: start a session at P3
 
@@ -286,7 +303,7 @@ python3 run_arrangement.py sitting --session S [--lock-config PATH] [--golden PA
 The default `--lock-config` and `--golden` are those of §2.1. `--lightings` defaults to `L1,L2`;
 the first label is the primary lighting. Labels must match `pi_capture`'s `RE_TOKEN`.
 
-1. Run the NTP preflight (exit 20 on failure).
+1. Run the NTP preflight (a warning on failure, §3.3).
 2. If `run/sitting.json` exists, exit 24 ("session already has a sitting; start a new session id").
    If the session already has a `lock.json`, also exit 24: this tool makes the session's locks itself.
 3. Prompt: `Camera at P3 (floor mark), lamps set for L1. Enter = calibrate, q = abort`.
@@ -295,13 +312,15 @@ the first label is the primary lighting. Labels must match `pi_capture`'s `RE_TO
    - Then read `<session>/calibration/L1-v1.json`. If `lock.calibration.lock_check.ok` is not
      true, exit 24 (camera did not apply the lock).
 5. Run `[python, pose_check, "--image", <session>/calibration/L1-v1.jpg, "--lock-config", lock_config, "--golden", golden, "--out", run/pose_check_L1-v1.json]`
-   with `timeout=180` s (a timeout counts as an error, exit 21).
-   - Exit 0 → continue.
-   - Exit 10 → prompt `Pose FLAG: <reasons>. c = continue (asks for a note), q = abort`. The note
-     is required and recorded.
-   - Exit 11 → exit 21 ("re-seat the camera on the P3 mark, then start a NEW session id").
-   - Exit 12, 3 or any other code → exit 21.
+   with `timeout=180` s. **Advisory since 1.3.0** (DECISIONS 2026-10-13: "roughly the same spot"
+   is enough, since the evidence step registers every view through the shelf tags):
+   - The run is always logged as `pose_check`. Exit 0 prints `pose OK: ...`.
+   - Any other exit (10 flag, 11 refuse, 12 or 3 error, a timeout, or a tool that cannot be run)
+     prints `WARNING: pose check <VERDICT> vs the golden (...); advisory only, continuing` and is
+     logged as `pose_advisory`. Exit 3 and unknown codes count as verdict `error`.
+   - The sitting always continues. No note is asked for, and exit 21 is never returned.
    - Pose is never re-checked by recalibrating: this tool never passes `--recalibrate`.
+   - Before 1.3.0: flag asked for a note, and refuse/error stopped the sitting with exit 21.
 6. For each further lighting Lk:
    - Prompt `Keep the camera at P3. Switch lamps to Lk. Enter when switched`.
    - Wait `--lamp-settle-s` from that response.
@@ -310,15 +329,15 @@ the first label is the primary lighting. Labels must match `pi_capture`'s `RE_TO
 7. Write `run/sitting.json`:
 
 ```json
-{"schema": "cmpe249.sitting.v1", "tool": {"name": "run_arrangement.py", "version": "1.0.0"},
+{"schema": "cmpe249.sitting.v1", "tool": {"name": "run_arrangement.py", "version": "1.3.0"},
  "session": "S", "created_utc": "...", "created_local": "...", "hostname": "ai-pi",
  "ntp": {"stdout": "yes", "returncode": 0, "ok": true},
  "lock_config": {"path": "...", "sha256": "...", "lock_version": 1},
  "golden": {"path": "...", "sha256": "..."},
  "lightings": ["L1", "L2"],
  "locks": {"L1": "L1-v1", "L2": "L2-v1"},
- "pose": {"file": "run/pose_check_L1-v1.json", "verdict": "ok|flag", "exit_code": 0,
-          "accepted_flag_note": null},
+ "pose": {"file": "run/pose_check_L1-v1.json", "verdict": "ok|flag|refuse|error", "exit_code": 0,
+          "advisory": true, "accepted_flag_note": null},
  "note": null}
 ```
 
@@ -331,9 +350,9 @@ python3 run_arrangement.py plan --arrangement A01 --ordering A|B [--stops ...] [
                                 # prints the slot list as JSON; no session, camera or NTP needed
 ```
 
-**Preconditions.** Any failure exits 24, except NTP (exit 20).
-- The NTP preflight passes (exit 20 otherwise).
-- `run/sitting.json` exists, and its pose verdict is `ok`, or `flag` with an accepted note.
+**Preconditions.** Any failure exits 24. The NTP preflight runs first but only warns (§3.3).
+- `run/sitting.json` exists. Its pose verdict is not checked: since 1.3.0 a verdict other than
+  `ok` is only printed (`note: sitting pose verdict ... (advisory)`).
 - Each lighting in `sitting.lightings` has a current lock in `lock.json`, and its lock id equals
   `sitting.locks[...]`.
 - The arrangement id matches `^(A\d{2}|PILOT\d{2})$`. That is a subset of `pi_capture`'s pattern;
@@ -504,8 +523,8 @@ assert on it.
 | --- | --- |
 | 0 | done (`plan`, `sitting` or `arrangement` complete) |
 | 2 | usage |
-| 20 | NTP not synchronised, or `timedatectl` failed |
-| 21 | pose check refused or errored |
+| 20 | reserved (was: NTP not synchronised; since 1.2.0 that is a warning, §3.3) |
+| 21 | reserved (was: pose refused/errored; advisory since 1.3.0) |
 | 22 | operator abort (`q`) |
 | 23 | a `pi_capture` call failed or refused (stderr is logged) |
 | 24 | precondition failed |
@@ -520,7 +539,8 @@ The fakes:
 - Real `pi_capture.py` with the fake `rpicam-still`, in a temporary root.
 
 Cases:
-1. NTP `no`, non-zero rc, or missing binary → 20, and nothing is written except `run_log.jsonl`.
+1. NTP `no`, non-zero rc, or missing binary → a WARNING on stderr, the sitting completes (exit 0) and
+   `sitting.json` / `<ARR>.json` record `ntp.ok = false` with the warning.
 2. A full `sitting` + `arrangement` under ordering A and under ordering B at L = 2. Check:
    - 40 shots;
    - the exact slot order, compared against `plan` output and a hand-written expected list for the
@@ -530,7 +550,9 @@ Cases:
    - `pi_capture status --json` shows 10 references and 30 queries.
 3. L = 1 (`--lightings L1`): 20 shots, no lamp prompts.
 4. Retake: `r` + reason → take 2 exists, `selected_take == 2`, and the note is in the sidecar.
-5. Pose `flag` with `c` + note → continues. Pose `refuse` → 21, with no L2 calibration.
+5. Pose is advisory: `flag`, `refuse`, `error` and a missing pose tool each print a WARNING, exit 0,
+   and record the verdict, `exit_code` and `advisory: true` in `sitting.json`; an arrangement then
+   passes its preconditions on a `flag` or `refuse` sitting.
 6. `q` mid-phase → 22, `status: aborted`, then `--resume` completes.
 7. `FAKE_RPICAM_FAIL=1` on one shot → retry prompt, then success.
 8. Forbidden flags never appear in any logged command (scan `run_log.jsonl`).
@@ -542,6 +564,12 @@ Cases:
 12. (review fixes) A slow pi_capture "orphan" holding the session lock → `--resume` waits, adopts
     its take and completes; a lock held mid-run → exit 4, prompt, wait, retry (rcs `[4, 0]`); any
     other exit 4 → 23.
+13. Sitting: a lock not applied (`FAKE_RPICAM_SHUTTER=20000`) → 24 with no pose check run; `q` at
+    the first prompt → 22; a bad lock config → 24.
+14. `plan`: slot lists for orderings A and B, roles/conditions/counts, L = 1, bad inputs.
+15. Lamp settle: card text is shown and the tool waits `--lamp-settle-s`.
+16. Real `pose_check.py` smoke test (GB10, skipped if inputs are missing): `ref_lp1.45.jpg` → `ok`;
+    frame e → `flag` (2-5 px) and the sitting still completes.
 
 ## 4. `qc_session.py` (builder 3)
 
@@ -597,7 +625,7 @@ the highest take in `manifest.jsonl`.
 | `ref_vs_golden` | info | P3 references only: shift against the golden, as in pose_check. Needs `--golden`, default as in §2.1. Skipped with an info flag if the golden is unavailable. |
 | `saturation` | flag | Per image: share of pixels with `max(B, G, R) >= saturation_level` inside the region `mug_region.by_position[P]` minus `glare.by_position[P]`. If the region is null, use the full frame (`region_source="full_frame_fallback"`). Flag if the share exceeds `saturation_flag_share`. The glare box share is reported separately as info. |
 | `no_sequencer_log` | flag | `run/sitting.json` is missing: the shots were taken with bare `pi_capture`. |
-| `ntp_not_synced` | fail | `sitting.ntp.ok` is not true. |
+| `ntp_not_synced` | flag | `sitting.ntp.ok` is not true (a warning since run_arrangement 1.2.0). |
 | `pose_flag` / `pose_missing` | flag / fail | The sitting's pose verdict was `flag` (accepted), or no pose record exists while `sitting.json` does. |
 
 Read images with `cv2.imread(path, cv2.IMREAD_COLOR)`; it returns BGR. Registration uses the
@@ -746,12 +774,13 @@ ecc.EccError (RuntimeError)    ecc.ECC_VERSION == "1.0.0"
 | --- | --- |
 | `schema`, `lock_version` | all |
 | `lock.{shutter_us, gain, awb_gains, lens_position, size, scaler_crop, tolerances}` | pi_capture 0.3.0, qc |
+| `lock.rotation` (optional, 0 or 180, default 0) | pi_capture 0.4.0 |
 | `reference.{path, sha256, size, lux}` | pose_check, qc (`path` is repo-relative; on the Pi pass `--golden`) |
 | `masks.static_background.by_position.P*` (null = not drawn yet) | pose_check (P3), qc |
 | `masks.mug_region.by_position.P*`, `masks.glare.by_position.P*` | qc |
 | `masks.sha256_P3.*` | pose_check, qc (refuse on mismatch) |
 | `registration.{mode, sigma, levels, iters, eps}` | pose_check, qc |
-| `pose_check.{flag_px, refuse_px, flag_roll_deg, refuse_roll_deg, min_cc}` | pose_check *(proposed, D17)* |
+| `pose_check.{flag_px, refuse_px, flag_roll_deg, refuse_roll_deg, min_cc}` | pose_check (D17 accepted 2026-10-12, relaxed; advisory since run_arrangement 1.3.0) |
 | `qc.{lux_ratio_guard, shift_flag_px, saturation_level, saturation_flag_share}` | qc *(proposed)* |
 
 Masks for P1, P2, P4 and P5 are null until they are drawn on the catalog-sweep references.

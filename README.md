@@ -6,7 +6,7 @@
 **Selected track:** Track 4 - VLA / robotics  
 **Project format:** Research with a bounded system prototype  
 **Secondary alignment:** Track 6 - Safety and evaluation  
-**Status (2026-09-26, week 3):** Feasibility stage. The week-2 feasibility gate has not been held yet; the target is Oct 5. A capture tool, a camera check, a one-object perception smoke test and a literature novelty check are done. There are no pilot episodes, study data or experimental results yet.
+**Status (2026-10-20):** Pilot stage. The capture tooling, the offline verification core and the evidence step v0 are built. Pilot 1 (one stop, one lighting, 4 targets, 12 queries) is captured. The evidence step gets 48/48 on it, but that is a development figure, because the method was adjusted on these photos ([notes](notes/2026-10-17-first-real-pilot.md)). A held-out pilot 2 is next, with the evidence code frozen. There are no study data or experimental results yet.
 
 ## Abstract
 
@@ -32,6 +32,7 @@ Under a fixed observation and travel budget, does adaptive view selection with c
 - [Novelty check for the week-2 gate](docs/NOVELTY_CHECK.md)
 - [Citation audit](docs/CITATION_AUDIT.md)
 - [Lab notebook: dated entries with figures](notes/)
+- [First real pilot and evidence v0 (2026-10-17)](notes/2026-10-17-first-real-pilot.md)
 
 ## Initial scope
 

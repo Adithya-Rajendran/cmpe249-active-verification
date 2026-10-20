@@ -92,7 +92,7 @@ class TestLockConfigCalibrate(LockConfigBase):
         self.assertEqual(lc["sha256"], hashlib.sha256(Path(self.cfg).read_bytes()).hexdigest())
         self.assertEqual(lc["schema"], "cmpe249.capture_lock.v1")
         self.assertEqual(lc["lock_version"], 1)
-        self.assertEqual(e["tool_version"], "0.3.0")
+        self.assertEqual(e["tool_version"], "0.4.0")
         cmd = e["calibration"]["command"]
         for flag, val in (("--shutter", "25000"), ("--gain", "1.381"), ("--awbgains", "1.5753,2.5111"),
                           ("--lens-position", "1.1"), ("--mode", "2304:1296:10:P"), ("--rotation", "0")):
@@ -175,6 +175,9 @@ class TestLockConfigCalibrate(LockConfigBase):
             "lens_range": mut(lambda c: c["lock"].__setitem__("lens_position", 15.5)),
             "lens_missing": mut(lambda c: c["lock"].pop("lens_position")),
             "crop": mut(lambda c: c["lock"].__setitem__("scaler_crop", [0, 0, 4608])),
+            "rotation_90": mut(lambda c: c["lock"].__setitem__("rotation", 90)),
+            "rotation_str": mut(lambda c: c["lock"].__setitem__("rotation", "180")),
+            "rotation_bool": mut(lambda c: c["lock"].__setitem__("rotation", True)),
         }
         for name, cfg in cases.items():
             with self.subTest(case=name):
@@ -233,12 +236,28 @@ class TestLockConfigCalibrate(LockConfigBase):
         self.assertEqual(self.lock()["locks"]["L1"]["lock_id"], "L1-v2")
 
     @unittest.skipUnless(REAL_CONFIG.exists(), "configs/capture_lock.json not deployed here")
+    def test_rotation_from_lock_config(self):
+        c = copy.deepcopy(CONFIG)
+        c["lock"]["rotation"] = 180
+        self.assertEqual(self.calibrate(cfg=self.write_cfg(c, "rot180.json"))[0], 0)
+        e = self.lock()["locks"]["L1"]
+        self.assertEqual(e["capture"]["rotation"], 180)
+        cmd = e["calibration"]["command"]
+        self.assertEqual(cmd[cmd.index("--rotation") + 1], "180")
+        code, out, err = self.run_tool("shoot", "--session", "S1", "--arrangement", "A01", "--position", "P3",
+                                       "--role", "reference", "--condition", "visible", "--lighting", "L1",
+                                       "--dry-run")
+        self.assertEqual(code, 0, err)
+        self.assertIn("--rotation 180", out)
+
     def test_real_repo_config(self):
         code, _, err = self.calibrate(cfg=str(REAL_CONFIG))
         self.assertEqual(code, 0, err)
         e = self.lock()["locks"]["L1"]
-        self.assertEqual(e["controls"], WANT_CONTROLS)
+        real_lock = json.loads(REAL_CONFIG.read_text())["lock"]  # the deployed lens position (0.75 at the far spot)
+        self.assertEqual(e["controls"], {**WANT_CONTROLS, "lens_position": real_lock["lens_position"]})
         self.assertTrue(e["calibration"]["lock_check"]["ok"])
+        self.assertEqual(e["capture"]["rotation"], real_lock.get("rotation", 0))
 
 
 class TestFakeImage(unittest.TestCase):

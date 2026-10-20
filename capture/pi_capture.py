@@ -41,7 +41,7 @@ import time
 from pathlib import Path
 
 TOOL_NAME = "pi_capture.py"
-TOOL_VERSION = "0.3.0"  # 0.3.0: calibrate --lock-config (fixed manual controls from configs/capture_lock.json)
+TOOL_VERSION = "0.4.0"  # 0.4.0: optional lock.rotation (0/180) in the lock config; 0.3.0: calibrate --lock-config (fixed manual controls from configs/capture_lock.json)
 # 0.2.0: validates JPEG + metadata, checks FoV/size, Lux guard fixes, copy-from takes its own Lux shot
 SCHEMA = "cmpe249.capture.v1"
 LOCK_CONFIG_SCHEMA = "cmpe249.capture_lock.v1"
@@ -335,12 +335,15 @@ def load_lock_config(path_str: str) -> tuple[dict, dict]:
     crop = lk.get("scaler_crop")
     if crop is not None and len(scaler_crop_ints(crop)) != 4:
         bad.append(f"lock.scaler_crop must hold four integers, got {crop!r}")
+    rot = lk.get("rotation", 0)  # optional; 180 = camera mounted upside down (hardware/pi_case)
+    if not (isinstance(rot, int) and not isinstance(rot, bool) and rot in (0, 180)):
+        bad.append(f"lock.rotation must be 0 or 180, got {rot!r}")
     if bad:
         raise CaptureError(f"--lock-config {path}: " + "; ".join(bad))
     controls = {"shutter_us": sh, "gain": float(g), "awb_gains": [float(awb[0]), float(awb[1])],
                 "lens_position": float(lp), "lens_source": "lock-config"}
     record = {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(), "schema": cfg["schema"],
-              "lock_version": cfg.get("lock_version"), "size_key": size_key,
+              "lock_version": cfg.get("lock_version"), "size_key": size_key, "rotation": rot,
               "scaler_crop": scaler_crop_ints(crop),
               "not_enforced": ["frame_duration_limits_us (rpicam-still command does not set it)",
                                "lens approach direction (rpicam-still sets the lens position directly)"]}
@@ -390,7 +393,7 @@ def cmd_calibrate(a) -> int:
                                f"{', '.join(given)} cannot be combined with it")
     size = cfg_record.pop("size_key") if cfg_record else (a.size or DEFAULT_SIZE)
     quality = a.quality if a.quality is not None else DEFAULT_QUALITY
-    rotation = 0 if cfg_record else (a.rotation if a.rotation is not None else DEFAULT_ROTATION)
+    rotation = cfg_record["rotation"] if cfg_record else (a.rotation if a.rotation is not None else DEFAULT_ROTATION)
     shoot_settle_ms = a.shoot_settle_ms if a.shoot_settle_ms is not None else DEFAULT_SHOOT_SETTLE_MS
     af_range = a.af_range or DEFAULT_AF_RANGE
     if size not in SIZES:

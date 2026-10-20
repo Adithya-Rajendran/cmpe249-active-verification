@@ -2,7 +2,9 @@
 """Camera pose check at the start of a sitting (CMPE 249 active verification, capture module 1).
 
 Registers a fresh P3 still (normally the sitting's L1 calibration still) to the golden P3
-reference (`ref_final.jpg`) on the static-background mask with `ecc.py`, and judges the pose:
+reference (`ref_final.jpg`) on the static-background mask with `ecc.py`, and judges the pose. When
+the config's P3 static_background mask is null, it registers on the full frame with
+ecc.ecc_translation_robust instead (mask source "auto_residual", as qc_session):
 
     python3 pose_check.py --image <session>/calibration/L1-v1.jpg \\
         --lock-config ~/cmpe249/configs/capture_lock.json --golden ~/cmpe249/golden/ref_final.jpg \\
@@ -38,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ecc  # noqa: E402
 
 TOOL_NAME = "pose_check.py"
-TOOL_VERSION = "1.0.0"
+TOOL_VERSION = "1.1.0"  # 1.1.0: a null P3 static_background mask -> auto_residual fallback
 SCHEMA = "cmpe249.pose_check.v1"
 LOCK_SCHEMA = "cmpe249.capture_lock.v1"
 POSITION = "P3"
@@ -185,11 +187,9 @@ def pose_check(image: Path, lock_config: Path, golden: Path, cli: dict) -> dict:
         want_sha = str(ref_cfg["sha256"])
         want_wh = (int(ref_cfg["size"][0]), int(ref_cfg["size"][1]))
         mask_spec = cfg["masks"][MASK_NAME]["by_position"][POSITION]
-        want_mask_sha = cfg["masks"][f"sha256_{POSITION}"][MASK_NAME]
+        want_mask_sha = None if mask_spec is None else cfg["masks"][f"sha256_{POSITION}"][MASK_NAME]
     except (KeyError, TypeError, IndexError, ValueError) as e:
         raise PoseError(f"lock config lacks reference/mask entries: {e!r}")
-    if mask_spec is None:
-        raise PoseError(f"lock config has no {MASK_NAME} mask for {POSITION}")
     if not golden.is_file():
         raise PoseError(f"golden {golden} does not exist or is not a file")
     golden_sha = sha256_file(golden)
@@ -199,21 +199,30 @@ def pose_check(image: Path, lock_config: Path, golden: Path, cli: dict) -> dict:
     g, _ = read_gray(golden, "golden", want_wh)
     img, img_sha = read_gray(image, "image", want_wh)
     w, h = want_wh
-    try:
-        mask = ecc.regions_mask(mask_spec, w, h)
-    except (ValueError, TypeError, KeyError) as e:
-        raise PoseError(f"bad {MASK_NAME} mask spec for {POSITION}: {e}")
-    mask_sha = ecc.mask_sha256(mask)
-    if mask_sha != want_mask_sha:
-        raise PoseError(f"{MASK_NAME} mask sha256 {mask_sha[:12]}... does not match "
-                        f"masks.sha256_{POSITION}.{MASK_NAME} {str(want_mask_sha)[:12]}...")
+    mask = mask_sha = None
+    if mask_spec is not None:
+        try:
+            mask = ecc.regions_mask(mask_spec, w, h)
+        except (ValueError, TypeError, KeyError) as e:
+            raise PoseError(f"bad {MASK_NAME} mask spec for {POSITION}: {e}")
+        mask_sha = ecc.mask_sha256(mask)
+        if mask_sha != want_mask_sha:
+            raise PoseError(f"{MASK_NAME} mask sha256 {mask_sha[:12]}... does not match "
+                            f"masks.sha256_{POSITION}.{MASK_NAME} {str(want_mask_sha)[:12]}...")
 
     translation = euclidean = t = e = None
     errors = []
     kw = dict(sigma=params["sigma"], iters=params["iters"], eps=params["eps"], mode=params["mode"],
               levels=params["levels"])
+    # No static mask drawn for this view (null in the config): as qc_session, use the robust
+    # translation on the full frame minus ecc's border (mask_source "auto_residual") and fit the
+    # euclidean model on the same residual mask.
+    mask_source = MASK_NAME if mask is not None else "auto_residual"
     try:
-        t = ecc.ecc_translation(g, img, mask=mask, **kw)
+        if mask is not None:
+            t = ecc.ecc_translation(g, img, mask=mask, **kw)
+        else:
+            t, mask = ecc.ecc_translation_robust(g, img, **kw)
         translation = {"dx": round(t.dx, 3), "dy": round(t.dy, 3), "shift_px": round(math.hypot(t.dx, t.dy), 3),
                        "cc": round(t.cc, 4)}
     except ecc.EccError as ex:
@@ -238,7 +247,8 @@ def pose_check(image: Path, lock_config: Path, golden: Path, cli: dict) -> dict:
         "golden": {"path": str(golden.resolve()), "sha256": golden_sha, "size": [w, h]},
         "lock_config": {"path": str(lock_config.resolve()), "sha256": cfg_sha,
                         "lock_version": cfg.get("lock_version")},
-        "mask": {"name": MASK_NAME, "position": POSITION, "sha256": mask_sha, "usable_px": int(mask.sum())},
+        "mask": {"name": MASK_NAME, "position": POSITION, "source": mask_source, "sha256": mask_sha,
+                 "usable_px": int(mask.sum()) if mask is not None else None},
         "params": {**params, "source": psrc},
         "translation": translation,
         "euclidean": euclidean,

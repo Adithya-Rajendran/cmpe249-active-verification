@@ -4,9 +4,13 @@
         [--cap-steps 1,2,3,4,6,inf | none] [--block-anywhere] [--positions configs/positions.json] \\
         [--r-seeds 20] [--bootstrap-B 10000] [--primary-budget 3] [--tag TAG] [--out runs/synthetic-<tag>/]
 
-Only --synthetic exists until study data do. Every output is labelled SYNTHETIC: the
-generator parameters and thresholds are placeholders, and the numbers are pipeline checks,
-not study results.
+Every --synthetic output is labelled SYNTHETIC: the generator parameters and thresholds are
+placeholders, and the numbers are pipeline checks, not study results.
+
+Real data (v0, pilot): --manifest configs/arrangements.json --evidence evidence.jsonl, where the
+evidence file comes from perception/evidence.py (EvidenceStore.to_jsonl format). The same run stage
+replays it with no truth; the manifest is re-read for truth only after the run. Thresholds are still
+the placeholders; it writes config.json, logs.jsonl, ground_truth.json and results.json (no table.md).
 
 Stages are separate functions, in this order:
   1. generate_stage returns the specs and the (unsealed) evidence store. It writes nothing
@@ -36,6 +40,7 @@ from typing import Any
 
 from analysis.bootstrap import paired_diff
 from analysis.metrics import compute_all
+from verify.manifest import load_manifest
 from verify.policies import (
     DEFAULT_R_SEEDS,
     GMYOPIC_LAM_DEG,
@@ -130,7 +135,9 @@ def _steps_str(steps: float) -> str:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="verify.run", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--synthetic", action="store_true", help="use the synthetic generator (only mode for now)")
+    p.add_argument("--synthetic", action="store_true", help="use the synthetic generator")
+    p.add_argument("--manifest", default=None, help="real data: arrangements manifest (with --evidence)")
+    p.add_argument("--evidence", default=None, help="real data: evidence.jsonl from perception/evidence.py")
     p.add_argument("--n-arr", type=int, default=30, help="number of arrangements (default 30)")
     p.add_argument("--n-dev", type=int, default=None, help="dev arrangements (default round(n/3))")
     p.add_argument("--seed", type=int, default=0, help="generator / split / bootstrap seed")
@@ -148,7 +155,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--bootstrap-B", type=int, default=10000, help="bootstrap draws (default 10000)")
     p.add_argument("--primary-budget", type=int, default=3, help="budget for the primary table (default 3)")
     p.add_argument("--tag", default=None, help="run tag (default n<N>-s<seed>)")
-    p.add_argument("--out", default=None, help="output dir (default runs/synthetic-<tag>/)")
+    p.add_argument("--out", default=None, help="output dir (default runs/synthetic-<tag>/ or runs/real-<tag>/)")
+    p.add_argument("--model-id", default="perception.evidence-v0", help="real data: perception model id for the logs")
     return p
 
 
@@ -621,7 +629,9 @@ def write_logs(path: Path, logs: Sequence[EpisodeLog]) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if not args.synthetic:
-        print("real data not available yet (use --synthetic)", file=sys.stderr)
+        if args.manifest and args.evidence:
+            return main_real(args)
+        print("need --synthetic, or --manifest and --evidence for real data", file=sys.stderr)
         return 2
     if args.n_arr < 2 or args.r_seeds < 1 or args.bootstrap_B < 1:
         print("need --n-arr >= 2, --r-seeds >= 1, --bootstrap-B >= 1", file=sys.stderr)
@@ -665,6 +675,62 @@ def main(argv: list[str] | None = None) -> int:
     write_json(out / "results.json", results)
     (out / "table.md").write_text(render_table(results))
     print(f"{SYNTHETIC_LABEL}: wrote {out}")
+    return 0
+
+
+REAL_CONFIG_VERSION = "real-v0"
+REAL_LABEL = "REAL PILOT - placeholder thresholds, not frozen"
+
+
+def main_real(args: argparse.Namespace) -> int:
+    """Run S/FULL/F/R/G/G-myopic on real evidence: same run and score stages as --synthetic."""
+    if args.primary_budget not in args.budgets or args.r_seeds < 1 or args.bootstrap_B < 1:
+        print("need --primary-budget in --budgets, --r-seeds >= 1, --bootstrap-B >= 1", file=sys.stderr)
+        return 2
+    out = Path(args.out) if args.out else REPO_ROOT / "runs" / f"real-{args.tag or Path(args.evidence).stem}"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "ground_truth.json").unlink(missing_ok=True)   # never present while policies run
+    try:
+        positions = Positions.load(args.positions)
+        specs, truth = load_manifest(args.manifest)
+        del truth  # the run stage never sees it; re-read after the run
+        store = EvidenceStore.from_jsonl(args.evidence)
+        if store.synthetic:
+            raise ValueError(f"{args.evidence} is synthetic evidence; use --synthetic")
+        for s in specs:
+            store.replay_key(s.episode_id)   # ReplayError unless all stops have evidence
+    except (OSError, ValueError, KeyError) as e:
+        print(f"bad real-data input: {e}", file=sys.stderr)
+        return 2
+    th = Thresholds()
+    config = {"config_version": REAL_CONFIG_VERSION, "model_id": args.model_id, "synthetic": False,
+              "positions_file": _rel(Path(args.positions)), "positions_file_sha256": file_sha256(args.positions),
+              "manifest_file": _rel(Path(args.manifest)), "manifest_sha256": file_sha256(args.manifest),
+              "evidence_file": _rel(Path(args.evidence)), "evidence_sha256": file_sha256(args.evidence),
+              "seed": args.seed, "budgets": list(args.budgets), "nominal_step_cm": positions.nominal_step_cm(),
+              "travel_tol_cm": TRAVEL_TOL_CM, "cap_steps": [None, *args.cap_steps],
+              "travel_caps_cm": [None, *(cap_cm_from_steps(c, positions) for c in args.cap_steps)],
+              "g_myopic": {"lam_deg": GMYOPIC_LAM_DEG, "travel_norm_cm": th.travel_norm_cm},
+              "r_seeds": list(range(args.r_seeds)), "bootstrap_B": args.bootstrap_B,
+              "primary_budget": args.primary_budget, "thresholds": th.to_dict(), "positions": positions.to_dict(),
+              "scoring_split": Split.TEST.value}
+    sha = config_sha256(config)
+    write_json(out / "config.json", {"label": REAL_LABEL, "config": config, "config_sha256": sha})
+    context = RunContext(model_id=args.model_id, config_version=REAL_CONFIG_VERSION, config_sha256=sha,
+                         synthetic=False)
+    logs = run_stage(specs, store, positions, th, args.budgets, config["travel_caps_cm"], config["r_seeds"], context)
+    del store
+    write_logs(out / "logs.jsonl", logs)
+    _, truth = load_manifest(args.manifest)
+    truth.save(out / "ground_truth.json")
+    scored = score_stage(logs, truth, args.primary_budget, args.bootstrap_B, args.seed)
+    results = {"label": REAL_LABEL, "synthetic": False, "config": config, "config_sha256": sha,
+               "positions": positions.to_dict(), "thresholds": th.to_dict(),
+               "files": {n: file_sha256(out / n) for n in ("ground_truth.json", "logs.jsonl")},
+               "n_logs": len(logs), **scored,
+               "diagnostics": diagnostics_stage(logs, positions, args.budgets, config["travel_caps_cm"])}
+    write_json(out / "results.json", results)
+    print(f"{REAL_LABEL}: wrote {out}")
     return 0
 
 

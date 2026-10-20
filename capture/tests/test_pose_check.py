@@ -5,9 +5,11 @@ Run on the Pi:                  cd ~/cmpe249 && python3 -m unittest discover -s 
 
 The Pi has no ref_final.jpg, so the tests synthesise their own 2304x1296 golden (a smooth
 multi-scale texture written with cv2.imwrite at quality 95) and a temporary capture_lock.json
-derived from configs/capture_lock.json (golden sha256 and recomputed mask sha256 filled in). If
-that file is not deployed next to capture/ (Pi layout ~/cmpe249/configs/), an embedded copy of
-the sections the tools read is used instead (EMBEDDED_LOCK_CONFIG, identical P3 mask specs).
+derived from capture_lock_v1_close_2026-10-05.json (golden sha256 and recomputed mask sha256
+filled in). That fixture is the close-spot lock_version 1 config, frozen when configs/capture_lock.json
+moved to the far spot (2026-10-12: P3 masks null, relaxed thresholds); the verdict tests below are
+written against its masks and thresholds (flag 2 px, refuse 10 px, roll 0.5/2.0 deg, min_cc 0.80).
+TestPoseFarConfig checks the deployed configs/capture_lock.json itself.
 
 Shifted images are an exact Fourier shift of a padded canvas, then cropped (non-circular), as in
 test_ecc.shifted; cv2.warpAffine is used only for the roll cases (rotation of the padded canvas
@@ -19,7 +21,6 @@ are also used by test_qc_session.py.
 from __future__ import annotations
 
 import contextlib
-import copy
 import functools
 import hashlib
 import io
@@ -40,44 +41,11 @@ import ecc  # noqa: E402
 import pose_check  # noqa: E402
 
 W, H = 2304, 1296
-PAD = 64  # canvas margin cropped away after a shift/rotation (largest test shift is 12 px)
+PAD = 64  # canvas margin cropped away after a shift/rotation (largest test shift is 15.3 px)
 REAL_LOCK_CONFIG = CAPTURE.parent / "configs" / "capture_lock.json"
+V1_LOCK_CONFIG = HERE / "capture_lock_v1_close_2026-10-05.json"  # close spot, matches ref_final.jpg
 REPO_SHELF = CAPTURE.parent / "data" / "raw" / "2026-10-05_shelf-final"
 
-# The sections of configs/capture_lock.json (lock_version 1) that pose_check / qc_session read;
-# used only when the real file is not deployed (the Pi's ~/cmpe249 has capture/ only).
-EMBEDDED_LOCK_CONFIG = {
-    "schema": "cmpe249.capture_lock.v1",
-    "lock_version": 1,
-    "lock": {"sensor_mode": "2304:1296:10:P", "size": [2304, 1296], "scaler_crop": [0, 0, 4608, 2592],
-             "shutter_us": 25000, "gain": 1.381, "awb_gains": [1.5753, 2.5111], "lens_position": 1.10,
-             "tolerances": {"shutter_rel": 0.005, "gain_rel": 0.02, "awb_abs": 0.001, "lens_abs": 0.01}},
-    "reference": {"position": "P3", "path": "data/raw/2026-10-05_shelf-final/pi/ref_final.jpg",
-                  "sha256": "8dbbfe46eb66b5669a647d70e16d19e9dcfcc22c46a207f5ed7062f2ca1d1f97",
-                  "size": [2304, 1296], "lux": 203.08969116210938},
-    "masks": {
-        "static_background": {"by_position": {
-            "P3": {"base": "all", "exclude": [
-                {"name": "left_outside_unit", "rect": [0, 0, 100, 1296]},
-                {"name": "top_compartment_props", "rect": [270, 0, 1800, 362]},
-                {"name": "glare_margin", "rect": [836, 362, 1010, 413]},
-                {"name": "mug_compartment_interior", "polygon": [[112, 381], [2044, 396], [2017, 809], [132, 804]]},
-                {"name": "bottom_compartment_props", "rect": [150, 1030, 1990, 1296]}]},
-            "P1": None, "P2": None, "P4": None, "P5": None}},
-        "mug_region": {"by_position": {
-            "P3": {"base": "none", "include": [
-                {"name": "mug_compartment_opening", "polygon": [[124, 393], [2032, 408], [2010, 840], [140, 840]]}]},
-            "P1": None, "P2": None, "P4": None, "P5": None}},
-        "glare": {"by_position": {
-            "P3": {"base": "none", "include": [{"name": "upper_board_glare", "rect": [844, 370, 1003, 406]}]},
-            "P1": None, "P2": None, "P4": None, "P5": None}},
-        "sha256_P3": {"static_background": "4865260e400997a0d50a1cb4d91b3fa67c7cf0cb8543582de67ecf73dea3462e",
-                      "mug_region": "656b7b96f2ddd70beddcc96faac9a446adc4502812e48428f276066be99c62bb",
-                      "glare": "38dce5f20850f659765e4c6daf1a511dedfca63e3696f9fec74979697c868fc6"}},
-    "registration": {"mode": "edges", "sigma": 1.5, "levels": 3, "iters": 200, "eps": 1e-6},
-    "pose_check": {"flag_px": 2.0, "refuse_px": 10.0, "flag_roll_deg": 0.5, "refuse_roll_deg": 2.0, "min_cc": 0.80},
-    "qc": {"lux_ratio_guard": 1.25, "shift_flag_px": 2.0, "saturation_level": 250, "saturation_flag_share": 0.001},
-}
 
 
 # --------------------------------------------------------------------------- synthetic data
@@ -140,9 +108,7 @@ def sha256_file(path: Path) -> str:
 
 
 def base_lock_config() -> dict:
-    if REAL_LOCK_CONFIG.is_file():
-        return json.loads(REAL_LOCK_CONFIG.read_text())
-    return copy.deepcopy(EMBEDDED_LOCK_CONFIG)
+    return json.loads(V1_LOCK_CONFIG.read_text())
 
 
 def make_lock_config(path: Path, golden: Path, mutate=None) -> Path:
@@ -311,11 +277,62 @@ class TestPoseBadInput(PoseBase):
         self.assertEqual(p.returncode, 2)
 
 
-@unittest.skipUnless((REPO_SHELF / "pi" / "ref_final.jpg").is_file() and REAL_LOCK_CONFIG.is_file(),
-                     "GB10 only: needs the repo's ref_final.jpg and configs/capture_lock.json")
+class TestNullMaskFallback(PoseBase):
+    """P3 static_background null (the far spot, lock_version 2): register on the full frame with
+    ecc.ecc_translation_robust (mask source auto_residual) instead of refusing the config."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        def null_p3(c):
+            for name in ("static_background", "mug_region", "glare"):
+                c["masks"][name]["by_position"]["P3"] = None
+                c["masks"]["sha256_P3"][name] = None
+        cls.cfg = make_lock_config(cls.dir / "null_masks.json", cls.golden, null_p3)
+
+    def test_zero_shift_ok(self):
+        code, rep, err = self.check(self.image(shifted_frame(0, 0, 0)))
+        self.assertEqual(code, 0, err)
+        self.assertEqual(rep["mask"]["source"], "auto_residual")
+        self.assertIsNone(rep["mask"]["sha256"])
+        self.assertLess(rep["translation"]["shift_px"], 0.01)
+
+    def test_three_px_flag(self):
+        code, rep, err = self.check(self.image(shifted_frame(0, 1.8, -2.4)))
+        self.assertEqual(code, 10, err)
+        self.assertAlmostEqual(rep["translation"]["shift_px"], 3.0, delta=0.02)
+        self.assertEqual(rep["mask"]["source"], "auto_residual")
+
+
+@unittest.skipUnless(REAL_LOCK_CONFIG.is_file(), "configs/capture_lock.json not deployed here")
+class TestPoseFarConfig(PoseBase):
+    """The deployed config (far spot): valid thresholds, null P3 masks, and its relaxed verdicts on
+    synthetic shifts (golden sha256 swapped for the synthetic one, nothing else changed)."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        real = json.loads(REAL_LOCK_CONFIG.read_text())
+        real["reference"]["sha256"] = sha256_file(cls.golden)
+        cls.cfg = cls.dir / "far.json"
+        cls.cfg.write_text(json.dumps(real))
+
+    def test_fifteen_px_is_a_flag_not_a_refuse(self):
+        code, rep, err = self.check(self.image(shifted_frame(0, 15.0, 3.0)))
+        self.assertEqual(code, 10, err)
+        self.assertEqual(rep["mask"]["source"], "auto_residual")
+        self.assertAlmostEqual(rep["translation"]["shift_px"], 15.297, delta=0.05)
+        self.assertEqual(rep["thresholds"]["refuse_px"], 80.0)
+
+    def test_small_shift_ok(self):
+        code, rep, err = self.check(self.image(shifted_frame(0, 4.0, 0.0)))
+        self.assertEqual(code, 0, err)
+
+
+@unittest.skipUnless((REPO_SHELF / "pi" / "ref_final.jpg").is_file(), "GB10 only: needs the repo's ref_final.jpg")
 class TestPoseRealFrames(unittest.TestCase):
+    """Close-spot frames against the close-spot golden with the v1 config (masks drawn on it)."""
     def check(self, image: Path):
-        code, out, err = run_main(pose_check.main, ["--image", str(image), "--lock-config", str(REAL_LOCK_CONFIG),
+        code, out, err = run_main(pose_check.main, ["--image", str(image), "--lock-config", str(V1_LOCK_CONFIG),
                                                     "--golden", str(REPO_SHELF / "pi" / "ref_final.jpg")])
         return code, json.loads(out), err
 

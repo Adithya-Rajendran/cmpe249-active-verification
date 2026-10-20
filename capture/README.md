@@ -142,14 +142,19 @@ These depend on the physical setup and remain the operator's job:
 Interface contract: `MODULE1.md`. All three run on the Pi with system Python; `qc_session.py` also runs on the GB10.
 
 ```bash
-python3 run_arrangement.py sitting --session S        # NTP check, locked calibration at P3, pose check, lock copied to L2
+python3 run_arrangement.py sitting --session S        # NTP check (warning only), locked calibration at P3, pose check (advisory), lock copied to L2
 python3 run_arrangement.py arrangement --session S --arrangement A01 --ordering A   # guided P1..P5 sweep
 python3 pose_check.py --image IMG --lock-config ~/cmpe249/configs/capture_lock.json --golden ~/cmpe249/golden/ref_final.jpg
 python3 qc_session.py --session-dir ~/cmpe249/data/S  # hashes, metadata, pixel stats, registration; no target labels
 ```
 
 `ecc.py` holds the shared image registration (ECC translation/euclidean). It gives the same results on OpenCV 4.10 (Pi) and 5.0 (GB10).
-The pose thresholds in `configs/capture_lock.json` are proposals, still awaiting decision D17.
+The pose thresholds in `configs/capture_lock.json` were accepted on 2026-10-12 (D17, relaxed values). Since run_arrangement 1.3.0 the pose check is advisory: its verdict is recorded in `sitting.json` and never stops a sitting.
+
+`tags.py` registers a shot onto its per-stop reference through the four ArUco shelf tags (IDs 0-3): `python3 tags.py IMG --ref REF [--out-crop OUT] [--json]`. REF can be an image or a saved `--json` output.
+It fits a homography (query -> ref) on all shared tag corners, records the RMS residual and the implied shift, rotation and scale, and crops to the tag rectangle plus 40 px. Exit code 1 (`ok=false`) means it refused.
+It refuses only when fewer than 2 tags are shared (2 tags use a similarity fit, 3 or more a homography), the in-fit RMS is above 10 px, or (with 4 or more tags) the leave-one-tag-out error is above 30 px, which means a tag moved. While more than 2 tags remain, a tag whose own RMS is above 10 px (`OUTLIER_PX`) is dropped and the fit repeated; dropped IDs are reported. On now.jpg vs synthetic warps (20 px, 1 deg, 2 %, keystone, blur/noise/JPEG) the noise floor was RMS <= 0.28 px and leave-one-out <= 2.0 px, with crop error <= 0.15 px (`data/raw/2026-10-12_pilot-prep/tags/`). These are synthetic numbers only: re-check the thresholds on real repeat-stop pairs.
+The homography is exact only for the shelf front plane. Objects deeper in the shelf shift by a few px per cm of stop error (parallax), which is acceptable with per-stop references. Same results on OpenCV 4.10 (Pi) and 5.0 (GB10).
 
 ## Tests
 

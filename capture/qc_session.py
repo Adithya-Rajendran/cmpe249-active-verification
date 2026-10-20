@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ecc  # noqa: E402
 
 TOOL_NAME = "qc_session.py"
-TOOL_VERSION = "1.1.0"
+TOOL_VERSION = "1.1.1"  # 1.1.1: ntp_not_synced is a flag, not a fail
 SCHEMA = "cmpe249.qc_session.v1"
 LOCK_SCHEMA = "cmpe249.capture_lock.v1"
 EXIT_PASS, EXIT_USAGE, EXIT_INPUT, EXIT_FLAG, EXIT_FAIL = 0, 2, 3, 10, 11
@@ -402,7 +402,8 @@ def check_sitting(sdir: Path, flags: Flags) -> dict:
         return {"present": False, "ntp_ok": None, "pose_verdict": None, "pose_shift_px": None}
     ntp_ok = (sitting.get("ntp") or {}).get("ok") is True
     if not ntp_ok:
-        flags.add("ntp_not_synced", "fail", f"sitting NTP preflight not ok: {sitting.get('ntp')}")
+        # a flag, not a fail: NTP is a warning since run_arrangement 1.2.0 (DECISIONS 2026-10-12)
+        flags.add("ntp_not_synced", "flag", f"sitting NTP preflight not ok: {sitting.get('ntp')}")
     pose = sitting.get("pose") or {}
     verdict, shift = pose.get("verdict"), None
     pose_file = run / Path(pose["file"]).name if pose.get("file") else None

@@ -646,8 +646,13 @@ uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 
     [--r-seeds 20] [--bootstrap-B 10000] [--primary-budget 3] [--tag TAG] [--out runs/synthetic-<tag>/]
 ```
 
-- Only `--synthetic` is implemented. Without it the CLI exits with code 2 and the message
-  "real data not available yet". `--budgets` takes a comma list or a range such as `0..4`.
+- `--synthetic` is the main mode. Real data (v0): `--manifest MANIFEST.json --evidence
+  <evidence.jsonl from perception/evidence.py>` runs the same run / score / diagnostics stages with
+  placeholder thresholds (truth re-read from the manifest only after the run; no table.md).
+  MANIFEST.json is a placeholder: build the manifest with `verify.manifest` (`save_manifest`); there
+  is no `configs/arrangements.json` yet. Until the far-spot stops are taped, `configs/positions.json`
+  is the old close-spot arc, so travel/cap numbers from a real run are not meaningful (pilot 1 is a
+  single stop). With neither `--synthetic` nor `--manifest`, the CLI exits with code 2. `--budgets` takes a comma list or a range such as `0..4`.
   `--cap-steps` takes a comma list of caps **in arc steps** (`inf` allowed) or `none`; the
   default is `1,2,3,4,6`, and the uncapped setting always runs in addition. Caps are an
   operating condition reported as curves, never tuned (D-cap): `cap_cm = cap_cm_from_steps(steps,

@@ -5,7 +5,7 @@ Runs ON the Raspberry Pi (Python 3.13, standard library only). It never touches 
 itself: every still is taken by calling `pi_capture.py` as a subprocess, and the sitting's pose is
 judged by calling `pose_check.py` as a subprocess. Contract: capture/MODULE1.md section 3.
 
-    run_arrangement.py sitting --session S                     # NTP, lock-config calibration at P3,
+    run_arrangement.py sitting --session S                     # NTP (warn), lock-config calibration at P3,
                                                                # pose check, copy the lock to L2
     run_arrangement.py arrangement --session S --arrangement A01 --ordering A
                                                                # guided reference/visible/occluded/
@@ -38,7 +38,7 @@ import time
 from pathlib import Path
 
 TOOL_NAME = "run_arrangement.py"
-TOOL_VERSION = "1.1.0"
+TOOL_VERSION = "1.3.0"  # 1.3.0: the pose check is advisory (recorded, never stops a sitting); 1.2.0: NTP preflight is a recorded warning, not exit 20
 SITTING_SCHEMA = "cmpe249.sitting.v1"
 RUN_SCHEMA = "cmpe249.run_arrangement.v1"
 LOCK_CONFIG_SCHEMA = "cmpe249.capture_lock.v1"
@@ -70,6 +70,7 @@ FORBIDDEN = ("pilot", "--allow-late-reference", "--accept-lock-change", "--episo
 
 EXIT_OK, EXIT_USAGE = 0, 2
 EXIT_NTP, EXIT_POSE, EXIT_ABORT, EXIT_CAPTURE, EXIT_PRECOND, EXIT_SCRIPT = 20, 21, 22, 23, 24, 25
+# EXIT_NTP (1.2.0) and EXIT_POSE (1.3.0) are no longer returned (warnings now); the numbers stay reserved.
 PC_EXIT_CAMERA = 5  # pi_capture: camera failure, nothing saved -> the same take may be retried
 PC_EXIT_PROTOCOL = 4  # pi_capture: protocol refusal; retryable only for session-lock contention:
 PC_BUSY_TEXT = "process is using session"  # "another pi_capture.py process is using session S"
@@ -314,6 +315,9 @@ class Run:
 
 # ------------------------------------------------------------------------ preflights
 def ntp_preflight(run: Run, timedatectl: str) -> dict:
+    """Check the clock (DECISIONS 2026-10-12: a warning, not a gate). An unsynchronised or uncheckable
+    clock is printed as a WARNING and recorded (run_log `ntp_preflight`, sitting.json / <ARR>.json
+    `ntp` with ok false and a `warning`); the run goes on."""
     cmd = [timedatectl, "show", "-p", "NTPSynchronized", "--value"]
     res = {"stdout": None, "returncode": None, "ok": False}
     try:
@@ -328,12 +332,13 @@ def ntp_preflight(run: Run, timedatectl: str) -> dict:
         res["error"] = f"timed out after {NTP_TIMEOUT_S} s"
     except OSError as e:
         res["error"] = str(e)
-    run.log("ntp_preflight", command=cmd, **res)
     if not res["ok"]:
-        raise RunError("NTP is not synchronised (timedatectl NTPSynchronized != yes): "
-                       f"{res.get('error') or repr(res['stdout'])}, rc {res['returncode']}. "
-                       "Fix the clock before capturing (see progress/SETUP.md).", EXIT_NTP)
-    return {"stdout": res["stdout"], "returncode": res["returncode"], "ok": True}
+        res["warning"] = ("NTP is not synchronised (timedatectl NTPSynchronized != yes): "
+                          f"{res.get('error') or repr(res['stdout'])}, rc {res['returncode']}. "
+                          "Timestamps may be off; continuing (see progress/SETUP.md).")
+        print(f"WARNING: {res['warning']}", file=sys.stderr, flush=True)
+    run.log("ntp_preflight", command=cmd, **res)
+    return {k: res[k] for k in ("stdout", "returncode", "ok", "error", "warning") if k in res}
 
 
 def check_forbidden(cmd: list[str]) -> None:
@@ -486,23 +491,17 @@ def cmd_sitting(a, cfg: dict, run: Run) -> int:
     run.log("pose_check", command=cmd, returncode=prc, stdout=pout, stderr=perr,
             wall_s=round(time.monotonic() - t0, 3), verdict=(pose or {}).get("verdict"), reasons=reasons,
             translation=(pose or {}).get("translation"), euclidean=(pose or {}).get("euclidean"))
+    # Advisory since 1.3.0 (DECISIONS 2026-10-13: "roughly the same spot" is enough; the evidence step
+    # registers every view through the shelf tags). The verdict is recorded; nothing stops the sitting.
     accepted_note = None
+    pose_verdict = POSE_EXIT.get(prc, "error") if prc != 3 else "error"
     if prc == 0:
         print(f"pose OK: {_pose_summary(pose)}", flush=True)
-    elif prc == 10:
-        run.ask(f"Pose FLAG: {'; '.join(reasons) or _pose_summary(pose)}. c = continue (asks for a note), "
-                "q = abort", keys=("c",))
-        accepted_note = run.ask("Note: why is this pose acceptable for the sitting?", keys=None)
-        run.log("pose_flag_accepted", note=accepted_note)
-    elif prc == 11:
-        print(perr.rstrip(), file=sys.stderr)
-        raise RunError(f"pose check REFUSED ({'; '.join(reasons) or 'see the pose JSON'}): re-seat the camera "
-                       "on the P3 mark, then start a NEW session id", EXIT_POSE)
     else:
-        print(perr.rstrip(), file=sys.stderr)
-        raise RunError(f"pose check failed ({POSE_EXIT.get(prc, f'exit {prc}')}; "
-                       f"{'; '.join(reasons) or perr.strip()[-300:]}). Start a new session id once fixed.",
-                       EXIT_POSE)
+        detail = '; '.join(reasons) or (_pose_summary(pose) if pose else perr.strip()[-300:])
+        print(f"WARNING: pose check {pose_verdict.upper()} vs the golden ({detail}); advisory only, "
+              "continuing", flush=True)
+        run.log("pose_advisory", verdict=pose_verdict, returncode=prc)
 
     for lk in lightings[1:]:
         run.ask(f"Keep the camera at P3. Switch lamps to {lk}. Enter when switched")
@@ -523,8 +522,8 @@ def cmd_sitting(a, cfg: dict, run: Run) -> int:
         "session": run.session, "created_utc": now_utc(), "created_local": now_local(),
         "hostname": socket.gethostname(), "ntp": ntp, "lock_config": lc_info, "golden": golden_info,
         "lightings": lightings, "locks": locks,
-        "pose": {"file": f"run/{pose_out.name}", "verdict": "ok" if prc == 0 else "flag", "exit_code": prc,
-                 "accepted_flag_note": accepted_note},
+        "pose": {"file": f"run/{pose_out.name}", "verdict": pose_verdict, "exit_code": prc,
+                 "advisory": True, "accepted_flag_note": accepted_note},
         "note": a.note}
     write_json_exclusive(sitting_path, sitting)
     run.log("sitting_done", locks=locks, pose_verdict=sitting["pose"]["verdict"])
@@ -560,16 +559,15 @@ def slot_key(d: dict) -> tuple:
 
 
 def cmd_arrangement(a, cfg: dict, run: Run) -> int:
-    ntp_preflight(run, cfg["timedatectl"])
+    ntp = ntp_preflight(run, cfg["timedatectl"])
     sitting_path = run.run_dir / "sitting.json"
     if not sitting_path.exists():
         raise RunError(f"no sitting for session {run.session} ({sitting_path}); run `sitting` first",
                        EXIT_PRECOND)
     sitting = read_json(sitting_path, "sitting record")
     pose = sitting.get("pose") or {}
-    if not (pose.get("verdict") == "ok"
-            or (pose.get("verdict") == "flag" and str(pose.get("accepted_flag_note") or "").strip())):
-        raise RunError(f"sitting pose verdict {pose.get('verdict')!r} does not allow capture", EXIT_PRECOND)
+    if pose.get("verdict") != "ok":  # advisory since 1.3.0: recorded in sitting.json, never blocks
+        print(f"note: sitting pose verdict {pose.get('verdict')!r} (advisory)", flush=True)
     lightings = list(sitting.get("lightings") or [])
     lock = read_json(run.sdir / "lock.json", "pi_capture lock file")
     for lighting in lightings:
@@ -597,7 +595,7 @@ def cmd_arrangement(a, cfg: dict, run: Run) -> int:
                "session": run.session, "arrangement": arr, "ordering": a.ordering, "stops": stops,
                "lightings": lightings, "phases": list(PHASE_NAMES), "card": card_info,
                "sitting_sha256": sha256_file(sitting_path),
-               "lock_config_sha256": (sitting.get("lock_config") or {}).get("sha256"),
+               "lock_config_sha256": (sitting.get("lock_config") or {}).get("sha256"), "ntp": ntp,
                "started_utc": now_utc(), "finished_utc": None, "status": "in_progress",
                "lamp_toggles": 0, "n_prompts": 0,
                "slots": [{**s, "takes": [], "selected_take": None} for s in slots]}
@@ -616,6 +614,7 @@ def cmd_arrangement(a, cfg: dict, run: Run) -> int:
         man["status"] = "in_progress"
         man.pop("abort", None)
         man.setdefault("resumed_utc", []).append(now_utc())
+        man.setdefault("resumed_ntp", []).append(ntp)
         if card_info:
             man["card"] = card_info
     base_prompts = man.get("n_prompts", 0)

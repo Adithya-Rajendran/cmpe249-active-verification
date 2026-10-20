@@ -344,8 +344,8 @@ class TestQcClean(QcBase):
         sit["pose"]["accepted_flag_note"] = "test note"
         (s / "run" / "sitting.json").write_text(json.dumps(sit))
         code, rep, _, _ = self.qc(s, "--no-images")
-        self.assertEqual(code, 11)
-        self.assertIn("ntp_not_synced", self.codes(rep, severity="fail"))
+        self.assertEqual(code, 10)  # NTP is a warning (flag), not a fail
+        self.assertIn("ntp_not_synced", self.codes(rep, severity="flag"))
         self.assertIn("pose_flag", self.codes(rep, severity="flag"))
         (s / "run" / "pose_check_L1-v1.json").unlink()
         code, rep, _, _ = self.qc(s, "--no-images")

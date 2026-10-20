@@ -291,33 +291,48 @@ class TestPlan(Base):
 
 
 class TestNtp(Base):
-    def check_refused(self, env, timedatectl=None):
+    """NTP is a warning (DECISIONS 2026-10-12): the sitting goes on and the failed check is recorded."""
+    def check_warned(self, env, timedatectl=None):
         code, _, err = (self.run_tool("sitting", "--lock-config", str(self.lock_config), "--golden",
                                       str(self.golden), "--timedatectl", timedatectl, script=["", ""], env=env)
                         if timedatectl else self.sitting(env=env))
-        self.assertEqual(code, 20, err)
-        self.assertEqual(self.files(), ["S1/run/run_log.jsonl"])
+        self.assertEqual(code, 0, err)
+        self.assertIn("WARNING: NTP is not synchronised", err)
         ev = [e for e in self.log() if e["event"] == "ntp_preflight"]
         self.assertEqual(len(ev), 1)
         self.assertFalse(ev[0]["ok"])
+        self.assertIn("not synchronised", ev[0]["warning"])
+        ntp = json.loads((self.rundir / "sitting.json").read_text())["ntp"]
+        self.assertFalse(ntp["ok"])
+        self.assertEqual(ntp["warning"], ev[0]["warning"])
         return ev[0]
 
     def test_ntp_no(self):
-        ev = self.check_refused({"FAKE_NTP": "no"})
+        ev = self.check_warned({"FAKE_NTP": "no"})
         self.assertEqual((ev["stdout"], ev["returncode"]), ("no", 0))
 
     def test_ntp_nonzero_rc(self):
-        ev = self.check_refused({"FAKE_NTP_RC": "1"})
+        ev = self.check_warned({"FAKE_NTP_RC": "1"})
         self.assertEqual((ev["stdout"], ev["returncode"]), ("yes", 1))
 
     def test_ntp_missing_binary(self):
-        ev = self.check_refused(None, timedatectl=str(self.t / "no-such-timedatectl"))
+        ev = self.check_warned(None, timedatectl=str(self.t / "no-such-timedatectl"))
         self.assertIn("not found", ev["error"])
 
+    def test_ntp_ok_has_no_warning(self):
+        self.assertEqual(self.sitting()[0], 0)
+        ntp = json.loads((self.rundir / "sitting.json").read_text())["ntp"]
+        self.assertTrue(ntp["ok"])
+        self.assertNotIn("warning", ntp)
+
     def test_arrangement_also_checks_ntp(self):
-        code, _, err = self.arrangement([""], env={"FAKE_NTP": "no"})
-        self.assertEqual(code, 20, err)
-        self.assertEqual(self.files(), ["S1/run/run_log.jsonl"])
+        self.assertEqual(self.sitting()[0], 0)
+        code, _, err = self.arrangement(["q"], env={"FAKE_NTP": "no"})
+        self.assertEqual(code, 22, err)  # got past the NTP check to the first prompt
+        self.assertIn("WARNING: NTP is not synchronised", err)
+        m = self.manifest()
+        self.assertFalse(m["ntp"]["ok"])
+        self.assertIn("not synchronised", m["ntp"]["warning"])
 
 
 class TestSitting(Base):
@@ -353,16 +368,15 @@ class TestSitting(Base):
         code, _, err = self.sitting()
         self.assertEqual(code, 24, err)
 
-    def test_pose_flag_continue_with_note(self):
-        code, out, err = self.sitting(["", "c", "", "checked the floor mark; within tape", ""],
-                                      env={"FAKE_POSE_VERDICT": "flag"})
+    def test_pose_flag_is_advisory(self):
+        code, out, err = self.sitting(env={"FAKE_POSE_VERDICT": "flag"})
         self.assertEqual(code, 0, err)
-        self.assertIn("Pose FLAG: shift 2.81 px > flag 2.0 px", out)
+        self.assertIn("WARNING: pose check FLAG vs the golden (shift 2.81 px > flag 2.0 px)", out)
         s = json.loads((self.rundir / "sitting.json").read_text())
         self.assertEqual(s["pose"]["verdict"], "flag")
         self.assertEqual(s["pose"]["exit_code"], 10)
-        self.assertEqual(s["pose"]["accepted_flag_note"], "checked the floor mark; within tape")
-        # the arrangement accepts a flagged sitting with a note (precondition passes; then q)
+        self.assertTrue(s["pose"]["advisory"])
+        # the arrangement accepts a flagged sitting (precondition passes; then q)
         code, _, err = self.arrangement(["q"], "--card", str(self.card()))
         self.assertEqual(code, 22, err)
 
@@ -371,24 +385,27 @@ class TestSitting(Base):
         p.write_text(json.dumps({"arrangement": arr, "phases": {"occluded": "box 6 cm left of the mug"}}))
         return p
 
-    def test_pose_refuse(self):
-        code, _, err = self.sitting(env={"FAKE_POSE_VERDICT": "refuse"})
-        self.assertEqual(code, 21, err)
-        self.assertIn("re-seat the camera", err)
-        self.assertFalse((self.sdir / "calibration" / "L2-v1.jpg").exists())
-        self.assertFalse((self.rundir / "sitting.json").exists())
-        code, _, err = self.arrangement([""])
-        self.assertEqual(code, 24, err)
+    def test_pose_refuse_is_advisory(self):
+        code, out, err = self.sitting(env={"FAKE_POSE_VERDICT": "refuse"})
+        self.assertEqual(code, 0, err)
+        self.assertIn("WARNING: pose check REFUSE", out)
+        s = json.loads((self.rundir / "sitting.json").read_text())
+        self.assertEqual(s["pose"]["verdict"], "refuse")
+        code, _, err = self.arrangement(["q"], "--card", str(self.card()))
+        self.assertEqual(code, 22, err)  # precondition passes; then q
 
-    def test_pose_error_and_missing_tool(self):
-        code, _, err = self.sitting(env={"FAKE_POSE_VERDICT": "error"})
-        self.assertEqual(code, 21, err)
+    def test_pose_error_and_missing_tool_are_advisory(self):
+        code, out, err = self.sitting(env={"FAKE_POSE_VERDICT": "error"})
+        self.assertEqual(code, 0, err)
+        self.assertIn("WARNING: pose check ERROR", out)
         self.session = "S2"
         self.sdir, self.rundir = self.root / "S2", self.root / "S2" / "run"
-        code, _, err = self.run_tool("sitting", "--lock-config", str(self.lock_config), "--golden",
-                                     str(self.golden), "--pose-check", str(self.t / "missing_pose.py"),
-                                     script=["", ""])
-        self.assertEqual(code, 21, err)
+        code, out, err = self.run_tool("sitting", "--lock-config", str(self.lock_config), "--golden",
+                                       str(self.golden), "--pose-check", str(self.t / "missing_pose.py"),
+                                       script=["", ""])
+        self.assertEqual(code, 0, err)
+        s = json.loads((self.rundir / "sitting.json").read_text())
+        self.assertEqual(s["pose"]["verdict"], "error")
 
     def test_lock_not_applied(self):
         code, _, err = self.sitting(env={"FAKE_RPICAM_SHUTTER": "20000"})
@@ -750,7 +767,7 @@ class TestFakeCameraGuard(Base):
 
 # ----------------------------------------------------------------- real pose_check (GB10)
 REAL_POSE = CAPTURE / "pose_check.py"
-REAL_CFG = REPO / "configs" / "capture_lock.json"
+REAL_CFG = HERE / "capture_lock_v1_close_2026-10-05.json"  # the close-spot config that matches ref_final.jpg
 SHELF = REPO / "data" / "raw" / "2026-10-05_shelf-final"
 GOLDEN = SHELF / "pi" / "ref_final.jpg"
 
@@ -793,8 +810,7 @@ class TestRealPoseCheck(Base):
         self.assertLess(pose["translation"]["shift_px"], 1.0)
 
     def test_frame_e_flag(self):
-        code, out, err = self.real_sitting(SHELF / "geometry" / "rpi_view_2026-10-05e.jpg",
-                                           ["", "c", "test: frame e is the pre-shift view"])
+        code, out, err = self.real_sitting(SHELF / "geometry" / "rpi_view_2026-10-05e.jpg", [""])
         self.assertEqual(code, 0, err + out)
         pose = json.loads((self.rundir / "pose_check_L1-v1.json").read_text())
         self.assertEqual(pose["verdict"], "flag")
