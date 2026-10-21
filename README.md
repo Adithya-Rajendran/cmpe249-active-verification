@@ -44,7 +44,7 @@ The planned main dataset is 180 episodes split by physical arrangement into 60 d
 
 | Available device | Planned use | Owner and maintainer |
 | --- | --- | --- |
-| ASUS Ascent GB10 | Development, local inference, image processing, analysis | Adithya Rajendran |
+| ASUS Ascent GX10 (GB10) | Development, local inference, image processing, analysis | Adithya Rajendran |
 | Jetson Orin Nano 8 GB | Optional onboard perception | Adithya Rajendran |
 | Raspberry Pi 5 with AI HAT+ | Camera acquisition and optional motor control / supported inference | Adithya Rajendran |
 | Raspberry Pi camera | Reference and query capture | Adithya Rajendran |
