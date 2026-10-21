@@ -15,6 +15,9 @@ Failure injection (environment variables):
   FAKE_RPICAM_SHUTTER=<us> report this ExposureTime instead of the requested one
   FAKE_RPICAM_CROP=<str>   report this ScalerCrop
   FAKE_RPICAM_SIZE=WxH     write a JPEG of this size instead of the requested one
+  FAKE_RPICAM_IMAGE=<path> copy this file's bytes to -o instead of the minimal JPEG (lets tests feed
+                           real, decodable JPEGs through pi_capture); FAKE_RPICAM_SIZE, if also set,
+                           wins, and FAKE_RPICAM_TRUNCATE / FAKE_RPICAM_NO_IMAGE still apply
 """
 import json
 import os
@@ -51,6 +54,9 @@ if env("FAKE_RPICAM_NO_LUX") == "1":
 w, h = (int(v) for v in (env("FAKE_RPICAM_SIZE") or f"{opt('--width', 2304)}x{opt('--height', 1296)}").split("x"))
 sof0 = b"\xff\xc0" + struct.pack(">HBHHB", 17, 8, h, w, 3) + bytes([1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1])
 jpeg = b"\xff\xd8" + sof0 + b"\xff\xda\x00\x02" + " ".join(args).encode() + b"\xff\xd9"
+if env("FAKE_RPICAM_IMAGE") and not env("FAKE_RPICAM_SIZE"):
+    with open(env("FAKE_RPICAM_IMAGE"), "rb") as f:
+        jpeg = f.read()
 if env("FAKE_RPICAM_TRUNCATE") == "1":
     jpeg = jpeg[:-10]
 if env("FAKE_RPICAM_NO_IMAGE") != "1":

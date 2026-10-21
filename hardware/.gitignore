@@ -1,0 +1,11 @@
+# generated outputs (rebuild from the scripts)
+*.png
+*.pdf
+*.json
+*.stl
+!roll_shim/roll_shim_4deg.stl
+!pi_case/pi_case_base.stl
+!pi_case/pi_case_lid.stl
+preview*.py
+# superseded tabletop wedge (local only)
+wedge40/

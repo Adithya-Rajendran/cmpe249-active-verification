@@ -1,0 +1,99 @@
+{
+  "schema": "cmpe249.capture_lock.v1",
+  "lock_version": 3,
+  "status": "lock_version 3 (2026-10-13): lock.rotation 180 for the printed case (camera upside down); nothing else changed. accepted 2026-10-12 (D17: student accepted the relaxed pose/QC thresholds; the golden's room lighting is L1). lock_version 2 (2026-10-12): far camera spot, LensPosition 0.75, new golden P3, P3 masks null (not drawn for the far view), relaxed pose thresholds. Exposure/gain/AWB unchanged from the 2026-10-05 measurement. lock_version 1 (close spot) is frozen at capture/tests/capture_lock_v1_close_2026-10-05.json.",
+  "rig": "bookshelf compartments #3 + #4 (inside the ArUco tag rectangle, IDs 0-3); camera at the far spot (~145 cm from the #3 back wall, lens 98 cm above the floor, student tape) = P3. P1/P2/P4/P5 floor stops not marked yet (configs/positions.json is pending).",
+  "source": {
+    "far_spot_evidence": "data/raw/2026-10-10_far-camera/design_far.md (focus_far.txt: LP 0.75; register_far.txt: the 2026-10-10 bump), data/raw/2026-10-12_pilot-prep/capture-config/ (golden capture log, pose probes)",
+    "lock_evidence": "data/raw/2026-10-05_shelf-final/pi/ref_final.json",
+    "notes": "notes/2026-10-05-shelf-final-checks.md",
+    "masks_evidence": "data/raw/2026-10-05_shelf-final/masks/ (make_masks.py, overlay_static.png, overlay_regions.png, masks_summary.json)"
+  },
+  "lock": {
+    "sensor_mode": "2304:1296:10:P",
+    "size": [2304, 1296],
+    "scaler_crop": [0, 0, 4608, 2592],
+    "rotation": 180,
+    "rotation_note": "since lock_version 3 (2026-10-13): the hardware/pi_case v2 case holds Camera Module 3 with its cable edge up, so the sensor image is upside down; rpicam-still --rotation 180 (sensor h+v flip, lossless) makes captures upright like the golden. Read by pi_capture >= 0.4.0. Evidence: data/raw/2026-10-13_tripod/ (locked.jpg is upside down; tags 2/3 detected only after a 180 deg turn).",
+    "ae_enable": false,
+    "awb_enable": false,
+    "shutter_us": 25000,
+    "gain": 1.381,
+    "awb_gains": [1.5753, 2.5111],
+    "af_mode": "manual",
+    "lens_position": 0.75,
+    "lens_approach": "from 0.3 (ascending), measured hysteresis < 0.1 px; rpicam-still cannot choose the approach direction (see capture/MODULE1.md section 1)",
+    "frame_duration_limits_us": [60000, 60000],
+    "frame_duration_note": "recorded for the record; pi_capture's rpicam-still command does not set it and its lock_check does not check it. Banding depends on the exposure (25000 us = 3 x 8333 us), not the frame duration.",
+    "tolerances": {"shutter_rel": 0.005, "gain_rel": 0.02, "awb_abs": 0.001, "lens_abs": 0.01},
+    "tolerances_note": "identical to pi_capture.py 0.2.0 TOL_* constants"
+  },
+  "reference": {
+    "position": "P3",
+    "path": "data/raw/2026-10-12_scene/ref_far_p3.jpg",
+    "sha256": "605cac2e7f4c4273e7fdcb18459b4419e09f6c0a14cefa204abe26c913e208cd",
+    "size": [2304, 1296],
+    "lux": 180.410706,
+    "metadata_note": "2026-10-12 17:27 PDT, far spot, pi_capture 0.3.0 calibrate --lock-config (one rpicam-still, camera opened and closed), session 2026-10-12-golden-far L1-v1, lock_check ok. ExposureTime 24984, AnalogueGain 1.3801, DigitalGain 1.0008, ColourGains [1.5753, 2.5111], ColourTemperature 3433 K, SensorTemperature 31 C, LensPosition 0.75, FocusFoM 375. Tags 0-3 detected (data/raw/2026-10-12_pilot-prep/capture-config/check_golden.txt). On the Pi: ~/cmpe249/golden/ref_final.jpg (the default golden path); the 2026-10-05 close-spot golden is kept there as ref_final_2026-10-05_close.jpg.",
+    "superseded": {"path": "data/raw/2026-10-05_shelf-final/pi/ref_final.jpg", "sha256": "8dbbfe46eb66b5669a647d70e16d19e9dcfcc22c46a207f5ed7062f2ca1d1f97", "note": "close spot, LensPosition 1.10 (lock_version 1)"}
+  },
+  "masks": {
+    "far_spot_note": "2026-10-12: every P3 mask below was drawn on the close-spot ref_final and is invalid for the far view, so P3 is null like the other stops (old specs: capture/tests/capture_lock_v1_close_2026-10-05.json). pose_check and qc_session then register with ecc.ecc_translation_robust on the full frame minus a 24 px border (mask_source 'auto_residual'); qc_session's saturation share uses the full frame ('full_frame_fallback') and its ref_vs_golden info check is skipped.",
+    "format": "capture/ecc.py regions_mask(): base all|none, then include regions set to 1, then exclude regions set to 0; rect = [x0, y0, x1, y1] with x1/y1 exclusive; polygon = vertices filled by ecc.fill_polygon (even-odd scanline rule, identical on the Pi and the GB10). Coordinates are native 2304x1296 pixels of the frame at that position (rotation 0).",
+    "static_background": {
+      "purpose": "pixels that never change between captures at that stop: shelf frame, boards, side panels, empty back walls, the textured room wall on the right. Used by pose_check (P3 vs golden) and qc_session (ref vs query).",
+      "by_position": {
+        "P3": null,
+        "P1": null, "P2": null, "P4": null, "P5": null
+      },
+      "missing_position_rule": "null = not drawn yet (to be drawn on the catalog-sweep references). Consumers then use ecc.ecc_translation_robust on the full frame minus a 24 px border and report mask_source='auto_residual'."
+    },
+    "mug_region": {
+      "purpose": "the study-mug compartment opening plus the mug shelf's front face; qc_session's saturation share is computed here (minus the glare box).",
+      "by_position": {
+        "P3": null,
+        "P1": null, "P2": null, "P4": null, "P5": null
+      },
+      "missing_position_rule": "null = consumers use the full frame and report region_source='full_frame_fallback'."
+    },
+    "glare": {
+      "purpose": "known specular highlight; excluded from the static mask and from the mug_region saturation share, reported separately.",
+      "by_position": {
+        "P3": null,
+        "P1": null, "P2": null, "P4": null, "P5": null
+      }
+    },
+    "sha256_P3": {
+      "static_background": null,
+      "mug_region": null,
+      "glare": null,
+      "note": "ecc.mask_sha256 of the rasterised 1296x2304 mask (uint8 0/1, C order); consumers recompute and refuse on mismatch. null while the P3 masks are null (consumers read the hash only for a non-null mask)."
+    }
+  },
+  "registration": {
+    "ecc_module": "capture/ecc.py",
+    "mode": "edges",
+    "mode_note": "edges (gradient magnitude) is chosen for robustness to shadows / spatially varying light: on real shelf frames (ref_final vs lp1.10/locked_00, P3 static mask) a synthetic soft shadow moved the intensity estimate 0.126 px (cc 0.948) and the edges estimate 0.007 px (cc 0.996). It is NOT more robust to global tone changes: with gamma 0.6 x 1.3 + clipping, intensity moved 0.092 px (cc 0.977) and edges 0.138 px (cc 0.957). Untouched same-lock frames: intensity and edges agree within 0.03 px; edges cc is lower (0.998 vs 0.9999). No real L1-vs-L2 or real-shadow pair exists yet; re-check on the first sitting's L1/L2 calibration stills. Evidence: capture/MODULE1.md section 5, data/raw/2026-10-05_shelf-final/masks/check_tone_modes_{gb10,pi}.txt.",
+    "sigma": 1.5,
+    "levels": 4,
+    "levels_note": "4 since lock_version 2 (was 3): with the P3 masks null (auto_residual, full frame), synthetic 30-60 px shifts + 2 deg roll of the far golden-scene frame did not converge in the euclidean fit at 3 levels (cc 0.27 -> error) and converged at 4 (rot -2.000, cc 0.9995); pure shifts up to 120 px converged at both; real far pairs gave the same estimates at 3 and 4 (data/raw/2026-10-12_pilot-prep/capture-config/probe_pose_levels{3,4}_mincc0.6.txt).",
+    "iters": 200,
+    "eps": 1e-6
+  },
+  "pose_check": {
+    "flag_px": 10.0,
+    "refuse_px": 80.0,
+    "flag_roll_deg": 1.0,
+    "refuse_roll_deg": 5.0,
+    "min_cc": 0.60,
+    "min_cc_note": "below this the registration is reported as unreliable (exit 12, verdict error; advisory since run_arrangement 1.3.0, recorded only). 0.60 since lock_version 2 (was 0.80, set on the close-spot static mask): on the full frame (auto_residual) real far pairs across days / scene changes / LensPosition registered at translation cc 0.764-0.797 (2026-10-10 far_p3 vs post-bump frames and vs 2026-10-12 now.jpg), which 0.80 turned into 'error'; a pure 1 deg roll gives translation cc 0.68. The wrong-viewpoint negative (old close-spot frame) still fails to converge -> error. Evidence: data/raw/2026-10-12_pilot-prep/capture-config/probe_pose_levels3.txt (min_cc 0.80) vs probe_pose_levels4_mincc0.6.txt.",
+    "status": "ADVISORY since 2026-10-13 (run_arrangement 1.3.0, DECISIONS 2026-10-13: 'roughly the same spot' is enough): flag/refuse/error are printed and recorded in sitting.json, nothing stops a sitting; registration is done per view through the tags (capture/tags.py 0.2.0: >= 2 tags, refuse only RMS > 10 px or leave-one-out > 30 px). Pre-1.3.0 behaviour (accepted 2026-10-12, D17; relaxed 2026-10-12 per DECISIONS 2026-10-12: the robot is not stationary; register + crop instead of a hard pose gate). Flag ~10 px / 1 deg, refuse only gross (80 px / 5 deg). The 2026-10-10 camera bump moved the far view +18.6..+19.2 px, +3.1..+4.4 px, -0.39..-0.42 deg (data/raw/2026-10-10_far-camera/register_far.txt): the old 10 px / 2 deg gate refused it although the shelf stayed well inside the frame; under these values it is a flag (pre-1.3.0: logged, the sitting continued with a note; now recorded only). 80 px is about the golden's smallest frame margin around the tag rectangle (tag corners x 673-1850, y 82-1141: margins top 82, bottom 155, right 454, left 673 px; check_golden.txt), so a larger upward shift can push the top tags out of the frame. "
+  },
+  "qc": {
+    "lux_ratio_guard": 1.25,
+    "shift_flag_px": 10.0,
+    "saturation_level": 250,
+    "saturation_flag_share": 0.001,
+    "status": "(accepted 2026-10-12, D17). shift_flag_px 10 since lock_version 2 (was 2), the same relaxed flag as pose_check.flag_px; a flag only. lux guard = pi_capture LUX_WARN_RATIO; saturation level/share from final checks E (mug compartment interior 0.0044% >= 250 on ref_final)."
+  }
+}
