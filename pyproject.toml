@@ -1,0 +1,44 @@
+[project]
+name = "cmpe249-active-verification"
+version = "0.0.1"
+description = "Occlusion-aware active verification for robot scene memory (CMPE 249, Fall 2026): perception front end and analysis code for the GB10."
+readme = "README.md"
+# Same interpreter version as the Pi (Debian 13 system Python 3.13.5, which its apt-built
+# picamera2/libcamera/HailoRT bindings require). .python-version pins the GB10 to uv-managed CPython 3.13.5.
+requires-python = ">=3.13,<3.14"
+authors = [{ name = "Adithya Rajendran" }]
+
+# Perception front end (proposal section "Perception and matching"):
+#   - ultralytics: YOLO-World v2 (open vocabulary, primary), YOLOE (successor, secondary),
+#     YOLO11 (closed-set COCO control)
+#   - clip: text encoder that ultralytics' YOLO-World uses for set_classes(); installed up front so
+#     ultralytics never tries to pip-install it at runtime (scripts also set YOLO_AUTOINSTALL=false)
+#   - transformers: DINOv2 image encoder for reference-crop matching
+#   - open-clip-torch: CLIP image encoder, second embedding for the same check
+dependencies = [
+    "torch>=2.12,<2.13",
+    "torchvision>=0.27,<0.28",
+    "ultralytics==8.4.163",
+    "clip @ git+https://github.com/ultralytics/CLIP.git@a13192f8cb767260d7dfd98c843b0716593169e7",
+    "transformers>=4.45",
+    "open-clip-torch>=2.26",
+    "numpy>=1.26",
+    "pillow>=10",
+    "matplotlib>=3.8",
+]
+
+[tool.uv]
+# The capture tool (capture/) is stdlib-only and runs on the Pi; this environment is GB10-only.
+package = false
+environments = ["sys_platform == 'linux' and platform_machine == 'aarch64'"]
+
+# Official PyTorch CUDA 13.0 wheels. They include linux_aarch64 builds; the default PyPI torch
+# wheel for aarch64 is CPU-only.
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }

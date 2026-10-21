@@ -6,7 +6,7 @@
 **Selected track:** Track 4 - VLA / robotics  
 **Project format:** Research with a bounded system prototype  
 **Secondary alignment:** Track 6 - Safety and evaluation  
-**Status:** Proposal stage; no experimental results yet
+**Status (2026-09-26, week 3):** Feasibility stage. The week-2 feasibility gate has not been held yet; the target is Oct 5. A capture tool, a camera check, a one-object perception smoke test and a literature novelty check are done. There are no pilot episodes, study data or experimental results yet.
 
 ## Abstract
 
@@ -26,6 +26,12 @@ Under a fixed observation and travel budget, does adaptive view selection with c
 | D - AI novelty and feasibility audit | [AI audit](docs/AI_AUDIT.md) |
 | Detailed evaluation design | [Experiment protocol](docs/EXPERIMENT_PLAN.md) |
 | Citation metadata | [BibTeX references](references.bib) |
+
+## Progress since the proposal
+
+- [Novelty check for the week-2 gate](docs/NOVELTY_CHECK.md)
+- [Citation audit](docs/CITATION_AUDIT.md)
+- [Lab notebook: dated entries with figures](notes/)
 
 ## Initial scope
 
