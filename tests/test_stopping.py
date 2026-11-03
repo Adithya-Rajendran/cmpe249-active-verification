@@ -228,6 +228,24 @@ class TestBoundaries(unittest.TestCase):
                 self.assertFalse(self.rule.is_flagged_occluded(o) and self.rule.is_clear_miss(o))
                 self.assertFalse(self.rule.is_strong_match(o) and self.rule.is_clear_miss(o))
 
+    def test_tau_match_two_roles_and_the_gate(self) -> None:
+        # passes_gate is quality >= tau_q and obstruction <= tau_occ (boundaries inclusive) and ignores the match;
+        # a clear miss is the gate plus match < tau_match, so on a gate-passing view exactly one of strong match /
+        # clear miss holds, and on a view that fails the gate a clear miss never does (verify/select.py relies on it).
+        self.assertTrue(self.rule.passes_gate(self.one(0.95, 0.5, 0.3)))
+        self.assertFalse(self.rule.passes_gate(self.one(0.05, 0.4999999, 0.1)))
+        self.assertFalse(self.rule.passes_gate(self.one(0.05, 0.9, 0.3000001)))
+        grid = (0.0, 0.1, 0.2999999, 0.3, 0.3000001, 0.4999999, 0.5, 0.5000001,
+                0.5999999, 0.6, 0.6000001, 0.9, 1.0)
+        for m, q, b in itertools.product(grid, repeat=3):
+            o = self.one(m, q, b)
+            with self.subTest(m=m, q=q, b=b):
+                gate = self.rule.passes_gate(o)
+                self.assertEqual(gate, q >= 0.5 and b <= 0.3)
+                self.assertEqual(self.rule.is_clear_miss(o), gate and not self.rule.is_strong_match(o))
+                if gate:
+                    self.assertNotEqual(self.rule.is_strong_match(o), self.rule.is_clear_miss(o))
+
 
 class TestClearMissStops(unittest.TestCase):
     def test_distinct(self) -> None:

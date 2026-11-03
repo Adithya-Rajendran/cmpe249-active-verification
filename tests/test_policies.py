@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import importlib.util
 import unittest
+from pathlib import Path
 
 import itertools
 
 from verify.policies import (
     DEFAULT_R_SEEDS,
+    G_LOOKAHEAD_NAME,
+    G_NAME,
     GMYOPIC_LAM_DEG,
     EpisodeLimits,
     F,
@@ -395,7 +398,8 @@ class TestDriver(unittest.TestCase):
     def test_shared_stopping_object(self):
         SpyRule.calls = []
         rule = SpyRule(TH)
-        policies = [F(), R(1), G.from_thresholds(TH), GMyopic.from_thresholds(TH), FullSweep()]
+        policies = [F(), R(1), G.from_thresholds(TH), G.from_thresholds(TH, lookahead=True),
+                    GMyopic.from_thresholds(TH), FullSweep()]
         for p in policies:
             run_episode(p, make_env([AMBIG] * 5, Budget(4)), rule)
         run_r_seeds(lambda: make_env([AMBIG] * 5, Budget(2)), rule, range(3), EID, spec=SPEC)
@@ -505,8 +509,9 @@ def limits(budget: Budget, k: int = 2) -> EpisodeLimits:
     return EpisodeLimits.of(budget, StoppingRule(TH, k=k))
 
 
-def g_bound(budget: Budget, k: int = 2, lam: float = TH.lam, **kw) -> G:
-    g = G(lam, TH.tau_occ, **kw)
+def g_bound(budget: Budget, k: int = 2, lam: float = TH.lam, lookahead: bool = True) -> G:
+    """G-lookahead by default (the D-G tests), or primary G with lookahead=False, limits bound as run_episode does."""
+    g = G(lam, TH.tau_occ, lookahead=lookahead)
     g.begin_episode(limits(budget, k))
     return g
 
@@ -600,7 +605,7 @@ class TestFeasibilityEnumeration(unittest.TestCase):
 
 
 class TestGCapAware(unittest.TestCase):
-    """D-G: reachability feasibility. Hand-checked on the design geometry (23.56 cm per step)."""
+    """D-G: reachability feasibility, the G-lookahead ablation. Hand-checked on the design geometry (23.56 cm/step)."""
 
     def test_two_step_cap_k2_avoids_p1(self):
         # P3 flagged occluded, so no clear miss yet: needed = k - 0 = 2. Cap 2 steps = 47.12 cm.
@@ -619,15 +624,19 @@ class TestGCapAware(unittest.TestCase):
     def test_two_step_cap_k2_exact_path(self):
         # evidence: P3 ambiguous (flagged), every other stop a clear miss
         per = [CLEAR, CLEAR, AMBIG, CLEAR, CLEAR]
-        g = run_episode(G.from_thresholds(TH), make_env(per, Budget(3, CAP2)), StoppingRule(TH))
-        # P3 -> P2 (clear miss 1; only P1 is still affordable) -> P1 (clear miss 2) -> REMOVED
+        g = run_episode(G.from_thresholds(TH, lookahead=True), make_env(per, Budget(3, CAP2)), StoppingRule(TH))
+        # G-lookahead: P3 -> P2 (clear miss 1; only P1 is still affordable) -> P1 (clear miss 2) -> REMOVED
+        self.assertEqual(g.policy, "G-lookahead")
         self.assertEqual(g.requested_stops, (2, 1, 0))
         self.assertIs(g.decision, Decision.REMOVED)
         self.assertAlmostEqual(g.travel_cm, CAP2, places=9)
-        # F and G-myopic both spend the cap on P3 -> P1 and are stuck at UNKNOWN
+        # primary G (lookahead off), F and G-myopic all spend the cap on P3 -> P1 and are stuck at UNKNOWN:
+        # this episode is one where G - G-lookahead isolates the lookahead
+        p = run_episode(G.from_thresholds(TH), make_env(per, Budget(3, CAP2)), StoppingRule(TH))
+        self.assertEqual(p.policy, "G")
         f = run_episode(F(), make_env(per, Budget(3, CAP2)), StoppingRule(TH))
         m = run_episode(GMyopic.from_thresholds(TH), make_env(per, Budget(3, CAP2)), StoppingRule(TH))
-        for log in (f, m):
+        for log in (p, f, m):
             self.assertEqual(log.requested_stops, (2, 0))
             self.assertIs(log.decision, Decision.UNKNOWN)
 
@@ -638,9 +647,10 @@ class TestGCapAware(unittest.TestCase):
         self.assertEqual([g.feasible(c, o, POS, 2) for c in (0, 1, 3, 4)], [True, True, True, True])
         self.assertEqual(g.select(o, (0, 1, 3, 4), POS, 2), 0)
         per = [CLEAR, CLEAR, AMBIG, CLEAR, CLEAR]
-        log = run_episode(G.from_thresholds(TH), make_env(per, Budget(3, CAP3)), StoppingRule(TH))
-        self.assertEqual(log.requested_stops, (2, 0, 1))
-        self.assertIs(log.decision, Decision.REMOVED)
+        for la in (True, False):   # nothing is filtered here, so G-lookahead and primary G take the same path
+            log = run_episode(G.from_thresholds(TH, lookahead=la), make_env(per, Budget(3, CAP3)), StoppingRule(TH))
+            self.assertEqual(log.requested_stops, (2, 0, 1))
+            self.assertIs(log.decision, Decision.REMOVED)
 
     def test_k3_four_step_cap(self):
         # needed 3: c + 2 more. P1 (2 steps) leaves 2: P1->P2->P4 = 1 + 2 = 3 > 2 -> infeasible.
@@ -672,40 +682,112 @@ class TestGCapAware(unittest.TestCase):
         self.assertEqual(g.select(o, (1, 3), POS, 2), 1)
         self.assertTrue(g.last_fallback)
         self.assertEqual(g.last_pool, (1, 3))
-        nolook = g_bound(Budget(3, CAP1), lookahead=False)
-        self.assertEqual(nolook.select(o, (1, 3), POS, 2), 1)
+        primary = g_bound(Budget(3, CAP1), lookahead=False)
+        self.assertEqual(primary.select(o, (1, 3), POS, 2), 1)
+        self.assertFalse(primary.last_fallback)   # primary G never filters, so it never falls back
         # the fallback can still find PRESENT: the target is visible from P2
         per = [AMBIG, MATCH, AMBIG, AMBIG, AMBIG]
-        log = run_episode(G.from_thresholds(TH), make_env(per, Budget(3, CAP1)), StoppingRule(TH))
+        log = run_episode(G.from_thresholds(TH, lookahead=True), make_env(per, Budget(3, CAP1)), StoppingRule(TH))
         self.assertEqual(log.requested_stops, (2, 1))
         self.assertIs(log.decision, Decision.PRESENT)
 
     def test_fcm_rule_makes_everything_feasible(self):
-        # k = 1: needed - 1 = 0 more stops, so the lookahead never filters (G-fcm == G-nolook-fcm)
+        # k = 1: needed - 1 = 0 more stops, so the lookahead never filters (G-lookahead-fcm == G-fcm)
         o = [obs(2, 0.9)]
-        g = G.from_thresholds(TH)
+        g = G.from_thresholds(TH, lookahead=True)
         g.begin_episode(limits(Budget(3, CAP2), k=1))
         self.assertEqual([g.feasible(c, o, POS, 2) for c in (0, 1, 3, 4)], [True] * 4)
         self.assertEqual(g.select(o, (0, 1, 3, 4), POS, 2), 0)
 
     def test_select_needs_limits(self):
+        # G-lookahead reads the episode limits, so it refuses to select without them
         with self.assertRaises(ReplayError):
-            G.from_thresholds(TH).select([obs(2, 0.9)], (0, 1, 3, 4), POS, 2)
+            G.from_thresholds(TH, lookahead=True).select([obs(2, 0.9)], (0, 1, 3, 4), POS, 2)
+        # primary G never reads them: it scores every affordable candidate (P1 from P3 at lam < 1)
+        g = G.from_thresholds(TH)
+        self.assertEqual(g.select([obs(2, 0.9)], (0, 1, 3, 4), POS, 2), 0)
+        self.assertEqual(g.last_pool, (0, 1, 3, 4))
 
     def test_driver_binds_env_budget_and_rule_k(self):
-        g = G.from_thresholds(TH)
-        run_episode(g, make_env([AMBIG] * 5, Budget(2, CAP3)), StoppingRule(TH, k=3))
-        self.assertEqual((g.limits.additional_views, g.limits.travel_cap_cm, g.limits.k), (2, CAP3, 3))
+        for la in (True, False):   # the hook is called on both G variants; only G-lookahead reads it
+            g = G.from_thresholds(TH, lookahead=la)
+            run_episode(g, make_env([AMBIG] * 5, Budget(2, CAP3)), StoppingRule(TH, k=3))
+            self.assertEqual((g.limits.additional_views, g.limits.travel_cap_cm, g.limits.k), (2, CAP3, 3))
         # F and R stay naive: no lookahead hook at all
-        for p in (F(), R(0), S(), FullSweep()):
+        for p in (F(), R(0), S(), FullSweep(), GMyopic.from_thresholds(TH)):
             self.assertFalse(hasattr(p, "begin_episode"))
 
-    def test_lookahead_off_name(self):
-        self.assertEqual(G.from_thresholds(TH).name, "G")
-        self.assertEqual(G.from_thresholds(TH, lookahead=False).name, "G-nolook")
-        self.assertEqual(default_name(G.from_thresholds(TH), StoppingRule.first_clear_miss(TH)), "G-fcm")
-        self.assertEqual(default_name(GMyopic.from_thresholds(TH), StoppingRule.first_clear_miss(TH)),
-                         "G-myopic-fcm")
+    def test_primary_g_is_lookahead_off_and_named_g(self):
+        # DECISIONS 2026-10-12 (code fix approved 2026-11-02): primary G = D-norm scorer, lookahead OFF, "G";
+        # the lookahead is the ablation "G-lookahead" on the same scorer and settings
+        for g in (G(TH.lam, TH.tau_occ), G.from_thresholds(TH)):
+            self.assertFalse(g.lookahead)
+            self.assertEqual(g.name, "G")
+        gl = G.from_thresholds(TH, lookahead=True)
+        self.assertTrue(gl.lookahead)
+        self.assertEqual(gl.name, "G-lookahead")
+        self.assertEqual((G_NAME, G_LOOKAHEAD_NAME), ("G", "G-lookahead"))
+        self.assertEqual((gl.lam, gl.tau_occ), (G.from_thresholds(TH).lam, G.from_thresholds(TH).tau_occ))
+        o = [obs(2, 0.9)]
+        self.assertEqual(G(0.5, TH.tau_occ).scores((0, 1, 3, 4), (2,), POS, 2),
+                         G(0.5, TH.tau_occ, lookahead=True).scores((0, 1, 3, 4), (2,), POS, 2))   # same scorer
+        self.assertEqual(G.from_thresholds(TH).select(o, (0, 1, 3, 4), POS, 2), 0)
+        fcm = StoppingRule.first_clear_miss(TH)
+        self.assertEqual(default_name(G.from_thresholds(TH), fcm), "G-fcm")
+        self.assertEqual(default_name(gl, fcm), "G-lookahead-fcm")
+        self.assertEqual(default_name(GMyopic.from_thresholds(TH), fcm), "G-myopic-fcm")
+
+    def test_old_lookahead_off_name_is_gone(self):
+        # the pre-2026-11-02 name for lookahead-off G must not come back, in code or in the verify/ contract
+        old = "G-" + "nolook"
+        self.assertEqual({G(TH.lam, TH.tau_occ, lookahead=la).name for la in (False, True)}, {"G", "G-lookahead"})
+        verify_dir = Path(__file__).resolve().parent.parent / "verify"
+        hits = [f"{p.name}:{i}" for p in sorted(verify_dir.glob("*.py")) + [verify_dir / "README.md"]
+                for i, line in enumerate(p.read_text().splitlines(), 1) if "nolook" in line]
+        self.assertEqual(hits, [])
+        self.assertNotIn(old, {G_NAME, G_LOOKAHEAD_NAME})
+
+    def test_lookahead_pool_is_feasible_set_when_one_exists(self):
+        # Independent oracle (brute_force_can_visit, itertools): over histories from P3, budgets, caps and k,
+        # G-lookahead scores exactly the feasible candidates when at least one exists and falls back to all
+        # affordable ones otherwise; primary G always scores all affordable candidates and never falls back.
+        n_feasible_subset = n_fallback = 0
+        kinds = {"A": 0.9, "C": 0.05}   # flagged occluded (no clear miss) / clear miss
+        for path in ((2,), (2, 0), (2, 1), (2, 4), (2, 1, 0), (2, 3, 4)):
+            for marks in itertools.product(kinds, repeat=len(path)):
+                o = [obs(s, kinds[m], i) for i, (s, m) in enumerate(zip(path, marks))]
+                for k in (1, 2, 3):
+                    needed = k - sum(m == "C" for m in marks)
+                    if needed < 1:      # the rule would already have decided REMOVED
+                        continue
+                    for b in range(len(path), 5):
+                        for steps in (1, 2, 3, 4, 6, None):
+                            cap = cap_cm_from_steps(steps, POS)
+                            spent = POS.path_travel_cm(path)
+                            if cap is not None and spent > cap + TRAVEL_TOL_CM:
+                                continue
+                            left = None if cap is None else cap - spent
+                            cands = tuple(c for c in range(5) if c not in path and
+                                          (left is None or POS.travel_cm(path[-1], c) <= left + TRAVEL_TOL_CM))
+                            if not cands:
+                                continue
+                            views_left = b - (len(path) - 1) - 1
+                            want = tuple(c for c in cands if brute_force_can_visit(
+                                c, set(path) | {c}, needed - 1,
+                                None if left is None else left - POS.travel_cm(path[-1], c), views_left, POS))
+                            gl = g_bound(Budget(b, cap), k=k, lookahead=True)
+                            gp = g_bound(Budget(b, cap), k=k, lookahead=False)
+                            gl.select(o, cands, POS, path[-1])
+                            gp.select(o, cands, POS, path[-1])
+                            ctx = (path, marks, k, b, steps)
+                            self.assertEqual(gl.last_pool, want or cands, ctx)
+                            self.assertEqual(gl.last_fallback, not want, ctx)
+                            self.assertEqual(gp.last_pool, cands, ctx)
+                            self.assertFalse(gp.last_fallback, ctx)
+                            n_feasible_subset += bool(want) and want != cands
+                            n_fallback += not want
+        self.assertGreater(n_feasible_subset, 0)   # the filter really removes candidates in some states
+        self.assertGreater(n_fallback, 0)
 
 
 class TestGNormalisation(unittest.TestCase):
@@ -721,12 +803,13 @@ class TestGNormalisation(unittest.TestCase):
 
     def test_lam_grid_changes_choice(self):
         o = [obs(2, 0.9)]
-        picks = {}
-        for lam in (0.0, 0.25, 0.5, 1.0):
-            g = g_bound(Budget(4), lam=lam)
-            picks[lam] = g.select(o, (0, 1, 3, 4), POS, 2)
-        # lam 1: every score is 0 -> tie -> shorter travel -> P2; lam < 1: P1 (P5 ties, higher index)
-        self.assertEqual(picks, {0.0: 0, 0.25: 0, 0.5: 0, 1.0: 1})
+        for la in (False, True):   # primary G and G-lookahead (uncapped: nothing is filtered)
+            picks = {}
+            for lam in (0.0, 0.25, 0.5, 1.0):
+                g = g_bound(Budget(4), lam=lam, lookahead=la)
+                picks[lam] = g.select(o, (0, 1, 3, 4), POS, 2)
+            # lam 1: every score is 0 -> tie -> shorter travel -> P2; lam < 1: P1 (P5 ties, higher index)
+            self.assertEqual(picks, {0.0: 0, 0.25: 0, 0.5: 0, 1.0: 1}, la)
 
     def test_normalised_over_pool_not_candidates(self):
         # from P1 with ref {P3}: pool (1, 3, 4) -> sep 30, 30, 60 -> .5, .5, 1; travel 1, 3, 4 steps -> .25, .75, 1

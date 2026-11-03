@@ -299,6 +299,10 @@ class TestRunRealPath(unittest.TestCase):
             res = json.loads((d / "out" / "results.json").read_text())
             self.assertFalse(res["synthetic"])
             self.assertEqual(res["label"], run.REAL_LABEL)
+            # an L1-only pilot gets L1 rows (and the secondary pooled ones) but no L2 rows or L2 bootstrap
+            self.assertEqual({m["lighting"] for m in res["metrics"]}, {"L1", "pooled"})
+            self.assertEqual({b["lighting"] for b in res["bootstrap"]}, {"L1"})
+            self.assertEqual(res["config"]["g_lookahead"], {"G": False, "G-lookahead": True})
             logs = [json.loads(x) for x in (d / "out" / "logs.jsonl").read_text().splitlines()]
             self.assertTrue(logs and all("truth" not in g and not g["synthetic"] for g in logs))
             full = {g["episode_id"]: g["decision"] for g in logs if g["policy"] == "FULL"}

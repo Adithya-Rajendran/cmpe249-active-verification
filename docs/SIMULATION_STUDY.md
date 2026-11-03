@@ -20,14 +20,14 @@ The simulated rig ([notes](../notes/2026-11-02-simulation.md), [`sim/`](../sim/R
 - **Task and decisions:**
   - the task, and the outputs present / removed / unknown, where unknown counts against coverage;
   - five stops, and a policy sees only the views it requests;
-  - policies S, F, R, G, A sharing one stopping rule, with k (at least 2 clear-miss stops) selected on development data.
+  - policies S, F, R, G, A sharing one stopping rule. k is now **fixed at 2** (the plan's "at least two distinct positions"), with k = 3 as a sensitivity run; it is no longer selected on development data (2026-11-02).
 - **Measurement:**
   - the metrics (false-removal rate, removal recall, coverage, resolved accuracy) and the budgets and travel caps as curves;
   - splits by arrangement, paired arrangement-level bootstrap, and the number of arrangements reported with every result.
 - **Protocol:**
   - matched occluder layouts for occluded and removed episodes;
   - a predeclared indistinguishable subset;
-  - thresholds, the travel penalty and ranker A selected on development arrangements only, then **frozen before any test arrangement is rendered**.
+  - the evidence thresholds calibrated per view, and ranker A trained, on development arrangements only, then **frozen before any test arrangement is rendered**. The travel penalty is **fixed at λ = 0** a priori, with the other λ classes as sensitivity runs; it is no longer selected on outcomes (select-v4, 2026-11-02).
 - **Perception:** the same front end (YOLO-World + DINOv2 evidence). Evidence v0.3, if built, is developed on simulated dev arrangements and public data.
 
 ## What changes
@@ -61,12 +61,20 @@ The simulated rig ([notes](../notes/2026-11-02-simulation.md), [`sim/`](../sim/R
   - Additional cameras may be added, e.g. a denser arc or a second height, since in simulation they cost nothing.
   - The final stop set per environment, and the budgets and travel caps over it, are fixed before any test render.
 
-## Proposed defaults [open: confirm before any test render]
+- **Reference pairing.** The primary evaluation compares every query, at L1 and at L2, against the **L1 reference** at the same stop: the robot's memory is recorded once, and the lighting may differ at revisit. The other pairing (each query against the reference at its own lighting) removes only the mismatch in lighting between reference and query; lighting can still affect detection and image quality. It is not a relabelling of the primary run. The reference enters the evidence scores, so it can change the policies' decisions and the views they request. If it is used at all, it is a separate secondary run, reported separately.
+- **Reporting by lighting.** Every result is reported **separately for L1 and L2 queries**: metrics, budget curves, per-condition tables, and the paired arrangement-level bootstrap within each lighting. With L1 references, L1 means "same lighting as the reference" and L2 "lighting changed since the reference". A number pooled over lighting may appear only as a labelled secondary line, never as a headline.
+- **Policy G** (approved 2026-11-02, implementing the 2026-10-12 decision). Primary G is the normalised geometric selector with the reachability lookahead off. The lookahead is reported as the ablation "G-lookahead" on the same scorer, so the contrast isolates lookahead. The legacy G-myopic stays a separate ablation.
 
-- **Held-out environment.** Whether to also test on an environment type not used in development (e.g. develop on the shelf and tabletop, test on a third) [open].
-- **Arrangements.** 30 (10 dev / 20 test) as planned, × 3 conditions × 2 lightings = 180 episodes. Simulation makes more cheap, so a larger dev pool is possible, but the test arrangement count stays fixed in advance.
-- **Objects.**
-  - YCB-Video models first (the mug and bleach bottle already render with textures), then Google Scanned Objects.
-  - Target and occluders are placed by the generator.
-  - The design's occluder sizes (S8 / M16 / IND28) plus the pilot-2 failure case: a flat white box over the target's footprint.
-- **Episodes from the 2026-10-10 design.** The four option-A occluder picks (CCHCC, CCHHC, CHHCC, HHHHH) are kept as a fixed, predeclared subset alongside the random arrangements.
+## Design choices confirmed by the student (2026-11-02 / 11-03)
+
+The analysis rules are in [`SIM_PREREGISTRATION.md`](SIM_PREREGISTRATION.md). It gets a final review after the development loop (including A) and is frozen before any test scene is generated.
+
+- **Counts:** 60 dev + 100 test random arrangements per environment (shelf and tabletop), with DES0–DES3 as separate dev checks. This is a practical allocation, not a power guarantee. Dev throughput is measured end to end before the counts are frozen.
+- **Occluder quotas:** S8 20 %, M16 30 % (left/right balanced), IND28 10 %, white box 20 %, YCB box 20 %. They are fixed as slot lists before rendering; retries and replacements stay within the family.
+- **α_clear = 0.10:** an empirical per-view calibration constraint, with no guarantee that any policy's FRR is ≤ 10 %. If no setting meets it, calibration fails loudly and nothing is relaxed.
+- **Primary operating point:** uncapped, b = 3 (view-budgeted verification), with travel reported alongside. The finite caps and b = 1 / 2 are secondary and are not promoted on the basis of dev results.
+- **No third environment.** Claims concern new arrangements in the shelf and tabletop environments.
+- **Labels:** mask-derived labels are *geometric* (visibility), not recognisability, and set no theoretical ceiling on coverage.
+- **Uncertainty:** the paired arrangement-level cluster bootstrap, stratified by occluder family, is primary.
+- **Occlusion-gate-off ablation:** F and R only.
+- **The 2026-10-10 design cases** (option-A picks, DES0–DES3) are kept as separate dev checks.

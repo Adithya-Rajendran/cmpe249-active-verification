@@ -6,6 +6,8 @@
 
 **References** `[n]` point to the reference list of `notes/2026-10-02-caps-thresholds-literature.md` (the "lit report").
 
+**Note added 2026-11-02.** In this note "G" is the selector *with* the reachability lookahead. Following DECISIONS 2026-10-12 (applied to the code on 2026-11-02), the code now calls that variant **G-lookahead** (an ablation), and **G** is the same normalised scorer with the lookahead off (primary). The name G-nolook is gone. See `verify/README.md` §3 and §8.
+
 **Background in one paragraph.** The lit report found that our 50 cm example travel cap made F and G behave the same, that G ignored the remaining cap, and that we had no written rule for choosing thresholds. Today's work fixed G and the caps, built `verify/select.py` (the threshold-selection procedure) and `analysis/intervals.py`, checked the PBD-AG supplement, prepared bib entries and drafted `docs/PREREGISTRATION.md`. A reviewer then checked all of it, and a fixer applied the review findings.
 
 ---
@@ -84,6 +86,8 @@
 ---
 
 ## 3. G-myopic is kept as an ablation (and G-nolook exists but isn't run)
+
+> **Superseded 2026-11-02.** Primary G is now the lookahead-off scorer ("G", formerly G-nolook). The lookahead variant "G-lookahead" runs by default, and G − G-lookahead is the bootstrap pair that isolates the lookahead. G-myopic stays as a legacy ablation.
 
 **What we decided.**
 - The pre-revision G is kept, unchanged, as the policy **G-myopic**. It has no lookahead, normalises travel by the fixed 94.25 cm span, and uses λ = 30° (`GMYOPIC_LAM_DEG`).

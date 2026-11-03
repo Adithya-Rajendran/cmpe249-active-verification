@@ -27,6 +27,12 @@ look" from a MuJoCo render; use the Isaac Sim backend for appearance.
 | `tests/test_sim_mujoco.py` | Renders, fractions, renderer-vs-projection agreement. Skipped when MuJoCo (or an offscreen GL context) is absent. |
 | `sim/isaac_rig.py` | Isaac Sim 6.2 backend: scene spec → USD stage (materials, rotated boxes, tags on cards, YCB textured models, L1/L2 lighting, Pi camera) → RTX renders with target masks and visible fractions. Runs in the Isaac env on the GB10; the pure parts are numpy-only. |
 | `tests/test_sim_isaac.py` | The Isaac backend's pure parts: PLY reader, camera and box transforms, tag offset, apertures (numpy only). |
+| `configs/sim/positions_shelf_A.json` | The simulated shelf's stops: option A with a per-stop pitch (`stops[i].tilt_deg`) that maximises the smallest in-frame margin over #3 and all four tags with k1. Written by `data/raw/2026-11-03_sim_pilot/make_positions_shelf_A.py`; `sim/rig.py` reads per-stop tilts. |
+| `configs/sim/arrange_shelf_v0.json`, `configs/sim/ycbv_hulls.json` | Generator config (objects, ranges, occluder families, seed ranges, design cases) and the YCB-V convex-hull points it uses (hash pinned in the config). DEV, not frozen. |
+| `sim/arrange.py` | Seeded generator `(seed, config) -> arrangement` (numpy only): target, distractors, occluder placed / parked, the four phases, design cases DES0-3. Dev seeds 0-9999 only; seeds >= 100000 (test) are refused. |
+| `sim/isaac_batch.py` | Batch Isaac renderer (GB10, Isaac env): one process, a new stage per arrangement, phases x stops x L1/L2 RGB, instance masks, visible fractions, diagnostic labels. |
+| `sim/episodes.py` | Rendered set -> evidence annotations, jobs (`jobs_refL1.json` primary, `jobs_same.json` secondary), verify manifest, truth, view labels, contact sheets. |
+| `tests/test_sim_arrange.py`, `tests/test_sim_batch.py` | Generator determinism and placement validity, matched layouts, seed guard, design cases, the positions file; the renderer's pure parts; jobs / annotation / manifest formats (numpy only). |
 
 ## Coordinate frame
 
@@ -144,6 +150,47 @@ LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 OMNI_KIT_ACCEPT_EULA=YES \
 - **Lighting presets L1/L2** are rough stand-ins (dome + two area lights; L2 turns one off), not photometric models.
   There is no room or floor yet: the background is the dome.
 
+## Generated arrangements and dev sets (2026-11-03)
+
+The simulated capture mirrors `capture/run_arrangement.py`: phases reference (target in place, occluder parked),
+visible, occluded (occluder placed) and removed (target removed, occluder exactly as in occluded), each at every stop
+under L1 and L2.
+
+```
+# Jetson: arrangements (dev seeds 0-9999 only) + the design cases
+uv run --no-project --python 3.13.5 --with numpy==2.5.3 python -m sim.arrange --seeds 0-5 --design --out ARR
+# GB10: copy sim/isaac_batch.py next to isaac_rig.py in ~/cmpe249-sim/run/, then
+LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 OMNI_KIT_ACCEPT_EULA=YES ~/.local/bin/uv run --no-project \
+  --python ~/cmpe249-sim/isaacsim-6.2/.venv/bin/python isaac_batch.py --arrangements ARR/*.json \
+  --assets-dir ../assets/ycbv/models --tags-dir tags --out OUT
+# Jetson, on the set's final location (paths in jobs and annotations are absolute)
+uv run --no-project --python 3.13.5 --with numpy==2.5.3 --with opencv-python-headless==5.0.0.93 \
+  python -m sim.episodes --root SET --contact-sheets
+```
+
+- **Generator rules:**
+  - The target is one of the configured YCB-V models (tomato soup can, potted meat can, mug, foam brick, tuna can).
+    It sits in #3, and every stop sees it whole.
+  - 2-5 distractors stand in #3 / #4 and never hide the target.
+  - The occluder families are S8 / M16 / IND28 boards, a white box sized to the target's P3 footprint (the pilot-2
+    case), and YCB boxes. The occluder hides the target's convex hull from P3. Every family except IND28 leaves at
+    least 2 stops where the hulls do not touch, so a removed episode can reach the k = 2 rule. IND28 covers every
+    stop and is predeclared indistinguishable.
+  - The parked pose hides nothing, and it is outside the target's context window at every stop.
+- **Jobs:**
+  - `jobs_refL1.json` is the **primary** run: every query, L1 and L2, against the L1 reference at its stop.
+  - `jobs_same.json` is a **secondary**, separate run, reported separately, with each query against its own
+    lighting's reference.
+  - Results are reported separately for L1 and L2 queries; the lighting is in every episode_id.
+- **Labels:** come only from the rendered instance masks (`labels.json`), never from the generator's geometry.
+- **Render history (found 2026-11-03):** real-time RTX keeps per-pixel history in each render product.
+  - With one set of render products for all phases, a target hidden for the removed phase left a target-shaped trace
+    (+1.5 to +2.7 grey levels) for 100+ frames. The trace also appeared on the occluder's face in front of it, and
+    turning temporal AA off did not change it (`data/raw/2026-11-03_sim_pilot/ghost_test*.py`).
+  - `isaac_batch.py` therefore creates new render products for every (phase, lighting) capture, with 100 updates
+    before each. This takes about 2 min per arrangement instead of about 1 min. Toggling visibility on one set of
+    render products is not safe for removed / occluded views.
+
 ## Visible fraction
 
 The visible fraction of a target is target pixels with nothing hidden, divided by target pixels with everything else
@@ -182,3 +229,15 @@ needs the same care.
   - Roll is the P3 fit's value at every stop.
   - The lens pose is the 2026-10-10 fit from before the bump (`design_far.md`).
 - **Statics only.** No physics: the "mocap" bodies exist only to move the mug and occluder between renders.
+
+### Known gaps in the generator and batch (PR #4 review, 2026-11-03; fixed in the next checkpoint before the dev renders)
+
+- **Occluder family.** `sim/arrange.py` still draws the family from `family_weights` and falls back to the next family when a pair fails. In dev seeds 0–99, 27 arrangements changed family this way; SD0001 went from M16 to IND28. M16 has no side, so most M16 boards end up centred (pattern CpHpC). The quota slot list with within-family retries, reserve seeds and one-sided M16 (`docs/SIM_PREREGISTRATION.md` §2) replaces all of this. `shelf_dev_v0` is a development set from the old rule only.
+- **Hash provenance.** `arrangement_sha256` covers the provenance block. That block holds the config path as the caller spelled it and the Python version, so identical arrangements can hash differently. For in-memory configs, the hash ignores the key order that `weighted_order` depends on.
+- **Shell globs.** `python -m sim.arrange --out ARR` writes `ARR/index.json` next to the arrangements, so `isaac_batch.py --arrangements ARR/*.json` refuses the batch. Until the fix, pass the arrangement files explicitly.
+- **Re-renders and incomplete folders.**
+  - A re-render over an existing folder overwrites `arrangement.json` before `labels.json`. `--skip-existing` checks only that `labels.json` exists, so an interrupted re-render can mix old labels with new files.
+  - `sim/episodes.py` silently skips folders without `labels.json`.
+  - `sim/episodes.py` copies the `--positions` file without checking it against the positions hash each arrangement records.
+- **Labels for select-v4.** `view_labels.json` (`cmpe249.sim-view-labels-set.v0`) is not yet readable by `verify.select`.
+- **Simulation label.** The manifest carries no simulation flag, so `verify.run --manifest` labels sim results "REAL PILOT".

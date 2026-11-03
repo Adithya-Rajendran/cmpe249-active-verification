@@ -20,7 +20,8 @@ coordinate).
 Cameras: a pinhole with square pixels and the principal point at (W/2, H/2), in continuous pixel coordinates where
 pixel i covers [i, i + 1). Stops come from a positions file (schema cmpe249.positions.v1): lens on a horizontal arc of
 radius R about a centre on the #3 centre line, rotated by arc_rotation_deg, each stop yawed to face the centre, one
-downward tilt for all stops. Roll is not in the drafts; by default every stop gets the roll fitted at P3, as
+downward tilt for all stops, or a per-stop stops[i].tilt_deg where the file gives one (configs/sim/positions_shelf_A.json,
+2026-11-03). Roll is not in the drafts; by default every stop gets the roll fitted at P3, as
 arc_far.py assumed. The fitted radial k1 is applied only on request (frame checks); renderers draw a pinhole.
 
 Visibility: visible fraction = target pixels in the full scene / target pixels with everything else hidden, computed
@@ -408,9 +409,20 @@ def resolve_occluder(geometry: Mapping, occluder: OccluderSpec | str | None) -> 
     return occluder_spec(geometry, occluder)
 
 
+def stop_tilt_deg(positions: Mapping, stop: Mapping) -> float:
+    """Downward pitch of one stop: the stop's own `tilt_deg` if it has one (per-stop pitch, e.g.
+    configs/sim/positions_shelf_A.json), else the file's single `tilt_deg` (the 2026-10-10 drafts)."""
+    if stop.get("tilt_deg") is not None:
+        return float(stop["tilt_deg"])
+    if positions.get("tilt_deg") is None:
+        raise ValueError(f"stop {stop.get('name')!r} has no tilt_deg and the positions file has no default tilt_deg")
+    return float(positions["tilt_deg"])
+
+
 def arc_stops(positions: Mapping) -> list[dict]:
     """Lens positions of a positions file: x lateral, y = -(out from the front plane), heading facing the arc centre.
-    Mirrors arc_far.make_stops: the stop at azimuth a sits at a + arc_rotation_deg about a centre on x = 0."""
+    Mirrors arc_far.make_stops: the stop at azimuth a sits at a + arc_rotation_deg about a centre on x = 0.
+    tilt_deg is the stop's pitch (stop_tilt_deg: per stop if given, else the file's single tilt)."""
     if positions.get("schema") != POSITIONS_SCHEMA:
         raise ValueError(f"positions schema must be {POSITIONS_SCHEMA!r}")
     radius = positions["radius_cm"] / 100
@@ -420,7 +432,7 @@ def arc_stops(positions: Mapping) -> list[dict]:
     for s in positions["stops"]:
         az = math.radians(s["azimuth_deg"] + rot)
         out.append({"name": s["name"], "x": radius * math.sin(az), "y": yc - radius * math.cos(az),
-                    "heading_deg": -math.degrees(az)})
+                    "heading_deg": -math.degrees(az), "tilt_deg": stop_tilt_deg(positions, s)})
     return out
 
 
@@ -428,8 +440,18 @@ def cameras_from_positions(positions: Mapping, geometry: Mapping, roll_deg: floa
     cam = geometry["camera"]
     roll = cam["p3_fit"]["roll_deg"] if roll_deg is None else roll_deg
     z = positions["height_cm"] / 100
-    return [Camera(s["name"], (s["x"], s["y"], z), s["heading_deg"], positions["tilt_deg"], roll, cam["f_px"],
+    return [Camera(s["name"], (s["x"], s["y"], z), s["heading_deg"], s["tilt_deg"], roll, cam["f_px"],
                    cam["width_px"], cam["height_px"], cam["k1"]) for s in arc_stops(positions)]
+
+
+def frame_margins(rig: Rig, cam: Camera, distort: bool = True) -> dict:
+    """In-frame margins (px, negative = outside) of the #3 outline (rig.c3_outline(), arc_far.py's 12 points) and of
+    each ArUco tag's 4 corners at one camera, with the fitted k1 by default (the frame check of
+    data/raw/2026-11-02_sim/frame_check.py). 'min' is the smallest of them all."""
+    out = {"c3": cam.frame_margin(rig.c3_outline(), distort),
+           "tags": {t.id: cam.frame_margin(t.corners(), distort) for t in rig.tags}}
+    out["min"] = min([out["c3"], *out["tags"].values()])
+    return out
 
 
 def p3_fit_camera(geometry: Mapping, name: str = "P3_fit") -> Camera:
@@ -584,7 +606,8 @@ def export_scene_spec(rig: Rig) -> dict:
             "boxes (occluder)": g["occluders"]["provenance"],
             "tags": g["tags"]["provenance"],
             "meshes (mug)": g["mug"]["provenance"],
-            "cameras": {"poses": "positions file: arc radius / centre / rotation / azimuths, height_cm, tilt_deg; roll "
+            "cameras": {"poses": "positions file: arc radius / centre / rotation / azimuths, height_cm, tilt_deg (per stop "
+                                 "where given); roll "
                                  f"{rig.cameras[0].roll_deg if rig.cameras else None} deg (P3 fit unless overridden)",
                         **g["camera"]["provenance"]},
             "exported_by": "sim/rig.py export_scene_spec",
