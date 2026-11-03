@@ -106,12 +106,16 @@ class TestEndToEnd(unittest.TestCase):
         self.assertTrue(all(g["n_views"] == 5 for g in by["FULL"]))
         self.assertEqual({g["seed"] for g in by["R"]}, {0, 1, 2})
         self.assertTrue(all(g["seed"] is None for g in by["F"] + by["G"] + by["G-lookahead"]))
+        for g in self.logs:   # effort: no run exceeds its view budget or its travel cap
+            self.assertLessEqual(g["n_additional_views"], g["budget_additional_views"])
+            if g["travel_cap_cm"] is not None:
+                self.assertLessEqual(g["travel_cm"], g["travel_cap_cm"] + 1e-6)
 
     def test_runs_primary_g_and_g_lookahead(self) -> None:
         # DECISIONS 2026-10-12: "G" is primary G (lookahead off) and "G-lookahead" the ablation, both run
         cfg = json.loads((self.out / "config.json").read_text())["config"]
         self.assertEqual(cfg["g_lookahead"], {"G": False, "G-lookahead": True})
-        self.assertEqual(cfg["config_version"], "synthetic-v4")
+        self.assertEqual(cfg["config_version"], "synthetic-v5")
         self.assertIn("G-lookahead", run.MULTI_VIEW)
         self.assertIn(("G", "G-lookahead"), run.BOOTSTRAP_PAIRS)
         self.assertIn(("G", "G-lookahead"), run.DISAGREE_PAIRS)
@@ -129,10 +133,6 @@ class TestEndToEnd(unittest.TestCase):
                 for cap in (None, CAP2):
                     n = sum((p, b, cap, e) in keys for e in {g["episode_id"] for g in self.logs})
                     self.assertEqual(n, 36, (p, b, cap))
-        for g in self.logs:
-            self.assertLessEqual(g["n_additional_views"], g["budget_additional_views"])
-            if g["travel_cap_cm"] is not None:
-                self.assertLessEqual(g["travel_cm"], g["travel_cap_cm"] + 1e-6)
 
     def test_scored_on_test_split_with_counts(self) -> None:
         eps = json.loads((self.out / "episodes.json").read_text())["episodes"]
@@ -235,25 +235,46 @@ class TestEndToEnd(unittest.TestCase):
     def test_diagnostics_in_results(self) -> None:
         d = self.results["diagnostics"]
         self.assertEqual({x["policy"] for x in d["used_view_sets"]}, {"F", "R", "G", "G-lookahead", "G-myopic"})
-        dis = {(x["scope"], x["policy_a"], x["policy_b"], x["budget"], x["travel_cap_cm"]): x
+        # Review: these were pooled over L1 and L2 with no lighting key. Now per query lighting, like the metrics,
+        # plus a "pooled-secondary" row; the reachable sets are geometry only.
+        for kind in ("used_view_sets", "disagreement"):
+            self.assertEqual({x["lighting"] for x in d[kind]}, {"L1", "L2", "pooled-secondary"}, kind)
+        self.assertFalse([x for x in d["reachable_view_sets"] if "lighting" in x])
+        dis = {(x["scope"], x["lighting"], x["policy_a"], x["policy_b"], x["budget"], x["travel_cap_cm"]): x
                for x in d["disagreement"]}
+        self.assertEqual(len(dis), len(d["disagreement"]))
         for x in dis.values():
             self.assertTrue(0.0 <= x["path_disagreement_rate"] <= 1.0)
             self.assertTrue(0.0 <= x["decision_disagreement_rate"] <= x["path_disagreement_rate"] + 1e-12)
-        # recompute G vs G-lookahead and G vs F at the 2-step cap, b = 3, from the logs
-        paths = {}
+        for (scope, light, a, b, bud, cap), x in dis.items():   # the pooled row sums the two lightings' rows
+            if light == "pooled-secondary":
+                l1, l2 = (dis[(scope, lt, a, b, bud, cap)] for lt in ("L1", "L2"))
+                self.assertEqual(x["n_episodes"], l1["n_episodes"] + l2["n_episodes"])
+                for k in ("path_differs", "decision_differs"):
+                    self.assertAlmostEqual(x[k], l1[k] + l2[k], places=9)
+        used = {(u["scope"], u["lighting"], u["policy"], u["budget"], u["travel_cap_cm"]): u["n_view_sets"]
+                for u in d["used_view_sets"]}
+        for (scope, light, p, bud, cap), n in used.items():   # a lighting's episodes are a subset of both
+            if light != "pooled-secondary":
+                self.assertLessEqual(n, used[(scope, "pooled-secondary", p, bud, cap)])
+        # recompute G vs G-lookahead and G vs F at the 2-step cap, b = 3, from the logs, per lighting and pooled
+        paths, light_of = {}, {}
         for g in self.logs:
+            light_of[g["episode_id"]] = g["lighting"]
             if g["budget_additional_views"] == 3 and g["travel_cap_cm"] == CAP2 and \
                     g["policy"] in ("F", "G", "G-lookahead"):
                 paths.setdefault(g["episode_id"], {})[g["policy"]] = g["requested_stops"]
-        n_diff = sum(p["G-lookahead"] != p["G"] for p in paths.values())
-        row = dis[("all", "G", "G-lookahead", 3, CAP2)]
-        self.assertEqual((row["path_differs"], row["n_episodes"]), (n_diff, len(paths)))
-        self.assertGreater(n_diff, 0)   # the lookahead leaves the P3 -> P1 path at 2 steps; primary G does not
-        # geometry (lam 0.5 < 1, uniform arc): primary G's first move is P1, as F's, and a 2-step cap then
-        # leaves no choice, so primary G and F take identical paths there
-        self.assertEqual(sum(p["F"] != p["G"] for p in paths.values()), 0)
-        self.assertEqual(dis[("all", "G", "F", 3, CAP2)]["path_differs"], 0)
+        for light in ("L1", "L2", "pooled-secondary"):
+            sub = [p for e, p in paths.items() if light == "pooled-secondary" or light_of[e] == light]
+            n_diff = sum(p["G-lookahead"] != p["G"] for p in sub)
+            row = dis[("all", light, "G", "G-lookahead", 3, CAP2)]
+            self.assertEqual((row["path_differs"], row["n_episodes"]), (n_diff, len(sub)), light)
+            # geometry (lam 0.5 < 1, uniform arc): primary G's first move is P1, as F's, and a 2-step cap then
+            # leaves no choice, so primary G and F take identical paths there
+            self.assertEqual(sum(p["F"] != p["G"] for p in sub), 0)
+            self.assertEqual(dis[("all", light, "G", "F", 3, CAP2)]["path_differs"], 0)
+        # the lookahead leaves the P3 -> P1 path at 2 steps; primary G does not
+        self.assertGreater(dis[("all", "pooled-secondary", "G", "G-lookahead", 3, CAP2)]["path_differs"], 0)
 
     def test_without_synthetic_exits_2(self) -> None:
         with mock.patch("sys.stderr"):
@@ -330,6 +351,8 @@ class TestReviewFixes(unittest.TestCase):
             cfg_w = json.loads((anywhere / "config.json").read_text())["config"]
         self.assertIn("Generator caveat (regime: start-blocked)", table)
         self.assertIn("operating condition, reported as curves, not tuned", table)
+        self.assertIn("G is the primary geometric selector", table)
+        self.assertNotIn("every G - G-lookahead row is identical", table)   # for --cap-steps none only
         self.assertIn(f"travel cap 2 steps ({CAP2:.2f} cm)", table)
         self.assertNotIn("50 cm", table)
         heads = [line for line in table.splitlines() if line.startswith("## ")]
@@ -341,14 +364,36 @@ class TestReviewFixes(unittest.TestCase):
             for h in ("Cap curve, b = 3 (test split)", "Paired arrangement-level bootstrap, b = 3 (test split)"):
                 self.assertEqual(heads.count(f"## {light} queries - {h}"), 1, (light, h))
             self.assertIn(f"max achievable coverage (test, {light} queries)", table)
-        # pooled numbers only in one labelled secondary section; no other heading is lighting-free results
-        pooled = [h for h in heads if "pooled" in h]
-        self.assertEqual(pooled, ["## Secondary, not a headline: pooled over L1 and L2 queries, b = 3 (test split)"])
-        self.assertFalse([h for h in heads if not h.startswith(("## L1 queries - ", "## L2 queries - ",
-                                                                "## Diagnostic: ", "## Secondary, not a headline"))])
+        # Pooled numbers only in the one labelled secondary section, last; every other heading belongs to a lighting
+        # (review: the diagnostics were pooled over both lightings in the main part of the table).
+        secondary = "## Secondary, not a headline: pooled over L1 and L2 queries (test split)"
+        self.assertEqual([h for h in heads if "pooled" in h], [secondary])
+        self.assertEqual(heads[-1], secondary)
+        self.assertFalse([h for h in heads[:-1] if not h.startswith(("## L1 queries - ", "## L2 queries - "))])
         self.assertNotIn("## Per lighting", table)
-        self.assertIn("## Diagnostic: distinct view sets per budget and cap", table)
-        self.assertIn("## Diagnostic: path and decision disagreement", table)
+        views_h = "Diagnostic: distinct view sets per budget and cap (test split)"
+        dis_h = "Diagnostic: path and decision disagreement (test split, k-rule policies)"
+        for light in ("L1", "L2"):
+            for h in (views_h, dis_h):
+                self.assertEqual(heads.count(f"## {light} queries - {h}"), 1, (light, h))
+        tail = table[table.index(secondary):]
+        for h in ("### Policies at b = 3, pooled", f"### {views_h.replace(':', ', pooled:')}",
+                  f"### {dis_h.replace(':', ', pooled:')}"):
+            self.assertEqual(table.count(h), 1, h)
+            self.assertIn(h, tail)
+        self.assertNotIn("describe paths, not outcomes", table)   # the decision column compares outcomes
+        self.assertIn("decision disagreement compares what they decided, an outcome", table)
+        # each table shows its own lighting's rows: the G vs G-lookahead cell at the 2-step cap, b = 3
+        dis = {d["lighting"]: d for d in res["diagnostics"]["disagreement"] if (
+            d["scope"], d["policy_a"], d["policy_b"], d["budget"], d["travel_cap_cm"]) ==
+            ("test", "G", "G-lookahead", 3, CAP2)}
+        for light, start in (("L1", f"## L1 queries - {dis_h}"), ("L2", f"## L2 queries - {dis_h}"),
+                             ("pooled-secondary", f"### {dis_h.replace(':', ', pooled:')}")):
+            section = table[table.index(start):].split("\n\n#", 1)[0]
+            row = next(x for x in section.splitlines() if x.startswith(f"| 2 steps ({CAP2:.2f} cm) | 3 |"))
+            d = dis[light]
+            self.assertEqual(row.split(" | ")[4],
+                             f"{d['path_disagreement_rate']:.2f} / {d['decision_disagreement_rate']:.2f}", light)
         self.assertIn("max achievable cov", table)
         self.assertIn("FULL (uncapped)", table)
         self.assertIn("uncapped reference (exceeds cap)", table)
@@ -374,6 +419,35 @@ class TestReviewFixes(unittest.TestCase):
             kb = (b["policy_b"], 3, b["travel_cap_cm"]) if b["policy_b"] not in ("S", "FULL") else ("S", 0, None)
             test = lambda k: [r for r in groups[k] if r.split.value == "test" and r.lighting.value == b["lighting"]]
             self.assertEqual(b["identical_runs"], run.identical_runs(test(ka), test(kb)))
+
+    def test_config_hash_does_not_depend_on_cap_spelling(self) -> None:
+        # Review: the parser default caps were ints and --cap-steps 1,2,3,4,6 parsed to floats, so one setting had two
+        # config hashes (synthetic-v5 hashes them as floats)
+        pos, th, params = Positions.default(), run.Thresholds(), run.SyntheticParams()
+        cfgs = [run.build_config(run.build_parser().parse_args(["--synthetic", *extra]), pos, th, params)
+                for extra in ([], ["--cap-steps", "1,2,3,4,6"], ["--cap-steps", "6,4.0,3,2,1,inf"])]
+        self.assertEqual(cfgs[0]["cap_steps"], [None, 1.0, 2.0, 3.0, 4.0, 6.0])
+        self.assertTrue(all(type(c) is float for c in cfgs[0]["cap_steps"][1:]))
+        self.assertEqual({config_sha256(c) for c in cfgs}, {config_sha256(cfgs[0])})
+
+    def test_header_names_the_primary_g_without_caps(self) -> None:
+        # Review: the G / G-lookahead / G-myopic note sat under `if caps:`, so a --cap-steps none table never said
+        # that G is the lookahead-off variant
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "nocap"
+            with mock.patch("builtins.print"):
+                self.assertEqual(run.main([*TINY[:-2], "--cap-steps", "none", "--out", str(out)]), 0)
+            table = (out / "table.md").read_text()
+            res = json.loads((out / "results.json").read_text())
+        self.assertEqual(res["config"]["cap_steps"], [None])
+        header = table.split("\n## ", 1)[0]
+        for needle in ("G is the primary geometric selector", "reachability lookahead off",
+                       "G - G-lookahead isolates the lookahead", "G-myopic is the legacy pre-D-G G",
+                       "no capped setting ran, only uncapped travel", "every G - G-lookahead row is identical"):
+            self.assertIn(needle, header)
+        pairs = [b for b in res["bootstrap"] if (b["policy_a"], b["policy_b"]) in (("G", "G-lookahead"),
+                                                                                    ("G-fcm", "G-lookahead-fcm"))]
+        self.assertTrue(pairs and all(b["identical_runs"] for b in pairs))   # what the no-cap sentence claims
 
     def test_bad_positions_file_exits_2(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -31,26 +31,30 @@ threshold.
           <= alpha_clear, the same predeclared alpha, then maximise the clear-miss rate on diagnostic
           views of removed episodes. Ties: lower false clear-miss rate, then the lower, more
           conservative tau_match.
-    Fail loudly. If no setting on the grid meets alpha_clear in 1a or in 1b (or there is no view to
-          measure the false rate on), calibration raises CalibrationInfeasible. There is then no frozen
-          candidate: the CLI removes any earlier frozen_candidate.json from its output directory, writes
-          calibration_infeasible.json (status "infeasible": the constraint that failed, the best
-          achievable rate and the grid searched) and exits with status 3. alpha_clear is never
-          relaxed, the grid is never widened, and no "least bad" setting is used (select-v3 fell back
-          to the lowest false rate).
+    Fail loudly. If no gate on the grid meets alpha_clear in 1a, or no tau_match on the grid meets it in
+          1b under the gate 1a chose (or there is no view to measure the false rate on), calibration raises
+          CalibrationInfeasible. There is then no frozen candidate: the CLI removes any earlier
+          frozen_candidate.json from its output directory, writes calibration_infeasible.json (status
+          "infeasible": the constraint that failed, the best achievable rate and the grid searched) and
+          exits with status 3. alpha_clear is never relaxed, the grid is never widened, and no "least bad"
+          setting is used (select-v3 fell back to the lowest false rate). A 1b failure does not show that
+          no gate and tau_match on the grid meet both constraints (see Known gaps).
   Step 2  Fixed a priori, never selected: k = 2 (the plan's "at least two distinct positions") and
           lam = 0 (G and A choose by spread or informativeness alone; travel is limited by the caps,
           which are reported as curves).
   Step 3  Honest per-view estimate: grouped cross-validation of Step 1, leaving one arrangement out.
           A held-out arrangement's per-view rates come from thresholds calibrated without it. A fold
           whose calibration is infeasible gets no thresholds and no held-out rates (no fallback); it is
-          reported and the held-out estimate is marked incomplete. The candidate itself still needs
-          Step 1 to be feasible on all dev arrangements.
+          reported and the held-out estimate is marked incomplete. A candidate is written whenever Step 1
+          is feasible on all dev arrangements, but one whose grouped CV is incomplete must not be frozen
+          (docs/SIM_PREREGISTRATION.md section 7; not yet marked in the candidate, see Known gaps).
   Step 4  FRR <= frr_limit is a CHECK, not an objective. With the frozen thresholds (k = 2, lam = 0)
           every policy (S, F, R, G, G-lookahead, G-myopic) runs on dev at the primary budget, uncapped
           and under every cap of the grid. FRR, recall and coverage are reported separately for L1
           and L2 queries, with one-sided Clopper-Pearson and Jeffreys bounds and a cluster bootstrap
-          over arrangements. A policy above the limit is flagged; nothing is changed to fix it.
+          over arrangements. A policy above the limit is flagged; nothing is changed to fix it. A row
+          with no present-target episode (FRR undefined) is not checked, and the check is then
+          incomplete (all_within_limit null), never passed.
   Step 5  Sensitivity, reported and never selected: k = 3 (F, R, G, G-lookahead, G-myopic) and lam in
           {0.7, 0.9, 1.2} (G and G-lookahead, the only policies that read lam), with the frozen taus.
 
@@ -73,16 +77,31 @@ arrangements come with exact per-view labels in any number, so per-view calibrat
 reliable.
 
 Bounds. One-sided Clopper-Pearson and Jeffreys bounds at the episode level and at the arrangement
-level ("any false removal in the arrangement", the 0/10-style bound), plus a percentile cluster
-bootstrap over arrangements. Views and episodes of one arrangement are correlated, so view- and
-episode-level bounds are optimistic, and no formal guarantee on FRR is possible with about 10 dev
-arrangements. R's seed-averaged decisions are not binomial counts, so R gets the bootstrap only.
+level ("any false removal in the arrangement"), plus a percentile cluster bootstrap over arrangements.
+Views and episodes of one arrangement are correlated, so view- and episode-level bounds are
+optimistic and the arrangement-level bound is the honest one. How low that bound can go depends on
+the number of dev arrangements, which the report states with the best bound it allows. The check
+runs on the arrangements whose views set the thresholds, so its bounds are mildly optimistic too; the
+FRR limit is a goal, never a guarantee. R's seed-averaged decisions are not binomial counts, so R gets
+the bootstrap only.
 
 Data access. This module is offline dev analysis, not a policy. It reads every dev view for Step 1
 (from a fresh unsealed store) and joins dev ground truth to score Steps 4-5. Policies still see only
 requested views: every run goes through the public ReplayEnv / run_episode API on a fresh
 EvidenceStore from a StoreFactory (one store per run setting; keys are minted before sealing). Only
 DEV-split episodes are accepted; any test (or pilot) episode raises SplitRefused.
+
+Known gaps, next checkpoint (docs/SIM_PREREGISTRATION.md section 7; verify/README.md section 10):
+  - Held-out policy check. Each fold's thresholds are not yet used to run the policies on the held-out
+    arrangement. Only the per-view CV rates of Step 3 exist, and the Step 4 policy rows are resubstitution.
+  - Freeze eligibility. A candidate whose grouped CV is incomplete is not yet marked
+    eligible_for_freeze: false. Until it is, a candidate with grouped_cv.complete = false must not be frozen.
+  - Sim dev input. This module cannot read the sim set files yet (their view_labels.json is
+    cmpe249.sim-view-labels-set.v0), and the CLI is --synthetic only.
+  - Gate and tau_match are chosen in sequence. Step 1b searches tau_match only under the gate Step 1a
+    picked, so it can report "infeasible" while other grid settings meet both alpha constraints. The next
+    checkpoint replaces this with a joint search: maximise correct clear misses subject to both
+    constraints, with a declared conservative tie-break.
 """
 from __future__ import annotations
 
@@ -93,6 +112,7 @@ import hashlib
 import json
 import logging
 import math
+import os
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -170,7 +190,7 @@ LAM_FIXED = 0.0   # G and A choose by spread / informativeness alone; travel is 
 DEFAULT_TAU_MATCH_GRID = (0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70)
 DEFAULT_TAU_Q_GRID = tuple(round(0.30 + 0.05 * i, 2) for i in range(11))    # 0.30 .. 0.80
 DEFAULT_TAU_OCC_GRID = tuple(round(0.10 + 0.05 * i, 2) for i in range(9))   # 0.10 .. 0.50
-DEFAULT_CAP_STEPS = tuple(c for c in CAP_STEPS_DEFAULT if math.isfinite(c))  # 1, 2, 3, 4, 6; uncapped always runs
+DEFAULT_CAP_STEPS = tuple(float(c) for c in CAP_STEPS_DEFAULT if math.isfinite(c))  # 1..6; uncapped always runs
 DEFAULT_K_SENSITIVITY = (3,)
 # lam sensitivity (review F1): G's choice changes only at a few lam breakpoints (verify/lamgrid.py; at the design
 # geometry 2/3, 3/4, 1, 4/3, 3/2, 2). One value inside each of the intervals (2/3, 3/4), (3/4, 1), (1, 4/3), none on a
@@ -199,6 +219,8 @@ INFEASIBLE_FILE = "calibration_infeasible.json"
 INFEASIBLE_SCHEMA = "cmpe249.calibration_infeasible.v1"
 EXIT_INFEASIBLE = 3   # CLI exit status when Step 1 is infeasible (2 = usage error)
 CANDIDATE_FILES = ("frozen_candidate.json", "frozen_candidate.json.sha256", "selection_details.json")
+REPORT_FILE = "selection_report.md"
+OUTPUT_FILES = (*CANDIDATE_FILES, REPORT_FILE, INFEASIBLE_FILE)   # everything a run writes into its output dir
 
 
 class SplitRefused(ManifestError):
@@ -207,8 +229,11 @@ class SplitRefused(ManifestError):
 
 @dataclass(frozen=True)
 class Infeasibility:
-    """Why Step 1 failed: no setting on the predeclared grid meets alpha_clear, or there is no view to measure the
-    false rate on. Nothing was relaxed, widened or substituted."""
+    """Why Step 1 failed: no gate on the grid meets alpha_clear (1a), no tau_match on the grid meets it under the gate
+    1a chose (1b), or there is no view to measure the false rate on. Nothing was relaxed, widened or substituted.
+
+    A 1b failure covers that one gate only: other gates on the grid were never tried with the tau_match grid, so it
+    does not show that no grid setting meets both constraints (a known gap; the next checkpoint searches jointly)."""
     step: str                                      # "1a" (gate) or "1b" (tau_match)
     constraint: str                                # the constraint no grid setting met
     alpha_clear: float
@@ -221,11 +246,19 @@ class Infeasibility:
     arrangements: tuple[str, ...]
 
     def summary(self) -> str:
+        where = " (tau_match under the Step 1a gate)" if self.step == "1b" else ""
         if self.best_rate is None or self.best_counts is None:
-            return f"Step {self.step}: no view to measure the false rate on"
+            return f"Step {self.step}{where}: no view to measure the false rate on"
         x, n = self.best_counts
-        return (f"Step {self.step}: best achievable false rate {self.best_rate:.4f} ({x}/{n}) > alpha_clear "
+        return (f"Step {self.step}{where}: best achievable false rate {self.best_rate:.4f} ({x}/{n}) > alpha_clear "
                 f"{self.alpha_clear:g}")
+
+    def searched(self) -> tuple[str, str]:
+        """(what failed, under what) for the messages: 1a searched the whole gate grid, 1b only the tau_match grid
+        under the one gate Step 1a chose."""
+        if self.step == "1b":
+            return "no tau_match on the grid", f" under the gate Step 1a chose {_grid_text(self.grid.get('gate', {}))}"
+        return "no gate (tau_q, tau_occ) on the grid", ""
 
     def message(self) -> str:
         if self.best_rate is None:
@@ -236,9 +269,14 @@ class Infeasibility:
             best = (f"the best achievable rate is {self.best_rate:.4f} ({self.best_counts[0]}/{self.best_counts[1]} "
                     f"views), at {'; '.join(at[:5])}{more}")
         grid = "; ".join(f"{k} {_grid_text(v)}" for k, v in self.grid.items())
-        return (f"Step {self.step} is infeasible: no setting on the grid meets '{self.constraint}' with alpha_clear = "
-                f"{self.alpha_clear:g}; {best}. Grid searched: {grid}. Dev views of {len(self.arrangements)} "
-                f"arrangements, both lightings. {NO_FALLBACK}.")
+        # Review: "no setting on the grid" overstated a 1b failure, which tried the tau_match grid under one gate only.
+        sequential = (" Step 1b searches tau_match only under the gate Step 1a picked, so other grid settings may "
+                      "still meet both alpha constraints (a known gap: the next checkpoint searches gate and tau_match "
+                      "jointly)." if self.step == "1b" else "")
+        what, under = self.searched()
+        return (f"Step {self.step} is infeasible: {what} meets '{self.constraint}' with alpha_clear = "
+                f"{self.alpha_clear:g}{under}; {best}. Grid searched: {grid}.{sequential} Dev views of "
+                f"{len(self.arrangements)} arrangements, both lightings. {NO_FALLBACK}.")
 
     def to_dict(self) -> dict[str, Any]:
         return {**{f.name: getattr(self, f.name) for f in dataclasses.fields(self)}, "message": self.message()}
@@ -251,8 +289,9 @@ def _grid_text(v: Any) -> str:
 
 
 class CalibrationInfeasible(RuntimeError):
-    """Step 1 failed loudly: no setting on the predeclared grid meets alpha_clear. There is no candidate; alpha_clear
-    is never relaxed, the grid never widened and no "least bad" setting is used. failure says what failed."""
+    """Step 1 failed loudly: no gate on the grid meets alpha_clear (1a), or no tau_match does under the gate 1a chose
+    (1b). There is no candidate; alpha_clear is never relaxed, the grid never widened and no "least bad" setting is
+    used. failure says what failed."""
 
     def __init__(self, failure: Infeasibility) -> None:
         super().__init__(failure.message())
@@ -329,9 +368,20 @@ class ViewLabel:
     diagnostic: bool
 
 
+def _label_rows(labels: Iterable[ViewLabel]) -> list[dict[str, Any]]:
+    """The label rows in their stable order, (episode_id, stop): the order files and the labels hash use."""
+    return [dataclasses.asdict(l) for l in sorted(labels, key=lambda l: (l.episode_id, l.stop))]
+
+
+def view_labels_sha256(labels: Iterable[ViewLabel]) -> str:
+    """Provenance hash of the per-view labels: sha256 of the canonical JSON of the label rows in (episode_id, stop)
+    order, i.e. of the "labels" list save_view_labels writes. The labels set the thresholds as much as the evidence
+    does, so a candidate records both hashes (review: only the evidence was hashed, next to a free-text source)."""
+    return config_sha256(_label_rows(labels))
+
+
 def save_view_labels(labels: Iterable[ViewLabel], path: str | Path, *, source: str) -> None:
-    doc = {"schema": VIEW_LABELS_SCHEMA, "source": source,
-           "labels": [dataclasses.asdict(l) for l in sorted(labels, key=lambda l: (l.episode_id, l.stop))]}
+    doc = {"schema": VIEW_LABELS_SCHEMA, "source": source, "labels": _label_rows(labels)}
     Path(path).write_text(json.dumps(doc, indent=1) + "\n")
 
 
@@ -344,7 +394,8 @@ def load_view_labels(path: str | Path) -> list[ViewLabel]:
 
 @dataclass(frozen=True)
 class DevData:
-    """Everything selection may use. Construction refuses any non-DEV episode."""
+    """Everything selection may use. Construction refuses any non-DEV episode, a synthetic flag that disagrees with
+    the evidence store's or the truth's, and real (non-synthetic) data without an evidence_sha256."""
     specs: tuple[EpisodeSpec, ...]
     store_factory: StoreFactory
     truth: GroundTruth
@@ -352,7 +403,7 @@ class DevData:
     positions: Positions
     synthetic: bool
     label_source: str
-    evidence_sha256: str = ""
+    evidence_sha256: str = ""   # required on real data; synthetic_dev_data fills it in too
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "specs", tuple(sorted(self.specs, key=lambda s: s.episode_id)))
@@ -381,10 +432,26 @@ class DevData:
         need = {(e, s) for e in ids for s in range(store.n_stops)}
         if need - lab:
             raise ValueError(f"missing view labels, e.g. {sorted(need - lab)[:3]}")
+        # The candidate's SYNTHETIC label comes from this flag alone, so it must agree with the data it describes:
+        # synthetic evidence can never yield an unlabelled candidate (review; verify/run.py's real path has the same
+        # guard). A real store or truth called synthetic is refused too: a disagreement means a wrong input.
+        disagree = [f"the {what} says synthetic={flag}" for what, flag in
+                    (("evidence store", store.synthetic), ("ground truth", self.truth.synthetic))
+                    if bool(flag) != bool(self.synthetic)]
+        if disagree:
+            raise ValueError(f"DevData(synthetic={self.synthetic}) disagrees with its data: {'; '.join(disagree)}")
+        if not self.synthetic and not (self.evidence_sha256 or "").strip():
+            raise ValueError("real (non-synthetic) dev data need evidence_sha256, the provenance hash of the dev "
+                             "evidence (e.g. RecordStoreFactory.evidence_sha256()); the candidate records it")
 
     @property
     def arrangements(self) -> tuple[str, ...]:
         return tuple(sorted({s.arrangement_id for s in self.specs}))
+
+    @property
+    def view_labels_sha256(self) -> str:
+        """sha256 of the per-view labels (view_labels_sha256), recorded next to evidence_sha256."""
+        return view_labels_sha256(self.view_labels)
 
 
 def refuse_non_dev(specs: Iterable[EpisodeSpec]) -> None:
@@ -437,7 +504,7 @@ class SelectionSettings:
     tau_q_grid: tuple[float, ...] = DEFAULT_TAU_Q_GRID
     tau_occ_grid: tuple[float, ...] = DEFAULT_TAU_OCC_GRID
     alpha_clear: float = 0.10     # empirical per-view constraint on dev views for both Step 1 false rates (not an
-    #                               FRR bound); a grid with no setting meeting it fails loudly (CalibrationInfeasible)
+    #                               FRR bound); a step with no grid value meeting it fails (CalibrationInfeasible)
     frr_limit: float = 0.10       # the dev check's limit: a check, never an objective
     k_sensitivity: tuple[int, ...] = DEFAULT_K_SENSITIVITY
     lam_sensitivity: tuple[float, ...] = DEFAULT_LAM_SENSITIVITY
@@ -446,6 +513,13 @@ class SelectionSettings:
     seed: int = 0
 
     def __post_init__(self) -> None:
+        # One spelling per value, so settings_sha256 and the candidate bytes do not depend on how a number was written
+        # (review: the default cap_steps were ints and --cap-steps 1,2,3,4,6 parsed to floats, two hashes for one
+        # setting). Grids, caps, lam values and the rates are floats; k values are ints once validated below.
+        for n in ("cap_steps", "tau_match_grid", "tau_q_grid", "tau_occ_grid", "lam_sensitivity"):
+            object.__setattr__(self, n, tuple(float(x) for x in getattr(self, n)))
+        for n in ("alpha_clear", "frr_limit", "conf"):
+            object.__setattr__(self, n, float(getattr(self, n)))
         if not 1 <= self.budget <= 4:
             raise ValueError("budget must be 1..4 (the dev check needs at least one additional view)")
         for n in ("tau_match_grid", "tau_q_grid", "tau_occ_grid"):
@@ -454,8 +528,10 @@ class SelectionSettings:
                 raise ValueError(f"{n} must be non-empty")
             if not all(math.isfinite(x) and 0.0 <= x <= 1.0 for x in g):   # NaN breaks the ordering (review F3)
                 raise ValueError(f"{n} must contain finite numbers in [0, 1]")
-        if list(self.tau_match_grid) != sorted(set(self.tau_match_grid)):
-            raise ValueError("tau_match_grid must be strictly ascending (conservative -> liberal; ties go to the lower)")
+            # A repeated value would count as another grid setting in the reported gate counts, the infeasible record
+            # and the settings hash for the same search (review: only tau_match_grid was checked).
+            if list(g) != sorted(set(g)):
+                raise ValueError(f"{n} must be strictly ascending, without duplicates")
         if not all(math.isfinite(c) and c > 0 for c in self.cap_steps) or \
                 list(self.cap_steps) != sorted(set(self.cap_steps)):
             raise ValueError("cap_steps must be strictly ascending, finite and > 0 (the uncapped setting always runs)")
@@ -464,6 +540,7 @@ class SelectionSettings:
         if any(isinstance(k, bool) or int(k) != k or k < 1 for k in self.k_sensitivity) or \
                 len(set(self.k_sensitivity)) != len(self.k_sensitivity):
             raise ValueError("k_sensitivity must be unique integers >= 1")
+        object.__setattr__(self, "k_sensitivity", tuple(int(k) for k in self.k_sensitivity))
         if K_FIXED in self.k_sensitivity:
             raise ValueError(f"k = {K_FIXED} is fixed a priori; it is not a sensitivity value")
         if not all(math.isfinite(x) and x >= 0 for x in self.lam_sensitivity):   # review F3
@@ -645,8 +722,9 @@ def choose_tau_match(rows: Sequence[ViewRow], gate: GateChoice, tau_match_grid: 
 
     Every count is StoppingRule.is_clear_miss / is_strong_match at the candidate Thresholds: a strong match and a
     clear miss both read tau_match (verify/stopping.py), so the per-view criteria are exactly the rule's.
-    Raises CalibrationInfeasible if no grid value meets alpha, or if there is no diagnostic view of a present
-    episode to measure the false clear-miss rate on. Nothing is relaxed and there is no fallback.
+    Raises CalibrationInfeasible if no grid value meets alpha under this gate, or if there is no diagnostic view of a
+    present episode to measure the false clear-miss rate on. Nothing is relaxed and there is no fallback, and no
+    other gate is tried (a known gap: the next checkpoint searches gate and tau_match jointly).
     """
     null, power = present_diagnostic_views(rows), removed_diagnostic_views(rows)
     warn = warnings if warnings is not None else []
@@ -684,8 +762,8 @@ class Calibration:
 def calibrate(rows: Sequence[ViewRow], settings: SelectionSettings, arrangements: Iterable[str] | None = None,
               *, log_warnings: bool = True) -> Calibration:
     """Steps 1-2 on the views of the given arrangements (default: every row). It reads views and their labels only:
-    it never builds an env, runs a policy or sees an episode decision. Raises CalibrationInfeasible (Step 1a or 1b)
-    when no grid setting meets alpha_clear."""
+    it never builds an env, runs a policy or sees an episode decision. Raises CalibrationInfeasible when no gate on
+    the grid meets alpha_clear (Step 1a), or no tau_match on the grid does under the chosen gate (Step 1b)."""
     if arrangements is not None:
         keep = set(arrangements)
         rows = [r for r in rows if r.arrangement_id in keep]
@@ -1118,6 +1196,23 @@ def check_flags(rows: Sequence[CheckRow], frr_limit: float) -> list[str]:
             for r in rows if r.lighting in REPORT_LIGHTINGS and r.over_limit]
 
 
+def check_unchecked(rows: Sequence[CheckRow]) -> list[str]:
+    """Every L1 / L2 row of the dev check whose FRR is undefined (no present-target episode at that lighting): the FRR
+    limit was not checked there, so the check cannot pass on it."""
+    return [f"dev check: {r.policy}, {setting_label(r)}, {r.lighting} queries: FRR undefined (no present-target "
+            "episode), so the FRR limit was not checked"
+            for r in rows if r.lighting in REPORT_LIGHTINGS and r.over_limit is None]
+
+
+def all_within_limit(flags: Sequence[str], unchecked: Sequence[str]) -> bool | None:
+    """dev_check.all_within_limit: True only if every L1 / L2 row was checked and none is above the limit. False if a
+    row is flagged (with or without unchecked rows, the answer is then known). None if no row is flagged but some row
+    was not checked: an L1-only dev set used to pass "all within limit" with its L2 check never run (review)."""
+    if flags:
+        return False
+    return None if unchecked else True
+
+
 # ---------------------------------------------------------------- the whole procedure
 
 def run_selection(dev: DevData, settings: SelectionSettings, context: RunContext) -> dict[str, Any]:
@@ -1152,15 +1247,46 @@ def run_selection(dev: DevData, settings: SelectionSettings, context: RunContext
     flags = check_flags(check, settings.frr_limit)
     for f in flags:
         log.warning(f)
+    unchecked = check_unchecked(check)
+    if unchecked:
+        log.warning(f"Step 4: FRR undefined in {len(unchecked)} L1 / L2 row(s) of the dev check (no present-target "
+                    "episode); the FRR limit was not checked there")
     sensitivity = run_sensitivity(runner, th, settings)
     lam_check = check_lam_grid((LAM_FIXED, *settings.lam_sensitivity), dev.positions, lookahead=False)
     for w in lam_check.warnings:
         log.warning(w)
     return {"calibration": cal, "thresholds": th, "view_rates": rates, "folds": folds, "cv_held_out": held,
-            "check": check, "flags": flags, "sensitivity": sensitivity, "lam_grid_check": lam_check,
+            "check": check, "flags": flags, "unchecked": unchecked,
+            "all_within_limit": all_within_limit(flags, unchecked),
+            "sensitivity": sensitivity, "lam_grid_check": lam_check,
             "cv_complete": bool(folds) and not bad,
             "warnings": [*cal.warnings, *extra, *lam_check.warnings], "runner": runner,
             "n_view_rows": len(rows), "n_episode_runs": runner.n_runs, "n_run_settings": runner.n_settings}
+
+
+# Settings in words for the report. An empty list says so plainly (review: "k = (none) runs only as a reported
+# sensitivity", "lam in {} ..." and "uncapped,  arc steps").
+def _values_text(name: str, values: Sequence[float]) -> str:
+    text = [f"{v:g}" for v in values]
+    return f"{name} = {text[0]}" if len(text) == 1 else f"{name} in {{{', '.join(text)}}}"
+
+
+def _k_sensitivity_text(settings: SelectionSettings) -> str:
+    if not settings.k_sensitivity:
+        return "no k sensitivity run was requested"
+    return f"{_values_text('k', settings.k_sensitivity)} runs only as a reported sensitivity"
+
+
+def _lam_sensitivity_text(settings: SelectionSettings) -> str:
+    if not settings.lam_sensitivity:
+        return "no lam sensitivity run was requested"
+    return f"{_values_text('lam', settings.lam_sensitivity)} runs only as a reported sensitivity"
+
+
+def _caps_text(settings: SelectionSettings) -> str:
+    if not settings.cap_steps:
+        return "uncapped only (no capped setting was run)"
+    return "uncapped, " + ", ".join(f"{c:g}" for c in settings.cap_steps) + " arc steps"
 
 
 def candidate_doc(dev: DevData, settings: SelectionSettings, res: dict[str, Any], settings_sha: str,
@@ -1176,15 +1302,19 @@ def candidate_doc(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
         "synthetic": dev.synthetic, "label": SYNTHETIC_LABEL if dev.synthetic else "",
         "settings": settings.to_dict(), "settings_sha256": settings_sha, "proposed_defaults_note": PROPOSED,
         "dev_arrangements": list(dev.arrangements), "n_dev_episodes": len(dev.specs), "n_dev_views": res["n_view_rows"],
-        "dev_evidence_sha256": dev.evidence_sha256, "view_label_source": dev.label_source,
+        "dev_evidence_sha256": dev.evidence_sha256, "view_labels_sha256": dev.view_labels_sha256,
+        "view_label_source": dev.label_source,
         "positions": dev.positions.to_dict(),
         "thresholds": th.to_dict(),
         "calibrated_per_view": ["tau_q", "tau_occ", "tau_match"],
+        # The notes name no sensitivity value (it said "k = 3" even with none requested): this section must not
+        # depend on the sensitivity settings at all, and sensitivity.k_values / lam_values list what ran.
         "fixed_a_priori": {
             "k": K_FIXED, "lam": LAM_FIXED,
-            "k_note": "the plan's 'at least two distinct positions'; k = 3 runs only as a reported sensitivity",
+            "k_note": ("the plan's 'at least two distinct positions'; any other k runs only as a reported sensitivity "
+                       "(sensitivity.k_values)"),
             "lam_note": ("G and A choose by spread or informativeness alone; travel is limited by the caps, reported "
-                         "as curves; the other lam values run only as a reported sensitivity")},
+                         "as curves; any other lam runs only as a reported sensitivity (sensitivity.lam_values)")},
         "selected_on_policy_results": False,
         "alpha_clear": settings.alpha_clear,
         "alpha_note": ALPHA_NOTE,
@@ -1206,8 +1336,11 @@ def candidate_doc(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
             "policies": list(CHECK_POLICIES), "g_lookahead": {"G": False, "G-lookahead": True},
             "g_myopic_lam_deg": GMYOPIC_LAM_DEG, "r_seeds": settings.r_seeds,
             "note": ("FRR <= frr_limit is a check, not an objective: flags are reported and nothing is changed to "
-                     "fix them. Rows for L1 and L2 queries are the result; 'pooled' is a secondary line."),
-            "flags": res["flags"], "all_within_limit": not res["flags"],
+                     "fix them. Rows for L1 and L2 queries are the result; 'pooled' is a secondary line. "
+                     "all_within_limit is true only if every L1 and L2 row was checked and none is flagged, false "
+                     "if one is flagged, and null if none is but FRR is undefined in some row (listed in "
+                     "'unchecked'): the check is then incomplete."),
+            "flags": res["flags"], "unchecked": res["unchecked"], "all_within_limit": res["all_within_limit"],
             "rows": [r.to_dict() for r in res["check"]]},
         "sensitivity": {
             "note": "reported only, never selected; the frozen taus with k or lam replaced (point estimates)",
@@ -1313,6 +1446,20 @@ def _view_table(rates: Mapping[str, ViewRates], conf: float, keys: Sequence[tupl
     return L
 
 
+def frr_bound_note(n_arr: int, frr_limit: float, conf: float) -> str:
+    """What the dev check can show, from the run's own number of dev arrangements (review: a literal "about 10 dev
+    arrangements" was false for a 60-arrangement sim dev set). The best arrangement-level bound is the one-sided CP
+    upper bound when no arrangement has a false removal; if even that is above frr_limit, no dev result gets below
+    it."""
+    best = clopper_pearson_upper(0, n_arr, conf)
+    beyond = (f", above frr_limit = {frr_limit:g}, so no dev result can bring that bound below the limit"
+              if best > frr_limit + EPS else "")
+    return (f"- With {n_arr} dev arrangement{'' if n_arr == 1 else 's'}, the best one-sided {conf:.0%} "
+            "arrangement-level FRR bound (Clopper-Pearson, no arrangement with a false removal) is "
+            f"{best:.3f}{beyond}. The check also runs on the arrangements whose views set the thresholds. The FRR "
+            "limit and the plan's recall and coverage targets are goals, not guarantees.")
+
+
 def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any], cand: dict[str, Any],
                   cand_sha: str) -> str:
     cal: Calibration = res["calibration"]
@@ -1327,12 +1474,14 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
               "diagnostic labels come from `verify.synthetic` (labels are a stand-in derived from the "
               "generator's hidden occluder layout). This run only exercises the calibration procedure; "
               "nothing here may be carried into FREEZE.md.", ""]
+    flags, unchecked = res["flags"], res["unchecked"]
+    within = {True: "true", False: "false", None: "null"}[res["all_within_limit"]]
     L += ["# Threshold calibration report (D-select, select-v4)", "",
           f"- procedure `{PROCEDURE_VERSION}`; settings sha256 `{cand['settings_sha256']}`",
           f"- candidate `frozen_candidate.json` sha256 `{cand_sha}` (status: candidate, not frozen)",
           f"- dev: {len(dev.arrangements)} arrangements, {len(dev.specs)} episodes, {res['n_view_rows']} views; "
           f"evidence sha256 `{dev.evidence_sha256}`",
-          f"- view labels: {dev.label_source}",
+          f"- view labels: {dev.label_source}; labels sha256 `{dev.view_labels_sha256}`",
           "- **No policy result set any threshold.** Steps 1-3 read the dev views and their labels only. The "
           f"{res['n_episode_runs']} episode replays ({res['n_run_settings']} run settings, each on a fresh "
           "EvidenceStore through ReplayEnv/run_episode) all ran after the thresholds were frozen: the Step 4 "
@@ -1340,19 +1489,21 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
           "- grouped cross-validation of the calibration (Step 3): " + (
               "complete" if res["cv_complete"] else "**INCOMPLETE** (" + (
                   "infeasible without " + ", ".join(f.held_out for f in res["folds"] if f.infeasible is not None)
-                  if res["folds"] else "fewer than 2 dev arrangements") + "; see Step 3)"),
-          f"- dev check (Step 4): {len(res['flags'])} flag(s) above FRR {settings.frr_limit:g}", "",
+                  if res["folds"] else "fewer than 2 dev arrangements") + "; see Step 3). A candidate whose grouped "
+              "CV is incomplete must not be frozen (docs/SIM_PREREGISTRATION.md section 7); it is not yet marked "
+              "`eligible_for_freeze: false` (a known gap)"),
+          f"- dev check (Step 4): {len(flags)} flag(s) above FRR {settings.frr_limit:g}"
+          + (f"; **INCOMPLETE**: FRR undefined in {len(unchecked)} L1 / L2 row(s), which were not checked"
+             if unchecked else "") + f"; `all_within_limit` {within}", "",
           "## Frozen candidate", "",
           "| tau_q | tau_occ | tau_match | k | lam |", "| --- | --- | --- | --- | --- |",
           f"| {th.tau_q} | {th.tau_occ} | {th.tau_match} | {th.k} (fixed a priori) | {th.lam:g} (fixed a priori) |", "",
           "- tau_q, tau_occ and tau_match are calibrated per view on the dev views of both lightings together "
           "(one threshold set serves L1 and L2 queries).",
           f"- alpha_clear = {settings.alpha_clear:g}: {ALPHA_NOTE}",
-          "- k = 2 is the plan's \"at least two distinct positions\". k = "
-          + (", ".join(str(k) for k in settings.k_sensitivity) or "(none)") + " runs only as a reported sensitivity.",
+          f"- k = 2 is the plan's \"at least two distinct positions\"; {_k_sensitivity_text(settings)}.",
           "- lam = 0: G and A choose by spread or informativeness alone; travel is limited by the caps, which are "
-          "reported as curves. lam in {" + ", ".join(f"{x:g}" for x in settings.lam_sensitivity)
-          + "} runs only as a reported sensitivity.", "",
+          f"reported as curves; {_lam_sensitivity_text(settings)}.", "",
           "## Settings (every value is a *proposed default - confirm*)", "",
           "| setting | value |", "| --- | --- |"]
     sd = settings.to_dict()
@@ -1360,7 +1511,7 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
               "frr_limit", "k_sensitivity", "lam_sensitivity", "conf", "bootstrap_B", "seed"):
         v = sd[k]
         if k == "cap_steps":
-            v = "uncapped, " + ", ".join(f"{c:g}" for c in v) + " arc steps"
+            v = _caps_text(settings)
         L.append(f"| {k} | {v} |")
     L.append(f"| fixed a priori | k = {K_FIXED}, lam = {LAM_FIXED:g} |")
     prov = cand.get("synthetic_provenance")
@@ -1390,9 +1541,10 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
                  f"| {'**chosen**' if p.tau_match == m.tau_match else ''} |")
     L += ["", f"- chosen tau_match = {m.tau_match} ({m.n_feasible} of {len(m.curve)} values met alpha_clear = "
           f"{settings.alpha_clear:g} on the dev views)",
-          "- Fail loudly: had no gate (1a) or no tau_match (1b) on the grid met alpha_clear, this run would have "
-          f"written no candidate, only `{INFEASIBLE_FILE}`, and exited with status {EXIT_INFEASIBLE}; alpha_clear is "
-          "never relaxed, the grid never widened and no fallback setting is used.", "",
+          "- Fail loudly: had no gate on the grid (1a), or no tau_match on the grid under the chosen gate (1b), met "
+          f"alpha_clear, this run would have written no candidate, only `{INFEASIBLE_FILE}`, and exited with status "
+          f"{EXIT_INFEASIBLE}; alpha_clear is never relaxed, the grid never widened and no fallback setting is "
+          "used.", "",
           "### Per-view rates at the frozen thresholds, by lighting (resubstitution: the views that chose them)", ""]
     L += _view_table(res["view_rates"], conf, lights)
     L += ["", "Views of one arrangement are correlated, so the view-level CP bounds are optimistic.", ""]
@@ -1401,14 +1553,18 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
         L += ["### Step 1 warnings", "", *[f"- {w}" for w in st1], ""]
     L += ["## Step 3: grouped cross-validation of the calibration (leave one arrangement out)", "",
           "Each fold calibrates Steps 1a-1b on the other arrangements' views and scores the held-out arrangement's "
-          "views; no policy runs. The pooled held-out rates are the honest per-view estimate.", ""]
+          "views; no policy runs. The pooled held-out rates are the honest per-view estimate. The held-out policy "
+          "check of docs/SIM_PREREGISTRATION.md section 7 (every policy run on the held-out arrangement with its "
+          "fold's thresholds) is not implemented yet, a known gap: the Step 4 policy rows are resubstitution.", ""]
     folds: list[ViewFold] = res["folds"]
     if folds:
         bad = [f for f in folds if f.infeasible is not None]
         if bad:
             L += [f"**INCOMPLETE: calibrating without {', '.join(f.held_out for f in bad)} is infeasible.** Those folds "
                   "have no thresholds and no held-out rates (no fallback setting), so the held-out estimate below "
-                  f"covers {len(folds) - len(bad)} of {len(folds)} arrangements.", ""]
+                  f"covers {len(folds) - len(bad)} of {len(folds)} arrangements. A candidate whose grouped CV is "
+                  "incomplete must not be frozen (docs/SIM_PREREGISTRATION.md section 7); it is not yet marked "
+                  "`eligible_for_freeze: false` (a known gap).", ""]
         L += ["| held out | tau_q | tau_occ | tau_match | false clear (x/n) | clear (x/n) | false clear miss (x/n) "
               "| clear miss on removed (x/n) |",
               "| --- | --- | --- | --- | --- | --- | --- | --- |"]
@@ -1428,18 +1584,31 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
         st3 = [w for w in res["warnings"] if w.startswith("Step 3")]
         L += ["", *[f"- {w}" for w in st3], ""] if st3 else [""]
     else:
-        L += ["- fewer than 2 dev arrangements: no grouped cross-validation", ""]
+        L += ["- fewer than 2 dev arrangements: no grouped cross-validation. A candidate without a complete grouped "
+              "CV must not be frozen (docs/SIM_PREREGISTRATION.md section 7; not yet marked in the candidate, a known "
+              "gap).", ""]
     check: list[CheckRow] = res["check"]
+    caps = "uncapped and under every cap" if settings.cap_steps else "uncapped only (no capped setting was run)"
     L += [f"## Step 4: dev check at the frozen thresholds (FRR <= {settings.frr_limit:g} is a check, not an "
           "objective)", "",
-          f"Every policy at k = {th.k}, lam = {th.lam:g}, primary budget b = {settings.budget}, uncapped and under "
-          "every cap (caps are an operating condition reported as curves, never tuned). S is one view with its "
+          f"Every policy at k = {th.k}, lam = {th.lam:g}, primary budget b = {settings.budget}, {caps} (caps are an "
+          "operating condition reported as curves, never tuned). S is one view with its "
           "k = 1 rule; G is primary G (lookahead off), G-lookahead the same scorer with the lookahead; G-myopic "
           f"keeps its legacy weight ({GMYOPIC_LAM_DEG:g} deg). R is averaged over {settings.r_seeds} seeds within "
           "each episode, so it has no binomial bounds. A flag is reported and never fixed: changing a threshold to "
           "clear it would tune the thresholds on policy results.", ""]
-    L += [f"- **FLAG** {f}" for f in res["flags"]] or [f"- no policy is above FRR {settings.frr_limit:g} on L1 or L2 "
-                                                       "dev queries at any setting"]
+    L += [f"- **FLAG** {f}" for f in flags]
+    for light in REPORT_LIGHTINGS:   # FRR is undefined where a lighting has no present-target dev episode
+        rows = [r for r in check if r.lighting == light]
+        n = sum(r.over_limit is None for r in rows)
+        if n:
+            L.append(f"- **NOT CHECKED**: {light} queries: FRR is undefined in {n} of {len(rows)} rows (no "
+                     f"present-target {light} dev episode), so the FRR limit was not checked there")
+    if not flags and not unchecked:
+        L.append(f"- no policy is above FRR {settings.frr_limit:g} on L1 or L2 dev queries at any setting")
+    elif not flags:   # an incomplete check never reads as a pass (review: an L1-only dev set did)
+        L.append(f"- no policy is above FRR {settings.frr_limit:g} where FRR is defined, but the check is incomplete "
+                 "(`all_within_limit` is null): it says nothing about the rows not checked")
     for light in REPORT_LIGHTINGS:
         L += ["", f"### {light} queries", ""]
         L += _check_table([r for r in check if r.lighting == light], conf)
@@ -1457,8 +1626,10 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
             L += [f"### lam = {lam:g} ({', '.join(LAM_SENSITIVITY_POLICIES)}), {light} queries", ""]
             L += _sens_table([r for r in sens["lam"] if r.lam == lam and r.lighting == light], primary)
             L.append("")
-    if not settings.k_sensitivity and not settings.lam_sensitivity:
-        L += ["- no sensitivity values were given", ""]
+    for given, text in ((settings.k_sensitivity, _k_sensitivity_text(settings)),
+                        (settings.lam_sensitivity, _lam_sensitivity_text(settings))):
+        if not given:
+            L += [f"- {text}", ""]
     lc: LamGridCheck = res["lam_grid_check"]
     L += ["## lam values check (geometry only; verify/lamgrid.py)", "",
           "Primary G's choice changes with lam only at these breakpoints on this `positions.json`: "
@@ -1485,8 +1656,7 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
           f"- alpha_clear = {settings.alpha_clear:g} constrains per-view rates on the dev views only: it does not "
           "guarantee that any policy's FRR is at most that value, and needing k = 2 clear-miss stops does not turn it "
           "into alpha squared. The FRR of each policy is only checked (Step 4).",
-          "- With about 10 dev arrangements no formal guarantee on FRR is achievable; the FRR limit "
-          "and the plan's recall and coverage targets are goals, not guarantees.",
+          frr_bound_note(len(dev.arrangements), settings.frr_limit, conf),
           "- select-v3 (replaced) chose (k, tau_match, lam) by running primary G on dev and maximising its coverage "
           "after a fixed-sequence FRR walk (D10). That tuned shared settings on G's own results, contrary to "
           "DECISIONS 2026-10-12, and would have handed G-tuned settings to ranker A.", ""]
@@ -1508,9 +1678,12 @@ def _ints(text: str) -> tuple[int, ...]:
     return tuple(int(x) for x in text.split(",") if x.strip())
 
 
-def _optional(parse: Callable[[str], tuple]) -> Callable[[str], tuple]:
+def _optional(parse: Callable[[str], tuple], name: str) -> Callable[[str], tuple]:
+    """parse, with '' or 'none' -> (). name is what argparse calls the type in its error, "invalid <name> value: ..."
+    (review: the bare inner function made it say "invalid f value")."""
     def f(text: str) -> tuple:
         return () if text.strip().lower() in ("", "none") else parse(text)
+    f.__name__ = f.__qualname__ = name
     return f
 
 
@@ -1546,13 +1719,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--tau-occ-grid", type=_floats, default=d.tau_occ_grid)
     p.add_argument("--alpha-clear", type=float, default=d.alpha_clear,
                    help="predeclared empirical per-view constraint on the dev views for both Step 1 false rates "
-                        "(default 0.10); not a bound on any policy's FRR. If no grid setting meets it, calibration "
-                        f"fails: no candidate, {INFEASIBLE_FILE}, exit status {EXIT_INFEASIBLE}")
+                        "(default 0.10); not a bound on any policy's FRR. If no gate (Step 1a), or no tau_match under "
+                        f"the chosen gate (Step 1b), meets it, calibration fails: no candidate, {INFEASIBLE_FILE}, "
+                        f"exit status {EXIT_INFEASIBLE}")
     p.add_argument("--frr-limit", type=float, default=d.frr_limit,
                    help="FRR limit of the dev check: a check that flags, never an objective (default 0.10)")
-    p.add_argument("--k-sensitivity", type=_optional(_ints), default=d.k_sensitivity,
+    p.add_argument("--k-sensitivity", type=_optional(_ints, "int list"), default=d.k_sensitivity,
                    help="k values run as a reported sensitivity only (default 3; 'none'); k = 2 is fixed")
-    p.add_argument("--lam-sensitivity", type=_optional(_floats), default=d.lam_sensitivity,
+    p.add_argument("--lam-sensitivity", type=_optional(_floats, "float list"), default=d.lam_sensitivity,
                    help="lam values run as a reported sensitivity only (default 0.7,0.9,1.2; 'none'); lam = 0 is fixed")
     p.add_argument("--bootstrap-B", type=int, default=d.bootstrap_B)
     p.add_argument("--positions", default=None, help="positions JSON (default configs/positions.json)")
@@ -1585,17 +1759,28 @@ def settings_sha256(settings: SelectionSettings, provenance: Mapping[str, Any] |
     return config_sha256(hashed)
 
 
+def _write_atomic(path: Path, text: str) -> None:
+    """Write text to a temp file next to path, then os.replace it over path: a reader never sees half a file."""
+    tmp = path.with_name(f".{path.name}.tmp")
+    try:
+        tmp.write_text(text)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def write_outputs(out: Path, dev: DevData, settings: SelectionSettings, res: dict[str, Any],
                   provenance: Mapping[str, Any] | None = None) -> dict[str, str]:
-    out.mkdir(parents=True, exist_ok=True)
-    (out / INFEASIBLE_FILE).unlink(missing_ok=True)   # a stale failure record must not sit next to a new candidate
+    """Write the candidate, its .sha256, the report and the details. Every text is rendered before anything is
+    written, so a failure while rendering leaves out as it was. Then every file an earlier run left (including a
+    stale calibration_infeasible.json) is removed, and each file is written as a temp file plus os.replace, with
+    frozen_candidate.json last: a failure while writing leaves no candidate, never a new candidate next to another
+    run's report or details (review: the candidate and its .sha256 used to be written first)."""
     sha_settings = settings_sha256(settings, provenance)
     cand = candidate_doc(dev, settings, res, sha_settings, provenance)
     text = json.dumps(cand, indent=1, sort_keys=True) + "\n"
-    (out / "frozen_candidate.json").write_text(text)
     sha = hashlib.sha256(text.encode()).hexdigest()
-    (out / "frozen_candidate.json.sha256").write_text(f"{sha}  frozen_candidate.json\n")
-    (out / "selection_report.md").write_text(render_report(dev, settings, res, cand, sha))
     cal: Calibration = res["calibration"]
     details = {"label": SYNTHETIC_LABEL if dev.synthetic else "", "procedure_version": PROCEDURE_VERSION,
                "settings": settings.to_dict(),
@@ -1605,16 +1790,25 @@ def write_outputs(out: Path, dev: DevData, settings: SelectionSettings, res: dic
                "tau_match_curve": [p.to_dict() for p in cal.match.curve],
                "folds": [f.to_dict() for f in res["folds"]],
                "check_episodes": check_episodes(res["runner"], res["thresholds"], settings)}
-    (out / "selection_details.json").write_text(json.dumps(to_jsonable(details), indent=1, sort_keys=True) + "\n")
+    texts = {"selection_details.json": json.dumps(to_jsonable(details), indent=1, sort_keys=True) + "\n",
+             REPORT_FILE: render_report(dev, settings, res, cand, sha),
+             "frozen_candidate.json.sha256": f"{sha}  frozen_candidate.json\n",
+             "frozen_candidate.json": text}   # written in this order: the candidate last
+    out.mkdir(parents=True, exist_ok=True)
+    for name in OUTPUT_FILES:
+        (out / name).unlink(missing_ok=True)
+    for name, t in texts.items():
+        _write_atomic(out / name, t)
     return {"frozen_candidate.json": sha}
 
 
 def write_infeasible(out: Path, dev: DevData, settings: SelectionSettings, failure: Infeasibility,
                      provenance: Mapping[str, Any] | None = None) -> Path:
-    """Step 1 failed: remove any frozen candidate (and its details) an earlier run left in out, so nothing downstream
-    can pick one up for this dev data, then write calibration_infeasible.json and the report. Returns the path."""
+    """Step 1 failed: first remove any frozen candidate (with its .sha256 and details) and the report an earlier run
+    left in out, so nothing downstream can pick a candidate up for this dev data even if what follows fails. Then
+    write the report and calibration_infeasible.json (last), each as a temp file plus os.replace. Returns the path."""
     out.mkdir(parents=True, exist_ok=True)
-    for name in CANDIDATE_FILES:
+    for name in OUTPUT_FILES:
         (out / name).unlink(missing_ok=True)
     sha_settings = settings_sha256(settings, provenance)
     doc: dict[str, Any] = {
@@ -1626,13 +1820,16 @@ def write_infeasible(out: Path, dev: DevData, settings: SelectionSettings, failu
         "alpha_clear": settings.alpha_clear, "alpha_note": ALPHA_NOTE,
         "settings": settings.to_dict(), "settings_sha256": sha_settings, "proposed_defaults_note": PROPOSED,
         "dev_arrangements": list(dev.arrangements), "n_dev_episodes": len(dev.specs),
-        "dev_evidence_sha256": dev.evidence_sha256, "view_label_source": dev.label_source,
+        "dev_evidence_sha256": dev.evidence_sha256, "view_labels_sha256": dev.view_labels_sha256,
+        "view_label_source": dev.label_source,
     }
     if provenance is not None:
         doc["synthetic_provenance"] = dict(provenance)
+    record = json.dumps(to_jsonable(doc), indent=1, sort_keys=True) + "\n"
+    report = render_infeasible_report(dev, settings, failure, sha_settings)
     path = out / INFEASIBLE_FILE
-    path.write_text(json.dumps(to_jsonable(doc), indent=1, sort_keys=True) + "\n")
-    (out / "selection_report.md").write_text(render_infeasible_report(dev, settings, failure, sha_settings))
+    _write_atomic(out / REPORT_FILE, report)
+    _write_atomic(path, record)
     return path
 
 
@@ -1643,17 +1840,25 @@ def render_infeasible_report(dev: DevData, settings: SelectionSettings, failure:
         L += [f"# {SYNTHETIC_LABEL}", "",
               "**SYNTHETIC - not study results and not threshold values.** This run only exercises the calibration "
               "procedure.", ""]
+    # Step 1b searched tau_match under the one gate Step 1a chose, so its failure must not read as "no setting on the
+    # predeclared grid" (review; the next checkpoint searches gate and tau_match jointly).
+    sequential = (["**Step 1b searches tau_match only under the gate Step 1a picked**, so other gate and tau_match "
+                   "settings on the grid were never tried together and may still meet both alpha constraints (a "
+                   "known gap: the next checkpoint replaces the sequence with a joint search that maximises correct "
+                   "clear misses subject to both constraints, with a declared conservative tie-break).", ""]
+                  if failure.step == "1b" else [])
+    what, under = failure.searched()
     L += ["# Threshold calibration report (D-select, select-v4): INFEASIBLE", "",
-          f"**No frozen candidate was written.** Step {failure.step} found no setting on the predeclared grid that "
-          f"meets alpha_clear = {failure.alpha_clear:g}, and {NO_FALLBACK}. Any earlier "
+          f"**No frozen candidate was written.** Step {failure.step} found {what} that meets "
+          f"alpha_clear = {failure.alpha_clear:g}{under}, and {NO_FALLBACK}. Any earlier "
           f"`frozen_candidate.json` in this directory was removed. The failure record is `{INFEASIBLE_FILE}` (status "
-          f"\"infeasible\"); the CLI exits with status {EXIT_INFEASIBLE}.", "",
+          f"\"infeasible\"); the CLI exits with status {EXIT_INFEASIBLE}.", "", *sequential,
           f"- procedure `{PROCEDURE_VERSION}`; settings sha256 `{sha_settings}`",
           f"- dev: {len(dev.arrangements)} arrangements, {len(dev.specs)} episodes; evidence sha256 "
-          f"`{dev.evidence_sha256}`; view labels: {dev.label_source}",
+          f"`{dev.evidence_sha256}`; view labels: {dev.label_source}; labels sha256 `{dev.view_labels_sha256}`",
           f"- constraint that failed (Step {failure.step}): {failure.constraint}",
           f"- views it is measured on: {failure.n_null_views} (dev views of both lightings)",
-          "- best achievable rate on the grid: " + (
+          "- best achievable rate among the settings searched: " + (
               "none (no view to measure it on)" if failure.best_rate is None or failure.best_counts is None else
               f"{failure.best_rate:.4f} ({failure.best_counts[0]}/{failure.best_counts[1]}), at "
               + "; ".join(", ".join(f"{k} {v:g}" for k, v in st.items()) for st in failure.best_settings)),
@@ -1661,7 +1866,7 @@ def render_infeasible_report(dev: DevData, settings: SelectionSettings, failure:
           f"- alpha_clear = {failure.alpha_clear:g}: {ALPHA_NOTE}", "",
           "Changing alpha_clear or a grid is a change to the predeclared settings, for the student to decide and "
           "record; this procedure never does it.", "",
-          "## Every setting on the grid", "",
+          "## Every setting searched" + (" (tau_match, under the Step 1a gate)" if failure.step == "1b" else ""), "",
           "| setting | false rate (x/n) |", "| --- | --- |"]
     for g in failure.grid_rates:
         name = ", ".join(f"{k} {v:g}" for k, v in g.items() if k not in ("x", "n", "rate"))
@@ -1674,7 +1879,8 @@ def render_infeasible_report(dev: DevData, settings: SelectionSettings, failure:
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
     if args.lam_breakpoints:
         pos = Positions.load(args.positions) if args.positions else Positions.load()
         chk = check_lam_grid((LAM_FIXED, *args.lam_sensitivity), pos, lookahead=False)   # primary G
@@ -1689,12 +1895,16 @@ def main(argv: list[str] | None = None) -> int:
         print("real dev data not available yet (use --synthetic); build a DevData and call run_selection",
               file=sys.stderr)
         return 2
+    try:
+        settings = SelectionSettings(budget=args.budget, cap_steps=args.cap_steps, r_seeds=args.r_seeds,
+                                     tau_match_grid=args.tau_match_grid, tau_q_grid=args.tau_q_grid,
+                                     tau_occ_grid=args.tau_occ_grid, alpha_clear=args.alpha_clear,
+                                     frr_limit=args.frr_limit, k_sensitivity=args.k_sensitivity,
+                                     lam_sensitivity=args.lam_sensitivity, bootstrap_B=args.bootstrap_B,
+                                     seed=args.seed)
+    except ValueError as e:   # an invalid setting is a usage error (exit 2), not a crash (review: traceback, exit 1)
+        parser.error(str(e))
     positions = Positions.load(args.positions) if args.positions else Positions.load()
-    settings = SelectionSettings(budget=args.budget, cap_steps=args.cap_steps, r_seeds=args.r_seeds,
-                                 tau_match_grid=args.tau_match_grid, tau_q_grid=args.tau_q_grid,
-                                 tau_occ_grid=args.tau_occ_grid, alpha_clear=args.alpha_clear,
-                                 frr_limit=args.frr_limit, k_sensitivity=args.k_sensitivity,
-                                 lam_sensitivity=args.lam_sensitivity, bootstrap_B=args.bootstrap_B, seed=args.seed)
     params = SyntheticParams(n_dev=args.n_dev, block_includes_start=not args.block_anywhere)
     dev = synthetic_dev_data(args.n_arr, args.seed, params, positions)
     context = RunContext(model_id="synthetic-no-model", config_version=PROCEDURE_VERSION,
@@ -1708,14 +1918,15 @@ def main(argv: list[str] | None = None) -> int:
     except CalibrationInfeasible as e:   # fail loudly: no candidate, a failure record, a non-zero exit
         path = write_infeasible(out, dev, settings, e.failure, provenance)
         print(f"{SYNTHETIC_LABEL}: CALIBRATION INFEASIBLE, no frozen candidate written. {e}", file=sys.stderr)
-        print(f"{SYNTHETIC_LABEL}: failure record {path}; report {out / 'selection_report.md'}", file=sys.stderr)
+        print(f"{SYNTHETIC_LABEL}: failure record {path}; report {out / REPORT_FILE}", file=sys.stderr)
         return EXIT_INFEASIBLE
     shas = write_outputs(out, dev, settings, res, provenance)
     th = res["thresholds"]
     print(f"{SYNTHETIC_LABEL}: wrote {out} (frozen_candidate.json sha256 {shas['frozen_candidate.json']})")
     print(f"{SYNTHETIC_LABEL}: candidate tau_q {th.tau_q}, tau_occ {th.tau_occ}, tau_match {th.tau_match}, "
           f"k {th.k} (fixed), lam {th.lam:g} (fixed); dev check: {len(res['flags'])} flag(s) above FRR "
-          f"{settings.frr_limit:g}")
+          f"{settings.frr_limit:g}" + (f", {len(res['unchecked'])} row(s) not checked (FRR undefined)"
+                                       if res["unchecked"] else ""))
     return 0
 
 

@@ -767,8 +767,13 @@ uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 
      geometry), the number of distinct view sets each of F/G/G-lookahead/G-myopic/R actually
      used, and path / decision disagreement for `DISAGREE_PAIRS` = (G, F), (G, R),
      (G, G-lookahead), (G, G-myopic), (G-myopic, F), per scope test/dev/all (pairs with R are
-     averaged over R's seeds within each episode). The diagnostics describe paths, not outcomes,
-     and use the episodes of both lightings together.
+     averaged over R's seeds within each episode). Like the metrics, the used view sets and the
+     disagreement are computed **per query lighting**: every row has `lighting` "L1" or "L2",
+     plus a "pooled-secondary" row over both lightings that is reported only in the secondary
+     section. The reachable sets are geometry only and carry no lighting. The view-set counts
+     describe paths. The disagreement rates compare paths and final decisions, and decision
+     disagreement is an outcome comparison: it says how often two policies decide differently,
+     not which decision was right (no truth is read).
 - `config.json` holds `{"label", "config", "config_sha256"}`. `results.json` contains
   `{"label": SYNTHETIC_LABEL, "synthetic": true, "config": {...}, "config_sha256": ...,
   "positions": ..., "thresholds": ..., "generator": {...}, "files": {name: sha256},
@@ -776,16 +781,22 @@ uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 
   ...compute_all...}], "bootstrap": [{"scope", "lighting", "travel_cap_cm", "budget",
   "identical_runs", ...BootstrapResult...}], "diagnostics": {"reachable_view_sets",
   "used_view_sets", "disagreement"}}`; metrics rows have `lighting` "L1", "L2" or "pooled",
-  bootstrap rows "L1" or "L2". The `config` dict (thresholds, positions,
+  bootstrap rows "L1" or "L2", and `used_view_sets` / `disagreement` rows "L1", "L2" or
+  "pooled-secondary". The `config` dict (thresholds, positions,
   budgets, `cap_steps`, `travel_caps_cm`, `nominal_step_cm`, `travel_tol_cm`, `g_lookahead`
   {"G": false, "G-lookahead": true}, `g_myopic` {lam_deg, travel_norm_cm}, r_seeds, generator
-  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v4`; `real-v1`
+  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v5`; `real-v2`
   for real data), model_id, positions file path and sha256) is hashed with `config_sha256`, and
-  the same hash is in every log line.
+  the same hash is in every log line. `cap_steps` is hashed as floats (`[null, 1.0, 2.0, ...]`),
+  so the default caps and an explicit `--cap-steps 1,2,3,4,6` give the same hash. v4 (real-v1)
+  hashed the default caps as ints, so the same caps could hash two ways; v5 (real-v2) changed
+  that and split the diagnostics by lighting.
 - `table.md` begins with `# SYNTHETIC - generated evidence, not study results`. The header
   carries the per-lighting note, the generator-regime caveat (section 5), the D-cap note (caps in
   steps, 1e-6 cm tolerance; a warning if measured stops deviate from the nominal step), the
-  G / G-lookahead / G-myopic note, and the maximum achievable coverage on test for each lighting
+  G / G-lookahead / G-myopic note (always, also with `--cap-steps none`, where one more line
+  says that uncapped G-lookahead takes G's path, so every G - G-lookahead row is identical), and
+  the maximum achievable coverage on test for each lighting
   with the predeclared indistinguishable count. Then, **once for L1 queries and once for L2
   queries** (every heading starts with `L1 queries -` or `L2 queries -`): the primary table (one
   row per policy at the primary budget, per cap setting: FRR, recall, coverage, resolved
@@ -793,11 +804,12 @@ uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 
   "higher-effort reference"; under a capped heading FULL is printed as `FULL (uncapped)` with the
   note "uncapped reference (exceeds cap)"), the budget curves, the per-condition table (with a
   max achievable coverage column), the **cap curve at the primary budget** (each policy across the
-  cap grid), and the bootstrap lines with their n and an `identical` note on degenerate pairs.
-  Undefined values print as `undef`. After both lightings come the two diagnostic tables
-  (distinct view sets; path / decision disagreement) and, last, the only numbers pooled over
-  lighting: one table headed `Secondary, not a headline: pooled over L1 and L2 queries` (policy x
-  cap at the primary budget, no bootstrap). The default run (30 arrangements, 6 cap settings, 20
+  cap grid), the bootstrap lines with their n and an `identical` note on degenerate pairs, and
+  the two diagnostic tables for that lighting (distinct view sets; path / decision disagreement).
+  Undefined values print as `undef`. Last comes the only section with numbers pooled over
+  lighting, headed `Secondary, not a headline: pooled over L1 and L2 queries (test split)`: the
+  policy x cap table at the primary budget (no bootstrap) and the two diagnostic tables over both
+  lightings (the "pooled-secondary" rows). The default run (30 arrangements, 6 cap settings, 20
   R seeds, B = 10000) writes 259,560 log lines (`logs.jsonl` about 210 MB, `results.json` about
   12 MB); on the Jetson it took about 105 s (2026-11-02; before G-lookahead and the per-lighting
   split it was 248,760 lines, 4 MB of results and about 90 s there).
@@ -813,7 +825,12 @@ uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 
   cap while G and F take identical ones there, that every metrics row exists for L1, L2 and pooled, that an L1 row is
   computed from the L1 episodes only (3 per arrangement; one row recomputed exactly from the
   logs), that the bootstrap runs per lighting (never pooled) and matches a direct call, and the
-  per-lighting table headings.
+  per-lighting table headings. It also checks that the diagnostics carry a lighting (each L1, L2
+  and pooled-secondary disagreement row recomputed from the logs, the pooled row the sum of the
+  two, each table cell from its own lighting's row) and that pooled numbers appear only in the
+  final secondary section; that the G note is in the header with `--cap-steps none` (and the
+  G - G-lookahead rows are identical there); that the default and explicit caps hash alike; and
+  that no log exceeds its view budget or travel cap (`test_log_counts_and_effort`).
 
 ---
 
@@ -871,6 +888,13 @@ dev data are looked at.
   through the library (build a `DevData`, call `run_selection`); the CLI is `--synthetic` only, where
   `synthetic_dev_data` uses stand-in labels from the generator's hidden layout (blocked or edge stop ->
   non-diagnostic), clearly marked as such.
+- **Provenance.** `DevData` refuses a `synthetic` flag that disagrees with the evidence store's or the
+  truth's, in either direction, so synthetic evidence can never produce an unlabelled candidate (`verify.run`
+  has the same guard on its real-data path). Non-synthetic dev data need a non-empty `evidence_sha256`. The
+  labels set the thresholds as much as the evidence, so `view_labels_sha256` (the sha256 of the canonical
+  JSON of the label rows in (episode_id, stop) order, which is the `labels` list `save_view_labels` writes)
+  is recorded next to the evidence sha256 in `frozen_candidate.json`, `calibration_infeasible.json` and
+  both reports.
 - **Split refusal.** `DevData.__post_init__` and `run_selection` raise `SplitRefused` (a `ManifestError`)
   for any non-DEV spec (test and pilot), and if the store or the labels hold any episode outside the dev
   specs. `synthetic_dev_data` snapshots only DEV episodes.
@@ -895,15 +919,18 @@ dev data are looked at.
   - **`alpha_clear`** is one predeclared value for 1a and 1b: an **empirical per-view calibration
     constraint on the dev views**. It is not a bound on any policy's false removal rate (FRR is only
     checked, in Step 4), and requiring k = 2 clear-miss stops does not turn it into alpha squared.
-  - **Fail loudly.** If no setting on the grid meets `alpha_clear` in 1a or in 1b, or there is no view to
-    measure the false rate on, `calibrate` raises `CalibrationInfeasible`. Its `failure` gives the step and
-    the constraint, the best achievable rate with the settings that reach it, every grid setting's rate and
-    the grid searched. There is then no candidate. The CLI removes any earlier `frozen_candidate.json` (with
-    its `.sha256` and `selection_details.json`) from the output directory, writes
-    `calibration_infeasible.json` (schema `cmpe249.calibration_infeasible.v1`, status `"infeasible"`, no
-    thresholds) and a report, and exits with status 3. `alpha_clear` is never relaxed, the grid is never
-    widened, and no "least bad" setting is used (select-v3 fell back to the lowest false rate). An empty
-    power set only warns; the tie-breaks then pick the most conservative feasible setting.
+  - **Fail loudly.** If no gate on the grid meets `alpha_clear` in 1a, or no tau_match on the grid meets it
+    in 1b under the gate 1a chose, or there is no view to measure the false rate on, `calibrate` raises
+    `CalibrationInfeasible`. Its `failure` gives the step and the constraint, the best achievable rate with
+    the settings that reach it, every searched setting's rate and the grid searched (for 1b, with the gate
+    it used). A 1b failure says that it searched one gate only (see Known gaps), never that no setting on
+    the predeclared grid meets `alpha_clear`. There is then no candidate. The CLI removes any earlier
+    `frozen_candidate.json` (with its `.sha256` and `selection_details.json`) and report from the output
+    directory, writes a new report and `calibration_infeasible.json` (schema
+    `cmpe249.calibration_infeasible.v1`, status `"infeasible"`, no thresholds), and exits with status 3.
+    `alpha_clear` is never relaxed, the grid is never widened, and no "least bad" setting is used (select-v3
+    fell back to the lowest false rate). An empty power set only warns; the tie-breaks then pick the most
+    conservative feasible setting.
 - **Step 2: fixed a priori.** `K_FIXED = 2` (the plan's "at least two distinct positions") and
   `LAM_FIXED = 0` (G and A choose by spread or informativeness alone; travel is limited by the caps, which
   are reported as curves). They are module constants, not settings: every `Thresholds` the calibration
@@ -913,8 +940,9 @@ dev data are looked at.
   Step 1 on the other arrangements' views and scores the held-out arrangement's views with the fold's
   thresholds. The pooled held-out per-view rates, per lighting, are the estimate to quote. A fold whose
   calibration is infeasible gets no thresholds and no held-out rates (no fallback). It is warned about and
-  listed in `grouped_cv.infeasible_folds`, and `grouped_cv.complete` is false. The candidate itself still
-  needs Step 1 to be feasible on all dev arrangements.
+  listed in `grouped_cv.infeasible_folds`, and `grouped_cv.complete` is false. A candidate is still written
+  whenever Step 1 is feasible on all dev arrangements, but one with `grouped_cv.complete` false must not be
+  frozen; the report says so, and the candidate does not yet carry the mark (see Known gaps).
 - **Step 4: FRR <= `frr_limit` (0.10) is a check, not an objective.** With the frozen thresholds (k = 2,
   lam = 0), `PolicyRunner` runs S, F, R, G, G-lookahead and G-myopic on dev at the primary budget (`budget`,
   default 3), uncapped and under every cap of `cap_steps` (default 1, 2, 3, 4 and 6 arc steps; D-cap).
@@ -929,6 +957,15 @@ dev data are looked at.
   lower bounds on recall and coverage) and a percentile cluster bootstrap over arrangements. R's
   seed-averaged decisions are not binomial counts, so R gets the bootstrap only. Every L1 or L2 row above
   the limit is flagged (`dev_check.flags`), and nothing is changed to fix a flag.
+
+  A row whose lighting has no present-target dev episode has FRR undefined and is listed in
+  `dev_check.unchecked`: the limit was not checked there. `dev_check.all_within_limit` is true only if
+  every L1 and L2 row was checked and none is flagged. It is false when a row is flagged, and null when no
+  row is flagged but some row was not checked, so an L1-only dev set cannot pass the L2 check vacuously.
+  The report then calls the check incomplete rather than saying no policy is above the limit. Its "Reading
+  these numbers" section states the best arrangement-level bound that the run's own number of dev
+  arrangements allows (the one-sided CP upper bound with no arrangement showing a false removal: 0.259 for
+  10 arrangements, above the 0.10 limit; 0.049 for 60).
 - **Step 5: sensitivity, reported only and never selected.**
   - k = 3 (`k_sensitivity`) runs F, R, G, G-lookahead and G-myopic; S is k = 1 by construction.
   - lam in {0.7, 0.9, 1.2} (`lam_sensitivity`) runs G and G-lookahead, the only policies that read
@@ -945,20 +982,30 @@ dev data are looked at.
   - no policy runs before the thresholds are fixed, and an infeasible calibration runs nothing;
   - the thresholds are unchanged when every policy decision is replaced;
   - neither `frr_limit` nor the sensitivity runs change the candidate.
+- **Settings.** `SelectionSettings` stores the grids, caps, lam values and rates as floats and the k values
+  as ints, so the settings sha256 does not depend on how a number was written: the default caps and
+  `--cap-steps 1,2,3,4,6` hash alike. All three tau grids must be strictly ascending, without duplicates. The
+  CLI turns an invalid setting (for example `--lam-sensitivity 0`, `--k-sensitivity 2`, `--budget 0` or a
+  grid out of order) into a usage error: argparse prints it and the exit status is 2, before anything runs.
 - **Outputs** (deterministic, no timestamps). The default directory is `runs/select-v4-<tag>/`, so runs of
   earlier procedures are not overwritten.
   - `frozen_candidate.json`: schema `cmpe249.frozen_candidate.v2`, procedure `select-v4`, status
     "CANDIDATE - not frozen until the student signs FREEZE.md". It holds the thresholds, `fixed_a_priori`
     {k: 2, lam: 0}, `selected_on_policy_results: false`, `alpha_clear` with its note, and the `calibration`
     (gate, tau_match curve, per-view rates for L1, L2 and both, grouped CV). It also holds the `dev_check`
-    (rows and flags), the `sensitivity` rows, `lam_grid_check`, the settings and evidence sha256, the dev
-    arrangements and the label source. On `--synthetic` it adds `synthetic_provenance`, which also enters
-    the settings sha256.
+    (rows, flags, unchecked rows and `all_within_limit`), the `sensitivity` rows, `lam_grid_check`, the
+    settings, evidence and labels sha256, the dev arrangements and the label source. On `--synthetic` it
+    adds `synthetic_provenance`, which also enters the settings sha256.
   - `frozen_candidate.json.sha256`, `selection_report.md`, and `selection_details.json` (the full gate grid,
     the tau_match curve, the folds and the per-episode check decisions).
   - On an infeasible calibration: `calibration_infeasible.json` and the report only (see Step 1).
 
-  On `--synthetic` every file is labelled SYNTHETIC and nothing may be carried into FREEZE.md.
+  Write order. `write_outputs` renders every text before it writes anything, so a failure while rendering
+  leaves the directory as it was. It then removes the earlier run's files (candidate, `.sha256`, report,
+  details and any `calibration_infeasible.json`) and writes each file as a temp file moved into place with
+  `os.replace`, `frozen_candidate.json` last. A failure while writing therefore leaves no candidate, never
+  a new candidate next to another run's report or details. On `--synthetic` every file is labelled
+  SYNTHETIC and nothing may be carried into FREEZE.md.
 - **Replaced: select-v3** (until 2026-11-02). Its Step 3 walked (k, tau_match) in a fixed conservative ->
   liberal sequence, a step passing on its worst FRR over the lam grid. It then chose (k, tau_match, lam) by
   **running primary G** on dev and maximising its coverage (D10: a recall >= 0.80 filter, then coverage,
@@ -974,6 +1021,22 @@ dev data are looked at.
   `docs/SIMULATION_STUDY.md` (k "selected on development data"; "thresholds, the travel penalty and ranker A
   selected on development arrangements") still describe selecting k and the travel penalty on dev.
   select-v4 fixes k = 2 and lam = 0 a priori, following the student's 2026-11-02 approval.
+- **Known gaps, next checkpoint.** Not implemented yet; until they are, the outputs above must be read
+  with them in mind.
+  - **Held-out policy check** (`docs/SIM_PREREGISTRATION.md` section 7). Each fold's thresholds are not yet
+    used to run the policies on the held-out arrangement. Today only the per-view CV rates of Step 3 exist,
+    and the Step 4 policy rows are resubstitution.
+  - **Freeze eligibility.** A candidate whose grouped CV is incomplete is not yet marked
+    `eligible_for_freeze: false`. Until it is, a candidate with `grouped_cv.complete` false must not be
+    frozen.
+  - **Sim dev input.** `verify/select.py` cannot read the sim set files yet: their `view_labels.json` is
+    `cmpe249.sim-view-labels-set.v0`, and the CLI is synthetic-only.
+  - **Gate and tau_match are chosen in sequence.** Step 1b searches tau_match only under the gate that
+    Step 1a picked, so it can report "infeasible" while other grid settings meet both alpha constraints.
+    The next checkpoint replaces this with a joint search that maximises correct clear misses subject to
+    both constraints, with a declared conservative tie-break. Until then the infeasible record says that no
+    tau_match met `alpha_clear` under the gate chosen in Step 1a, not that no setting on the predeclared
+    grid did.
 
 ---
 

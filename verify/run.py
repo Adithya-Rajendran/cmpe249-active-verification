@@ -83,7 +83,8 @@ from verify.schema import (
 from verify.stopping import StoppingRule
 from verify.synthetic import SyntheticParams, generate
 
-CONFIG_VERSION = "synthetic-v4"   # v4 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
+CONFIG_VERSION = "synthetic-v5"   # v5 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
+# v4 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
 MODEL_ID = "synthetic-no-model"
 # G is primary G (D-norm, lookahead off; DECISIONS 2026-10-12). G-lookahead is the same scorer with the
 # reachability lookahead, so G - G-lookahead isolates the lookahead. G-myopic is the legacy pre-D-G ablation.
@@ -101,6 +102,7 @@ SCOPES = (Split.TEST, Split.DEV)
 # lighting. A number pooled over lighting is a labelled secondary line only, never a headline.
 REPORT_LIGHTINGS = tuple(x.value for x in Lighting)
 POOLED = "pooled"
+POOLED_DIAGNOSTIC = "pooled-secondary"   # the lighting of a diagnostics row over both lightings (secondary section)
 ROLE = {"S": "actual effort (1 view, budget-independent)",
         "FULL": "higher-effort reference (5 views, ignores budget)"}
 
@@ -176,6 +178,12 @@ def _rel(path: Path) -> str:
     return str(path.relative_to(REPO_ROOT)) if path.is_relative_to(REPO_ROOT) else str(path)
 
 
+def _cap_steps_config(cap_steps: Sequence[float]) -> list[float | None]:
+    """[None (uncapped), *caps as floats] for the hashed config. One spelling per cap: the parser default was ints and
+    --cap-steps 1,2,3,4,6 parsed to floats, so the same caps hashed two ways (review; synthetic-v5 / real-v2)."""
+    return [None, *(float(c) for c in cap_steps)]
+
+
 def build_config(args: argparse.Namespace, positions: Positions, th: Thresholds,
                  params: SyntheticParams) -> dict[str, Any]:
     """Everything that determines the run; hashed into every log line."""
@@ -184,7 +192,7 @@ def build_config(args: argparse.Namespace, positions: Positions, th: Thresholds,
             "positions_file": _rel(pos_path), "positions_file_sha256": file_sha256(pos_path),
             "n_arr": args.n_arr, "seed": args.seed, "budgets": list(args.budgets),
             "nominal_step_cm": positions.nominal_step_cm(), "travel_tol_cm": TRAVEL_TOL_CM,
-            "cap_steps": [None, *args.cap_steps],
+            "cap_steps": _cap_steps_config(args.cap_steps),
             "travel_caps_cm": [None, *(cap_cm_from_steps(c, positions) for c in args.cap_steps)],
             "g_lookahead": dict(G_LOOKAHEAD),
             "g_myopic": {"lam_deg": GMYOPIC_LAM_DEG, "travel_norm_cm": th.travel_norm_cm},
@@ -377,42 +385,51 @@ def diagnostics_stage(logs: Sequence[EpisodeLog], positions: Positions, budgets:
     """'Can selection matter?' diagnostics (logs only, no truth): reachable view sets per (b, cap),
     distinct view sets each policy actually used, and path / decision disagreement between policies.
 
+    The used view sets and the disagreement are computed per query lighting, like the metrics: every row has
+    `lighting` "L1" or "L2", plus a "pooled-secondary" row over both lightings that is only reported in the
+    secondary section (review: they were pooled over L1 and L2, with no lighting key). The reachable sets are
+    geometry only and have no lighting.
+
     Disagreement for (A, B) is per episode: deterministic vs deterministic is 0/1; a pair with R is the
     fraction of R's seeds whose path (or decision) differs, so it is averaged within episode first.
     """
     paths: dict[tuple[str, int, float | None, str], list[tuple[tuple[int, ...], str]]] = {}
     split_of: dict[str, str] = {}
+    light_of: dict[str, str] = {}
     for g in logs:
         paths.setdefault((g.policy, g.budget_additional_views, g.travel_cap_cm, g.episode_id), []).append(
             (tuple(g.requested_stops), g.decision.value))
         split_of[g.episode_id] = g.split.value
+        light_of[g.episode_id] = g.lighting.value
     episodes = sorted(split_of)
     reach, used, disagree = [], [], []
     for cap in caps:
         for b in budgets:
             reach.append({"budget": b, "travel_cap_cm": cap, **reachable_view_sets(positions, b, cap)})
             for scope in ("test", "dev", "all"):
-                eps = [e for e in episodes if scope == "all" or split_of[e] == scope]
-                for pol in MULTI_VIEW:
-                    sets = {frozenset(pth) for e in eps for pth, _ in paths.get((pol, b, cap, e), [])}
-                    if sets:
-                        used.append({"scope": scope, "policy": pol, "budget": b, "travel_cap_cm": cap,
-                                     "n_view_sets": len(sets)})
-                for a, bb in DISAGREE_PAIRS:
-                    path_d, dec_d, n = 0.0, 0.0, 0
-                    for e in eps:
-                        ra, rb = paths.get((a, b, cap, e)), paths.get((bb, b, cap, e))
-                        if not ra or not rb:
-                            continue
-                        pairs = [(x, y) for x in ra for y in rb]
-                        path_d += sum(x[0] != y[0] for x, y in pairs) / len(pairs)
-                        dec_d += sum(x[1] != y[1] for x, y in pairs) / len(pairs)
-                        n += 1
-                    if n:
-                        disagree.append({"scope": scope, "policy_a": a, "policy_b": bb, "budget": b,
-                                         "travel_cap_cm": cap, "n_episodes": n, "path_differs": path_d,
-                                         "path_disagreement_rate": path_d / n, "decision_differs": dec_d,
-                                         "decision_disagreement_rate": dec_d / n})
+                for light in (*REPORT_LIGHTINGS, POOLED_DIAGNOSTIC):
+                    eps = [e for e in episodes if (scope == "all" or split_of[e] == scope)
+                           and (light == POOLED_DIAGNOSTIC or light_of[e] == light)]
+                    for pol in MULTI_VIEW:
+                        sets = {frozenset(pth) for e in eps for pth, _ in paths.get((pol, b, cap, e), [])}
+                        if sets:
+                            used.append({"scope": scope, "lighting": light, "policy": pol, "budget": b,
+                                         "travel_cap_cm": cap, "n_view_sets": len(sets)})
+                    for a, bb in DISAGREE_PAIRS:
+                        path_d, dec_d, n = 0.0, 0.0, 0
+                        for e in eps:
+                            ra, rb = paths.get((a, b, cap, e)), paths.get((bb, b, cap, e))
+                            if not ra or not rb:
+                                continue
+                            pairs = [(x, y) for x in ra for y in rb]
+                            path_d += sum(x[0] != y[0] for x, y in pairs) / len(pairs)
+                            dec_d += sum(x[1] != y[1] for x, y in pairs) / len(pairs)
+                            n += 1
+                        if n:
+                            disagree.append({"scope": scope, "lighting": light, "policy_a": a, "policy_b": bb,
+                                             "budget": b, "travel_cap_cm": cap, "n_episodes": n,
+                                             "path_differs": path_d, "path_disagreement_rate": path_d / n,
+                                             "decision_differs": dec_d, "decision_disagreement_rate": dec_d / n})
     return {"reachable_view_sets": reach, "used_view_sets": used, "disagreement": disagree}
 
 
@@ -485,21 +502,26 @@ def _generator_caveat(gen: dict) -> str:
 def _cap_notes(cfg: dict, pos: Positions) -> list[str]:
     step = cfg["nominal_step_cm"]
     caps = [c for c in cfg["travel_caps_cm"] if c is not None]
+    grid = ", ".join(_steps_str(s) for s in cfg["cap_steps"] if s is not None)
     out = [(f"- **Travel caps are an operating condition, reported as curves, not tuned (D-cap).** "
-            f"Cap = N arc steps x {step:.2f} cm (nominal step of the positions file); grid "
-            f"{', '.join(_steps_str(s) for s in cfg['cap_steps'] if s is not None) or 'none'} steps plus uncapped. "
-            f"Affordability uses a {cfg['travel_tol_cm']:g} cm tolerance and no other slack. FULL is never capped.")]
+            f"Cap = N arc steps x {step:.2f} cm (nominal step of the positions file); "
+            + (f"grid {grid} steps plus uncapped" if grid else "no capped setting ran, only uncapped travel") +
+            f". Affordability uses a {cfg['travel_tol_cm']:g} cm tolerance and no other slack. FULL is never capped.")]
     dev = pos.adjacent_step_deviation_cm()
     if dev > cfg["travel_tol_cm"]:
         out.append(f"- **Warning:** adjacent stops deviate from the nominal step by up to {dev:.3f} cm, so a cap "
                    "of N steps does not buy exactly N adjacent moves on this positions file.")
-    if caps:
-        out.append("- G is the primary geometric selector: per-decision normalisation (D-norm), reachability "
-                   "lookahead off (DECISIONS 2026-10-12). G-lookahead is the same scorer and settings with the "
-                   "lookahead (D-G), so G - G-lookahead isolates the lookahead. G-myopic is the legacy pre-D-G G, "
-                   f"kept as an extra ablation (no lookahead, lam {cfg['g_myopic']['lam_deg']:g} deg per "
-                   f"{cfg['g_myopic']['travel_norm_cm']:.2f} cm): G - G-myopic changes the normalisation, not the "
-                   "lookahead. F and R are naive by design.")
+    # Which G is primary must be said with or without caps (review: it sat under `if caps:`, so a --cap-steps none
+    # table never said that G is now the lookahead-off variant).
+    out.append("- G is the primary geometric selector: per-decision normalisation (D-norm), reachability "
+               "lookahead off (DECISIONS 2026-10-12). G-lookahead is the same scorer and settings with the "
+               "lookahead (D-G), so G - G-lookahead isolates the lookahead. G-myopic is the legacy pre-D-G G, "
+               f"kept as an extra ablation (no lookahead, lam {cfg['g_myopic']['lam_deg']:g} deg per "
+               f"{cfg['g_myopic']['travel_norm_cm']:.2f} cm): G - G-myopic changes the normalisation, not the "
+               "lookahead. F and R are naive by design.")
+    if not caps:
+        out.append("- Uncapped, the lookahead finds every candidate equally feasible, so G-lookahead takes G's path on "
+                   "every episode: with no capped setting, every G - G-lookahead row is identical.")
     return out
 
 
@@ -581,22 +603,29 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
                      f"{fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | {r['n_arrangements']} | "
                      f"{r['n_episodes']} | {r['B']} | {r['n_undefined']} | {note} |")
     lines.append("")
+    diag = results.get("diagnostics")
+    if diag:
+        lines += _diagnostic_lines(diag, cfg, lab, light, f"{h} Diagnostic:")
     return lines
 
 
 def _pooled_lines(results: dict[str, Any], lab) -> list[str]:
-    """The only pooled-over-lighting numbers in table.md: one labelled secondary table at the end."""
+    """The only pooled-over-lighting numbers in table.md: one labelled secondary section at the end, with the
+    pooled policy table and the pooled diagnostics."""
     cfg, metrics = results["config"], results["metrics"]
     pb, scope, caps = cfg["primary_budget"], Split.TEST.value, cfg["travel_caps_cm"]
-    lines = [f"## Secondary, not a headline: pooled over L1 and L2 queries, b = {pb} (test split)", "",
+    lines = ["## Secondary, not a headline: pooled over L1 and L2 queries (test split)", "",
              ("Both lightings together, for reference only. The results are the per-lighting sections above; "
-              "no bootstrap is run on pooled data."), "", CURVE_HEAD]
+              "no bootstrap is run on pooled data."), "", f"### Policies at b = {pb}, pooled", "", CURVE_HEAD]
     for p in ORDER:
         for cap in ((None,) if p in ("S", "FULL") else caps):
             m = _find(metrics, scope, p, pb, cap, POOLED)
             if m:
                 lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_cells(m["overall"])]))
     lines.append("")
+    diag = results.get("diagnostics")
+    if diag:
+        lines += _diagnostic_lines(diag, cfg, lab, POOLED_DIAGNOSTIC, "### Diagnostic, pooled:")
     return lines
 
 
@@ -631,9 +660,6 @@ def render_table(results: dict[str, Any]) -> str:
     lines.append("")
     for light in lights:
         lines += _lighting_lines(results, light, lab)
-    diag = results.get("diagnostics")
-    if diag:
-        lines += _diagnostic_lines(diag, cfg, lab)
     lines += _pooled_lines(results, lab)
     lines += [f"_{SYNTHETIC_LABEL}._", ""]
     return "\n".join(lines)
@@ -642,15 +668,18 @@ def render_table(results: dict[str, Any]) -> str:
 USED_COLS = ("F", "G", "G-lookahead", "G-myopic", "R")
 
 
-def _diagnostic_lines(diag: dict, cfg: dict, lab) -> list[str]:
+def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str) -> list[str]:
+    """The two 'can selection matter?' tables for one query lighting ("L1", "L2", or POOLED_DIAGNOSTIC in the
+    secondary section); head starts each heading."""
     caps, budgets = cfg["travel_caps_cm"], cfg["budgets"]
+    eps = "test episodes of both lightings" if light == POOLED_DIAGNOSTIC else f"test episodes with {light} queries"
     used = {(u["policy"], u["budget"], u["travel_cap_cm"]): u["n_view_sets"]
-            for u in diag["used_view_sets"] if u["scope"] == "test"}
-    lines = ["## Diagnostic: distinct view sets per budget and cap (test split, L1 and L2 queries together)", "",
-             ("Can selection matter at all? *Reachable* is geometry only: the most views reachable from the start "
-              "within b moves and the cap, and how many distinct view sets of that size exist. *Used* counts the "
-              "distinct view sets each policy actually ended with on the test episodes (early stopping included). "
-              "The two diagnostics describe paths, not outcomes, and use the episodes of both lightings."),
+            for u in diag["used_view_sets"] if u["scope"] == "test" and u["lighting"] == light}
+    lines = [f"{head} distinct view sets per budget and cap (test split)", "",
+             ("Can selection matter at all? *Reachable* is geometry only (the same for every lighting): the most "
+              "views reachable from the start within b moves and the cap, and how many distinct view sets of that "
+              f"size exist. *Used* counts the distinct view sets each policy actually ended with on the {eps} "
+              "(early stopping included). This table describes paths only."),
              "", "| travel cap | b | max views | reachable sets at max | "
              + " | ".join(f"used: {p}" for p in USED_COLS) + " |",
              "| --- | --- | --- | --- | " + " | ".join("---" for _ in USED_COLS) + " |"]
@@ -658,15 +687,18 @@ def _diagnostic_lines(diag: dict, cfg: dict, lab) -> list[str]:
         cap, b = r["travel_cap_cm"], r["budget"]
         lines.append(_md([lab(cap).replace("travel cap ", ""), str(b), str(r["max_views"]), str(r["n_max_view_sets"]),
                           *(str(used.get((p, b, cap), "-")) for p in USED_COLS)]))
-    lines += ["", ("## Diagnostic: path and decision disagreement (test split, k-rule policies, L1 and L2 queries "
-                   "together)"), "",
-              ("Fraction of test episodes where A's requested path (or final decision) differs from B's. Pairs with "
-               "R average over R's seeds within each episode. 0 means the two policies are indistinguishable at "
+    # Review: "the diagnostics describe paths, not outcomes" was wrong for the decision column, which compares
+    # outcomes (without truth: it says how often two policies decide differently, not which one is right).
+    lines += ["", f"{head} path and decision disagreement (test split, k-rule policies)", "",
+              (f"Fraction of {eps} where A's requested path (or final decision) differs from B's. "
+               "Pairs with R average over R's seeds within each episode. Path disagreement compares where two "
+               "policies looked; decision disagreement compares what they decided, an outcome (read without truth, "
+               "so it does not say which decision was right). 0 means the two policies are indistinguishable at "
                "that setting, so any paired difference there is degenerate. Counts are in results.json."), "",
               "| travel cap | b | " + " | ".join(f"{a} vs {b} path / decision" for a, b in DISAGREE_PAIRS) + " |",
               "| --- | --- | " + " | ".join("---" for _ in DISAGREE_PAIRS) + " |"]
     dis = {(d["policy_a"], d["policy_b"], d["budget"], d["travel_cap_cm"]): d
-           for d in diag["disagreement"] if d["scope"] == "test"}
+           for d in diag["disagreement"] if d["scope"] == "test" and d["lighting"] == light}
     for cap in caps:
         for b in budgets:
             if b == 0:
@@ -745,7 +777,8 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-REAL_CONFIG_VERSION = "real-v1"   # v1 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
+REAL_CONFIG_VERSION = "real-v2"   # v2 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
+# v1 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
 REAL_LABEL = "REAL PILOT - placeholder thresholds, not frozen"
 
 
@@ -775,7 +808,7 @@ def main_real(args: argparse.Namespace) -> int:
               "manifest_file": _rel(Path(args.manifest)), "manifest_sha256": file_sha256(args.manifest),
               "evidence_file": _rel(Path(args.evidence)), "evidence_sha256": file_sha256(args.evidence),
               "seed": args.seed, "budgets": list(args.budgets), "nominal_step_cm": positions.nominal_step_cm(),
-              "travel_tol_cm": TRAVEL_TOL_CM, "cap_steps": [None, *args.cap_steps],
+              "travel_tol_cm": TRAVEL_TOL_CM, "cap_steps": _cap_steps_config(args.cap_steps),
               "travel_caps_cm": [None, *(cap_cm_from_steps(c, positions) for c in args.cap_steps)],
               "g_lookahead": dict(G_LOOKAHEAD),
               "g_myopic": {"lam_deg": GMYOPIC_LAM_DEG, "travel_norm_cm": th.travel_norm_cm},

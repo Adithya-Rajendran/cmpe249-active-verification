@@ -29,6 +29,7 @@ from verify.schema import (
     RunContext,
     Split,
     Thresholds,
+    config_sha256,
 )
 from verify.stopping import StoppingRule
 from verify.synthetic import SyntheticParams, generate, generate_layouts
@@ -38,10 +39,37 @@ CTX = RunContext(synthetic=True)
 # Fast settings: uncapped plus one cap, two R seeds, a short bootstrap, one lam sensitivity value.
 FAST = sel.SelectionSettings(cap_steps=(2,), r_seeds=2, bootstrap_B=40, lam_sensitivity=(0.7,))
 LIGHTS = ("L1", "L2")
+# For hand_dev(): one tau_match, uncapped only, one R seed, no sensitivity runs.
+HAND = sel.SelectionSettings(tau_match_grid=(0.5,), cap_steps=(), r_seeds=1, bootstrap_B=20, k_sensitivity=(),
+                             lam_sensitivity=())
+REAL = RunContext(synthetic=False)
 
 
 def small_dev(n_arr: int = 9, seed: int = 0, **params) -> sel.DevData:
     return sel.synthetic_dev_data(n_arr, seed, SyntheticParams(**params), POS)
+
+
+def hand_dev(flip: tuple[str, int] | None = None, **fields) -> sel.DevData:
+    """A hand-built two-arrangement dev set (the real-data path), L1 only. An occluder blocks P2 and P3 in the occluded
+    and removed episodes (obstruction 0.9, non-diagnostic); every other view is clean and diagnostic. flip inverts the
+    label of one (episode_id, stop), on the same evidence; fields replace DevData arguments."""
+    recs, specs, states, labels = {}, [], {}, []
+    for a in ("A01", "A02"):
+        for cond in (Condition.VISIBLE, Condition.OCCLUDED, Condition.REMOVED):
+            s = EpisodeSpec(a, cond, Lighting.L1, "t", Split.DEV)
+            specs.append(s)
+            states[s.episode_id] = "removed" if cond is Condition.REMOVED else "present"
+            blocked = set() if cond is Condition.VISIBLE else {1, 2}
+            m = 0.05 if cond is Condition.REMOVED else 0.9
+            recs[s.episode_id] = [EvidenceRecord(st, 0.1 if st in blocked and m > 0.5 else m, 0.9,
+                                                 0.9 if st in blocked else 0.05) for st in range(5)]
+            labels += [sel.ViewLabel(s.episode_id, st, (st not in blocked) != ((s.episode_id, st) == flip))
+                       for st in range(5)]
+    factory = sel.RecordStoreFactory(recs, 5, synthetic=False)
+    args = dict(specs=tuple(specs), store_factory=factory, truth=GroundTruth(states), view_labels=tuple(labels),
+                positions=POS, synthetic=False, label_source="hand labels (test)",
+                evidence_sha256=factory.evidence_sha256())
+    return sel.DevData(**{**args, **fields})
 
 
 def vrow(cond: Condition, diag: bool, m: float, q: float = 0.9, o: float = 0.05,
@@ -106,6 +134,29 @@ class SplitRefusalTest(unittest.TestCase):
         self.assertEqual(len(dev.specs), 18)
         self.assertEqual(set(dev.store_factory().episode_ids()), {s.episode_id for s in dev.specs})
 
+    def test_devdata_refuses_a_synthetic_flag_that_disagrees_with_its_data(self) -> None:
+        # Review: synthetic evidence with synthetic=False was accepted, and its candidate and report had no SYNTHETIC
+        # label at all. The flag must agree with the evidence store and with the truth, in both directions.
+        syn, real = small_dev(), hand_dev()
+        with self.assertRaisesRegex(ValueError, "the evidence store says synthetic=True; the ground truth says "
+                                                "synthetic=True"):
+            sel.DevData(syn.specs, syn.store_factory, syn.truth, syn.view_labels, POS, False, "real labels (claimed)",
+                        syn.evidence_sha256)
+        with self.assertRaisesRegex(ValueError, "the evidence store says synthetic=False; the ground truth says "
+                                                "synthetic=False"):
+            hand_dev(synthetic=True)
+        real_truth = GroundTruth(syn.truth.states, syn.truth.indistinguishable)   # synthetic store, real truth
+        with self.assertRaisesRegex(ValueError, r"disagrees with its data: the ground truth says synthetic=False$"):
+            sel.DevData(syn.specs, syn.store_factory, real_truth, syn.view_labels, POS, True, syn.label_source,
+                        syn.evidence_sha256)
+        self.assertFalse(real.synthetic)   # agreeing flags are accepted either way
+
+    def test_real_devdata_needs_its_evidence_sha256(self) -> None:
+        with self.assertRaisesRegex(ValueError, "need evidence_sha256"):
+            hand_dev(evidence_sha256="")
+        dev = small_dev()   # synthetic data may leave it empty (synthetic_dev_data fills it in)
+        self.assertTrue(sel.DevData(dev.specs, dev.store_factory, dev.truth, dev.view_labels, POS, True, "x").synthetic)
+
 
 class StoreFactoryTest(unittest.TestCase):
     def test_fresh_unsealed_identical(self) -> None:
@@ -165,6 +216,20 @@ class SyntheticLabelsTest(unittest.TestCase):
             p = Path(d) / "labels.json"
             sel.save_view_labels(labels, p, source="test")
             self.assertEqual(sel.load_view_labels(p), labels)
+
+    def test_view_labels_hash(self) -> None:
+        # Review: the labels set the thresholds as much as the evidence, but only the evidence was hashed. The labels
+        # hash is the canonical JSON of the rows in (episode_id, stop) order: the "labels" list of a saved file.
+        dev = hand_dev()
+        other = hand_dev(flip=("A01-occluded-L1", 0))   # the same evidence, one label changed
+        self.assertEqual(dev.evidence_sha256, other.evidence_sha256)
+        self.assertNotEqual(dev.view_labels_sha256, other.view_labels_sha256)
+        self.assertEqual(sel.view_labels_sha256(reversed(dev.view_labels)), dev.view_labels_sha256)   # order-free
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "labels.json"
+            sel.save_view_labels(reversed(dev.view_labels), p, source="test")
+            self.assertEqual(config_sha256(json.loads(p.read_text())["labels"]), dev.view_labels_sha256)
+        self.assertEqual(len(dev.view_labels_sha256), 64)
 
     def test_view_rows_carry_lighting_and_the_rules_observation(self) -> None:
         dev = small_dev()
@@ -313,8 +378,10 @@ class InfeasibleTest(unittest.TestCase):
         self.assertEqual(f.best_settings, ({"tau_q": 0.6, "tau_occ": 0.1}, {"tau_q": 0.6, "tau_occ": 0.2}))
         self.assertEqual(f.grid, {"tau_q_grid": [0.5, 0.6], "tau_occ_grid": [0.1, 0.2]})
         self.assertEqual([(g["x"], g["n"]) for g in f.grid_rates], [(2, 2), (2, 2), (1, 2), (1, 2)])
-        for needle in ("Step 1a is infeasible", "0.5000 (1/2 views)", "tau_q 0.6, tau_occ 0.1", sel.NO_FALLBACK):
+        for needle in ("Step 1a is infeasible: no gate (tau_q, tau_occ) on the grid meets", "0.5000 (1/2 views)",
+                       "tau_q 0.6, tau_occ 0.1", sel.NO_FALLBACK):
             self.assertIn(needle, str(cm.exception))
+        self.assertNotIn("Step 1b searches", str(cm.exception))   # 1a searched the whole gate grid
 
     def test_tau_match_infeasible_reports_the_gate_and_grid(self) -> None:
         with self.assertRaises(sel.CalibrationInfeasible) as cm:
@@ -324,6 +391,13 @@ class InfeasibleTest(unittest.TestCase):
         self.assertEqual((f.best_rate, f.best_counts, f.best_settings), (0.1, (1, 10), ({"tau_match": 0.40},)))
         self.assertEqual(f.grid, {"tau_match_grid": list(KNOWN_GRID), "gate": {"tau_q": 0.5, "tau_occ": 0.3}})
         self.assertEqual([g["x"] for g in f.grid_rates], list(range(1, 8)))
+        # Step 1b tried one gate only, so its failure must not claim that no setting on the grid meets alpha (review)
+        msg = str(cm.exception)
+        self.assertIn("Step 1b is infeasible: no tau_match on the grid meets", msg)
+        self.assertIn("under the gate Step 1a chose (tau_q 0.5, tau_occ 0.3)", msg)
+        self.assertIn("Step 1b searches tau_match only under the gate Step 1a picked", msg)
+        self.assertNotIn("no setting on the", msg)
+        self.assertTrue(f.summary().startswith("Step 1b (tau_match under the Step 1a gate): best achievable"))
 
     def test_no_view_to_measure_the_constraint_on_is_infeasible(self) -> None:
         rows = [vrow(Condition.REMOVED, True, 0.1)]   # no non-diagnostic occluded view, no present diagnostic view
@@ -371,8 +445,14 @@ class InfeasibleTest(unittest.TestCase):
         self.assertEqual(f["best_settings"], [{"tau_match": 0.95}])
         self.assertIn(sel.NO_FALLBACK, doc["no_candidate"])
         self.assertTrue(rep.startswith(f"# {SYNTHETIC_LABEL}"))
-        for needle in ("INFEASIBLE", "No frozen candidate was written", "best achievable rate", "grid searched"):
+        for needle in ("INFEASIBLE", "No frozen candidate was written", "best achievable rate", "grid searched",
+                       "Step 1b found no tau_match on the grid that meets alpha_clear = 0.1 under the gate Step 1a "
+                       "chose (tau_q ", "**Step 1b searches tau_match only under the gate Step 1a picked**",
+                       f"labels sha256 `{doc['view_labels_sha256']}`"):
             self.assertIn(needle, rep)
+        self.assertNotIn("no setting on the predeclared grid", rep)   # review: 1b never searched the whole grid
+        self.assertEqual(doc["view_labels_sha256"],
+                         sel.synthetic_dev_data(9, 0, SyntheticParams(), Positions.load()).view_labels_sha256)
         self.assertIn("CALIBRATION INFEASIBLE", err.getvalue())
 
     def test_infeasible_fold_is_recorded_without_a_fallback(self) -> None:
@@ -420,6 +500,70 @@ class FixedKAndLamTest(unittest.TestCase):
             sel.SelectionSettings(lam_sensitivity=(0.0, 0.7))
         self.assertEqual(sel.SelectionSettings().to_dict()["fixed_a_priori"], {"k": 2, "lam": 0.0})
         self.assertEqual(sel.DEFAULT_LAM_GRID, (0.0, *sel.DEFAULT_LAM_SENSITIVITY))
+
+
+class SettingsTest(unittest.TestCase):
+    def test_settings_hash_does_not_depend_on_spelling(self) -> None:
+        # Review: the default cap_steps were ints and --cap-steps 1,2,3,4,6 parsed to floats, so one setting had two
+        # settings hashes (and two candidates). Every number has one type now.
+        want = sel.settings_sha256(sel.SelectionSettings())
+        args = sel.build_parser().parse_args(["--synthetic", "--cap-steps", "6,4,3,2,1,inf", "--k-sensitivity", "3",
+                                              "--lam-sensitivity", "0.7,0.9,1.2", "--alpha-clear", "0.1"])
+        spelled = {"parsed": sel.SelectionSettings(cap_steps=args.cap_steps, k_sensitivity=args.k_sensitivity,
+                                                   lam_sensitivity=args.lam_sensitivity, alpha_clear=args.alpha_clear),
+                   "ints": sel.SelectionSettings(cap_steps=(1, 2, 3, 4, 6), k_sensitivity=(3.0,)),
+                   "floats": sel.SelectionSettings(cap_steps=(1.0, 2.0, 3.0, 4.0, 6.0))}
+        for name, s in spelled.items():
+            with self.subTest(spelling=name):
+                self.assertEqual(sel.settings_sha256(s), want)
+                self.assertTrue(all(type(c) is float for c in s.cap_steps))
+                self.assertTrue(all(type(k) is int for k in s.k_sensitivity))
+        self.assertEqual(sel.settings_sha256(sel.SelectionSettings(alpha_clear=0)),
+                         sel.settings_sha256(sel.SelectionSettings(alpha_clear=0.0)))
+
+    def test_explicit_default_caps_give_the_same_candidate(self) -> None:
+        args = ["--synthetic", "--n-arr", "9", "--seed", "0", "--bootstrap-B", "20", "--tau-match-grid", "0.5",
+                "--r-seeds", "1", "--k-sensitivity", "none", "--lam-sensitivity", "none"]
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            files = []
+            for name, extra in (("default", []), ("explicit", ["--cap-steps", "1,2,3,4,6"]),
+                                ("spelled", ["--cap-steps", "6,4.0,3,2,1,inf"])):
+                out = Path(d) / name
+                self.assertEqual(sel.main([*args, *extra, "--out", str(out)]), 0)
+                files.append({n: (out / n).read_bytes() for n in (*sel.CANDIDATE_FILES, sel.REPORT_FILE)})
+        self.assertEqual(files[1], files[0])
+        self.assertEqual(files[2], files[0])
+
+    def test_gate_grids_must_be_strictly_ascending(self) -> None:
+        # Review: tau_q_grid / tau_occ_grid took duplicates, which were counted as extra grid gates ("6 of 6") and
+        # listed repeatedly in an infeasible record, while tau_match_grid was already checked.
+        for n in ("tau_q_grid", "tau_occ_grid", "tau_match_grid"):
+            for bad in ((0.3, 0.3), (0.4, 0.3), (0.2, 0.3, 0.3)):
+                with self.subTest(grid=n, values=bad), \
+                        self.assertRaisesRegex(ValueError, f"{n} must be strictly ascending, without duplicates"):
+                    sel.SelectionSettings(**{n: bad})
+
+    def test_invalid_settings_are_usage_errors(self) -> None:
+        # Review: these crashed with a ValueError traceback (exit 1), and argparse called a bad k list "invalid f value"
+        cases = {("--lam-sensitivity", "0"): "lam = 0 is fixed a priori",
+                 ("--k-sensitivity", "2"): "k = 2 is fixed a priori",
+                 ("--budget", "0"): "budget must be 1..4",
+                 ("--lam-sensitivity", "1.2,0.7"): "lam_sensitivity must be strictly ascending",
+                 ("--tau-q-grid", "0.6,0.6,0.6"): "tau_q_grid must be strictly ascending",
+                 ("--tau-occ-grid", "0.3,0.2"): "tau_occ_grid must be strictly ascending",
+                 ("--k-sensitivity", "3.5"): "argument --k-sensitivity: invalid int list value: '3.5'",
+                 ("--lam-sensitivity", "x"): "argument --lam-sensitivity: invalid float list value: 'x'"}
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "never"
+            for extra, needle in cases.items():
+                with self.subTest(args=extra):
+                    with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit) as cm:
+                        sel.main(["--synthetic", "--n-arr", "6", *extra, "--out", str(out)])
+                    self.assertEqual(cm.exception.code, 2)
+                    self.assertIn("verify.select: error: ", err.getvalue())
+                    self.assertIn(needle, err.getvalue())
+                    self.assertNotIn("invalid f value", err.getvalue())
+            self.assertFalse(out.exists())   # a usage error stops before anything runs or is written
 
 
 class FreezeBeforeRunsTest(unittest.TestCase):
@@ -477,12 +621,24 @@ class FreezeBeforeRunsTest(unittest.TestCase):
         self.assertEqual(len(dirty["flags"]), sum(r.lighting in LIGHTS for r in dirty["check"]))
 
     def test_frr_limit_is_a_check_not_an_objective(self) -> None:
-        dev = small_dev(15)
-        a = sel.run_selection(dev, FAST, CTX)
-        b = sel.run_selection(dev, dataclasses.replace(FAST, frr_limit=0.0), CTX)
-        self.assertEqual(a["thresholds"], b["thresholds"])
-        self.assertEqual([r.counts for r in a["check"]], [r.counts for r in b["check"]])
-        self.assertEqual(len(b["flags"]), sum(bool(r.counts.frr) for r in b["check"] if r.lighting in LIGHTS))
+        # Review: on small_dev(15) every FRR was 0, so no limit could flag anything and this test could not fail. With
+        # one tau_match this dev set has false removals (S and R on L2): the limit flags them and changes nothing.
+        dev = small_dev(9, 10)
+        base = dataclasses.replace(FAST, tau_match_grid=(0.6,), k_sensitivity=(), lam_sensitivity=())
+        runs = {lim: sel.run_selection(dev, dataclasses.replace(base, frr_limit=lim), CTX) for lim in (0.0, 0.1, 1.0)}
+        ref = runs[1.0]   # a limit nothing can exceed
+        for lim, res in runs.items():
+            with self.subTest(frr_limit=lim):
+                over = [r for r in res["check"] if r.lighting in LIGHTS and r.counts.frr > lim + 1e-9]
+                self.assertEqual(len(res["flags"]), len(over))
+                for key in ("thresholds", "calibration", "folds", "view_rates"):
+                    self.assertEqual(res[key], ref[key], key)
+                self.assertEqual([r.counts for r in res["check"]], [r.counts for r in ref["check"]])
+        self.assertGreater(len(runs[0.1]["flags"]), 0)   # the default limit does flag here: the check is not vacuous
+        self.assertGreater(len(runs[0.0]["flags"]), len(runs[0.1]["flags"]))
+        self.assertEqual(ref["flags"], [])
+        self.assertIs(runs[0.1]["all_within_limit"], False)
+        self.assertIs(ref["all_within_limit"], True)
 
 
 class SensitivityTest(unittest.TestCase):
@@ -688,8 +844,71 @@ class CountsAndBoundsTest(unittest.TestCase):
         self.assertEqual((empty["frr"]["ci95"], empty["n_arrangements"]), ([None, None], 0))
 
 
+class WriteOrderTest(unittest.TestCase):
+    """Review: write_outputs wrote the candidate and its .sha256 first, so a failure before the report and details left
+    a new candidate next to the previous run's report and details."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.dev = small_dev()
+        cls.a_settings = dataclasses.replace(FAST, k_sensitivity=(), lam_sensitivity=())   # an earlier run, A
+        cls.b_settings = dataclasses.replace(cls.a_settings, tau_match_grid=(0.5,))        # the run that fails, B
+        cls.a = sel.run_selection(cls.dev, cls.a_settings, CTX)
+        cls.b = sel.run_selection(cls.dev, cls.b_settings, CTX)
+
+    @staticmethod
+    def files(out: Path) -> dict[str, bytes]:
+        return {p.name: p.read_bytes() for p in sorted(out.iterdir())}
+
+    def test_a_render_failure_leaves_the_earlier_run_as_it_was(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            sel.write_outputs(out, self.dev, self.a_settings, self.a)
+            before = self.files(out)
+            self.assertEqual(set(before), {*sel.CANDIDATE_FILES, sel.REPORT_FILE})
+            for target in ("candidate_doc", "render_report", "check_episodes"):   # every text is rendered first
+                with self.subTest(failing=target):
+                    with mock.patch.object(sel, target, side_effect=RuntimeError("boom")), \
+                            self.assertRaises(RuntimeError):
+                        sel.write_outputs(out, self.dev, self.b_settings, self.b)
+                    self.assertEqual(self.files(out), before)
+
+    def test_a_write_failure_never_leaves_a_candidate_beside_another_runs_files(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ref = Path(d) / "ref"
+            sel.write_outputs(ref, self.dev, self.b_settings, self.b)
+            want = self.files(ref)   # B's complete output
+            real = sel._write_atomic
+            for name in want:   # fail on each file in turn
+                out = Path(d) / f"out-{name}"
+                sel.write_outputs(out, self.dev, self.a_settings, self.a)
+                (out / sel.INFEASIBLE_FILE).write_text("{}")   # a stale failure record too
+
+                def failing(path: Path, text: str, name: str = name) -> None:
+                    if path.name == name:
+                        raise OSError("disk full")
+                    real(path, text)
+                with self.subTest(failing=name):
+                    with mock.patch.object(sel, "_write_atomic", failing), self.assertRaises(OSError):
+                        sel.write_outputs(out, self.dev, self.b_settings, self.b)
+                    got = self.files(out)
+                    self.assertNotIn("frozen_candidate.json", got)   # the candidate is written last
+                    self.assertLessEqual(set(got), set(want))         # A's files and the failure record are gone
+                    self.assertEqual(got, {n: want[n] for n in got})  # what is there is B's
+
+    def test_atomic_write_replaces_or_keeps_the_old_file(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "f.txt"
+            p.write_text("old")
+            with mock.patch.object(sel.os, "replace", side_effect=OSError("boom")), self.assertRaises(OSError):
+                sel._write_atomic(p, "new")
+            self.assertEqual((p.read_text(), [x.name for x in Path(d).iterdir()]), ("old", ["f.txt"]))   # no temp
+            sel._write_atomic(p, "new")
+            self.assertEqual((p.read_text(), [x.name for x in Path(d).iterdir()]), ("new", ["f.txt"]))
+
+
 class EndToEndTest(unittest.TestCase):
-    ARGS = ["--synthetic", "--n-arr", "12", "--seed", "1", "--bootstrap-B", "60", "--tau-match-grid", "0.5,0.6",
+    ARGS =["--synthetic", "--n-arr", "12", "--seed", "1", "--bootstrap-B", "60", "--tau-match-grid", "0.5,0.6",
             "--cap-steps", "3", "--r-seeds", "2", "--lam-sensitivity", "0.7"]
 
     def test_cli_writes_candidate_and_is_deterministic(self) -> None:
@@ -726,8 +945,13 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual({(r["policy"], r["lighting"]) for r in chk["rows"]},
                          {(p, x) for p in sel.CHECK_POLICIES for x in (*LIGHTS, "pooled")})
         self.assertAlmostEqual(chk["travel_caps_cm"][1], 3 * Positions.load().nominal_step_cm())  # configs/positions
+        self.assertEqual(chk["unchecked"], [])   # both lightings have present-target episodes: every row checked
         self.assertEqual(chk["all_within_limit"], not chk["flags"])
         self.assertEqual(chk["g_lookahead"], {"G": False, "G-lookahead": True})
+        self.assertEqual(len(doc["view_labels_sha256"]), 64)
+        self.assertIn(f"labels sha256 `{doc['view_labels_sha256']}`", rep)
+        self.assertIn(sel.frr_bound_note(len(doc["dev_arrangements"]), 0.1, 0.95), rep)
+        self.assertNotIn("about 10", rep)
         sens = doc["sensitivity"]
         self.assertEqual((sens["k_values"], sens["lam_values"]), ([3], [0.7]))
         self.assertTrue(sens["k"] and sens["lam"])
@@ -758,37 +982,92 @@ class EndToEndTest(unittest.TestCase):
             self.assertEqual(doc["sensitivity"]["k"], [])
         self.assertNotEqual(docs["default"]["settings_sha256"], docs["anywhere"]["settings_sha256"])
 
+    def test_report_says_plainly_when_no_sensitivity_or_cap_ran(self) -> None:
+        # Review: empty lists gave "k = (none) runs only as a reported sensitivity.", "lam in {} runs ..." and the
+        # settings row "uncapped,  arc steps".
+        args = ["--synthetic", "--n-arr", "9", "--seed", "2", "--bootstrap-B", "20", "--tau-match-grid", "0.5",
+                "--cap-steps", "none", "--r-seeds", "1", "--k-sensitivity", "none", "--lam-sensitivity", "none"]
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()):
+            out = Path(d) / "run"
+            self.assertEqual(sel.main([*args, "--out", str(out)]), 0)
+            rep = (out / sel.REPORT_FILE).read_text()
+            doc = json.loads((out / "frozen_candidate.json").read_text())
+        for bad in ("(none)", "{}", "uncapped,  arc steps", "uncapped and under every cap", "k = 3"):
+            self.assertNotIn(bad, rep)
+        for needle in ("\"at least two distinct positions\"; no k sensitivity run was requested.",
+                       "reported as curves; no lam sensitivity run was requested.",
+                       "| cap_steps | uncapped only (no capped setting was run) |",
+                       "primary budget b = 3, uncapped only (no capped setting was run) (caps are",
+                       "- no k sensitivity run was requested", "- no lam sensitivity run was requested"):
+            self.assertIn(needle, rep)
+        self.assertNotIn("k = 3", doc["fixed_a_priori"]["k_note"])   # it said "k = 3 runs" with none requested
+        self.assertEqual((doc["sensitivity"]["k_values"], doc["sensitivity"]["lam_values"]), ([], []))
+
+    def test_report_text_for_given_values(self) -> None:
+        s = dataclasses.replace(FAST, k_sensitivity=(3, 4), lam_sensitivity=(0.7,), cap_steps=(1, 2.5))
+        self.assertEqual(sel._k_sensitivity_text(s), "k in {3, 4} runs only as a reported sensitivity")
+        self.assertEqual(sel._lam_sensitivity_text(s), "lam = 0.7 runs only as a reported sensitivity")
+        self.assertEqual(sel._caps_text(s), "uncapped, 1, 2.5 arc steps")
+
+    def test_bound_note_follows_the_number_of_dev_arrangements(self) -> None:
+        # Review: "no formal guarantee on FRR is possible with about 10 dev arrangements" was a literal in the module
+        # docstring and every report, false for the 60-arrangement sim dev sets. The note is built from the count.
+        self.assertNotIn("about 10", sel.__doc__)
+        ten, sixty = sel.frr_bound_note(10, 0.10, 0.95), sel.frr_bound_note(60, 0.10, 0.95)
+        self.assertIn("- With 10 dev arrangements, the best one-sided 95% arrangement-level FRR bound", ten)
+        self.assertIn("is 0.259, above frr_limit = 0.1, so no dev result can bring that bound below the limit.", ten)
+        self.assertIn("- With 60 dev arrangements, the best one-sided 95% arrangement-level FRR bound", sixty)
+        self.assertIn("is 0.049. The check", sixty)
+        self.assertNotIn("above frr_limit", sixty)
+        for note in (ten, sixty):
+            self.assertIn("goals, not guarantees", note)
+
     def test_cli_requires_synthetic(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(sel.main([]), 2)
 
     def test_custom_devdata_with_hand_labels(self) -> None:
-        # A hand-built two-arrangement dev set (the real-data path), L1 only. An occluder blocks P2 and P3 in the
-        # occluded and removed episodes (obstruction 0.9, non-diagnostic); every other view is clean and diagnostic.
-        # Calibration and the check must run and never touch anything but this data.
-        recs, specs, states, labels = {}, [], {}, []
-        for a in ("A01", "A02"):
-            for cond in (Condition.VISIBLE, Condition.OCCLUDED, Condition.REMOVED):
-                s = EpisodeSpec(a, cond, Lighting.L1, "t", Split.DEV)
-                specs.append(s)
-                states[s.episode_id] = "removed" if cond is Condition.REMOVED else "present"
-                blocked = set() if cond is Condition.VISIBLE else {1, 2}
-                m = 0.05 if cond is Condition.REMOVED else 0.9
-                recs[s.episode_id] = [EvidenceRecord(st, 0.1 if st in blocked and m > 0.5 else m, 0.9,
-                                                     0.9 if st in blocked else 0.05) for st in range(5)]
-                labels += [sel.ViewLabel(s.episode_id, st, st not in blocked) for st in range(5)]
-        dev = sel.DevData(tuple(specs), sel.RecordStoreFactory(recs, 5, synthetic=False), GroundTruth(states),
-                          tuple(labels), POS, False, "hand labels (test)")
-        settings = sel.SelectionSettings(tau_match_grid=(0.5,), cap_steps=(), r_seeds=1, bootstrap_B=20,
-                                         k_sensitivity=(), lam_sensitivity=())
-        res = sel.run_selection(dev, settings, RunContext(synthetic=False))
+        # The real-data path on hand_dev(): calibration and the check must run and never touch anything but this data.
+        dev = hand_dev()
+        res = sel.run_selection(dev, HAND, REAL)
         self.assertEqual(res["thresholds"], Thresholds(tau_match=0.5, tau_q=0.8, tau_occ=0.1, k=2, lam=0.0))
         g = next(r for r in res["check"] if (r.policy, r.lighting) == ("G", "L1"))
         self.assertEqual((g.counts.n_false_removal, g.counts.n_true_removal, g.counts.n_resolved), (0, 2, 6))
         g2 = next(r for r in res["check"] if (r.policy, r.lighting) == ("G", "L2"))
         self.assertEqual((g2.counts.n_episodes, g2.over_limit), (0, None))   # no L2 episodes: reported, undefined
-        doc = sel.candidate_doc(dev, settings, res, "x")
+        doc = sel.candidate_doc(dev, HAND, res, "x")
         self.assertEqual((doc["synthetic"], doc["label"]), (False, ""))
+        self.assertEqual((doc["dev_evidence_sha256"], doc["view_labels_sha256"]),
+                         (dev.store_factory.evidence_sha256(), dev.view_labels_sha256))
+        self.assertIn(f"labels sha256 `{dev.view_labels_sha256}`", sel.render_report(dev, HAND, res, doc, "y"))
+
+    def test_an_unchecked_lighting_makes_the_check_incomplete_not_passed(self) -> None:
+        # Review: hand_dev() has no L2 episode, so FRR is undefined in every L2 row of the check; all_within_limit was
+        # `not flags`, i.e. true, and the report said that no policy is above the limit on L1 or L2 queries.
+        dev = hand_dev()
+        res = sel.run_selection(dev, HAND, REAL)
+        l2 = [r for r in res["check"] if r.lighting == "L2"]
+        self.assertTrue(l2 and all(r.over_limit is None for r in l2))
+        self.assertEqual(res["flags"], [])
+        self.assertEqual(len(res["unchecked"]), len(l2))
+        self.assertTrue(all("L2 queries: FRR undefined (no present-target episode)" in u for u in res["unchecked"]))
+        self.assertIsNone(res["all_within_limit"])
+        doc = sel.candidate_doc(dev, HAND, res, "x")
+        self.assertIsNone(doc["dev_check"]["all_within_limit"])
+        self.assertEqual(doc["dev_check"]["unchecked"], res["unchecked"])
+        rep = sel.render_report(dev, HAND, res, doc, "y")
+        self.assertNotIn("no policy is above FRR 0.1 on L1 or L2 dev queries at any setting", rep)
+        for needle in (f"- **NOT CHECKED**: L2 queries: FRR is undefined in {len(l2)} of {len(l2)} rows",
+                       f"**INCOMPLETE**: FRR undefined in {len(l2)} L1 / L2 row(s)", "`all_within_limit` null",
+                       "where FRR is defined, but the check is incomplete"):
+            self.assertIn(needle, rep)
+        # a flag settles the answer whatever was not checked: false, not null
+        with patched_runs(flip_to_removed):
+            flagged = sel.run_selection(dev, HAND, REAL)
+        self.assertTrue(flagged["flags"] and flagged["unchecked"])
+        self.assertIs(flagged["all_within_limit"], False)
+        self.assertEqual([sel.all_within_limit(f, u) for f, u in (([], []), (["f"], []), ([], ["u"]), (["f"], ["u"]))],
+                         [True, False, None, False])
 
 
 if __name__ == "__main__":

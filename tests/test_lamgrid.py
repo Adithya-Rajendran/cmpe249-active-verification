@@ -1,6 +1,8 @@
 """Tests for verify/lamgrid.py (review F1) and lam validation (review F3). Synthetic data checks logic only."""
 from __future__ import annotations
 
+import contextlib
+import io
 import math
 import unittest
 
@@ -153,8 +155,11 @@ class LamValidationTest(unittest.TestCase):
             sel.SelectionSettings(tau_match_grid=(0.5, math.nan))
 
     def test_cli_rejects_nan_lam_sensitivity(self) -> None:
-        with self.assertRaises(ValueError):
+        # an invalid setting is a usage error (argparse, exit 2), not a traceback
+        with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit) as cm:
             sel.main(["--synthetic", "--n-arr", "6", "--lam-sensitivity", "nan"])
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("lam_sensitivity values must be finite", err.getvalue())
 
 
 if __name__ == "__main__":
