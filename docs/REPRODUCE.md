@@ -262,11 +262,11 @@ $UV_RUN -m verify.run --manifest $SET/manifest.json --evidence $SET/evidence_ref
 
 ## 6. The run driver and watcher
 
-`tools/pipeline.py` runs render -> episodes -> check unattended for one set. `tools/watch.py` prints only what needs a person.
+`tools/pipeline.py` runs render -> episodes -> check -> evidence -> select -> summary unattended for one set; a stage without a spec section is skipped. `tools/watch.py` prints only what needs a person.
 
 ```bash
 UV_PY="uv run --no-project --python 3.13.5 python"       # both scripts are stdlib only
-$UV_PY tools/pipeline.py configs/pipeline/shelf_dev_v3.json --launch      # --from-stage {render,episodes,check}, --run-dir
+$UV_PY tools/pipeline.py configs/pipeline/shelf_dev_v3.json --launch      # --from-stage / --to-stage, --run-dir
 $UV_PY tools/watch.py runs/shelf_dev_v3 --stale-minutes 20 --resume        # --from-start
 ```
 
@@ -279,6 +279,12 @@ $UV_PY tools/watch.py runs/shelf_dev_v3 --stale-minutes 20 --resume        # --f
 - Output in `runs/<run_id>/`: `events.jsonl` (one JSON object per event), `status.json` (stage, progress, ETA, driver pid), `episodes.out`, `check.out`.
 - Event levels: `info`, `alert` (a person must look), `done`. A terminal failure is an alert with `terminal: true`, and the driver exits non-zero.
 - Render alerts: error line in the log, failed label sanity, an arrangement slower than 2.5 x the running median, no arrangement for 10 min, process gone without an rc file, non-zero rc, or fewer arrangements than expected, and 5 failed ssh polls in a row.
+- **Evidence, select and summary stages** (`configs/pipeline/shelf_dev_v3_evidence.json`, run with `--from-stage evidence`):
+  - `evidence` ships `git archive` of the last commit that changed `perception/`, `verify/`, `capture/`, `pyproject.toml` or `uv.lock` to `evidence.code_dir/<commit>` on the GB10, links the checkpoints, and runs one step per (jobs file, variant) in the GB10 project env. It refuses a dirty tree and a `perception/evidence.py` that is not the frozen v0.2.1. The job is keyed on that commit, so rerunning the driver after a driver-only change re-attaches instead of recomputing.
+  - Variants: `v021_frozen` (perception/evidence.py, tag registration; on tag-free scenes it refuses every view), `v03_image` (evidence v0.3 on ECC image registration) and, from the same pass (`--out-v021-aligned`), `v021_image`: v0.2.1's match, quality and obstruction on v0.3's registration. That is an ablation, not unchanged v0.2.1.
+  - Outputs go to `evidence.out_dir` on the shared volume. The driver checks one record per job in every output and writes `evidence_provenance.json` (commit, commands, sha256 and record count of each output).
+  - `select` runs `verify.select` on each variant's random-arrangement evidence, with the same alpha, grid and folds for every variant. Exit 3 (infeasible) and 4 (not eligible) are recorded in `select/outcomes.json`, not treated as failures.
+  - `summary` (`tools/evidence_summary.py`) writes `summary.md`/`summary.json`: registration refusals, gate pass by view class per lighting (at each variant's thresholds and at one illustrative setting), held-out FRR / recall / coverage per lighting, and the DES cases separately.
 - Watcher output: `ALERT ...`, `DONE ...` (exit 0), `FAILED ...` (exit 1). It also alerts if the driver pid died or no event came for `--stale-minutes`. `--resume` continues from `RUN_DIR/watch.offset`.
 
 ## 7. What you can verify
