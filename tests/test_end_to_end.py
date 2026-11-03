@@ -115,7 +115,7 @@ class TestEndToEnd(unittest.TestCase):
         # DECISIONS 2026-10-12: "G" is primary G (lookahead off) and "G-lookahead" the ablation, both run
         cfg = json.loads((self.out / "config.json").read_text())["config"]
         self.assertEqual(cfg["g_lookahead"], {"G": False, "G-lookahead": True})
-        self.assertEqual(cfg["config_version"], "synthetic-v5")
+        self.assertEqual(cfg["config_version"], "synthetic-v6")
         self.assertIn("G-lookahead", run.MULTI_VIEW)
         self.assertIn(("G", "G-lookahead"), run.BOOTSTRAP_PAIRS)
         self.assertIn(("G", "G-lookahead"), run.DISAGREE_PAIRS)
@@ -363,7 +363,7 @@ class TestReviewFixes(unittest.TestCase):
                     self.assertEqual(heads.count(f"## {light} queries - {h}"), 1, (light, h))
             for h in ("Cap curve, b = 3 (test split)", "Paired arrangement-level bootstrap, b = 3 (test split)"):
                 self.assertEqual(heads.count(f"## {light} queries - {h}"), 1, (light, h))
-            self.assertIn(f"max achievable coverage (test, {light} queries)", table)
+            self.assertIn(f"geometric no-diagnostic-view share (test, {light} queries)", table)
         # Pooled numbers only in the one labelled secondary section, last; every other heading belongs to a lighting
         # (review: the diagnostics were pooled over both lightings in the main part of the table).
         secondary = "## Secondary, not a headline: pooled over L1 and L2 queries (test split)"
@@ -394,7 +394,8 @@ class TestReviewFixes(unittest.TestCase):
             d = dis[light]
             self.assertEqual(row.split(" | ")[4],
                              f"{d['path_disagreement_rate']:.2f} / {d['decision_disagreement_rate']:.2f}", light)
-        self.assertIn("max achievable cov", table)
+        self.assertIn("no-diagnostic-view share (context)", table)
+        self.assertNotIn("max achievable", table.lower())   # context, never a ceiling
         self.assertIn("FULL (uncapped)", table)
         self.assertIn("uncapped reference (exceeds cap)", table)
         section = ""

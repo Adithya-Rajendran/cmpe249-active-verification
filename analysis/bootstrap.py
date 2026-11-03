@@ -4,11 +4,17 @@ Each draw resamples the unique arrangement ids with replacement and takes all ep
 every drawn arrangement (duplicates repeated), so an arrangement's episodes are never split.
 Both policies are scored on the same multiset; the CI is the 2.5/97.5 percentile interval of
 the defined A - B draws. Draws where either side is undefined are counted and excluded.
+
+Stratified (docs/SIM_PREREGISTRATION.md section 8, the primary uncertainty): given strata
+{arrangement_id: stratum} (verify.manifest.bootstrap_strata: the occluder family, M16 split by
+side), each draw resamples arrangements WITHIN each stratum, with replacement, keeping every
+stratum's count, so each replicate keeps the design's quota counts. Without strata the draw is
+the unstratified one above, unchanged.
 """
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -45,6 +51,7 @@ class BootstrapResult:
     n_undefined: int           # draws where either side was undefined (excluded)
     seed: int
     synthetic: bool
+    stratified: bool = False   # True: arrangements resampled within strata (stratified_arrangement_draws)
 
     def to_dict(self) -> dict[str, Any]:
         d = dataclasses.asdict(self)
@@ -100,6 +107,33 @@ def arrangement_draws(n_arrangements: int, B: int, seed: int) -> np.ndarray:
     return rng.integers(0, n_arrangements, size=(B, n_arrangements))
 
 
+def stratified_arrangement_draws(strata: Sequence[str], B: int, seed: int) -> np.ndarray:
+    """(B, n) indices into the sorted arrangement id list; strata[j] is arrangement j's stratum. Column j of every
+    draw is filled from arrangement j's own stratum, so each replicate holds exactly as many arrangements of every
+    stratum as the sample does. Strata are visited in sorted order with one default_rng(seed) stream. With a single
+    stratum this is exactly arrangement_draws(n, B, seed)."""
+    labels = list(strata)
+    n = len(labels)
+    rng = np.random.default_rng(seed)
+    out = np.empty((B, n), dtype=np.int64)
+    for st in sorted(set(labels)):
+        members = np.array([j for j, x in enumerate(labels) if x == st], dtype=np.int64)
+        out[:, members] = members[rng.integers(0, len(members), size=(B, len(members)))]
+    return out
+
+
+def sample_draws(arrangement_ids: Sequence[str], B: int, seed: int,
+                 strata: Mapping[str, str] | None = None) -> np.ndarray:
+    """Unstratified arrangement_draws, or stratified_arrangement_draws when strata are given (every arrangement must
+    have one: ValueError otherwise, the caller decides any fallback)."""
+    if strata is None:
+        return arrangement_draws(len(arrangement_ids), B, seed)
+    missing = [a for a in arrangement_ids if a not in strata]
+    if missing:
+        raise ValueError(f"no bootstrap stratum for arrangements {missing[:5]}")
+    return stratified_arrangement_draws([strata[a] for a in arrangement_ids], B, seed)
+
+
 def _group_terms(sample: PairedSample, results: Sequence[EpisodeResult], truth: GroundTruth,
                  metric: str) -> tuple[np.ndarray, np.ndarray]:
     """Per-arrangement summed (numerator, denominator) of the metric terms."""
@@ -127,8 +161,10 @@ def draw_diffs(sample: PairedSample, truth: GroundTruth, metric: str, draws: np.
 
 
 def paired_diff(results_a: Iterable[EpisodeLog | EpisodeResult], results_b: Iterable[EpisodeLog | EpisodeResult],
-                truth: GroundTruth, metric: str, B: int = 10000, seed: int = 0) -> BootstrapResult:
-    """Paired arrangement-level bootstrap of metric(A) - metric(B) with a percentile 95% CI."""
+                truth: GroundTruth, metric: str, B: int = 10000, seed: int = 0,
+                strata: Mapping[str, str] | None = None) -> BootstrapResult:
+    """Paired arrangement-level bootstrap of metric(A) - metric(B) with a percentile 95% CI; stratified within the
+    given {arrangement_id: stratum} when strata is not None."""
     if metric not in METRICS:
         raise ValueError(f"metric must be one of {METRICS}, got {metric!r}")
     if B < 1:
@@ -137,7 +173,7 @@ def paired_diff(results_a: Iterable[EpisodeLog | EpisodeResult], results_b: Iter
     ma = metrics_on(list(sample.results_a), truth)
     mb = metrics_on(list(sample.results_b), truth)
     estimate = None if ma[metric] is None or mb[metric] is None else ma[metric] - mb[metric]
-    diffs = draw_diffs(sample, truth, metric, arrangement_draws(len(sample.arrangement_ids), B, seed))
+    diffs = draw_diffs(sample, truth, metric, sample_draws(sample.arrangement_ids, B, seed, strata))
     ok = diffs[~np.isnan(diffs)]
     lo = hi = None
     if ok.size:
@@ -145,4 +181,4 @@ def paired_diff(results_a: Iterable[EpisodeLog | EpisodeResult], results_b: Iter
     return BootstrapResult(metric=metric, policy_a=ma["policy"], policy_b=mb["policy"], estimate=estimate,
                            ci_lo=lo, ci_hi=hi, n_arrangements=len(sample.arrangement_ids),
                            n_episodes=sample.n_episodes, B=B, n_undefined=int(diffs.size - ok.size),
-                           seed=seed, synthetic=bool(ma["synthetic"] or mb["synthetic"]))
+                           seed=seed, synthetic=bool(ma["synthetic"] or mb["synthetic"]), stratified=strata is not None)
