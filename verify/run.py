@@ -7,10 +7,18 @@
 Every --synthetic output is labelled SYNTHETIC: the generator parameters and thresholds are
 placeholders, and the numbers are pipeline checks, not study results.
 
-Real data (v0, pilot): --manifest configs/arrangements.json --evidence evidence.jsonl, where the
-evidence file comes from perception/evidence.py (EvidenceStore.to_jsonl format). The same run stage
-replays it with no truth; the manifest is re-read for truth only after the run. Thresholds are still
-the placeholders; it writes config.json, logs.jsonl, ground_truth.json and results.json (no table.md).
+Real or simulated data: --manifest MANIFEST.json --evidence evidence.jsonl [--view-labels view_labels.json]
+[--positions P], where the evidence file comes from perception/evidence.py (EvidenceStore.to_jsonl format). The
+same run stage replays it with no truth; the manifest is re-read for truth only after the run, and the optional sim
+view labels (cmpe249.sim-view-labels-set.v0) are read only after the run too, for the geometric
+no-diagnostic-view share. Thresholds are still the placeholders. A manifest with a top-level "simulation": true
+(sim/episodes.py) is labelled SIMULATION everywhere; any other is a REAL PILOT. It writes config.json, logs.jsonl,
+ground_truth.json, results.json and table.md (scored on test, or on dev when the manifest has no test arrangement).
+
+Uncertainty (docs/SIM_PREREGISTRATION.md section 8): the paired arrangement-level cluster bootstrap is stratified
+by quota slot class (occluder family, M16 split by side) when every arrangement of the manifest carries its
+family; otherwise (the synthetic generator, legacy pilot manifests) it is unstratified and flagged as such.
+FRR is reported per episode and per arrangement (any false removal).
 
 Stages are separate functions, in this order:
   1. generate_stage returns the specs and the (unsealed) evidence store. It writes nothing
@@ -35,13 +43,18 @@ import argparse
 import dataclasses
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from analysis.bootstrap import paired_diff
 from analysis.metrics import compute_all
-from verify.manifest import load_manifest
+from verify.manifest import (
+    UNSTRATIFIED_NOTE,
+    episodes_from_arrangements,
+    load_geometric_labels,
+    load_manifest_info,
+)
 from verify.policies import (
     DEFAULT_R_SEEDS,
     GMYOPIC_LAM_DEG,
@@ -83,7 +96,8 @@ from verify.schema import (
 from verify.stopping import StoppingRule
 from verify.synthetic import SyntheticParams, generate
 
-CONFIG_VERSION = "synthetic-v5"   # v5 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
+CONFIG_VERSION = "synthetic-v6"   # v6 (2026-11-03): simulation flag hashed; stratified-bootstrap flag; FRR per arr.
+# v5 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
 # v4 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
 MODEL_ID = "synthetic-no-model"
 # G is primary G (D-norm, lookahead off; DECISIONS 2026-10-12). G-lookahead is the same scorer with the
@@ -150,6 +164,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--synthetic", action="store_true", help="use the synthetic generator")
     p.add_argument("--manifest", default=None, help="real data: arrangements manifest (with --evidence)")
     p.add_argument("--evidence", default=None, help="real data: evidence.jsonl from perception/evidence.py")
+    p.add_argument("--view-labels", default=None,
+                   help="real/sim data: view_labels.json (cmpe249.sim-view-labels-set.v0), read only after the run, for "
+                        "the geometric no-diagnostic-view share (context, not a ceiling); without it the share falls "
+                        "back to the manifest's predeclared indistinguishable flag, labelled as such")
     p.add_argument("--n-arr", type=int, default=30, help="number of arrangements (default 30)")
     p.add_argument("--n-dev", type=int, default=None, help="dev arrangements (default round(n/3))")
     p.add_argument("--seed", type=int, default=0, help="generator / split / bootstrap seed")
@@ -161,8 +179,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "condition reported as curves, not tuned (D-cap)")
     p.add_argument("--block-anywhere", action="store_true",
                    help="synthetic regime: occluder block placed anywhere (default: always covers the start stop)")
-    p.add_argument("--positions", default=str(DEFAULT_POSITIONS_PATH),
-                   help="positions JSON (default configs/positions.json); its contents enter the config hash")
+    p.add_argument("--positions", default=None,
+                   help="positions JSON (default configs/positions.json; required for a simulation manifest); its "
+                        "contents enter the config hash")
     p.add_argument("--r-seeds", type=int, default=len(DEFAULT_R_SEEDS), help="R seeds per episode (default 20)")
     p.add_argument("--bootstrap-B", type=int, default=10000, help="bootstrap draws (default 10000)")
     p.add_argument("--primary-budget", type=int, default=3, help="budget for the primary table (default 3)")
@@ -187,8 +206,9 @@ def _cap_steps_config(cap_steps: Sequence[float]) -> list[float | None]:
 def build_config(args: argparse.Namespace, positions: Positions, th: Thresholds,
                  params: SyntheticParams) -> dict[str, Any]:
     """Everything that determines the run; hashed into every log line."""
-    pos_path = Path(args.positions)
-    return {"config_version": CONFIG_VERSION, "model_id": MODEL_ID, "synthetic": True,
+    pos_path = Path(args.positions or DEFAULT_POSITIONS_PATH)
+    return {"config_version": CONFIG_VERSION, "model_id": MODEL_ID, "synthetic": True, "simulation": False,
+            "bootstrap_stratified": False,
             "positions_file": _rel(pos_path), "positions_file_sha256": file_sha256(pos_path),
             "n_arr": args.n_arr, "seed": args.seed, "budgets": list(args.budgets),
             "nominal_step_cm": positions.nominal_step_cm(), "travel_tol_cm": TRAVEL_TOL_CM,
@@ -288,14 +308,31 @@ def _cap_key(cap: float | None) -> tuple[int, float]:
     return (0, 0.0) if cap is None else (1, cap)
 
 
+def stratification_info(strata: Mapping[str, str] | None, arrangement_ids: Sequence[str]) -> dict[str, Any]:
+    """What the bootstrap was stratified by, over the given (test) arrangements: {"stratified", "strata": {stratum:
+    n_arrangements}, "note"}."""
+    if strata is None:
+        return {"stratified": False, "strata": {}, "note": UNSTRATIFIED_NOTE}
+    counts: dict[str, int] = {}
+    for a in sorted(set(arrangement_ids)):
+        counts[strata[a]] = counts.get(strata[a], 0) + 1
+    return {"stratified": True, "strata": dict(sorted(counts.items())),
+            "note": ("stratified by quota slot class (occluder family, M16 split by side; design cases apart): each "
+                     "replicate resamples arrangements within every stratum and keeps its count")}
+
+
 def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: int,
-                B: int, seed: int) -> dict[str, Any]:
+                B: int, seed: int, *, strata: Mapping[str, str] | None = None,
+                no_diagnostic: Mapping[str, bool] | None = None) -> dict[str, Any]:
     """Metrics per (scope, lighting, policy, budget, cap) and paired bootstraps at the primary budget, per lighting.
 
     lighting is the query's lighting (the episode's). The "L1" and "L2" rows are the primary report
     (DECISIONS 2026-11-02); a "pooled" row (both lightings) is kept only as a labelled secondary line.
     The bootstrap runs within each lighting; its resampling unit is still the arrangement (with its
-    condition episodes at that lighting). No bootstrap is run on pooled data.
+    condition episodes at that lighting), and with strata ({arrangement_id: stratum}, verify.manifest.bootstrap_strata)
+    it resamples within each stratum, keeping the design's quota counts. No bootstrap is run on pooled data.
+    no_diagnostic (episode_id -> no diagnostic stop, from the view labels) feeds the geometric no-diagnostic-view
+    share; None falls back to the predeclared indistinguishable flag (analysis.metrics).
     """
     groups = group_results(logs)
     caps = sorted({k[2] for k in groups}, key=_cap_key)
@@ -307,7 +344,7 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
                 sub = res if light is None else [r for r in res if r.lighting is light]
                 if not sub:
                     continue
-                m = compute_all(sub, truth)
+                m = compute_all(sub, truth, no_diagnostic)
                 metrics.append({"scope": scope.value, "lighting": POOLED if light is None else light.value,
                                 "policy": key[0], "budget": key[1], "travel_cap_cm": key[2],
                                 "role": ROLE.get(key[0], ""), **m})
@@ -325,10 +362,12 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
                     continue
                 same = identical_runs(sub[ka], sub[kb])
                 for metric in BOOTSTRAP_METRICS:
-                    br = paired_diff(sub[ka], sub[kb], truth, metric, B=B, seed=seed)
+                    br = paired_diff(sub[ka], sub[kb], truth, metric, B=B, seed=seed, strata=strata)
                     boots.append({"scope": Split.TEST.value, "lighting": light.value, "travel_cap_cm": cap,
                                   "budget": primary_budget, "identical_runs": same, **br.to_dict()})
-    return {"metrics": metrics, "bootstrap": boots}
+    test_arrs = sorted({r.arrangement_id for v in test.values() for r in v})
+    return {"metrics": metrics, "bootstrap": boots,
+            "bootstrap_stratification": stratification_info(strata, test_arrs)}
 
 
 def identical_runs(a: Sequence[EpisodeResult], b: Sequence[EpisodeResult]) -> bool:
@@ -462,8 +501,17 @@ def _cap_label(cap: float | None, step_cm: float | None = None) -> str:
     return f"travel cap {_steps_str(round(cap / step_cm, 6))} steps ({cap:.2f} cm)"
 
 
+def _cnt(x: float | int) -> str:
+    return f"{x:g}" if float(x).is_integer() else f"{x:.2f}"
+
+
+def _arr_frr(o: dict) -> str:
+    """FRR per arrangement (any false removal), with its counts; R's value is a probability (analysis.metrics)."""
+    return f"{fmt(o['false_removal_rate_arrangement'])} ({_cnt(o['arrangement_false_removal'])}/{o['n_arr_with_present']})"
+
+
 def _cells(o: dict) -> list[str]:
-    return [fmt(o["false_removal_rate"]), fmt(o["removal_recall"]), fmt(o["coverage"]),
+    return [fmt(o["false_removal_rate"]), _arr_frr(o), fmt(o["removal_recall"]), fmt(o["coverage"]),
             fmt(o["resolved_accuracy"]), fmt(o["mean_views"], 2), fmt(o["mean_travel_cm"], 1),
             f"{o['n_arrangements']}/{o['n_episodes']}"]
 
@@ -472,8 +520,8 @@ def _md(cells: Sequence[str]) -> str:
     return "| " + " | ".join(cells) + " |"
 
 
-HEAD = ("| policy | FRR | recall | coverage | resolved acc | mean views | mean travel cm | n_arr/n_ep | note |\n"
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+HEAD = ("| policy | FRR | FRR per arrangement (x/n) | recall | coverage | resolved acc | mean views | mean travel cm "
+        "| n_arr/n_ep | note |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 ORDER = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "F-fcm", "R-fcm", "G-fcm", "G-lookahead-fcm",
          "G-myopic-fcm", "FULL")
 FULL_OVER_CAP = "uncapped reference (exceeds cap)"
@@ -525,21 +573,31 @@ def _cap_notes(cfg: dict, pos: Positions) -> list[str]:
     return out
 
 
-def _maxcov(m: dict, lighting: str) -> str:
+NO_DIAG_CONTEXT = ("context for coverage, not a ceiling: a policy can resolve an episode with no diagnostic view, and "
+                   "one with diagnostic views can stay unknown")
+
+
+def _no_diag_line(m: dict, lighting: str, scope: str) -> str:
     o = m["overall"]
-    return (f"- max achievable coverage (test, {lighting} queries): {fmt(o['max_achievable_coverage'])} "
-            f"({o['n_indistinguishable']} of {o['n_episodes']} episodes are predeclared indistinguishable, "
-            f"{o['n_arrangements']} arrangements)")
+    return (f"- geometric no-diagnostic-view share ({scope}, {lighting} queries): "
+            f"{fmt(o['geometric_no_diagnostic_view_share'])} ({o['n_no_diagnostic_view']} of {o['n_episodes']} "
+            f"episodes have no geometrically diagnostic stop; {o['n_arrangements']} arrangements; source: "
+            f"{o['no_diagnostic_view_source']}). It is {NO_DIAG_CONTEXT}.")
 
 
-CURVE_HEAD = ("| policy | travel cap | FRR | recall | coverage | resolved acc | mean views | mean travel cm "
-              "| n_arr/n_ep |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+CURVE_HEAD = ("| policy | travel cap | FRR | FRR per arrangement (x/n) | recall | coverage | resolved acc | mean views "
+              "| mean travel cm | n_arr/n_ep |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+
+
+def table_scope(metrics: Sequence[dict]) -> str:
+    """The split table.md scores: test, or dev when the run has no test episode (a dev-only sim manifest)."""
+    return Split.TEST.value if any(m["scope"] == Split.TEST.value for m in metrics) else Split.DEV.value
 
 
 def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
     """Primary tables, budget curves, per-condition tables, cap curve and bootstrap for one query lighting."""
     cfg, metrics = results["config"], results["metrics"]
-    pb, scope, caps = cfg["primary_budget"], Split.TEST.value, cfg["travel_caps_cm"]
+    pb, scope, caps = cfg["primary_budget"], table_scope(metrics), cfg["travel_caps_cm"]
     h = f"## {light} queries -"
     lines: list[str] = []
     for cap in caps:
@@ -551,8 +609,8 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
         lines.append("")
     for cap in caps:
         lines += [f"{h} Budget curve, {lab(cap)}", "",
-                  "| policy | b | FRR | recall | coverage | resolved acc | mean views | mean travel cm | n_arr/n_ep |",
-                  "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+                  "| policy | b | FRR | FRR per arrangement (x/n) | recall | coverage | resolved acc | mean views "
+                  "| mean travel cm | n_arr/n_ep |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
         for p in ORDER:
             if p in ("S", "FULL"):
                 continue
@@ -564,8 +622,9 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
     for cap in caps:
         lines += [f"{h} Per condition, b = {pb}, {lab(cap)}", "",
                   "Decision fractions are averaged within episode (R) and summed over episodes.", "",
-                  ("| policy | condition | n_arr/n_ep | present | removed | unknown | coverage | max achievable cov | "
-                   "mean views | mean travel cm |"), "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+                  ("| policy | condition | n_arr/n_ep | present | removed | unknown | coverage | no-diagnostic-view "
+                   "share (context) | mean views | mean travel cm |"),
+                  "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
         for p in ORDER:
             m = _find(metrics, scope, p, pb, cap, light)
             if not m:
@@ -575,10 +634,10 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
                 c = o["confusion"][t]
                 lines.append(f"| {_label(p, cap)} | {cond} | {o['n_arrangements']}/{o['n_episodes']} | "
                              f"{c['present']:.2f} | {c['removed']:.2f} | {c['unknown']:.2f} | {fmt(o['coverage'])} | "
-                             f"{fmt(o['max_achievable_coverage'])} | "
+                             f"{fmt(o['geometric_no_diagnostic_view_share'])} | "
                              f"{fmt(o['mean_views'], 2)} | {fmt(o['mean_travel_cm'], 1)} |")
         lines.append("")
-    lines += [f"{h} Cap curve, b = {pb} (test split)", "",
+    lines += [f"{h} Cap curve, b = {pb} ({scope} split)", "",
               "Each policy across the cap grid at the primary budget. Caps are an operating condition, not tuned.", "",
               CURVE_HEAD]
     for p in ORDER:
@@ -588,9 +647,12 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
             m = _find(metrics, scope, p, pb, cap, light)
             if m:
                 lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_cells(m["overall"])]))
+    strat = results.get("bootstrap_stratification") or {"stratified": False, "note": UNSTRATIFIED_NOTE}
+    how = ("resampled within quota slot strata, each stratum keeping its count" if strat["stratified"]
+           else "**UNSTRATIFIED**: " + strat["note"])
     lines += ["", f"{h} Paired arrangement-level bootstrap, b = {pb} (test split)", "",
               (f"Difference A - B on {light} queries only; percentile 95% CI over resampled arrangements (an "
-               f"arrangement's {light} episodes are kept together)."),
+               f"arrangement's {light} episodes are kept together; {how})."),
               ("A row marked *identical* means A and B made the same decisions with the same effort on every "
                "episode: its [0, 0] CI is degenerate and is not evidence of equal performance."),
               "", "| setting | A - B | metric | estimate | 95% CI | n_arr | n_ep | B | undefined draws | note |",
@@ -602,10 +664,13 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
         lines.append(f"| {lab(r['travel_cap_cm'])} | {r['policy_a']} - {r['policy_b']} | {r['metric']} | "
                      f"{fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | {r['n_arrangements']} | "
                      f"{r['n_episodes']} | {r['B']} | {r['n_undefined']} | {note} |")
+    if scope != Split.TEST.value:
+        lines.append("| - | - | - | - | - | - | - | - | - | no test arrangement in this run: the bootstrap runs on "
+                     "the test split only |")
     lines.append("")
     diag = results.get("diagnostics")
     if diag:
-        lines += _diagnostic_lines(diag, cfg, lab, light, f"{h} Diagnostic:")
+        lines += _diagnostic_lines(diag, cfg, lab, light, f"{h} Diagnostic:", scope)
     return lines
 
 
@@ -613,8 +678,8 @@ def _pooled_lines(results: dict[str, Any], lab) -> list[str]:
     """The only pooled-over-lighting numbers in table.md: one labelled secondary section at the end, with the
     pooled policy table and the pooled diagnostics."""
     cfg, metrics = results["config"], results["metrics"]
-    pb, scope, caps = cfg["primary_budget"], Split.TEST.value, cfg["travel_caps_cm"]
-    lines = ["## Secondary, not a headline: pooled over L1 and L2 queries (test split)", "",
+    pb, scope, caps = cfg["primary_budget"], table_scope(metrics), cfg["travel_caps_cm"]
+    lines = [f"## Secondary, not a headline: pooled over L1 and L2 queries ({scope} split)", "",
              ("Both lightings together, for reference only. The results are the per-lighting sections above; "
               "no bootstrap is run on pooled data."), "", f"### Policies at b = {pb}, pooled", "", CURVE_HEAD]
     for p in ORDER:
@@ -625,57 +690,88 @@ def _pooled_lines(results: dict[str, Any], lab) -> list[str]:
     lines.append("")
     diag = results.get("diagnostics")
     if diag:
-        lines += _diagnostic_lines(diag, cfg, lab, POOLED_DIAGNOSTIC, "### Diagnostic, pooled:")
+        lines += _diagnostic_lines(diag, cfg, lab, POOLED_DIAGNOSTIC, "### Diagnostic, pooled:", scope)
     return lines
+
+
+def _table_intro(results: dict[str, Any], scope: str) -> list[str]:
+    """The label line, the data paragraph and the data line of table.md: SYNTHETIC, SIMULATION or REAL PILOT."""
+    cfg = results["config"]
+    if results.get("synthetic"):
+        what = [("**SYNTHETIC - not study results.** Evidence comes from `verify.synthetic` with invented "
+                 "parameters and placeholder thresholds; these numbers only exercise the pipeline.")]
+        data = (f"- {cfg['n_arr']} arrangements, seed {cfg['seed']}; scored on the **test** split only "
+                "(dev metrics are in results.json, scope \"dev\")")
+    else:
+        if cfg.get("simulation"):
+            what = [("**SIMULATION.** Evidence from `perception/evidence.py` on Isaac Sim renders (the manifest says "
+                     "`\"simulation\": true`); every number here is a simulation result. The thresholds are the "
+                     "placeholders, not a frozen select-v4 candidate.")]
+        else:
+            what = [("**REAL PILOT.** Evidence from `perception/evidence.py` on real photos, with placeholder "
+                     "thresholds; not study results.")]
+        other = "dev" if scope == Split.TEST.value else "test"
+        data = (f"- manifest `{cfg['manifest_file']}` (sha256 `{cfg['manifest_sha256']}`), evidence "
+                f"`{cfg['evidence_file']}` (sha256 `{cfg['evidence_sha256']}`); scored on the **{scope}** split"
+                + (" (the manifest has no test arrangement)" if scope != Split.TEST.value else "")
+                + f" ({other} metrics, if any, are in results.json)")
+    return [f"# {results['label']}", "", *what, "", f"- config `{cfg['config_version']}`, sha256 "
+            f"`{results['config_sha256']}`", data]
+
+
+def _strat_line(results: dict[str, Any]) -> str:
+    st = results.get("bootstrap_stratification") or {"stratified": False, "note": UNSTRATIFIED_NOTE}
+    if st["stratified"]:
+        parts = ", ".join(f"{k} {v}" for k, v in st["strata"].items())
+        return f"- **Paired bootstrap stratified by quota slot class** ({parts} test arrangements): {st['note']}."
+    return f"- **Paired bootstrap UNSTRATIFIED**: {st['note']}."
 
 
 def render_table(results: dict[str, Any]) -> str:
     cfg, metrics = results["config"], results["metrics"]
-    pb, scope = cfg["primary_budget"], Split.TEST.value
+    pb, scope = cfg["primary_budget"], table_scope(metrics)
     step = cfg.get("nominal_step_cm")
 
     def lab(cap: float | None) -> str:
         return _cap_label(cap, step)
     lights = [x for x in REPORT_LIGHTINGS if any(m["lighting"] == x for m in metrics)]
-    lines = [f"# {SYNTHETIC_LABEL}", "",
-             ("**SYNTHETIC - not study results.** Evidence comes from `verify.synthetic` with invented "
-              "parameters and placeholder thresholds; these numbers only exercise the pipeline."), "",
-             f"- config `{cfg['config_version']}`, sha256 `{results['config_sha256']}`",
-             (f"- {cfg['n_arr']} arrangements, seed {cfg['seed']}; scored on the **test** split only "
-              "(dev metrics are in results.json, scope \"dev\")"),
+    lines = [*_table_intro(results, scope),
              (f"- thresholds: tau_match {cfg['thresholds']['tau_match']}, tau_q {cfg['thresholds']['tau_q']}, "
               f"tau_occ {cfg['thresholds']['tau_occ']}, k {cfg['thresholds']['k']}, "
               f"lam {cfg['thresholds']['lam']}; R averaged over {len(cfg['r_seeds'])} seeds within each episode"),
-             ("- FRR = false removal rate; `-fcm` = first-clear-miss rule (k = 1); S is plotted at its actual "
-              "effort; FULL is a higher-effort reference, not a budget-matched competitor"),
+             ("- FRR = false removal rate per episode; FRR per arrangement = share of arrangements with a present "
+              "episode that have any false removal (for R, the probability with independently seeded episodes); "
+              "`-fcm` = first-clear-miss rule (k = 1); S is plotted at its actual effort; FULL is a higher-effort "
+              "reference, not a budget-matched competitor"),
              ("- **Reported separately for L1 and L2 queries** (the lighting of the query view; DECISIONS "
               "2026-11-02): each lighting has its own primary tables, budget curves, per-condition tables, cap "
               "curve and paired bootstrap. A number pooled over lighting appears only in the secondary section "
               "at the end."),
-             _generator_caveat(cfg.get("generator", {})), *_cap_notes(cfg, Positions.from_dict(results["positions"]))]
+             *([_generator_caveat(cfg.get("generator", {}))] if results.get("synthetic") else []),
+             *_cap_notes(cfg, Positions.from_dict(results["positions"])), _strat_line(results)]
     for light in lights:
         ref = _find(metrics, scope, "S", pb, None, light)
         if ref:
-            lines.append(_maxcov(ref, light))
+            lines.append(_no_diag_line(ref, light, scope))
     lines.append("")
     for light in lights:
         lines += _lighting_lines(results, light, lab)
     lines += _pooled_lines(results, lab)
-    lines += [f"_{SYNTHETIC_LABEL}._", ""]
+    lines += [f"_{results['label']}._", ""]
     return "\n".join(lines)
 
 
 USED_COLS = ("F", "G", "G-lookahead", "G-myopic", "R")
 
 
-def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str) -> list[str]:
+def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str, scope: str = "test") -> list[str]:
     """The two 'can selection matter?' tables for one query lighting ("L1", "L2", or POOLED_DIAGNOSTIC in the
     secondary section); head starts each heading."""
     caps, budgets = cfg["travel_caps_cm"], cfg["budgets"]
-    eps = "test episodes of both lightings" if light == POOLED_DIAGNOSTIC else f"test episodes with {light} queries"
+    eps = f"{scope} episodes of both lightings" if light == POOLED_DIAGNOSTIC else f"{scope} episodes with {light} queries"
     used = {(u["policy"], u["budget"], u["travel_cap_cm"]): u["n_view_sets"]
-            for u in diag["used_view_sets"] if u["scope"] == "test" and u["lighting"] == light}
-    lines = [f"{head} distinct view sets per budget and cap (test split)", "",
+            for u in diag["used_view_sets"] if u["scope"] == scope and u["lighting"] == light}
+    lines = [f"{head} distinct view sets per budget and cap ({scope} split)", "",
              ("Can selection matter at all? *Reachable* is geometry only (the same for every lighting): the most "
               "views reachable from the start within b moves and the cap, and how many distinct view sets of that "
               f"size exist. *Used* counts the distinct view sets each policy actually ended with on the {eps} "
@@ -689,7 +785,7 @@ def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str) -> list
                           *(str(used.get((p, b, cap), "-")) for p in USED_COLS)]))
     # Review: "the diagnostics describe paths, not outcomes" was wrong for the decision column, which compares
     # outcomes (without truth: it says how often two policies decide differently, not which one is right).
-    lines += ["", f"{head} path and decision disagreement (test split, k-rule policies)", "",
+    lines += ["", f"{head} path and decision disagreement ({scope} split, k-rule policies)", "",
               (f"Fraction of {eps} where A's requested path (or final decision) differs from B's. "
                "Pairs with R average over R's seeds within each episode. Path disagreement compares where two "
                "policies looked; decision disagreement compares what they decided, an outcome (read without truth, "
@@ -698,7 +794,7 @@ def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str) -> list
               "| travel cap | b | " + " | ".join(f"{a} vs {b} path / decision" for a, b in DISAGREE_PAIRS) + " |",
               "| --- | --- | " + " | ".join("---" for _ in DISAGREE_PAIRS) + " |"]
     dis = {(d["policy_a"], d["policy_b"], d["budget"], d["travel_cap_cm"]): d
-           for d in diag["disagreement"] if d["scope"] == "test" and d["lighting"] == light}
+           for d in diag["disagreement"] if d["scope"] == scope and d["lighting"] == light}
     for cap in caps:
         for b in budgets:
             if b == 0:
@@ -744,6 +840,7 @@ def main(argv: list[str] | None = None) -> int:
     for stale in ("ground_truth.json", "evidence.jsonl", "episodes.json"):  # never present while policies run
         (out / stale).unlink(missing_ok=True)
 
+    args.positions = args.positions or str(DEFAULT_POSITIONS_PATH)
     try:
         positions = Positions.load(args.positions)
     except (OSError, ValueError, KeyError) as e:
@@ -766,7 +863,8 @@ def main(argv: list[str] | None = None) -> int:
     truth = GroundTruth.load(out / "ground_truth.json")
     scored = score_stage(logs, truth, args.primary_budget, args.bootstrap_B, args.seed)
     diagnostics = diagnostics_stage(logs, positions, args.budgets, config["travel_caps_cm"])
-    results = {"label": SYNTHETIC_LABEL, "synthetic": True, "config": config, "config_sha256": sha,
+    results = {"label": SYNTHETIC_LABEL, "synthetic": True, "simulation": False, "config": config,
+               "config_sha256": sha,
                "positions": positions.to_dict(), "thresholds": th.to_dict(), "generator": config["generator"],
                "files": {n: file_sha256(out / n) for n in ("episodes.json", "ground_truth.json",
                                                            "evidence.jsonl", "logs.jsonl")},
@@ -777,24 +875,40 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-REAL_CONFIG_VERSION = "real-v2"   # v2 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
+REAL_CONFIG_VERSION = "real-v3"   # v3 (2026-11-03): simulation flag, view labels file and bootstrap strata hashed
+# v2 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
 # v1 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
 REAL_LABEL = "REAL PILOT - placeholder thresholds, not frozen"
+SIM_LABEL = "SIMULATION - placeholder thresholds, not frozen"
 
 
 def main_real(args: argparse.Namespace) -> int:
-    """Run S/FULL/F/R/G/G-lookahead/G-myopic on real evidence: same run and score stages as --synthetic."""
+    """Run S/FULL/F/R/G/G-lookahead/G-myopic on real or simulated evidence: same run and score stages as --synthetic.
+    A manifest with "simulation": true is labelled SIMULATION (config.json, results.json, table.md); the bootstrap
+    is stratified by the manifest's quota slot classes when every arrangement has one."""
     if args.primary_budget not in args.budgets or args.r_seeds < 1 or args.bootstrap_B < 1:
         print("need --primary-budget in --budgets, --r-seeds >= 1, --bootstrap-B >= 1", file=sys.stderr)
         return 2
+    try:
+        info = load_manifest_info(args.manifest)
+        specs, truth = episodes_from_arrangements(info.arrangements)
+        del truth  # the run stage never sees it; re-read after the run
+    except (OSError, ValueError, KeyError) as e:
+        print(f"bad real-data input: {e}", file=sys.stderr)
+        return 2
+    if info.simulation and args.positions is None:
+        # configs/positions.json is the old close-spot arc: travel and caps would be wrong for a sim set
+        print("a simulation manifest needs --positions (e.g. configs/sim/positions_shelf_A.json)", file=sys.stderr)
+        return 2
+    pos_path = args.positions or str(DEFAULT_POSITIONS_PATH)
+    label = SIM_LABEL if info.simulation else REAL_LABEL
     out = Path(args.out) if args.out else REPO_ROOT / "runs" / f"real-{args.tag or Path(args.evidence).stem}"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "ground_truth.json").unlink(missing_ok=True)   # never present while policies run
+    for stale in ("ground_truth.json", "table.md"):   # never present while policies run
+        (out / stale).unlink(missing_ok=True)
     try:
-        positions = Positions.load(args.positions)
-        specs, truth = load_manifest(args.manifest)
-        del truth  # the run stage never sees it; re-read after the run
-        store = EvidenceStore.from_jsonl(args.evidence)
+        positions = Positions.load(pos_path)
+        store = EvidenceStore.from_jsonl(args.evidence, positions.n_stops)
         if store.synthetic:
             raise ValueError(f"{args.evidence} is synthetic evidence; use --synthetic")
         for s in specs:
@@ -802,11 +916,17 @@ def main_real(args: argparse.Namespace) -> int:
     except (OSError, ValueError, KeyError) as e:
         print(f"bad real-data input: {e}", file=sys.stderr)
         return 2
+    strata = info.strata()
     th = Thresholds()
     config = {"config_version": REAL_CONFIG_VERSION, "model_id": args.model_id, "synthetic": False,
-              "positions_file": _rel(Path(args.positions)), "positions_file_sha256": file_sha256(args.positions),
+              "simulation": info.simulation,
+              "positions_file": _rel(Path(pos_path)), "positions_file_sha256": file_sha256(pos_path),
               "manifest_file": _rel(Path(args.manifest)), "manifest_sha256": file_sha256(args.manifest),
               "evidence_file": _rel(Path(args.evidence)), "evidence_sha256": file_sha256(args.evidence),
+              # only the hash before the run: the labels are read after it, for scoring context only
+              "view_labels_file": None if args.view_labels is None else _rel(Path(args.view_labels)),
+              "view_labels_sha256": None if args.view_labels is None else file_sha256(args.view_labels),
+              "bootstrap_stratified": strata is not None,
               "seed": args.seed, "budgets": list(args.budgets), "nominal_step_cm": positions.nominal_step_cm(),
               "travel_tol_cm": TRAVEL_TOL_CM, "cap_steps": _cap_steps_config(args.cap_steps),
               "travel_caps_cm": [None, *(cap_cm_from_steps(c, positions) for c in args.cap_steps)],
@@ -816,22 +936,37 @@ def main_real(args: argparse.Namespace) -> int:
               "primary_budget": args.primary_budget, "thresholds": th.to_dict(), "positions": positions.to_dict(),
               "scoring_split": Split.TEST.value}
     sha = config_sha256(config)
-    write_json(out / "config.json", {"label": REAL_LABEL, "config": config, "config_sha256": sha})
+    write_json(out / "config.json", {"label": label, "config": config, "config_sha256": sha})
     context = RunContext(model_id=args.model_id, config_version=REAL_CONFIG_VERSION, config_sha256=sha,
                          synthetic=False)
     logs = run_stage(specs, store, positions, th, args.budgets, config["travel_caps_cm"], config["r_seeds"], context)
     del store
     write_logs(out / "logs.jsonl", logs)
-    _, truth = load_manifest(args.manifest)
+    _, truth = episodes_from_arrangements(load_manifest_info(args.manifest).arrangements)
     truth.save(out / "ground_truth.json")
-    scored = score_stage(logs, truth, args.primary_budget, args.bootstrap_B, args.seed)
-    results = {"label": REAL_LABEL, "synthetic": False, "config": config, "config_sha256": sha,
-               "positions": positions.to_dict(), "thresholds": th.to_dict(),
+    no_diag = None
+    if args.view_labels is not None:   # scoring context only, read after every policy has run
+        try:
+            if file_sha256(args.view_labels) != config["view_labels_sha256"]:
+                raise ValueError(f"{args.view_labels} changed during the run")
+            labels = load_geometric_labels(args.view_labels, positions.n_stops)
+            missing = sorted({s.episode_id for s in specs} - set(labels.episodes))
+            if missing:
+                raise ValueError(f"no view labels for {len(missing)} episodes, e.g. {missing[:3]}")
+        except (OSError, ValueError, KeyError) as e:
+            print(f"bad --view-labels: {e}", file=sys.stderr)
+            return 2
+        no_diag = labels.no_diagnostic_view()
+    scored = score_stage(logs, truth, args.primary_budget, args.bootstrap_B, args.seed, strata=strata,
+                         no_diagnostic=no_diag)
+    results = {"label": label, "synthetic": False, "simulation": info.simulation, "config": config,
+               "config_sha256": sha, "positions": positions.to_dict(), "thresholds": th.to_dict(),
                "files": {n: file_sha256(out / n) for n in ("ground_truth.json", "logs.jsonl")},
                "n_logs": len(logs), **scored,
                "diagnostics": diagnostics_stage(logs, positions, args.budgets, config["travel_caps_cm"])}
     write_json(out / "results.json", results)
-    print(f"{REAL_LABEL}: wrote {out}")
+    (out / "table.md").write_text(render_table(results))
+    print(f"{label}: wrote {out}")
     return 0
 
 

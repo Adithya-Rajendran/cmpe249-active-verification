@@ -6,10 +6,13 @@ import contextlib
 import dataclasses
 import hashlib
 import io
+import itertools
 import json
+import random
 import tempfile
 import unittest
 from collections.abc import Callable, Iterator
+from fractions import Fraction
 from pathlib import Path
 from unittest import mock
 
@@ -244,104 +247,210 @@ class SyntheticLabelsTest(unittest.TestCase):
         self.assertEqual({r.lighting for r in rows}, set(Lighting))
 
 
-class GateTest(unittest.TestCase):
-    def test_np_rule(self) -> None:
-        occ, rem = Condition.OCCLUDED, Condition.REMOVED
-        rows = [vrow(occ, False, 0.1, 0.9, 0.40), vrow(occ, False, 0.1, 0.9, 0.25),    # null set
-                vrow(occ, True, 0.1, 0.9, 0.05),                                      # diagnostic present: ignored
-                vrow(rem, True, 0.1, 0.9, 0.05), vrow(rem, True, 0.1, 0.9, 0.20), vrow(rem, True, 0.1, 0.45, 0.05),
-                vrow(rem, False, 0.1, 0.9, 0.9)]                                      # non-diagnostic removed: ignored
-        # alpha 0: no null view may pass -> tau_occ < 0.25. Best clear rate: tau_occ 0.2, tau_q <= 0.45.
-        g = sel.choose_gate(rows, (0.4, 0.45, 0.5), (0.1, 0.2, 0.3, 0.5), 0.0)
-        self.assertEqual((g.tau_q, g.tau_occ), (0.45, 0.2))   # tie on clear rate 3/3 -> higher tau_q
-        self.assertEqual(g.false_clear, (0, 2))
-        self.assertEqual(g.clear, (3, 3))
-        self.assertEqual((g.n_feasible, g.n_grid, len(g.grid)), (6, 12, 12))
-        # alpha 0.5 lets one null view pass: tau_occ 0.3 also has clear 3/3, but the tie-break prefers lower FCR.
-        g2 = sel.choose_gate(rows, (0.4, 0.45, 0.5), (0.1, 0.2, 0.3, 0.5), 0.5)
-        self.assertEqual((g2.tau_q, g2.tau_occ), (0.45, 0.2))
-
-    def test_no_power_view_warns_and_takes_the_most_conservative_gate(self) -> None:
-        rows = [vrow(Condition.OCCLUDED, False, 0.1, 0.9, 0.9), vrow(Condition.VISIBLE, True, 0.9)]
-        settings = sel.SelectionSettings(tau_q_grid=(0.4, 0.5), tau_occ_grid=(0.1, 0.2))
-        with self.assertLogs("verify.select", level="WARNING"):
-            cal = sel.calibrate(rows, settings)
-        self.assertEqual((cal.gate.tau_q, cal.gate.tau_occ), (0.5, 0.1))
-        self.assertTrue(any(w.startswith("Step 1a: no diagnostic removed-episode views") for w in cal.warnings))
-
-    def test_gate_is_the_rules_passes_gate(self) -> None:
-        rows = [vrow(Condition.OCCLUDED, False, 0.1, q, o) for q in (0.3, 0.5, 0.7) for o in (0.1, 0.3, 0.31)]
-        rows += [vrow(Condition.REMOVED, True, 0.1, q, o) for q in (0.49, 0.5, 0.9) for o in (0.0, 0.3, 0.6)]
-        g = sel.choose_gate(rows, (0.5,), (0.3,), 1.0)
-        rule = StoppingRule(Thresholds(tau_q=0.5, tau_occ=0.3))
-        self.assertEqual(g.false_clear, (sum(rule.passes_gate(r.obs) for r in rows[:9]), 9))
-        self.assertEqual(g.clear, (sum(rule.passes_gate(r.obs) for r in rows[9:]), 9))
-        self.assertEqual(g.clear, (4, 9))   # boundaries inclusive: quality >= 0.5 and obstruction <= 0.3
+def brute_force(rows: list[sel.ViewRow], tq_grid, to_grid, tm_grid, alpha: float):
+    """An independent enumeration of the joint search (no ViewTable, no GridPoint): every (tau_q, tau_occ, tau_match)
+    with fresh StoppingRule predicates, exact Fraction comparisons against alpha, and the declared order written out
+    again: max correct clear misses, then lower false clear-miss rate, lower false-clear rate, lower tau_match, higher
+    tau_q, lower tau_occ. Returns (best setting or None, number of feasible settings)."""
+    null_g = [r for r in rows if r.condition is Condition.OCCLUDED and not r.diagnostic]
+    pres = [r for r in rows if r.condition is not Condition.REMOVED and r.diagnostic]
+    rem = [r for r in rows if r.condition is Condition.REMOVED and r.diagnostic]
+    feas = []
+    for tq, to, tm in itertools.product(tq_grid, to_grid, tm_grid):
+        rule = StoppingRule(Thresholds(tau_match=tm, tau_q=tq, tau_occ=to))
+        fc = sum(rule.passes_gate(r.obs) for r in null_g)
+        fcm = sum(rule.is_clear_miss(r.obs) for r in pres)
+        cm = sum(rule.is_clear_miss(r.obs) for r in rem)
+        if null_g and pres and Fraction(fc, len(null_g)) <= Fraction(alpha).limit_denominator(10 ** 6) and \
+                Fraction(fcm, len(pres)) <= Fraction(alpha).limit_denominator(10 ** 6):
+            feas.append(((-cm, Fraction(fcm, len(pres)), Fraction(fc, len(null_g)), tm, -tq, to), (tq, to, tm)))
+    if not feas:
+        return None, 0
+    return min(feas)[1], len(feas)
 
 
-# Step 1b with a known answer (gate tau_q 0.5, tau_occ 0.3; every diagnostic view below passes it).
-KNOWN_PRESENT = (0.35, 0.42, 0.48, 0.52, 0.58, 0.62, 0.66, 0.72, 0.78, 0.85)   # diagnostic views, target present
-KNOWN_REMOVED = (0.05, 0.10, 0.20, 0.30, 0.38, 0.44, 0.47, 0.53, 0.61, 0.70)   # diagnostic views, target removed
-KNOWN_GRID = (0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70)
-KNOWN_GATE = sel.GateChoice(0.5, 0.3, (0, 1), (10, 10), 1, 1)
+def random_rows(rng: random.Random, n_arr: int, values: tuple[float, ...]) -> list[sel.ViewRow]:
+    """Random views whose scores sit ON the grid values half the time (the boundaries are inclusive)."""
+    def score() -> float:
+        return rng.choice(values) if rng.random() < 0.5 else round(rng.random(), 3)
+    rows = []
+    for a in range(n_arr):
+        for cond in Condition:
+            for light in Lighting:
+                for st in range(rng.randint(1, 4)):
+                    rows.append(vrow(cond, rng.random() < 0.6, score(), score(), score(), light, f"A{a:02d}", st))
+    return rows
 
 
-def known_rows(extra: tuple[sel.ViewRow, ...] = ()) -> list[sel.ViewRow]:
-    rows = [vrow(Condition.VISIBLE if i % 2 else Condition.OCCLUDED, True, m, stop=i % 5)
-            for i, m in enumerate(KNOWN_PRESENT)]
-    rows += [vrow(Condition.REMOVED, True, m, stop=i % 5) for i, m in enumerate(KNOWN_REMOVED)]
-    # non-diagnostic views are in neither 1b set; the occluded one (flagged) is 1a's null view and fails the gate
-    rows += [vrow(Condition.REMOVED, False, 0.9), vrow(Condition.OCCLUDED, False, 0.0, o=0.9)]
-    return rows + list(extra)
+def counterexample_rows() -> list[sel.ViewRow]:
+    """The sequential counterexample (runs/2026-11-03-pr4-review/select1/probe_sequential_infeasible.py, copied):
+    hand-built scores modelling L2 queries against the L1 reference, dim (quality 0.55) and poorly matched (0.30)."""
+    rows = []
+    for a in range(10):
+        arr = f"A{a:02d}"
+        for light, q in ((Lighting.L1, 0.9), (Lighting.L2, 0.55)):
+            m_present = 0.9 if light is Lighting.L1 else 0.30
+            for st in range(5):
+                blocked = st in (1, 2)
+                rows.append(vrow(Condition.VISIBLE, True, m_present, q, 0.05, light, arr, st))
+                rows.append(vrow(Condition.OCCLUDED, not blocked, 0.1 if blocked else m_present, q,
+                                 0.9 if blocked else 0.05, light, arr, st))
+                rows.append(vrow(Condition.REMOVED, not blocked, 0.05, q, 0.9 if blocked else 0.05, light, arr, st))
+    return rows
 
 
-class TauMatchTest(unittest.TestCase):
-    """Step 1b on hand-built views with a known answer."""
-    GRID, GATE = KNOWN_GRID, KNOWN_GATE
+class JointSearchTest(unittest.TestCase):
+    """Step 1: one joint search over tau_q x tau_occ x tau_match (revision 2026-11-03)."""
 
-    def rows(self, extra: tuple[sel.ViewRow, ...] = ()) -> list[sel.ViewRow]:
-        return known_rows(extra)
+    def test_matches_brute_force_on_random_cases(self) -> None:
+        rng = random.Random(20261103)
+        n_feasible = n_infeasible = 0
+        for case in range(150):
+            tq = tuple(sorted(rng.sample((0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8), rng.randint(1, 4))))
+            to = tuple(sorted(rng.sample((0.1, 0.2, 0.3, 0.4, 0.5), rng.randint(1, 3))))
+            tm = tuple(sorted(rng.sample((0.3, 0.4, 0.5, 0.6, 0.7), rng.randint(1, 4))))
+            alpha = rng.choice((0.0, 0.1, 0.2, 0.25, 1 / 3, 0.5))
+            rows = random_rows(rng, rng.randint(1, 4), tq + to + tm)
+            s = sel.SelectionSettings(tau_q_grid=tq, tau_occ_grid=to, tau_match_grid=tm, alpha_clear=alpha)
+            want, n_want = brute_force(rows, tq, to, tm, alpha)
+            with self.subTest(case=case):
+                if want is None:
+                    n_infeasible += 1
+                    with self.assertRaises(sel.CalibrationInfeasible):
+                        sel.calibrate(rows, s, log_warnings=False)
+                    continue
+                n_feasible += 1
+                cal = sel.calibrate(rows, s, log_warnings=False)
+                th = cal.thresholds
+                self.assertEqual((th.tau_q, th.tau_occ, th.tau_match), want)
+                self.assertEqual(cal.choice.n_feasible, n_want)
+                self.assertEqual(cal.choice.n_grid, len(tq) * len(to) * len(tm))
+        self.assertGreater(n_feasible, 30)    # both outcomes are exercised
+        self.assertGreater(n_infeasible, 10)
 
-    def test_known_answer_respects_alpha(self) -> None:
-        # false clear misses (present < tau_match) along the grid: 1..7 of 10; clear misses on removed: 5, 6, 7, 8, 8,
-        # 9, 9 of 10 (0.70 is a strong match at tau_match 0.70, so it is not a clear miss there)
-        curve = sel.choose_tau_match(self.rows(), self.GATE, self.GRID, 0.1).curve
-        self.assertEqual([p.false_clear_miss for p in curve], [(i, 10) for i in range(1, 8)])
-        self.assertEqual([p.clear_miss[0] for p in curve], [5, 6, 7, 8, 8, 9, 9])
-        self.assertEqual([p.false_strong_match[0] for p in curve], [5, 4, 3, 2, 2, 1, 1])
-        # the largest clear-miss rate among values whose false clear-miss rate is <= alpha; 0.50 ties 0.55 / 0.60 on
-        # clear misses (8) and 1.0 ties 0.65 / 0.70 (9): the lower false rate wins
+    def test_grid_order_never_breaks_a_tie(self) -> None:
+        # Permuting the grid points (and the rows) gives the same choice: the order is total, not iteration order.
+        rows = known_rows() + counterexample_rows()[:60]
+        s = sel.SelectionSettings(tau_q_grid=(0.4, 0.5, 0.6), tau_occ_grid=(0.1, 0.3), tau_match_grid=KNOWN_GRID,
+                                  alpha_clear=0.3)
+        table = sel.ViewTable(rows, s)
+        pts = table.points()
+        ref = sel.choose_joint(pts, s.alpha_clear, table.grid)
+        self.assertGreater(ref.n_tied_at_max, 1)   # a tie the declared order must break
+        rng = random.Random(7)
+        for _ in range(25):
+            perm = pts[:]
+            rng.shuffle(perm)
+            got = sel.choose_joint(perm, s.alpha_clear, table.grid)
+            self.assertEqual((got.chosen, got.n_tied_at_max, got.decided_by),
+                             (ref.chosen, ref.n_tied_at_max, ref.decided_by))
+            shuffled = rows[:]
+            rng.shuffle(shuffled)
+            self.assertEqual(sel.calibrate(shuffled, s, log_warnings=False).thresholds,
+                             sel.calibrate(rows, s, log_warnings=False).thresholds)
+
+    def test_each_tie_level_can_decide(self) -> None:
+        # Hand-built: two removed views (one clear miss each wherever the gate passes), tie pressure by construction.
+        rem = [vrow(Condition.REMOVED, True, 0.1, 0.9, 0.05), vrow(Condition.REMOVED, True, 0.1, 0.9, 0.05)]
+        occ_null = [vrow(Condition.OCCLUDED, False, 0.1, 0.9, 0.25)]   # passes the gate iff tau_occ >= 0.25
+        cases = [
+            # (present diagnostic views, tau_q grid, tau_occ grid, tau_match grid, alpha, want, decided_by)
+            # a present view matching 0.45: a false clear miss at tau_match 0.5, not at 0.4 -> lower false clear-miss
+            ([vrow(Condition.VISIBLE, True, 0.45)], (0.5,), (0.2,), (0.4, 0.5), 1.0, (0.5, 0.2, 0.4),
+             "false clear-miss rate"),
+            # tau_occ 0.3 lets the null view through (false clear 1/1) -> lower false-clear rate wins
+            ([vrow(Condition.VISIBLE, True, 0.9)], (0.5,), (0.2, 0.3), (0.4,), 1.0, (0.5, 0.2, 0.4),
+             "false-clear rate"),
+            ([vrow(Condition.VISIBLE, True, 0.9)], (0.5,), (0.2,), (0.4, 0.5, 0.6), 1.0, (0.5, 0.2, 0.4),
+             "tau_match (lower)"),
+            ([vrow(Condition.VISIBLE, True, 0.9)], (0.4, 0.5), (0.2,), (0.4,), 1.0, (0.5, 0.2, 0.4), "tau_q (higher)"),
+            ([vrow(Condition.VISIBLE, True, 0.9)], (0.5,), (0.1, 0.2), (0.4,), 1.0, (0.5, 0.1, 0.4),
+             "tau_occ (lower)"),
+        ]
+        for present, tq, to, tm, alpha, want, level in cases:
+            with self.subTest(level=level):
+                rows = rem + occ_null + present
+                s = sel.SelectionSettings(tau_q_grid=tq, tau_occ_grid=to, tau_match_grid=tm, alpha_clear=alpha)
+                cal = sel.calibrate(rows, s, log_warnings=False)
+                th = cal.thresholds
+                self.assertEqual((th.tau_q, th.tau_occ, th.tau_match), want)
+                self.assertEqual(cal.choice.decided_by, level)
+                self.assertTrue(cal.choice.tie_break_decided)
+                self.assertEqual((th.tau_q, th.tau_occ, th.tau_match), brute_force(rows, tq, to, tm, alpha)[0])
+        # a unique maximum: the objective alone decides
+        rows = rem[:1] + [vrow(Condition.REMOVED, True, 0.1, 0.45, 0.05)] + occ_null + [vrow(Condition.VISIBLE, True, 0.9)]
+        cal = sel.calibrate(rows, sel.SelectionSettings(tau_q_grid=(0.4, 0.5), tau_occ_grid=(0.2,),
+                                                        tau_match_grid=(0.4,), alpha_clear=1.0), log_warnings=False)
+        self.assertEqual((cal.thresholds.tau_q, cal.choice.decided_by, cal.choice.n_tied_at_max), (0.4, None, 1))
+
+    def test_sequential_counterexample_is_feasible_and_shows_the_l2_rejection(self) -> None:
+        rows = counterexample_rows()
+        s = sel.SelectionSettings()   # the predeclared default grids and alpha_clear 0.10
+        cal = sel.calibrate(rows, s, log_warnings=False)
+        want, n = brute_force(rows, s.tau_q_grid, s.tau_occ_grid, s.tau_match_grid, s.alpha_clear)
+        th = cal.thresholds
+        self.assertEqual((th.tau_q, th.tau_occ, th.tau_match), want)
+        self.assertEqual(want, (0.8, 0.1, 0.4))
+        self.assertEqual((cal.choice.n_feasible, n, cal.choice.n_grid), (315, 315, 693))   # as Codex counted
+        c = cal.choice.chosen
+        self.assertEqual((c.false_clear, c.false_clear_miss, c.clear_miss), ((0, 40), (0, 160), (30, 60)))
+        gp = sel.gate_pass_by_lighting(rows, th)
+        self.assertEqual((gp["L1"]["removed_diagnostic"], gp["L2"]["removed_diagnostic"]), ((30, 30), (0, 30)))
+        self.assertEqual((gp["L1"]["all"], gp["L2"]["all"]), ((110, 150), (0, 150)))   # as in audit.json
+        flags = sel.gate_pass_flags(gp, "here")
+        self.assertIn("here: the gate rejects ALL L2 removed diagnostic views (0/30 pass tau_q / tau_occ)", flags)
+        self.assertIn("here: the gate rejects ALL L2 present diagnostic views (0/80 pass tau_q / tau_occ)", flags)
+        self.assertFalse([f for f in flags if " L1 " in f])
+        # and every feasible setting rejects every L2 view at the gate (the reason the diagnostic exists)
+        for p in cal.choice.points:
+            if p.feasible(s.alpha_clear):
+                self.assertFalse(StoppingRule(Thresholds(tau_q=p.tau_q, tau_occ=p.tau_occ)).passes_gate(
+                    Observation(0, 0, 0.0, 0.3, 0.55, 0.05)))
+
+    def test_known_tau_match_answers_under_one_gate(self) -> None:
+        # select-v4's old Step 1b known answers still hold when the grid has one gate (the joint search reduces to it)
         for alpha, want in ((0.10, 0.40), (0.20, 0.45), (0.35, 0.50), (0.50, 0.55), (1.0, 0.65)):
             with self.subTest(alpha=alpha):
-                m = sel.choose_tau_match(self.rows(), self.GATE, self.GRID, alpha)
-                self.assertEqual(m.tau_match, want)
-                x, n = m.chosen.false_clear_miss
-                self.assertLessEqual(x / n, alpha)
-                feasible = [p for p in m.curve if p.false_clear_miss[0] / 10 <= alpha]
-                self.assertEqual(m.n_feasible, len(feasible))
-                self.assertEqual(m.chosen.clear_miss[0], max(p.clear_miss[0] for p in feasible))
+                s = sel.SelectionSettings(tau_q_grid=(0.5,), tau_occ_grid=(0.3,), tau_match_grid=KNOWN_GRID,
+                                          alpha_clear=alpha)
+                cal = sel.calibrate(known_rows(), s, log_warnings=False)
+                self.assertEqual(cal.thresholds.tau_match, want)
+        curve = sel.threshold_curves(sel.calibrate(known_rows(), sel.SelectionSettings(
+            tau_q_grid=(0.5,), tau_occ_grid=(0.3,), tau_match_grid=KNOWN_GRID), log_warnings=False).choice)
+        tm = curve["tau_match"]["points"]
+        self.assertEqual([p["false_clear_miss"] for p in tm], [[i, 10] for i in range(1, 8)])
+        self.assertEqual([p["correct_clear_miss"][0] for p in tm], [5, 6, 7, 8, 8, 9, 9])
+        self.assertEqual([p["chosen"] for p in tm], [True] + [False] * 6)
+        self.assertFalse(curve["tau_match"]["correct_clear_miss_flat"])
+        self.assertTrue(curve["tau_q"]["correct_clear_miss_flat"])   # a one-point grid is flat: reported, not forced
 
-    def test_full_tie_goes_to_the_most_conservative(self) -> None:
-        rows = [vrow(Condition.VISIBLE, True, m) for m in (0.90, 0.95)]
-        rows += [vrow(Condition.REMOVED, True, m) for m in (0.10, 0.20)]
-        m = sel.choose_tau_match(rows, self.GATE, self.GRID, 0.10)
-        self.assertEqual(m.n_feasible, len(self.GRID))   # every value: no false clear miss, every removed view a miss
-        self.assertEqual(m.tau_match, 0.40)
+    def test_curves_hold_the_other_two_at_the_chosen_values(self) -> None:
+        rows = counterexample_rows()
+        cal = sel.calibrate(rows, sel.SelectionSettings(), log_warnings=False)
+        curves = sel.threshold_curves(cal.choice)
+        th = cal.thresholds
+        for axis, grid in (("tau_q", sel.DEFAULT_TAU_Q_GRID), ("tau_occ", sel.DEFAULT_TAU_OCC_GRID),
+                           ("tau_match", sel.DEFAULT_TAU_MATCH_GRID)):
+            c = curves[axis]
+            self.assertEqual([p["value"] for p in c["points"]], list(grid))
+            self.assertEqual(sum(p["chosen"] for p in c["points"]), 1)
+            for p in c["points"]:
+                setting = {"tau_q": th.tau_q, "tau_occ": th.tau_occ, "tau_match": th.tau_match, axis: p["value"]}
+                rule = StoppingRule(Thresholds(**setting))
+                rem = sel.removed_diagnostic_views(rows)
+                pres = sel.present_diagnostic_views(rows)
+                self.assertEqual(p["correct_clear_miss"], [sum(rule.is_clear_miss(r.obs) for r in rem), len(rem)])
+                self.assertEqual(p["false_clear_miss"], [sum(rule.is_clear_miss(r.obs) for r in pres), len(pres)])
+        # tau_match does not move the clear-miss count here (every L1 removed view matches 0.05): flat, kept flat
+        self.assertTrue(curves["tau_match"]["correct_clear_miss_flat"])
+        self.assertTrue(curves["tau_match"]["tie_break_decided_on_curve"])
 
-    def test_counts_are_the_rules_predicates(self) -> None:
-        # Present views that fail the gate are never clear misses; a match exactly at tau_match is a strong match.
-        extra = (vrow(Condition.VISIBLE, True, 0.05, q=0.2), vrow(Condition.VISIBLE, True, 0.05, o=0.9),
-                 vrow(Condition.VISIBLE, True, 0.45))
-        rows = self.rows(extra)
-        m = sel.choose_tau_match(rows, self.GATE, self.GRID, 0.2)
-        null, power = sel.present_diagnostic_views(rows), sel.removed_diagnostic_views(rows)
-        self.assertEqual((len(null), len(power)), (13, 10))
-        for p in m.curve:
-            rule = StoppingRule(Thresholds(tau_match=p.tau_match, tau_q=0.5, tau_occ=0.3))
-            self.assertEqual(p.false_clear_miss, (sum(rule.is_clear_miss(r.obs) for r in null), 13))
-            self.assertEqual(p.clear_miss, (sum(rule.is_clear_miss(r.obs) for r in power), 10))
-            self.assertEqual(p.false_strong_match, (sum(rule.is_strong_match(r.obs) for r in power), 10))
-        self.assertEqual(next(p for p in m.curve if p.tau_match == 0.45).false_clear_miss, (2, 13))
+    def test_table_on_a_subset_equals_a_recount(self) -> None:
+        rows = sel.view_rows(small_dev(15))
+        s = sel.SelectionSettings(tau_q_grid=(0.4, 0.6), tau_occ_grid=(0.2, 0.4), tau_match_grid=(0.5, 0.6))
+        table = sel.ViewTable(rows, s)
+        keep = table.arrangements[1:4]
+        self.assertEqual(table.points(keep), sel.ViewTable([r for r in rows if r.arrangement_id in keep], s).points())
 
     def test_calibration_calls_the_rules_methods(self) -> None:
         names = ("is_clear_miss", "is_strong_match", "passes_gate")
@@ -353,62 +462,105 @@ class TauMatchTest(unittest.TestCase):
                 calls[name] += 1
                 return orig[name](rule, o)
             return f
-        settings = sel.SelectionSettings(tau_match_grid=self.GRID, tau_q_grid=(0.5,), tau_occ_grid=(0.3,))
+        settings = sel.SelectionSettings(tau_match_grid=KNOWN_GRID, tau_q_grid=(0.5,), tau_occ_grid=(0.3,))
         with mock.patch.object(StoppingRule, "is_clear_miss", spy("is_clear_miss")), \
                 mock.patch.object(StoppingRule, "is_strong_match", spy("is_strong_match")), \
                 mock.patch.object(StoppingRule, "passes_gate", spy("passes_gate")):
-            cal = sel.calibrate(self.rows(), settings)
-        self.assertEqual(calls["is_clear_miss"], len(self.GRID) * 20)   # 10 present + 10 removed diagnostic views
-        self.assertEqual(calls["is_strong_match"], len(self.GRID) * 10)
-        self.assertEqual(calls["passes_gate"], 11 + len(self.GRID) * 20)   # 1a's 1 + 10 views, then via is_clear_miss
+            cal = sel.calibrate(known_rows(), settings)
+        self.assertEqual(calls["is_clear_miss"], len(KNOWN_GRID) * 20)   # 10 present + 10 removed diagnostic views
+        self.assertEqual(calls["is_strong_match"], len(KNOWN_GRID) * 10)
+        self.assertEqual(calls["passes_gate"], 11 + len(KNOWN_GRID) * 20)   # 1 null + 10 removed, then via clear miss
         self.assertEqual(cal.thresholds, Thresholds(tau_match=0.40, tau_q=0.5, tau_occ=0.3, k=2, lam=0.0))
+
+    def test_no_power_view_warns_and_takes_the_most_conservative_setting(self) -> None:
+        rows = [vrow(Condition.OCCLUDED, False, 0.1, 0.9, 0.9), vrow(Condition.VISIBLE, True, 0.9)]
+        settings = sel.SelectionSettings(tau_q_grid=(0.4, 0.5), tau_occ_grid=(0.1, 0.2))
+        with self.assertLogs("verify.select", level="WARNING"):
+            cal = sel.calibrate(rows, settings)
+        self.assertEqual((cal.thresholds.tau_q, cal.thresholds.tau_occ, cal.thresholds.tau_match), (0.5, 0.1, 0.40))
+        self.assertTrue(any(w.startswith("Step 1: no diagnostic removed-episode views") for w in cal.warnings))
+
+
+# Known answers along tau_match (gate tau_q 0.5, tau_occ 0.3; every diagnostic view below passes it).
+KNOWN_PRESENT = (0.35, 0.42, 0.48, 0.52, 0.58, 0.62, 0.66, 0.72, 0.78, 0.85)   # diagnostic views, target present
+KNOWN_REMOVED = (0.05, 0.10, 0.20, 0.30, 0.38, 0.44, 0.47, 0.53, 0.61, 0.70)   # diagnostic views, target removed
+KNOWN_GRID = (0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70)
+
+
+def known_rows(extra: tuple[sel.ViewRow, ...] = ()) -> list[sel.ViewRow]:
+    rows = [vrow(Condition.VISIBLE if i % 2 else Condition.OCCLUDED, True, m, stop=i % 5)
+            for i, m in enumerate(KNOWN_PRESENT)]
+    rows += [vrow(Condition.REMOVED, True, m, stop=i % 5) for i, m in enumerate(KNOWN_REMOVED)]
+    # non-diagnostic views are in neither null set of tau_match; the occluded one (flagged) is the false-clear null
+    rows += [vrow(Condition.REMOVED, False, 0.9), vrow(Condition.OCCLUDED, False, 0.0, o=0.9)]
+    return rows + list(extra)
 
 
 class InfeasibleTest(unittest.TestCase):
-    """No setting on the grid meets alpha_clear: Step 1 fails loudly, with no fallback and no candidate."""
+    """No grid setting meets both constraints: Step 1 fails loudly, with no fallback and no candidate."""
 
-    def test_gate_infeasible_reports_the_constraint_best_rate_and_grid(self) -> None:
-        occ, rem = Condition.OCCLUDED, Condition.REMOVED
-        rows = [vrow(occ, False, 0.1, 0.55, 0.05), vrow(occ, False, 0.1, 0.9, 0.05), vrow(rem, True, 0.1, 0.9, 0.05)]
+    def infeasible(self, rows, tq, to, tm, alpha=0.10) -> sel.Infeasibility:
+        s = sel.SelectionSettings(tau_q_grid=tq, tau_occ_grid=to, tau_match_grid=tm, alpha_clear=alpha)
+        self.assertIsNone(brute_force(rows, tq, to, tm, alpha)[0])
         with self.assertRaises(sel.CalibrationInfeasible) as cm:
-            sel.choose_gate(rows, (0.5, 0.6), (0.1, 0.2), 0.10)   # false-clear 2/2 at tau_q 0.5, 1/2 at 0.6
-        f = cm.exception.failure
-        self.assertEqual((f.step, f.constraint, f.alpha_clear, f.n_null_views), ("1a", sel.GATE_CONSTRAINT, 0.10, 2))
-        self.assertEqual((f.best_rate, f.best_counts), (0.5, (1, 2)))
-        self.assertEqual(f.best_settings, ({"tau_q": 0.6, "tau_occ": 0.1}, {"tau_q": 0.6, "tau_occ": 0.2}))
-        self.assertEqual(f.grid, {"tau_q_grid": [0.5, 0.6], "tau_occ_grid": [0.1, 0.2]})
-        self.assertEqual([(g["x"], g["n"]) for g in f.grid_rates], [(2, 2), (2, 2), (1, 2), (1, 2)])
-        for needle in ("Step 1a is infeasible: no gate (tau_q, tau_occ) on the grid meets", "0.5000 (1/2 views)",
-                       "tau_q 0.6, tau_occ 0.1", sel.NO_FALLBACK):
-            self.assertIn(needle, str(cm.exception))
-        self.assertNotIn("Step 1b searches", str(cm.exception))   # 1a searched the whole gate grid
+            sel.calibrate(rows, s, log_warnings=False)
+        return cm.exception.failure
 
-    def test_tau_match_infeasible_reports_the_gate_and_grid(self) -> None:
-        with self.assertRaises(sel.CalibrationInfeasible) as cm:
-            sel.choose_tau_match(known_rows(), KNOWN_GATE, KNOWN_GRID, 0.0)   # the best value still has 1/10
-        f = cm.exception.failure
-        self.assertEqual((f.step, f.constraint), ("1b", sel.MATCH_CONSTRAINT))
-        self.assertEqual((f.best_rate, f.best_counts, f.best_settings), (0.1, (1, 10), ({"tau_match": 0.40},)))
-        self.assertEqual(f.grid, {"tau_match_grid": list(KNOWN_GRID), "gate": {"tau_q": 0.5, "tau_occ": 0.3}})
-        self.assertEqual([g["x"] for g in f.grid_rates], list(range(1, 8)))
-        # Step 1b tried one gate only, so its failure must not claim that no setting on the grid meets alpha (review)
-        msg = str(cm.exception)
-        self.assertIn("Step 1b is infeasible: no tau_match on the grid meets", msg)
-        self.assertIn("under the gate Step 1a chose (tau_q 0.5, tau_occ 0.3)", msg)
-        self.assertIn("Step 1b searches tau_match only under the gate Step 1a picked", msg)
-        self.assertNotIn("no setting on the", msg)
-        self.assertTrue(f.summary().startswith("Step 1b (tau_match under the Step 1a gate): best achievable"))
+    def test_binding_constraint_and_best_rates(self) -> None:
+        occ, rem, vis = Condition.OCCLUDED, Condition.REMOVED, Condition.VISIBLE
+        nulls = [vrow(occ, False, 0.1, 0.55, 0.05), vrow(occ, False, 0.1, 0.9, 0.05)]   # pass at tau_q 0.5; 1 at 0.6
+        # false-clear binds: every gate passes a null view; the present view never clear-misses (match 0.9)
+        f = self.infeasible(nulls + [vrow(rem, True, 0.1), vrow(vis, True, 0.9)], (0.5, 0.6), (0.1, 0.2), (0.5,))
+        self.assertEqual(f.binding, "false-clear")
+        self.assertEqual((f.best_false_clear["rate"], f.best_false_clear["x"], f.best_false_clear["n"]), (0.5, 1, 2))
+        self.assertEqual(f.best_false_clear["settings"], [{"tau_q": 0.6, "tau_occ": 0.1, "tau_match": 0.5},
+                                                          {"tau_q": 0.6, "tau_occ": 0.2, "tau_match": 0.5}])
+        self.assertEqual(f.best_false_clear_miss["rate"], 0.0)
+        self.assertIsNone(f.best_false_clear_miss_meeting_false_clear)
+        self.assertEqual(len(f.grid_rates), 4)
+        msg = str(f.message())
+        for needle in ("Step 1 is infeasible: no setting on the predeclared grid meets both", "Binding: the "
+                       "false-clear constraint", "0.5000 (1/2)", "Grid searched (jointly)", sel.NO_FALLBACK):
+            self.assertIn(needle, msg)
+        # false clear-miss binds: present view with match 0.3 clear-misses under every passing gate; no null view passes
+        f = self.infeasible([vrow(occ, False, 0.1, 0.9, 0.9), vrow(rem, True, 0.1), vrow(vis, True, 0.3)],
+                      (0.5,), (0.3,), (0.4, 0.5))
+        self.assertEqual((f.binding, f.best_false_clear_miss["rate"]), ("false clear-miss", 1.0))
+        # both bind
+        f = self.infeasible(nulls + [vrow(vis, True, 0.3)], (0.5,), (0.3,), (0.5,))
+        self.assertEqual(f.binding, "both")
 
-    def test_no_view_to_measure_the_constraint_on_is_infeasible(self) -> None:
-        rows = [vrow(Condition.REMOVED, True, 0.1)]   # no non-diagnostic occluded view, no present diagnostic view
-        with self.assertRaises(sel.CalibrationInfeasible) as cm:
-            sel.choose_gate(rows, (0.5,), (0.3,), 0.10)
-        self.assertEqual((cm.exception.failure.step, cm.exception.failure.best_rate), ("1a", None))
-        rows.append(vrow(Condition.OCCLUDED, False, 0.1, o=0.9))   # 1a is measurable now; 1b still is not
-        gate = sel.choose_gate(rows, (0.5,), (0.3,), 0.10)
-        with self.assertRaises(sel.CalibrationInfeasible) as cm:
-            sel.choose_tau_match(rows, gate, (0.5,), 0.10)
-        self.assertEqual((cm.exception.failure.step, cm.exception.failure.n_null_views), ("1b", 0))
+    def test_the_most_conservative_corner_minimises_both_false_rates(self) -> None:
+        # The gate is monotone (a higher tau_q or lower tau_occ rejects more) and a lower tau_match makes fewer clear
+        # misses, so (max tau_q, min tau_occ, min tau_match) has the lowest false-clear AND false clear-miss rates on
+        # the grid: if each constraint is met somewhere, both are met there. "jointly" is kept as a defensive label;
+        # on random cases it never occurs.
+        rng = random.Random(3)
+        seen = set()
+        for _ in range(150):
+            tq = tuple(sorted(rng.sample((0.2, 0.4, 0.6, 0.8), rng.randint(1, 3))))
+            to = tuple(sorted(rng.sample((0.1, 0.3, 0.5), rng.randint(1, 3))))
+            tm = tuple(sorted(rng.sample((0.3, 0.5, 0.7), rng.randint(1, 3))))
+            rows = random_rows(rng, 2, tq + to + tm)
+            s = sel.SelectionSettings(tau_q_grid=tq, tau_occ_grid=to, tau_match_grid=tm, alpha_clear=0.1)
+            pts = sel.ViewTable(rows, s).points()
+            corner = next(p for p in pts if (p.tau_q, p.tau_occ, p.tau_match) == (tq[-1], to[0], tm[0]))
+            self.assertEqual(corner.false_clear[0], min(p.false_clear[0] for p in pts))
+            self.assertEqual(corner.false_clear_miss[0], min(p.false_clear_miss[0] for p in pts))
+            try:
+                sel.calibrate(rows, s, log_warnings=False)
+            except sel.CalibrationInfeasible as e:
+                seen.add(e.failure.binding)
+        self.assertNotIn("jointly", seen)
+        self.assertTrue(seen)
+
+    def test_no_view_to_measure_a_constraint_on_is_infeasible(self) -> None:
+        f = self.infeasible([vrow(Condition.REMOVED, True, 0.1), vrow(Condition.VISIBLE, True, 0.9)], (0.5,), (0.3,), (0.5,))
+        self.assertEqual((f.n_gate_null_views, f.best_false_clear), (0, None))
+        self.assertIn("no view to measure the false-clear rate on", f.binding_text)
+        f = self.infeasible([vrow(Condition.REMOVED, True, 0.1), vrow(Condition.OCCLUDED, False, 0.1, o=0.9)],
+                      (0.5,), (0.3,), (0.5,))
+        self.assertEqual((f.n_match_null_views, f.binding), (0, "false clear-miss"))
 
     def test_run_selection_fails_before_any_fold_or_policy(self) -> None:
         def boom(*a, **kw):
@@ -416,61 +568,67 @@ class InfeasibleTest(unittest.TestCase):
         with mock.patch.object(sel, "grouped_cv", boom), mock.patch.object(sel, "PolicyRunner", boom), \
                 mock.patch.object(sel, "run_episode", boom), mock.patch.object(pol, "run_episode", boom), \
                 self.assertRaises(sel.CalibrationInfeasible) as cm:
-            sel.run_selection(small_dev(), dataclasses.replace(FAST, tau_match_grid=(0.95,)), CTX)
-        self.assertEqual(cm.exception.failure.step, "1b")
+            sel.run_selection(small_dev(), dataclasses.replace(FAST, tau_q_grid=(0.0,), tau_occ_grid=(1.0,),
+                                                               tau_match_grid=(0.95,)), CTX)
+        self.assertEqual(cm.exception.failure.binding, "both")
 
-    def test_cli_exits_nonzero_and_leaves_no_candidate(self) -> None:
+    def test_cli_exits_3_and_leaves_no_candidate(self) -> None:
         base = ["--synthetic", "--n-arr", "9", "--seed", "0", "--bootstrap-B", "20", "--cap-steps", "none",
                 "--r-seeds", "1", "--k-sensitivity", "none", "--lam-sensitivity", "none"]
+        bad = ["--tau-q-grid", "0", "--tau-occ-grid", "1", "--tau-match-grid", "0.95"]   # the gate passes everything
         with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
                 contextlib.redirect_stderr(io.StringIO()) as err:
             out = Path(d) / "run"
             self.assertEqual(sel.main([*base, "--out", str(out)]), 0)   # a feasible candidate first
             self.assertTrue((out / "frozen_candidate.json").exists())
-            rc = sel.main([*base, "--tau-match-grid", "0.95", "--out", str(out)])
+            rc = sel.main([*base, *bad, "--out", str(out)])
             gone = [n for n in sel.CANDIDATE_FILES if not (out / n).exists()]
             doc = json.loads((out / sel.INFEASIBLE_FILE).read_text())
             rep = (out / "selection_report.md").read_text()
             self.assertEqual(sel.main([*base, "--out", str(out)]), 0)   # a later feasible run clears the record
             cleared = not (out / sel.INFEASIBLE_FILE).exists()
         self.assertEqual(rc, sel.EXIT_INFEASIBLE)
-        self.assertNotEqual(rc, 0)
         self.assertEqual(gone, list(sel.CANDIDATE_FILES))   # the earlier candidate cannot be picked up
         self.assertTrue(cleared)
         self.assertEqual((doc["status"], doc["schema"]), ("infeasible", sel.INFEASIBLE_SCHEMA))
+        self.assertEqual(doc["procedure_revision"], sel.PROCEDURE_REVISION)
         self.assertNotIn("thresholds", doc)
         f = doc["failure"]
-        self.assertEqual((f["step"], f["grid"]["tau_match_grid"], f["alpha_clear"]), ("1b", [0.95], 0.1))
-        self.assertGreater(f["best_rate"], 0.1)
-        self.assertEqual(f["best_settings"], [{"tau_match": 0.95}])
+        self.assertEqual((f["binding"], f["grid"]["tau_match_grid"], f["alpha_clear"]), ("both", [0.95], 0.1))
+        self.assertGreater(f["best_false_clear"]["rate"], 0.1)
         self.assertIn(sel.NO_FALLBACK, doc["no_candidate"])
         self.assertTrue(rep.startswith(f"# {SYNTHETIC_LABEL}"))
-        for needle in ("INFEASIBLE", "No frozen candidate was written", "best achievable rate", "grid searched",
-                       "Step 1b found no tau_match on the grid that meets alpha_clear = 0.1 under the gate Step 1a "
-                       "chose (tau_q ", "**Step 1b searches tau_match only under the gate Step 1a picked**",
-                       f"labels sha256 `{doc['view_labels_sha256']}`"):
+        for needle in ("INFEASIBLE", "No frozen candidate was written", "**binding**", "searched jointly",
+                       "best achievable false-clear rate over the grid", f"labels sha256 `{doc['view_labels_sha256']}`"):
             self.assertIn(needle, rep)
-        self.assertNotIn("no setting on the predeclared grid", rep)   # review: 1b never searched the whole grid
-        self.assertEqual(doc["view_labels_sha256"],
-                         sel.synthetic_dev_data(9, 0, SyntheticParams(), Positions.load()).view_labels_sha256)
+        self.assertNotIn("Step 1b", rep)
         self.assertIn("CALIBRATION INFEASIBLE", err.getvalue())
 
-    def test_infeasible_fold_is_recorded_without_a_fallback(self) -> None:
+    def test_infeasible_fold_is_recorded_without_a_fallback_and_blocks_freeze(self) -> None:
         rows: list[sel.ViewRow] = []
         for arr, lows, n in (("A01", 0, 20), ("A02", 3, 10), ("A03", 0, 10)):
             rows += [vrow(Condition.VISIBLE, True, 0.35 if i < lows else 0.9, arr=arr, stop=i % 5) for i in range(n)]
             rows += [vrow(Condition.REMOVED, True, 0.1, arr=arr, stop=st) for st in range(3)]
             rows.append(vrow(Condition.OCCLUDED, False, 0.1, o=0.9, arr=arr))
         settings = sel.SelectionSettings(tau_q_grid=(0.5,), tau_occ_grid=(0.3,), tau_match_grid=(0.4, 0.5))
-        self.assertEqual(sel.calibrate(rows, settings, log_warnings=False).thresholds.tau_match, 0.4)   # 3/40 meets 0.10
+        self.assertEqual(sel.calibrate(rows, settings, log_warnings=False).thresholds.tau_match, 0.4)   # 3/40 <= 0.10
         folds = {f.held_out: f for f in sel.grouped_cv(rows, settings, ["A01", "A02", "A03"])}
         bad = folds["A01"]   # without A01 the false clear-miss rate is 3/20 > 0.10 at every tau_match
         self.assertIsNone(bad.thresholds)
         self.assertIsNone(bad.held)
-        self.assertEqual((bad.infeasible.step, bad.infeasible.best_counts), ("1b", (3, 20)))
+        self.assertEqual(bad.infeasible.binding, "false clear-miss")
+        self.assertEqual(bad.infeasible.best_false_clear_miss["x"], 3)
+        self.assertEqual(bad.infeasible.best_false_clear_miss["n"], 20)
         self.assertTrue(folds["A02"].thresholds and folds["A03"].thresholds)
         self.assertEqual(sel.pool_folds(list(folds.values()))["pooled"].false_clear_miss[1], 20)   # A02 + A03 only
-        self.assertEqual(bad.to_dict()["infeasible"]["step"], "1b")
+        self.assertEqual(bad.to_dict()["infeasible"]["binding"], "false clear-miss")
+        ok, reasons = sel.freeze_eligibility(list(folds.values()), ["A01", "A02", "A03"])
+        self.assertFalse(ok)
+        self.assertEqual([(r["fold"], r["constraint"]) for r in reasons], [("A01", "false clear-miss")])
+        ok, reasons = sel.freeze_eligibility([], ["A01"])
+        self.assertFalse(ok)
+        self.assertIn("fewer than 2 dev arrangements", reasons[0]["reason"])
+        self.assertEqual(sel.freeze_eligibility([folds["A02"], folds["A03"]], ["A02", "A03"]), (True, []))
 
 
 class FixedKAndLamTest(unittest.TestCase):
@@ -592,10 +750,17 @@ class FreezeBeforeRunsTest(unittest.TestCase):
         frozen = res["thresholds"]
         self.assertEqual(events[0], ("calibrate", frozen))         # the first calibration is the candidate
         runs = [th for k, th in events if k == "run"]
-        self.assertEqual(len(runs), res["n_episode_runs"])
-        for th in runs:   # the check and the sensitivity only ever see the frozen taus
+        self.assertEqual(len(runs), res["n_episode_runs"] + res["n_heldout_runs"])
+        # the check and the sensitivity only ever see the frozen taus; the held-out check (last) only its folds'
+        check_runs, held_runs = runs[:res["n_episode_runs"]], runs[res["n_episode_runs"]:]
+        for th in check_runs:
             self.assertEqual((th.tau_q, th.tau_occ, th.tau_match), (frozen.tau_q, frozen.tau_occ, frozen.tau_match))
-        self.assertEqual({(th.k, th.lam) for th in runs}, {(2, 0.0), (3, 0.0), (2, 0.7)})
+        self.assertEqual({(th.k, th.lam) for th in check_runs}, {(2, 0.0), (3, 0.0), (2, 0.7)})
+        fold_taus = {(f.thresholds.tau_q, f.thresholds.tau_occ, f.thresholds.tau_match) for f in res["folds"]}
+        self.assertTrue(held_runs)
+        for th in held_runs:
+            self.assertIn((th.tau_q, th.tau_occ, th.tau_match), fold_taus)
+            self.assertIn((th.k, th.lam), {(2, 0.0), (1, 0.0)})   # the k rule, and the -fcm / S rule
 
     def test_calibration_and_cv_never_touch_the_replay(self) -> None:
         def boom(*a, **kw):
@@ -928,7 +1093,10 @@ class EndToEndTest(unittest.TestCase):
         self.assertTrue(doc["synthetic"])
         self.assertEqual(doc["label"], SYNTHETIC_LABEL)
         self.assertIn("CANDIDATE", doc["status"])
-        self.assertEqual((doc["procedure_version"], doc["schema"]), ("select-v4", "cmpe249.frozen_candidate.v2"))
+        self.assertEqual((doc["procedure_version"], doc["schema"]), ("select-v4", "cmpe249.frozen_candidate.v3"))
+        self.assertEqual(doc["procedure_revision"], sel.PROCEDURE_REVISION)
+        self.assertIs(doc["eligible_for_freeze"], True)
+        self.assertEqual(doc["ineligible_reasons"], [])
         th = doc["thresholds"]
         self.assertEqual((th["k"], th["lam"]), (2, 0.0))
         self.assertIn(th["tau_match"], (0.5, 0.6))
@@ -939,7 +1107,12 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual(set(cal["per_view_rates"]), {"L1", "L2", "pooled"})
         self.assertEqual(set(cal["grouped_cv"]["held_out_per_view_rates"]), {"L1", "L2", "pooled"})
         self.assertEqual(len(cal["grouped_cv"]["folds"]), len(doc["dev_arrangements"]))
-        self.assertEqual(cal["tau_match"]["tau_match"], th["tau_match"])
+        self.assertEqual((cal["chosen"]["tau_q"], cal["chosen"]["tau_occ"], cal["chosen"]["tau_match"]),
+                         (th["tau_q"], th["tau_occ"], th["tau_match"]))
+        self.assertEqual(cal["order"], sel.FULL_ORDER)
+        self.assertEqual(set(cal["curves"]), {"tau_q", "tau_occ", "tau_match"})
+        self.assertEqual(set(cal["gate_pass_by_lighting"]) - {"note"}, {"L1", "L2", "pooled"})
+        self.assertFalse(doc["bootstrap_stratification"]["stratified"])
         chk = doc["dev_check"]
         self.assertEqual(chk["policies"], list(sel.CHECK_POLICIES))
         self.assertEqual({(r["policy"], r["lighting"]) for r in chk["rows"]},
@@ -957,10 +1130,12 @@ class EndToEndTest(unittest.TestCase):
         self.assertTrue(sens["k"] and sens["lam"])
         self.assertIn("lam_grid_check", doc)
         self.assertTrue(rep.startswith(f"# {SYNTHETIC_LABEL}"))
-        for needle in ("select-v4", "proposed default - confirm", "## Step 1b: tau_match", "grouped cross-validation",
+        for needle in ("select-v4", "proposed default - confirm", "## Step 1: joint gate + tau_match search", "grouped cross-validation",
+                       "### tau_match curve", "Gate pass rates per lighting", sel.FULL_ORDER,
+                       "### (b) Held-out policy check", "**UNSTRATIFIED**",
                        "### L1 queries", "### L2 queries", "Step 5: sensitivity (reported only, never selected)",
                        "select-v3 (replaced)", "Secondary, not a headline",
-                       "grouped cross-validation of the calibration (Step 3): ", "does not turn it into alpha squared"):
+                       "grouped cross-validation (Step 3): complete", "does not turn it into alpha squared"):
             self.assertIn(needle, rep)
         self.assertEqual({e["lighting"] for e in details["check_episodes"]}, set(LIGHTS))
 

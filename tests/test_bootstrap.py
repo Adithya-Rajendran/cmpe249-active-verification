@@ -8,7 +8,14 @@ from unittest import mock
 import numpy as np
 
 from analysis import bootstrap
-from analysis.bootstrap import arrangement_draws, draw_diffs, pair, paired_diff
+from analysis.bootstrap import (
+    arrangement_draws,
+    draw_diffs,
+    pair,
+    paired_diff,
+    sample_draws,
+    stratified_arrangement_draws,
+)
 from analysis.metrics import metrics_on
 from verify.schema import (
     CONDITIONS,
@@ -202,6 +209,74 @@ class TestErrorsAndLabel(unittest.TestCase):
         self.assertTrue(d["synthetic"])
         self.assertEqual(d["label"], SYNTHETIC_LABEL)
         self.assertEqual(d["B"], 10)
+
+
+class TestStratified(unittest.TestCase):
+    """Family-stratified cluster bootstrap (prereg section 8): resample within strata, keeping each stratum's count."""
+    # A quota-like design: S8 x3, M16-L x2, M16-R x2, IND28 x1, white_box x2, ycb_box x2 (12 arrangements, unsorted)
+    STRATA = ["S8", "M16-L", "white_box", "S8", "M16-R", "ycb_box", "IND28", "M16-L", "S8", "white_box", "M16-R",
+              "ycb_box"]
+
+    def test_every_replicate_keeps_every_stratum_count(self) -> None:
+        B = 3000
+        draws = stratified_arrangement_draws(self.STRATA, B, seed=4)
+        self.assertEqual(draws.shape, (B, len(self.STRATA)))
+        want = Counter(self.STRATA)
+        lab = np.array(self.STRATA)
+        for d in draws:
+            self.assertEqual(Counter(lab[d]), want)            # every stratum's count, in every replicate
+        for j, st in enumerate(self.STRATA):                    # column j only ever holds members of j's stratum
+            self.assertTrue(set(lab[draws[:, j]]) == {st})
+
+    def test_members_are_drawn_uniformly_within_their_stratum(self) -> None:
+        draws = stratified_arrangement_draws(self.STRATA, 20000, seed=1)
+        s8 = [j for j, x in enumerate(self.STRATA) if x == "S8"]
+        freq = Counter(draws[:, s8].ravel().tolist())
+        self.assertEqual(set(freq), set(s8))
+        for j in s8:   # 60000 draws over 3 members: 1/3 each within a few standard errors (0.0019)
+            self.assertAlmostEqual(freq[j] / (20000 * 3), 1 / 3, delta=0.01)
+        ind = self.STRATA.index("IND28")   # a singleton stratum always resamples itself
+        self.assertTrue((draws[:, ind] == ind).all())
+
+    def test_one_stratum_is_the_unstratified_draw(self) -> None:
+        self.assertTrue(np.array_equal(stratified_arrangement_draws(["x"] * 9, 500, 42), arrangement_draws(9, 500, 42)))
+        ids = [f"A{i:02d}" for i in range(9)]
+        self.assertTrue(np.array_equal(sample_draws(ids, 500, 42, None), arrangement_draws(9, 500, 42)))
+
+    def test_missing_stratum_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            sample_draws(["A00", "A01"], 10, 0, {"A00": "S8"})
+
+    def test_each_arrangement_its_own_stratum_gives_a_degenerate_ci(self) -> None:
+        # Hand-computed: with every arrangement in a stratum of its own, every replicate is the sample itself, so the
+        # CI collapses to the point estimate (an unstratified bootstrap of the same data has a wide CI).
+        a = make(6, lambda i, c, l: R if i == 0 else correct(i, c, l), "G")
+        b = make(6, correct, "F")
+        strata = {f"A{i:02d}": f"s{i}" for i in range(6)}
+        r = paired_diff(a, b, truth_for(a), "false_removal_rate", B=500, seed=3, strata=strata)
+        self.assertAlmostEqual(r.estimate, 4 / 24)
+        self.assertAlmostEqual(r.ci_lo, 4 / 24)
+        self.assertAlmostEqual(r.ci_hi, 4 / 24)
+        self.assertTrue(r.stratified)
+        u = paired_diff(a, b, truth_for(a), "false_removal_rate", B=500, seed=3)
+        self.assertFalse(u.stratified)
+        self.assertLess(u.ci_lo, u.ci_hi)
+
+    def test_paired_diff_uses_the_stratified_draws(self) -> None:
+        a, b = make(12, noisy, "G"), make(12, correct, "F")
+        truth = truth_for(a)
+        strata = {f"A{i:02d}": st for i, st in enumerate(self.STRATA)}
+        r = paired_diff(a, b, truth, "coverage", B=400, seed=11, strata=strata)
+        sample = pair(a, b, truth)
+        draws = stratified_arrangement_draws([strata[x] for x in sample.arrangement_ids], 400, 11)
+        diffs = draw_diffs(sample, truth, "coverage", draws)
+        lo, hi = np.percentile(diffs, [2.5, 97.5])
+        self.assertEqual((r.ci_lo, r.ci_hi), (float(lo), float(hi)))
+        self.assertTrue(r.to_dict()["stratified"])
+        # and each draw's difference is the metric recomputed on the expanded multiset
+        for draw, d in list(zip(draws, diffs))[:25]:
+            ra, rb = sample.expand(draw)
+            self.assertAlmostEqual(d, metrics_on(ra, truth)["coverage"] - metrics_on(rb, truth)["coverage"], places=12)
 
 
 if __name__ == "__main__":

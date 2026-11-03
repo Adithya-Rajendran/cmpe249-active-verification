@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-from analysis.metrics import METRICS, compute, compute_all
+from analysis.metrics import METRICS, NO_DIAG_SOURCE_FLAG, NO_DIAG_SOURCE_LABELS, compute, compute_all
 from verify.schema import (
     SYNTHETIC_LABEL,
     Condition,
@@ -79,7 +79,8 @@ class TestOverall(unittest.TestCase):
         self.assertAlmostEqual(m["removal_recall"], 2 / 4)       # 2 of 4 removed episodes
         self.assertAlmostEqual(m["coverage"], 9 / 12)            # 3 unknown stay in the denominator
         self.assertAlmostEqual(m["resolved_accuracy"], 7 / 9)    # 5 correct present + 2 correct removed
-        self.assertAlmostEqual(m["max_achievable_coverage"], 1.0)
+        self.assertAlmostEqual(m["geometric_no_diagnostic_view_share"], 0.0)
+        self.assertNotIn("max_achievable_coverage", m)
         self.assertTrue(all(m["defined"][k] for k in METRICS))
 
     def test_effort(self) -> None:
@@ -208,7 +209,10 @@ class TestUndefinedAndErrors(unittest.TestCase):
         ind = [episode_id("A02", "occluded", "L1"), episode_id("A02", "removed", "L2")]
         m = compute(r, truth_for(r, ind, synthetic=True))
         self.assertEqual(m["n_indistinguishable"], 2)
-        self.assertAlmostEqual(m["max_achievable_coverage"], 10 / 12)
+        # the legacy fallback: the predeclared flag, labelled as such (no view labels given)
+        self.assertAlmostEqual(m["geometric_no_diagnostic_view_share"], 2 / 12)
+        self.assertEqual(m["n_no_diagnostic_view"], 2)
+        self.assertEqual(m["no_diagnostic_view_source"], NO_DIAG_SOURCE_FLAG)
         self.assertTrue(m["synthetic"])
 
     def test_mixed_policy_or_budget(self) -> None:
@@ -238,6 +242,62 @@ class TestUndefinedAndErrors(unittest.TestCase):
         r = [res("A01", "visible", "L1", {P: 0.5, R: 0.2})]
         with self.assertRaises(ValueError):
             compute(r, truth_for(r))
+
+
+class TestNoDiagnosticShare(unittest.TestCase):
+    """geometric_no_diagnostic_view_share: context from the view labels, never a ceiling (2026-11-03)."""
+
+    def test_from_view_labels_per_lighting(self) -> None:
+        r = table_results()
+        # by hand: A01 occluded-L1 and removed-L1, A02 occluded-L2 have no diagnostic stop
+        nd = {x.episode_id: False for x in r}
+        for e in (episode_id("A01", "occluded", "L1"), episode_id("A01", "removed", "L1"),
+                  episode_id("A02", "occluded", "L2")):
+            nd[e] = True
+        m = compute_all(r, truth_for(r, [episode_id("A02", "removed", "L2")]), no_diagnostic=nd)
+        self.assertEqual((m["overall"]["n_no_diagnostic_view"], m["overall"]["n_episodes"]), (3, 12))
+        self.assertAlmostEqual(m["overall"]["geometric_no_diagnostic_view_share"], 3 / 12)
+        self.assertEqual(m["overall"]["no_diagnostic_view_source"], NO_DIAG_SOURCE_LABELS)
+        self.assertEqual(m["overall"]["n_indistinguishable"], 1)   # the flag is still counted, but not used
+        self.assertEqual((m["by_lighting"]["L1"]["n_no_diagnostic_view"], m["by_lighting"]["L1"]["n_episodes"]), (2, 6))
+        self.assertEqual((m["by_lighting"]["L2"]["n_no_diagnostic_view"], m["by_lighting"]["L2"]["n_episodes"]), (1, 6))
+        self.assertEqual(m["by_condition"]["occluded"]["n_no_diagnostic_view"], 2)
+        for g in (m["overall"], *m["by_lighting"].values(), *m["by_condition"].values()):
+            self.assertNotIn("max_achievable_coverage", g)
+
+    def test_missing_label_raises(self) -> None:
+        r = table_results()
+        with self.assertRaises(KeyError):
+            compute(r, truth_for(r), no_diagnostic={r[0].episode_id: False})
+
+
+class TestArrangementFRR(unittest.TestCase):
+    """FRR per arrangement (any false removal) next to the per-episode FRR (prereg section 8)."""
+
+    def test_deterministic_known_answer(self) -> None:
+        r = table_results()   # A01 has one false removal (occluded-L2); A02 none
+        m = compute_all(r, truth_for(r))
+        o = m["overall"]
+        self.assertEqual((o["arrangement_false_removal"], o["n_arr_with_present"]), (1, 2))
+        self.assertAlmostEqual(o["false_removal_rate_arrangement"], 0.5)
+        self.assertTrue(o["arrangement_frr_binomial"])
+        self.assertEqual((m["by_lighting"]["L1"]["arrangement_false_removal"],
+                          m["by_lighting"]["L2"]["arrangement_false_removal"]), (0, 1))
+        # removed-only group: no present episode, so FRR per arrangement is undefined, never 0
+        rem = m["by_condition"]["removed"]
+        self.assertEqual(rem["n_arr_with_present"], 0)
+        self.assertIsNone(rem["false_removal_rate_arrangement"])
+        self.assertFalse(rem["defined"]["false_removal_rate_arrangement"])
+
+    def test_fractional_r_is_the_probability_of_any(self) -> None:
+        # one arrangement, two present episodes removed in 1/4 and 1/2 of R's seeds: 1 - (3/4)(1/2) = 5/8
+        r = [res("A01", "visible", "L1", {R: 0.25, P: 0.75}), res("A01", "occluded", "L1", {R: 0.5, U: 0.5}),
+             res("A01", "removed", "L1", {R: 1.0})]
+        o = compute(r, truth_for(r))
+        self.assertAlmostEqual(o["arrangement_false_removal"], 5 / 8)
+        self.assertAlmostEqual(o["false_removal_rate_arrangement"], 5 / 8)
+        self.assertFalse(o["arrangement_frr_binomial"])
+        self.assertAlmostEqual(o["false_removal_rate"], 0.75 / 2)
 
 
 if __name__ == "__main__":
