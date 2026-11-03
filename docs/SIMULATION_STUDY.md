@@ -39,7 +39,7 @@ The simulated rig ([notes](../notes/2026-11-02-simulation.md), [`sim/`](../sim/R
 | Truth and visibility labels | planned conditions + annotation | exact, from the scene and the simulator's instance masks |
 | Arrangements | hand-built | generated from a seed by a fixed generator (objects, poses, occluders, conditions) |
 | Lighting | lamps L1 / L2 | simulated presets L1 / L2 |
-| Environments | one shelf (or one tabletop) | the measured shelf rig replica, plus tabletops and other scenes ([open] which ones) |
+| Environments | one shelf (or one tabletop) | the measured shelf rig replica first, then a tabletop (decided 2026-11-02); more scene types optional |
 | Stops | taped floor marks | camera poses from a positions file, one per environment |
 | Travel | path length between stops | the same |
 
@@ -53,16 +53,17 @@ The simulated rig ([notes](../notes/2026-11-02-simulation.md), [`sim/`](../sim/R
    - Pilots 1 and 2 are the only real photos. They serve as a sanity check of score ranges (sim vs real), reported separately and never pooled with the simulation results.
 5. **Licences.** Object models keep their licences (YCB-Video / YCB: see the dataset README on the share; Google Scanned Objects: CC BY 4.0). Renders used in a paper will carry attribution.
 
+## Decided by the student (2026-11-02)
+
+- **Environments.** Start with the measured shelf rig, where the simulation is cross-checked against the 2026-10-10 design. Then add a tabletop with cameras around it.
+- **Cameras.**
+  - The arc of stops is kept: the far-spot option A, with each stop's pitch set so all four tags and #3 stay in frame. At option A's P1 that pitch is 7.35–8.10°, not the drafted 6.83°.
+  - Additional cameras may be added, e.g. a denser arc or a second height, since in simulation they cost nothing.
+  - The final stop set per environment, and the budgets and travel caps over it, are fixed before any test render.
+
 ## Proposed defaults [open: confirm before any test render]
 
-- **Environments.** The proposal limited the study to "one tabletop or shelf". The instructor allows more, which raises the question of whether the result holds beyond one layout. Proposed:
-  - start with the measured shelf rig, where the sim is cross-checked against the 2026-10-10 design;
-  - add a tabletop with an arc of stops around it (OCID-like scenes);
-  - add a third scene type only if time allows.
-
-  The split stays by arrangement within each environment type. A held-out *environment* (develop on two, test on a third) would be a stronger, separate test [open].
-
-- **Stops.** The far-spot option A arc (R 126.8 cm, ±22.5° / ±45°), with per-stop pitch so all four tags and #3 stay in frame. At option A's P1 that means 7.35–8.10° rather than the drafted 6.83° (`data/raw/2026-11-02_sim/analysis.md` §6). In simulation the stops need no floor marks, so the layout can be chosen for the study rather than for the room.
+- **Held-out environment.** Whether to also test on an environment type not used in development (e.g. develop on the shelf and tabletop, test on a third) [open].
 - **Arrangements.** 30 (10 dev / 20 test) as planned, × 3 conditions × 2 lightings = 180 episodes. Simulation makes more cheap, so a larger dev pool is possible, but the test arrangement count stays fixed in advance.
 - **Objects.**
   - YCB-Video models first (the mug and bleach bottle already render with textures), then Google Scanned Objects.
