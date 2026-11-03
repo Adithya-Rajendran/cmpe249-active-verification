@@ -149,12 +149,106 @@ The robust pass dropped good blocks.
 
 A homography between two stops is a real front-plane mapping, so ECC can lock onto it. Large-baseline parallax at the target's depth is then not detected. In the study, a reference is only ever paired with its own stop's revisit.
 
-## (c) and the cue evaluation on the tag-free set: pending
+## (c) The tag-free set, scored against the true homographies
 
-These are waiting for `SIM/shelf_dev_v3_check/` and its ground-truth query-to-reference homographies, for the front plane and for the plane at the target's depth. At 09:12 the set was still rendering, and it had no jobs or truth files yet.
+**Inputs.**
+- The set is `SIM/shelf_dev_v3_check/`: 8 random arrangements and DES0–3, 360 query views, no tags.
+- The truth is `true_alignment.json` and `true_alignment_design.json`, from `sim/alignment.py` on branch cp2-fix-sim (commit 6673e14). They are used for scoring only.
+- `ALIGN/scripts/eval_align_v3.py` produced `ALIGN/out/align_v3check.jsonl`, summarised in `ALIGN/out/align_v3check_summary.txt`.
+- Sanity check: identity's box-corner error equals the truth file's own `box_corner_displacement_px` to 0.000 px.
+
+**Fit diagnostics.** No fit was refused. The ECC correlation is at least 0.827. A view takes 0.76 s on average.
+
+Box-corner error in query px. Each cell is median / p90 / max / number over 5 px.
+
+| truth | L | n | identity (v0.2.1 without tags) | v0.3 image_align | true front-plane H |
+|---|---|---|---|---|---|
+| target-depth plane | L1 | 180 | 14.03 / 24.60 / 31.54 / 165 | 1.46 / 3.05 / 5.04 / 2 | 1.96 / 3.34 / 5.12 / 3 |
+| target-depth plane | L2 | 180 | 14.03 / 24.60 / 31.54 / 165 | 1.49 / 3.17 / 5.09 / 2 | 1.96 / 3.34 / 5.12 / 3 |
+| front plane | L1 | 180 | 14.96 / 27.12 / 33.89 / 165 | 0.41 / 1.09 / 1.71 / 0 | 0 |
+| front plane | L2 | 180 | 14.96 / 27.12 / 33.89 / 165 | 0.46 / 1.10 / 2.33 / 0 | 0 |
+
+**Per family.**
+- The largest target-depth errors are on the design cases: max 5.09 px, IND28 design. Their targets sit deepest.
+- On the random arrangements the max is 3.01 px (`align_v3check_summary.txt`).
+- image_align tracks the front plane, to within 2.33 px, and lands closer to the target-depth truth than the true front-plane H itself.
+- The 2–5 px that remain are parallax that a single homography cannot remove.
+
+**Changed share on visible-condition views** (box max / ring max):
+- L1: identity 0.751 / 0.415, image 0.058 / 0.008, true target 0.000 / 0.036.
+- L2: identity 0.758 / 0.645, image 0.112 / 0.200, true target 0.111 / 0.204.
+
+## Three-way comparison on shelf_dev_v3_check (evidence and select-v4)
+
+**The GB10 runs** (`ALIGN/v3out/run_all.sh`, `run_all.log`; outputs in `ALIGN/v3out/`):
+- **v0.2.1:** the frozen `perception/evidence.py`, run from the GB10 repo copy. With no tags it refuses registration on all 360 views, so quality is 0 on every view.
+- **v0.2.1-ident (diagnostic):** v0.2.1's match, quality and obstruction with identity accepted as the registration. Taken from the v0.3 `--align identity` diag; its match equals the frozen run's on every view.
+- **v0.3 image:** `--align image`.
+- **v0.3 true-target** and **v0.3 true-front:** upper bounds, from `ALIGN/scripts/run_v03_true.py`. They take H from the truth file and can never be deployed.
+
+Per-view counts at τ_q 0.6, τ_occ 0.3, τ_match 0.6 (`ALIGN/v3out/eval_per_view_v3_tm060.txt`; τ_occ 0.1 and 0.2 are in `eval_per_view_v3.txt`).
+- Missed = the view passes the gate.
+- False obstruction = obstruction > τ_occ.
+- Clear miss = the gate passes and match < τ_match.
+
+Random arrangements:
+
+| row | L | v0.2.1 | v0.2.1-ident | v0.3 image | v0.3 true-target |
+|---|---|---|---|---|---|
+| missed, hidden | L1 | 0/15 | 10/15 | 0/15 | 0/15 |
+| | L2 | 0/15 | 6/15 | 0/15 | 0/15 |
+| missed, partial | L1 | 0/7 | 3/7 | 1/7 | 1/7 |
+| | L2 | 0/7 | 3/7 | 1/7 | 1/7 |
+| false obstruction, present diagnostic | L1 | 0/58 | 0/58 | 0/58 | 0/58 |
+| | L2 | 0/58 | 0/58 | 0/58 | 0/58 |
+| false obstruction, removed diagnostic | L1 | 0/18 | 0/18 | 0/18 | 0/18 |
+| | L2 | 0/18 | 0/18 | 0/18 | 0/18 |
+| clear miss, removed diagnostic | L1 | 0/18 | 18/18 | 18/18 | 18/18 |
+| | L2 | 0/18 | 16/18 | 17/18 | 18/18 |
+| quality < 0.6, present + removed diagnostic | L1 | 76/76 | 3/76 | 1/76 | 0/76 |
+| | L2 | 76/76 | 4/76 | 2/76 | 0/76 |
+
+**Removed diagnostic views at lower τ_occ** (v0.3 image):
+- at τ_occ 0.2, 1/18 (L1) and 2/18 (L2) are falsely flagged;
+- at τ_occ 0.1, 10/18 and 9/18 are.
+
+The 0.1–0.2 band seen on the v1 check batch is still there.
+
+**Design cases**, at τ_occ 0.3 (v0.3 image):
+- 0/10 missed hidden views per lighting (v0.2.1-ident: 9/10);
+- 0 false obstructions;
+- 10/10 clear misses per lighting.
+
+**select-v4**, on the random manifest (`ALIGN/select_v3/<arm>/`, summary in `ALIGN/select_v3_summary.txt`):
+
+| arm | exit | feasible settings | chosen τ_q, τ_occ, τ_match | correct clear misses | false-clear | gate pass, removed diagnostic L1 / L2 | held-out clear misses on removed, L1 / L2 | held-out G recall, L1 / L2 | held-out G coverage, L1 / L2 |
+|---|---|---|---|---|---|---|---|---|---|
+| v0.2.1 | 0, eligible | 693/693 (nothing passes the gate) | 0.8, 0.1, 0.4 | 0/36 | 0/44 | 0/18 / 0/18 | 0/18 / 0/18 | 0/8 / 0/8 | 19/24 / 18/24 |
+| v0.2.1-ident | 3, infeasible | 0/693; best false-clear 10/44 | — | — | — | — | — | — | — |
+| v0.3 image | 0, eligible | 462/693 | 0.3, 0.3, 0.6 | 36/36 | 2/44 | 18/18 / 18/18 | 15/18 / 16/18 | 5/8 / 6/8 | 21/24 / 22/24 |
+| v0.3 true-target | 0, eligible | 462/693 | 0.65, 0.3, 0.6 | 36/36 | 2/44 | 18/18 / 18/18 | 17/18 / 17/18 | 6/8 / 6/8 | 21/24 / 21/24 |
+| v0.3 true-front | 0, eligible | 539/693 | 0.8, 0.3, 0.6 | 36/36 | 2/44 | 18/18 / 18/18 | 16/18 / 17/18 | 5/8 / 6/8 | 21/24 / 22/24 |
+
+- Held-out FRR is 0/16 for every policy and arm.
+- FULL (all five views) equals G: 5–6 of 8.
+
+**Registration error against cue error.**
+- image_align and the true target-plane H give nearly the same per-view counts and the same Step-1 result.
+- Per view, they differ by at most 0.035 in match and 0.044 in obstruction (`ALIGN/v3out/score_diffs_image_vs_true.txt`).
+- **The difference is in quality.** v0.2.1's sharpness term differs by more than 0.1 on 16 of 360 views, by up to 0.68.
+  - In the image arm, SD1005-removed-L2 P5 has sharpness 0.32 where the true-target arm has 1.00, although the two registrations differ by only ~2 px at the target's depth.
+  - Errors go both ways: SD1002-removed-L2 P5 reads 0.97 with image alignment and 0.66 with the truth.
+- That is why the image arm's τ_q falls to 0.3: one removed diagnostic view in L2 would otherwise fail the gate.
+- The quality term (a Laplacian-variance ratio on a nearest-neighbour resampled ring) is sensitive to small registration differences. This is a v0.2.1 fragility, not a v0.3 cue error. It is the next thing to look at.
+- Otherwise, the remaining errors on this set are cue errors, not registration errors:
+  - the one partial occlusion that passes the gate at τ_occ 0.3;
+  - the 2/44 false-clear;
+  - the 1/18 false strong match on removed views in a fold.
 
 ## Caveats
 
-- (b) scores against a front-plane homography; the error at the target's depth is unknown until (c). The functional score on visible views is the closest proxy here, and it matches the tag registration.
+- (b) scores against a front-plane homography. (c) shows that the error at the target's depth is 1.5 px median and ≤ 5.1 px max on the tag-free set.
 - (a) has no parallax at all, so it measures the optimiser and its robustness to lighting, an occluder and a removal, not the single-plane model.
 - The tag-region exclusion in (b) is a union mask over both images, applied in reference coordinates. Tag pixels that move into the fit region by more than the ×2.2 growth are possible but unlikely: the shift is ≤ 34 px and the card is ~75 px.
+- The tag-free check set has 8 random arrangements and 4 design cases, one render each. Every number is development evidence, and the design choices (§ Method) were made on the tagged sets before this set existed.
+- On this set, v0.3's background cue gets 36/36 correct clear misses. On the v1 check batch it got 20/24, losing 4 to its row-discontinuity limit. The 60 dev arrangements will show which is typical.
