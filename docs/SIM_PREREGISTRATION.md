@@ -96,7 +96,7 @@
   - **These are geometric labels, not recognisability.** A target with some visible pixels below 0.90 is labelled non-diagnostic even if a detector might still recognise it. SD0001 is such a case: occluded visible fraction 0.022 at P1 and 0.005 at P5 (`data/raw/2026-11-03_sim_pilot/set_checks.txt`).
 
   `[ ] confirm the cut-offs / edit:`
-- **Intended-hidden subset.** The IND28 family and DES3 are *designed* to stay hidden. Episodes in which no stop is geometrically diagnostic are reported as a **geometric no-diagnostic-view share**, per split, environment and lighting. That share is context for coverage. **It is not a theoretical maximum coverage**, and coverage is never reported against it as a ceiling. The code's "max achievable coverage" output is renamed accordingly before the freeze.
+- **Intended-hidden subset.** The IND28 family and DES3 are *designed* to stay hidden. Episodes in which no stop is geometrically diagnostic are reported as a **geometric no-diagnostic-view share**, per split, environment and lighting. That share is context for coverage. **It is not a theoretical maximum coverage**, and coverage is never reported against it as a ceiling. The code reports it as `geometric_no_diagnostic_view_share`, computed per episode and lighting from the view labels. It was renamed from "max achievable coverage" on 2026-11-03.
 
 ## 4. Policies
 
@@ -157,17 +157,19 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 - **Procedure revision (2026-11-03, before any dev render from the revised generator and before the freeze).**
   - **What changed.** The first select-v4 implementation was sequential: it fixed the most permissive gate that met its limit, then searched τ_match only under that gate. The PR #4 review showed this can declare infeasibility while other grid settings meet both limits. In a hand-built example, 315 of 693 settings were feasible, but the sequential search failed (`runs/2026-11-03-pr4-review/select1/`; independently reproduced in `runs/2026-11-02-joint-calibration-review/`). That figure comes from constructed scores, not rendered Isaac data.
   - **What stays.** The joint search keeps the grid, both α limits, their label populations and the objective. The intent of this section is unchanged; the implemented method changed.
-- **Feasibility is not lighting robustness.** In that example, every feasible setting rejects all L2 views at the quality gate. The calibration report therefore gives gate pass rates per lighting at the chosen setting and in every fold, and flags any lighting the gate rejects wholesale. Held-out recall and coverage per lighting, from the held-out policy check, stay the evidence for robustness.
+- **Feasibility is not lighting robustness.** In that example, every feasible setting rejects all L2 views at the quality gate. The calibration report therefore gives gate pass rates per lighting, with counts, at the chosen setting and in every fold. It covers diagnostic removed views, diagnostic present views and all views. It flags any lighting whose pass share is ≤ 0.05; that cut-off is a reporting flag, not a procedure parameter. Held-out recall and coverage per lighting, from the held-out policy check, stay the evidence for robustness.
 - **Fixed settings:** k = 2, λ = 0. The sensitivity runs are reported, never selected.
 - **Dev check.** Every policy's FRR / recall / coverage is reported on dev per lighting. A policy above 10 % is reported as such, and the thresholds are not retuned.
 - **Honest dev estimates** come from grouped (by arrangement) CV:
   - **Grouping.** All views, conditions and lighting variants of a held-out arrangement are left out together.
-  - **Per fold.** Each fold's thresholds are calibrated without the held-out arrangement, and **every policy is then run on it with that fold's thresholds** (the held-out policy check).
-  - **A.** When A is included, its training and model selection also exclude the held-out arrangement.
+  - **Per fold.** Each fold's thresholds are calibrated without the held-out arrangement, using the same joint search. **Every policy is then run on it with that fold's thresholds** (the held-out policy check). The policies are S, F, R, G, G-lookahead, G-myopic, FULL and the `-fcm` variants, at the primary budget, uncapped and under each cap. Results are reported per lighting with counts.
+  - **A.** When A is included, its training and model selection also exclude the held-out arrangement. The code builds each fold's trainable policies from the fold's training arrangements only, so the held-out arrangement's evidence, truth and labels are out of reach.
   - **Thresholds.** One global threshold set is frozen.
 - **Freeze eligibility.**
   - **Required.** A candidate is eligible only if calibration succeeds on all dev data **and** in every planned CV fold.
-  - **Incomplete candidates** may be saved for investigation but are marked **ineligible for freeze**.
+  - **Incomplete candidates** may be saved for investigation, but they are marked `eligible_for_freeze: false` with the reasons.
+  - **Exit status:** `verify.select` exits 0 for eligible, 3 for infeasible on all dev data (no candidate) and 4 for ineligible.
+  - **Freeze check:** the freeze step accepts a candidate only through `require_freeze_eligible`, which refuses ineligible, unmarked and synthetic candidates.
   - **Not required:** every held-out arrangement meeting α. Those held-out rates are reported checks.
 - **Flat threshold curves are acceptable.** Both the correct and the false clear-miss curves over the grid are inspected and reported. The declared tie-break is kept when it decides, and no variation is forced.
 
@@ -176,11 +178,11 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 ## 8. Uncertainty
 
 - **Primary:** the **paired arrangement-level cluster bootstrap**, resampling whole arrangements so their related views and episodes stay together.
-  - It is **stratified by occluder family**: each replicate keeps the design's quota counts.
+  - It is **stratified by occluder family**, so each replicate keeps the design's quota counts. A stratum is a quota slot class: S8, M16-left, M16-right, IND28, white box or YCB box. Design cases (DES0–DES3) are strata of their own. If any arrangement lacks family information, the bootstrap falls back to unstratified, and the output says so.
   - B = 10,000 on test; per lighting and per environment.
   - Percentile 95 % intervals for contrasts and for single rates.
 - **Secondary, descriptive only:** Clopper-Pearson and Jeffreys bounds on integer counts. They treat episodes as independent, which they are not. Integer counts do not remove the dependence between views and episodes of one arrangement.
-- **FRR** is reported per episode and per arrangement (any false removal).
+- **FRR** is reported per episode and per arrangement (any false removal). For R, "any false removal" is computed per seed and then averaged over seeds, because R's matched episodes share a random stream.
 
 `[ ] confirm / edit:`
 
