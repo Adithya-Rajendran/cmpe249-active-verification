@@ -1,0 +1,7 @@
+{
+  "host": "<GB10_HOST>",
+  "host_key_alias": "<GB10_HOST_KEY_ALIAS>",
+  "user": "<GB10_USER>",
+  "key": "~/.ssh/<KEY>",
+  "run_dir": "/home/<GB10_USER>/cmpe249-sim/run"
+}

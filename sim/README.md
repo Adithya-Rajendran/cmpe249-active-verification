@@ -1,5 +1,7 @@
 # sim/: simulated shelf rig
 
+End-to-end commands, hosts, data layout and known gaps: [`docs/REPRODUCE.md`](../docs/REPRODUCE.md).
+
 ## What it is for
 
 - **Camera-position design.** Check drafted arc stops and occluder placements on a 3-D model before taping stops or
@@ -28,11 +30,15 @@ look" from a MuJoCo render; use the Isaac Sim backend for appearance.
 | `sim/isaac_rig.py` | Isaac Sim 6.2 backend: scene spec → USD stage (materials, rotated boxes, tags on cards, YCB textured models, L1/L2 lighting, Pi camera) → RTX renders with target masks and visible fractions. Runs in the Isaac env on the GB10; the pure parts are numpy-only. |
 | `tests/test_sim_isaac.py` | The Isaac backend's pure parts: PLY reader, camera and box transforms, tag offset, apertures (numpy only). |
 | `configs/sim/positions_shelf_A.json` | The simulated shelf's stops: option A with a per-stop pitch (`stops[i].tilt_deg`) that maximises the smallest in-frame margin over #3 and all four tags with k1. Written by `data/raw/2026-11-03_sim_pilot/make_positions_shelf_A.py`; `sim/rig.py` reads per-stop tilts. |
-| `configs/sim/arrange_shelf_v0.json`, `configs/sim/ycbv_hulls.json` | Generator config (objects, ranges, occluder families, seed ranges, design cases) and the YCB-V convex-hull points it uses (hash pinned in the config). DEV, not frozen. |
-| `sim/arrange.py` | Seeded generator `(seed, config) -> arrangement` (numpy only): target, distractors, occluder placed / parked, the four phases, design cases DES0-3. Dev seeds 0-9999 only; seeds >= 100000 (test) are refused. |
-| `sim/isaac_batch.py` | Batch Isaac renderer (GB10, Isaac env): one process, a new stage per arrangement, phases x stops x L1/L2 RGB, instance masks, visible fractions, diagnostic labels. |
-| `sim/episodes.py` | Rendered set -> evidence annotations, jobs (`jobs_refL1.json` primary, `jobs_same.json` secondary), verify manifest, truth, view labels, contact sheets. |
-| `tests/test_sim_arrange.py`, `tests/test_sim_batch.py` | Generator determinism and placement validity, matched layouts, seed guard, design cases, the positions file; the renderer's pure parts; jobs / annotation / manifest formats (numpy only). |
+| `configs/sim/arrange_shelf_v3.json`, `configs/sim/ycbv_hulls.json` | Generator config (objects, ranges, occluder families, quota slots with retry maximum, reserve seed lists and the per-slot target assignment, revisit-noise ranges, the `scene` block, seed ranges, design cases) and the YCB-V convex-hull points it uses (hash pinned in the config). DEV, not frozen. **shelf_v3 is the default.** Against shelf_v2 it has: the physical M16 board again (0.12 m, matching the physical 10-10 board), no limit on the far same-side stop (`same_far_max` removed; the adjacent same-side stop must still be hidden), and **no corner ArUco tags** (`scene.tags` false). `arrange_shelf_v2.json` (15 cm M16 variant; made `shelf_dev_v2_check`), `arrange_shelf_v1.json` (target drawn per try; made `shelf_dev_v1_check`) and `arrange_shelf_v0.json` are left untouched as records and keep their tags; pass `--config` to use them. |
+| `sim/alignment.py` | The true query-to-reference homographies of the shelf front plane and of the target's depth plane, from the known camera poses (numpy only). Evaluation-only ground truth, written by `sim/episodes.py` as `true_alignment.json`; never an evidence or policy input. |
+| `sim/feasibility.py` | Geometry checks behind shelf_v2 and v3 (slow, on request): `scan` = does any M16 placement exist per target, side and board height; `matrix` = real generator tries per (target model, slot class). Its outputs decide the config's `slots.target_assignment` lists and the M16 height. |
+| `sim/arrange.py` | Seeded generator (numpy only): `slot_list` (the quota slots), `generate` / `generate_slot` / `generate_set` (a try `(seed, attempt)`, a slot with retries and reserve seeds, a set with its log), asymmetric M16, `revisit_cameras` (one bounded camera perturbation per stop for the query captures), the four phases, design cases DES0-3. Dev seeds 0-9999 only; seeds >= 100000 (test) are refused. |
+| `sim/isaac_batch.py` | Batch Isaac renderer (GB10, Isaac env): one process, a new stage per arrangement, phases x stops x L1/L2 RGB (references at the nominal cameras, queries at the revisit cameras), instance masks, visible fractions, diagnostic labels from the revisit renders. Writes each arrangement into `<ARR>.partial` and renames it into place when complete. |
+| `sim/episodes.py` | Rendered set -> evidence annotations, jobs (`jobs_refL1.json` primary, `jobs_same.json` secondary), verify manifest (`"simulation": true`, plus `occluder_family`, `m16_side`, `design_case` per arrangement), truth, view labels, contact sheets. Random slots and the design cases are separate groups with separate manifests and jobs. Refuses incomplete, mixed and wrong-positions sets. |
+| `sim/check_batch.py` | Checks on a rendered set from its files: tag detection and frame margins of every capture, registration of every query onto its L1 reference (`capture/tags.py`; both skipped, and said so, for tag-free sets), the true-alignment corner displacement per view (`sim/alignment.py`), revisit deltas, patterns, how far visible-phase queries differ from their references, render seconds, and the label-sanity guard (below). It skips and reports `<ARR>.partial` / `<ARR>.old*` crash leftovers, refuses a folder whose arrangement id is not its name, and exits 1 if an arrangement is flagged. |
+| `tests/test_sim_alignment.py` | The plane homography on synthetic cameras (points of a plane projected through both cameras map through H), `true_alignment.json` through `episodes`, and `check_batch` on a tag-free set. |
+| `tests/test_sim_arrange.py`, `tests/test_sim_batch.py`, `tests/fake_isaac.py` | Generator: slots, M16 side, revisit draws, hash provenance, placements, design cases, the positions file. Renderer and episodes: labels at the query poses, atomic writing and `--skip-existing`, manifest formats, refusals; `fake_isaac.py` stubs Isaac / omni / PIL so `render_arrangement` and `main` run end to end in the tests (numpy and cv2 only). |
 
 ## Coordinate frame
 
@@ -150,46 +156,168 @@ LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 OMNI_KIT_ACCEPT_EULA=YES \
 - **Lighting presets L1/L2** are rough stand-ins (dome + two area lights; L2 turns one off), not photometric models.
   There is no room or floor yet: the background is the dome.
 
-## Generated arrangements and dev sets (2026-11-03)
+## Generated arrangements and dev sets (checkpoint 2, 2026-11-03)
 
-The simulated capture mirrors `capture/run_arrangement.py`: phases reference (target in place, occluder parked),
-visible, occluded (occluder placed) and removed (target removed, occluder exactly as in occluded), each at every stop
-under L1 and L2.
+The simulated capture mirrors `capture/run_arrangement.py`: phases reference (target in place, occluder parked), visible,
+occluded (occluder placed) and removed (target removed, occluder exactly as in occluded), each at every stop under L1 and
+L2. The reference is rendered at the nominal stop poses; the three query phases at the revisit poses (below).
 
 ```
-# Jetson: arrangements (dev seeds 0-9999 only) + the design cases
-uv run --no-project --python 3.13.5 --with numpy==2.5.3 python -m sim.arrange --seeds 0-5 --design --out ARR
+# Jetson: arrangements from the slot list (dev seeds 0-9999 only; the test split is refused) + the design cases
+uv run --no-project --python 3.13.5 --with numpy==2.5.3 python -m sim.arrange --split dev --slots all --design --out ARR
+#   --slots all | first-per-class | 0-5,9      ARR/<ID>.json = arrangements only; ARR/index/ = index, slots, generation_log
+#   --config C   (default configs/sim/arrange_shelf_v3.json)   --overwrite   (a non-empty ARR is refused without it; with it the previous
+#   arrangement and index files are removed first, anything else is left alone)
 # GB10: copy sim/isaac_batch.py next to isaac_rig.py in ~/cmpe249-sim/run/, then
 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 OMNI_KIT_ACCEPT_EULA=YES ~/.local/bin/uv run --no-project \
   --python ~/cmpe249-sim/isaacsim-6.2/.venv/bin/python isaac_batch.py --arrangements ARR/*.json \
-  --assets-dir ../assets/ycbv/models --tags-dir tags --out OUT
+  --assets-dir ../assets/ycbv/models --tags-dir tags --out OUT [--skip-existing]   # --tags-dir is read only by tagged scenes (v1/v2)
 # Jetson, on the set's final location (paths in jobs and annotations are absolute)
 uv run --no-project --python 3.13.5 --with numpy==2.5.3 --with opencv-python-headless==5.0.0.93 \
-  python -m sim.episodes --root SET --contact-sheets
+  python -m sim.episodes --root SET --contact-sheets [--generation-log ARR/index/generation_log.json]
+uv run --no-project --python 3.13.5 --with numpy==2.5.3 --with opencv-python-headless==5.0.0.93 \
+  python -m sim.check_batch --root SET
 ```
 
-- **Generator rules:**
-  - The target is one of the configured YCB-V models (tomato soup can, potted meat can, mug, foam brick, tuna can).
-    It sits in #3, and every stop sees it whole.
-  - 2-5 distractors stand in #3 / #4 and never hide the target.
-  - The occluder families are S8 / M16 / IND28 boards, a white box sized to the target's P3 footprint (the pilot-2
-    case), and YCB boxes. The occluder hides the target's convex hull from P3. Every family except IND28 leaves at
-    least 2 stops where the hulls do not touch, so a removed episode can reach the k = 2 rule. IND28 covers every
-    stop and is predeclared indistinguishable.
-  - The parked pose hides nothing, and it is outside the target's context window at every stop.
+### Placement rules (unchanged)
+
+- The target is one of the configured YCB-V models (tomato soup can, potted meat can, mug, foam brick, tuna can). It sits in
+  #3, and every stop sees it whole. Which model a slot gets is decided by its class (below).
+- 2-5 distractors stand in #3 / #4 and never hide the target.
+- The occluder families are S8 / M16 / IND28 boards, a white box sized to the target's P3 footprint (the pilot-2 case), and
+  YCB boxes. The occluder hides the target's convex hull from P3. Every family except IND28 leaves at least 2 stops where
+  the hulls do not touch, so a removed episode can reach the k = 2 rule. IND28 covers every stop and is predeclared
+  indistinguishable.
+- The parked pose hides nothing, and it is outside the target's context window at every stop.
+
+### Quota slots
+
+The occluder family is not drawn. `slot_list(ctx, split)` expands the quota table of the config (`configs/sim/arrange_shelf_v3.json` by default; v2 has the same table and seeds as v1)
+(shelf dev 60: S8 12, M16 18 = 9 L + 9 R, IND28 6, white box 12, YCB box 12; test 100: 20 / 30 = 15 + 15 / 10 / 20 / 20),
+shuffles it with a seeded Fisher-Yates permutation and gives slot *i* the primary seed `primary_seed_start + i`. The list
+depends only on the config content, not on dict order. The test list can be inspected, but no test arrangement is generated
+(`check_dev_seed` refuses seeds >= 100000).
+
+- **Tries.** A try is `(seed, attempt)`: attempt 0 is the plain seed, attempts 1..`retry_max` (20, in the config) are the
+  deterministic retries.
+- **Targets are slots too (shelf_v2 and v3).** `slot_list` gives every slot its target model. Within each class (S8, M16-L, M16-R,
+  IND28, white box, YCB box; the two M16 sides are separate) the targets come from a seeded balanced list over the models the
+  class can place (`slots.target_assignment.classes`): n slots over k models give each n // k, and n % k models one more,
+  those with the lowest running total over the classes already done, so totals are as even as the class sizes allow. A failed
+  try retries the same (family, side, target), then the family's reserve seeds; it never changes the target. shelf_v1 drew the
+  target per try, so retries redrew it and the target became a function of the family. Pairs no placement can serve are
+  listed under `excluded` in the config with their reason.
+- **Reserve.** If all 21 tries of a seed fail, the next unused seed of the same family's reserve list is tried the same way
+  (the reserve list of a family is consumed in slot order; a subset run resolves the earlier slots of its families so it
+  reproduces the full run). An exhausted list is an error. **A slot never changes family, M16 side or target**; the old fallback
+  (SD0001 of `shelf_dev_v0`, M16 to IND28) is gone.
+- **Logging.** Every failed try (seed, attempt, reason, target model) and every replacement is in the arrangement's `slot`
+  record and in `ARR/index/generation_log.json` (also copied into the set by `sim.episodes --generation-log`).
+- **Names.** The id is `SD` + the seed that was used (`SD1003`); the slot index is in the record.
+- **Design cases.** DES0-DES3 stay predeclared dev checks outside the 60, written to separate manifests.
+
+### Asymmetric M16
+
+**Side**, seen from the cameras (rig frame, +x = image right at the start stop P3): the sign of the board's lateral
+displacement from the sight line P3 to the target centre, measured on the board's plane. **R** = board centre displaced
+toward +x by `side_shift_m` (a magnitude of 1-6 cm), **L** = toward -x. The covered stops then lie toward that side of the
+arc: R hides P3 and P4 (CCHHC), L hides P2 and P3 (CHHCC). The slot gives the side. A draw is accepted only if, on the
+analytic hull coverage: P3 is hidden (>= 0.95), the adjacent stop on the board's side is covered >= `adjacent_min` (shelf_v2 / v3:
+0.95, hidden; shelf_v1: 0.5, which rendered a partial `p` there on 4 of 9 M16-L boards), the nearest stop on the other side is
+covered <= `opposite_near_max` (0.10, so it renders as a C view), every further stop on the other side is clear (hulls do not
+touch), and (as for every resolvable family) at least 2 stops are clear. **The far same-side stop (P1 for L, P5 for R) is free in
+shelf_v3**: partial cover there is accepted, so pHHCC and CCHHp boards are still one-sided (shelf_v2 limited it with
+`same_far_max` 0.10). `pick_M16+3` (DES1) is R and `pick_M16-5` (DES2) is L, with fixed templates.
+
+**Height.** shelf_v3 and shelf_v1 use the physical board, 0.12 m (width 16 cm, thickness 0.5 cm), so the simulated M16 matches
+the physical 10-10 board. shelf_v2 used a 15 cm simulation variant (`height_m`), the tallest the ceiling clearance admits (0.165 -
+0.015 = 0.150 m); it admitted no target the 12 cm board does not. `python -m sim.feasibility scan` (evidence in
+`SIM/shelf_v3_geometry/height_scan.out`, v3 rules, 60 placements per target and side, ceiling removed): the tuna can is feasible
+from 0.10 m and the foam brick from 0.10 m (87 / 161 combinations at 0.11 m, 204 / 250 at 0.12 m, saturated by 0.13 m); the
+tomato soup can has no placement at any height up to 0.25 m; the potted meat can and the mug have rare left-side placements
+only for boards taller than the physical one (meat can from 0.13 m, 1-2 combinations; mug from 0.14 m, 2), none on side R. The
+limit for the tall targets is the side rule together with the 2-clear-stop rule for a 16 cm board, not the height. In the
+generator search itself (`SIM/shelf_v3_geometry/matrix_100_tall.json`) the tomato soup can, the potted meat can and the mug had no
+valid placement in 0 of 100 tries on either side, so M16 slots take the foam brick and the tuna can; zero in N tries is not a
+proof. The rendered patterns are reported after rendering; the generator test only checks the analytic rule.
+
+### Revisit noise (query captures only)
+
+Each arrangement records, for every stop, one bounded uniform draw (`revisit` in the arrangement, `scene.revisit_cameras`
+for the renderer): translation within +-10 mm on each world axis and rotation within +-0.5 deg about the camera's own yaw
+(heading), pitch (downward pitch) and roll axes, added to the nominal pose. Ranges are in the config (`revisit`). The draw
+is seeded by `(arrangement seed, stop, attempt)` and is the same for the visible, occluded and removed phases, both
+lightings and every policy. References use the nominal cameras. A draw that would put the #3 outline or one of the four tags
+outside the frame (`sim/rig.py frame_margins`, fitted k1, min margin >= 0, the nominal check) is redrawn with `attempt + 1`;
+rejected draws are logged. P1 and P5 have the narrowest pitch windows (0.80 and 0.97 deg wide against the +-0.5 deg range),
+so most redraws are there. **Tag-free scenes (shelf_v3):** the check is the #3 outline (the front opening) and the target's
+projected hull inside the frame, margin >= 0 with the fitted k1 (`frame_check`), for the nominal and the revisit poses. The per-stop
+pitch values of `positions_shelf_A.json` are unchanged (that file is not edited: shelf_v1 / v2 arrangements record its sha256); they
+were chosen to keep #3 and the four tags in frame, and #3 in frame is what remains of that rationale. On the 60 dev slots plus
+DES0-3 (`SIM/shelf_v3_geometry/redraw_rate.txt`) the same draws are rejected 89 times at 52 of 320 stops under the tag rule (P1 55,
+P5 34) and never under the tag-free rule.
+
+### Hash provenance
+
+`arrangement_sha256` is the hash of the arrangement without its `unhashed` block (the config path as the caller spelled it,
+the file's byte hash and the Python version), and the config hash is that of the config's canonical JSON, so the hash
+depends only on the seed (and attempt, family, side), the config content, the code and input files whose sha256 the
+provenance records, and numpy's version.
+
+### Jobs, labels and sets
+
 - **Jobs:**
   - `jobs_refL1.json` is the **primary** run: every query, L1 and L2, against the L1 reference at its stop.
-  - `jobs_same.json` is a **secondary**, separate run, reported separately, with each query against its own
-    lighting's reference.
+  - `jobs_same.json` is a **secondary**, separate run, reported separately, with each query against its own lighting's
+    reference.
   - Results are reported separately for L1 and L2 queries; the lighting is in every episode_id.
+  - The design cases have their own `*_design*` files.
+- **Evidence annotation.** The expected box stays the reference's (nominal camera). With tags (shelf_v1 / v2) the evidence step
+  registers each query to its reference through the four tags. **shelf_v3 scenes have no tags** (2026-11-03: no fiducials on a home
+  robot's shelf): evidence v0.3 aligns the query itself, frozen v0.2.1 falls back to no alignment when it finds no tags.
+- **True alignment (`true_alignment.json`, `true_alignment_design.json`).** From the known reference (nominal) and query (revisit)
+  camera poses, `sim/alignment.py` gives per (arrangement, stop) the exact homography `H` (3 x 3, row-major, `H[2][2]` = 1)
+  that maps a homogeneous QUERY pixel `(u, v, 1)` to the REFERENCE pixel, for two world planes: `H_front_plane` (y = 0, the shelf
+  front plane where the tags were) and `H_target_plane` (y = the target's centre depth, `target_plane_y_m`). Pixels are continuous,
+  origin at the image's top-left corner, u right, v down, pixel i covers [i, i + 1) (as the annotation boxes); the cameras are the
+  rendered pinhole cameras (no distortion). Each stop also has `pose_delta` (dx, dy, dz in m, dyaw, dpitch, droll in deg),
+  `reference_box` (the L1 reference mask's box) and `box_corner_displacement_px` per plane (|H^-1 c - c| for the 4 box corners: what no
+  alignment would leave). One H serves L1 and L2 queries and all three conditions. **Evaluation-only**: marked
+  `evaluation_only` and `never_an_evidence_or_policy_input`, like `view_labels.json`. On the v2 check set (which has tags) the true
+  front-plane H agrees with the tag-based `capture/tags.py align` H within 0.58 px (25 views, central 60 % of the frame;
+  `SIM/shelf_v3_geometry/valid_align.txt`).
 - **Labels:** come only from the rendered instance masks (`labels.json`), never from the generator's geometry.
+  - Visible fraction at a query stop = target pixels with the scene / target pixels with everything else hidden, both at that
+    stop's revisit pose (`masks/target_alone_revisit_<stop>.png`). The reference uses the nominal pose.
+  - Removed views: occluder coverage of the target's **region**, taken from the visible-phase capture at the same pose (target
+    present, occluder parked), not from the nominal reference mask.
+  - Cut-offs as in `docs/SIM_PREREGISTRATION.md` section 3: diagnostic = visible fraction >= 0.90, or occluder covers < 10 %
+    of the region.
+  - **Label sanity (`labels.json` `label_sanity`, `ok`):** in the visible phase every stop must show at least 0.9 x its
+    target-alone pixels at the same revisit pose. A lower ratio means the shelf or a distractor hides the target, which the
+    generator rules prevent, and the removed views would get a small region. The renderer prints a WARNING, `check_batch`
+    flags the arrangement (and exits 1), and `set.json` lists it under `label_sanity_flagged`.
+- **Manifest:** `manifest.json` has `"simulation": true` at the top level, and each arrangement carries `occluder_family`,
+  `m16_side` and `design_case` next to `ArrangementRecord.to_dict()`'s keys. `verify.manifest.ArrangementRecord` validates them and builds the bootstrap strata from them
+  (the family, M16 split by side as `M16-L` / `M16-R`, and `design:<family>` for DES0-3).
+- **Safe re-rendering:**
+  - `isaac_batch.py` renders into `OUT/<ARR>.partial` and renames it into place.
+  - `--skip-existing` skips an arrangement only if its `labels.json` records the sha256 of the arrangement file given now
+    **and** the sha256 of `isaac_batch.py` and `isaac_rig.py`, the same lighting set, the same render settings
+    (`render_settings()`: resolution, renderer, rt subframes, settle / capture updates, lighting presets, materials, Isaac
+    version, `models_info.json`, tag images; hash in `labels.hashes.render_settings_sha256`, full record in `render.json`),
+    and every phase x stop x lighting PNG. Anything else re-renders, with the reason printed (an L1-only folder resumed with
+    L1 + L2; a label-code fix).
+  - `episodes` raises on a folder with `arrangement.json` but no `labels.json`, a leftover `.partial`, a labels file from another
+    arrangement file, a `--positions` file other than the one the arrangements recorded (hash and stop names), and a set
+    whose arrangements come from more than one generator or config sha256. `set.json` `n_episodes` counts the rendered
+    lightings.
 - **Render history (found 2026-11-03):** real-time RTX keeps per-pixel history in each render product.
   - With one set of render products for all phases, a target hidden for the removed phase left a target-shaped trace
     (+1.5 to +2.7 grey levels) for 100+ frames. The trace also appeared on the occluder's face in front of it, and
     turning temporal AA off did not change it (`data/raw/2026-11-03_sim_pilot/ghost_test*.py`).
   - `isaac_batch.py` therefore creates new render products for every (phase, lighting) capture, with 100 updates
-    before each. This takes about 2 min per arrangement instead of about 1 min. Toggling visibility on one set of
-    render products is not safe for removed / occluded views.
+    before each. Toggling visibility on one set of render products is not safe for removed / occluded views.
 
 ## Visible fraction
 
@@ -230,14 +358,20 @@ needs the same care.
   - The lens pose is the 2026-10-10 fit from before the bump (`design_far.md`).
 - **Statics only.** No physics: the "mocap" bodies exist only to move the mug and occluder between renders.
 
-### Known gaps in the generator and batch (PR #4 review, 2026-11-03; fixed in the next checkpoint before the dev renders)
+### Known gaps in the generator and batch (checkpoint 2, 2026-11-03)
 
-- **Occluder family.** `sim/arrange.py` still draws the family from `family_weights` and falls back to the next family when a pair fails. In dev seeds 0–99, 27 arrangements changed family this way; SD0001 went from M16 to IND28. M16 has no side, so most M16 boards end up centred (pattern CpHpC). The quota slot list with within-family retries, reserve seeds and one-sided M16 (`docs/SIM_PREREGISTRATION.md` §2) replaces all of this. `shelf_dev_v0` is a development set from the old rule only.
-- **Hash provenance.** `arrangement_sha256` covers the provenance block. That block holds the config path as the caller spelled it and the Python version, so identical arrangements can hash differently. For in-memory configs, the hash ignores the key order that `weighted_order` depends on.
-- **Shell globs.** `python -m sim.arrange --out ARR` writes `ARR/index.json` next to the arrangements, so `isaac_batch.py --arrangements ARR/*.json` refuses the batch. Until the fix, pass the arrangement files explicitly.
-- **Re-renders and incomplete folders.**
-  - A re-render over an existing folder overwrites `arrangement.json` before `labels.json`. `--skip-existing` checks only that `labels.json` exists, so an interrupted re-render can mix old labels with new files.
-  - `sim/episodes.py` silently skips folders without `labels.json`.
-  - `sim/episodes.py` copies the `--positions` file without checking it against the positions hash each arrangement records.
-- **Labels for select-v4.** `view_labels.json` (`cmpe249.sim-view-labels-set.v0`) is not yet readable by `verify.select`.
-- **Simulation label.** The manifest carries no simulation flag, so `verify.run --manifest` labels sim results "REAL PILOT".
+The PR #4 review findings on the occluder family, hash provenance, `index.json`, re-renders, incomplete folders and the
+positions copy are fixed in checkpoint 2 (above). Still open:
+
+- **One-sidedness is an analytic rule.** The M16 side rule is checked on projected convex hulls at the nominal poses; the
+  rendered pattern at the revisit poses can differ (reported by `sim/check_batch.py`).
+- **M16 targets are limited by the side rule, not by the board's height** (shelf_v2 and v3, see "Asymmetric M16"): for the tomato soup
+  can, the potted meat can and the mug no valid placement was found in the tested generator search (0 of 100 tries on either side;
+  the finer height scan found rare left-side placements of boards taller than the physical one, so this is not a proof), so M16
+  slots take the foam brick and the tuna can only. Which pairs the other classes admit is in the config's
+  `slots.target_assignment` and `notes/2026-11-03-m16-and-render-check.md`.
+- **The revisit check is at the nominal margin (>= 0 px), not with a safety margin.** The #3 outline or the target's hull can sit a
+  pixel from the frame edge in a query view (with tags, a tag corner could).
+- **True alignment is exact for two planes only.** `true_alignment.json` gives the homography of the front plane and of the target's
+  depth plane; the rest of the shelf interior moves by parallax, so an image-based alignment is scored against these, not against
+  a per-pixel truth.

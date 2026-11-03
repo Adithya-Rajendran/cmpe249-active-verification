@@ -2,6 +2,7 @@
 uv run --no-sync python -m unittest tests.test_manifest -v
 """
 import dataclasses
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -154,3 +155,73 @@ class TestRoundTrip(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestQuotaSlotsAndSimulation(unittest.TestCase):
+    """Checkpoint 2: occluder_family / m16_side / design_case, the top-level simulation flag, the sim view labels."""
+
+    def test_slot_fields_validate_and_give_strata(self):
+        R = m.ArrangementRecord
+        self.assertEqual(R("SD01", "t", Split.DEV, occluder_family="M16", m16_side="L").stratum, "M16-L")
+        self.assertEqual(R("SD02", "t", Split.DEV, occluder_family="S8").stratum, "S8")
+        self.assertEqual(R("DES1", "t", Split.DEV, occluder_family="white_box", design_case=True).stratum,
+                         "design:white_box")
+        self.assertIsNone(R("SD03", "t", Split.DEV).stratum)
+        for bad in (dict(occluder_family="M16"), dict(occluder_family="M16", m16_side="X"),
+                    dict(occluder_family="S8", m16_side="L"), dict(m16_side="R"), dict(occluder_family="box")):
+            with self.subTest(bad=bad), self.assertRaises(ManifestError):
+                R("SD04", "t", Split.DEV, **bad)
+        with self.assertRaises(ManifestError):   # a JSON string "false" must not read as True
+            R.from_dict({"arrangement_id": "SD05", "target_id": "t", "split": "dev", "design_case": "false"})
+
+    def test_strata_need_every_arrangement(self):
+        R = m.ArrangementRecord
+        full = [R("SD01", "t", Split.DEV, occluder_family="M16", m16_side="R"), R("SD02", "t", Split.DEV,
+                                                                                   occluder_family="IND28")]
+        self.assertEqual(m.bootstrap_strata(full), {"SD01": "M16-R", "SD02": "IND28"})
+        self.assertIsNone(m.bootstrap_strata([*full, R("SD03", "t", Split.DEV)]))   # partial info: unstratified
+        self.assertIsNone(m.bootstrap_strata([]))
+
+    def test_round_trip_and_legacy_shape(self):
+        R = m.ArrangementRecord
+        arrs = [R("SD01", "t", Split.DEV, occluder_family="M16", m16_side="L"), R("SD02", "t", Split.DEV,
+                                                                                   occluder_family="ycb_box")]
+        legacy = [R("A01", "t", Split.DEV), R("A02", "t", Split.TEST)]
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "m.json"
+            m.save_manifest(arrs, p, simulation=True)
+            info = m.load_manifest_info(p)
+            self.assertEqual((info.arrangements, info.simulation), (tuple(arrs), True))
+            self.assertEqual(info.strata(), {"SD01": "M16-L", "SD02": "ycb_box"})
+            m.save_manifest(legacy, p)
+            doc = json.loads(p.read_text())
+            self.assertNotIn("simulation", doc)
+            self.assertEqual(set(doc["arrangements"][0]), {"arrangement_id", "target_id", "split", "lightings",
+                                                           "indistinguishable"})   # the legacy shape is unchanged
+            self.assertFalse(m.load_manifest_info(p).simulation)
+            doc["simulation"] = "true"
+            p.write_text(json.dumps(doc))
+            with self.assertRaises(ManifestError):
+                m.load_manifest_info(p)
+
+    def test_geometric_labels_loader(self):
+        def doc(**over):
+            stops = [{"stop": i, "diagnostic": i != 2} for i in range(5)]
+            e = {"arrangement_id": "SD01", "condition": "occluded", "lighting": "L2", "truth": "present",
+                 "stops": stops, **over}
+            return {"schema": m.SIM_VIEW_LABELS_SCHEMA, "simulation": True, "episodes": {"SD01-occluded-L2": e}}
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "v.json"
+            p.write_text(json.dumps(doc()))
+            g = m.load_geometric_labels(p, 5)
+            self.assertEqual(g.episodes["SD01-occluded-L2"], (True, True, False, True, True))
+            self.assertEqual(g.no_diagnostic_view(), {"SD01-occluded-L2": False})
+            for bad in (dict(lighting="L1"), dict(truth="removed"),
+                        dict(stops=[{"stop": i, "diagnostic": True} for i in range(4)]),
+                        dict(stops=[{"stop": i, "diagnostic": 1} for i in range(5)])):
+                p.write_text(json.dumps(doc(**bad)))
+                with self.subTest(bad=list(bad)), self.assertRaises(ManifestError):
+                    m.load_geometric_labels(p, 5)
+            p.write_text(json.dumps({**doc(), "schema": "cmpe249.view_labels.v1"}))
+            with self.assertRaises(ManifestError):
+                m.load_geometric_labels(p, 5)

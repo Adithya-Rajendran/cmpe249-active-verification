@@ -19,19 +19,24 @@
 
 - **Simulator:** Isaac Sim 6.2 on the GB10 is the single simulator; MuJoCo is a geometry cross-check only.
 - **Environments:** shelf (the measured rig replica), then tabletop. **No third environment.** Claims concern **new arrangements within these two environments**, not generalisation to unseen environment types.
-- **Cameras:** the option-A arc with per-stop pitch, so all four tags and #3 stay in frame. Extra cameras are allowed. The stop set per environment is fixed in FREEZE.md.
+- **Cameras:** the option-A arc with per-stop pitch, so compartment #3 stays in frame. Extra cameras are allowed. The stop set per environment is fixed in FREEZE.md.
+- **No fiducials** (2026-11-03). The corner ArUco tags are removed from every simulated scene, dev and test, because a home robot's shelf has none.
+  - Evidence must align each query view onto its reference from the images alone (evidence v0.3), with no masks, labels or poses.
+  - Frozen v0.2.1, the baseline, then runs unaligned.
+  - The simulator's exact camera poses give a ground-truth query-to-reference alignment per view. It is used only to score the alignment, never as an input.
+  - The v1/v2 check sets, rendered with tags, are kept as records.
 - **References:** queries at L1 and L2 are compared with the **L1 reference** at their stop.
 - **Reporting:** every result is reported **separately for L1 and L2**. A pooled number appears only as a labelled secondary line.
 - **Policy G:** primary G has the lookahead **off**; G-lookahead and G-myopic are ablations.
 - **Thresholds:**
-  - τ_match, τ_q and τ_occ are calibrated **per view** on dev, with no policy run (select-v4, §7).
+  - τ_match, τ_q and τ_occ are calibrated **per view** on dev, **jointly** over the full grid, with no policy run (select-v4, §7; joint search since 2026-11-03).
   - k = 2 and λ = 0 are fixed, with k = 3 and the other λ classes as sensitivity runs.
   - FRR ≤ 10 % is a dev check, not an objective.
 - **Primary operating point:** **uncapped travel, b = 3 additional views.** This is described as *view-budgeted verification*, with travel reported alongside accuracy and coverage. The finite-cap curves are secondary. b = 1 and b = 2 are secondary and are **not** promoted on the basis of dev results; the old D14 trigger is withdrawn.
 - **Counts:**
   - Per environment: **60 dev + 100 test random arrangements**, with DES0–DES3 as separate dev checks outside the 60.
   - This is a practical allocation, **not a power guarantee**.
-  - **Render time.** The first planning estimate was about 5.4 h for the 320 random arrangements, at about 61 s each (`runs/2026-11-02-sim-prereg-review/planning_checks.json`). That was measured before the ghost fix, which renders every capture with fresh render products. With the fix, the same 10 shelf dev arrangements took 120.9–126.4 s each, median 124.4 s (`data/raw/2026-11-03_sim_pilot/set_checks.json`). That gives about 11 h of rendering for 320.
+  - **Render time.** The first planning estimate was about 5.4 h for the 320 random arrangements, at about 61 s each (`runs/2026-11-02-sim-prereg-review/planning_checks.json`). That was measured before the ghost fix, which renders every capture with fresh render products. With the fix, the same 10 shelf dev arrangements took 120.9–126.4 s each, median 124.4 s (`data/raw/2026-11-03_sim_pilot/set_checks.json`). That gives about 11 h of rendering for 320. With revisit noise (checkpoint 2), the 10-arrangement check batch took 124.5–130.6 s per arrangement, median 128.6 s, and 1300 s in all including boot and shader compile (`shelf_dev_v1_check/render_report_20261103T000139.json` on the share). That is about 2.2 h for 60 and about 11.6 h for 320.
   - Neither figure includes inference, retries or any tabletop differences. Complete dev throughput is measured before the counts are frozen.
 - **Occluder quotas** (fixed before rendering, §2):
 
@@ -81,22 +86,24 @@
 - **Quotas are slots, not weights.**
   - **Slot list.** Before rendering, a fixed slot list per split and environment assigns every arrangement its occluder family, and its M16 side. The list comes from a seeded permutation of the quota table above.
   - **Retries and replacements.** If a seed's placement fails, the generator retries deterministically within the same family: seed, attempt 1, 2, …, up to a fixed maximum. After that it takes the next seed from that family's reserve list. **It never falls back to another family.**
-  - **M16 is placed asymmetrically.** The board is shifted to one side of the target's P3 sight line, giving one-sided patterns such as CCHHC / CHHCC, with left and right balanced across arrangements (dev 9 + 9, test 15 + 15).
+  - **Retry maximum: 20** attempts per seed, as proposed (generator config, 2026-11-03). Each family has its own reserve seed list; a replacement never changes the family, the M16 side or the target.
+  - **M16 is placed asymmetrically.** M16 is the physical board, 16 cm wide and 12 cm tall (`configs/sim/arrange_shelf_v3.json`; a taller simulation-only variant, v2, was tried and dropped on 2026-11-03). The board is shifted to one side of the target's P3 sight line, with left and right balanced across arrangements (dev 9 + 9, test 15 + 15). **Side rule (v3):** the P3 view is hidden, the adjacent same-side stop is covered ≥ 0.95, the nearest opposite-side stop is covered ≤ 0.10, and at least 2 stops are clear. The far same-side stop is unrestricted, so partial patterns such as pHHCC and CCHHp are accepted (student, 2026-11-03). Pure patterns are CHHCC (left) and CCHHC (right).
+  - **Targets are slots too** (student, 2026-11-03). Within each slot class (and each M16 side) the targets come from a seeded, balanced list, fixed per slot through every retry and replacement. A (target, family) pair is left out of a class's list only when **no valid placement was found in the tested generator search** (0 of 100 tries; not a proof that none exists). Under v3 that leaves: S8 without the tomato can; M16 (both sides) and the YCB box with the foam brick and tuna can only; IND28 and the white box with all five. The target composition per class is reported with every result (§9).
   - **Logging.** Retries and replacements are logged.
-
-  `[ ] confirm the retry maximum (proposed 20) / edit:`
 
 ## 3. Conditions, occluders and geometric labels
 
+- **Revisit frame check** (tag-free, 2026-11-03). A revisit pose draw is accepted only when compartment #3's outline and the target's projected hull both stay inside the frame (margin ≥ 0 px), at the nominal and the revisit pose; otherwise it is redrawn, deterministically, and the redraw is logged. Ranges: ±10 mm translation and ±0.5° rotation per axis.
+- **True alignment, evaluation only.** For every query view the simulator writes the exact query-to-reference homography at the shelf front plane and at the target's depth (`true_alignment.json`, `sim/alignment.py`). It scores the evidence step's image alignment and is never an input to evidence, calibration or a policy.
 - **Matched occluder rule.** Occluded and removed share one occluder layout at both lightings. In the reference and visible phases the occluder is parked: present, but blocking nothing.
 - **Objects.** YCB-Video models first, with the target from a fixed list that fits the space, then Google Scanned Objects. The object list is frozen with its licences. `[ ] confirm / edit:`
 - **Geometric diagnostic labels** (from the instance masks):
   - a view of a present target is *geometrically diagnostic* when its visible fraction is ≥ 0.90;
-  - a removed-episode view is diagnostic when the occluder covers < 10 % of the target's reference-mask region.
+  - a removed-episode view is diagnostic when the occluder covers < 10 % of the target's region at that view's camera pose. Queries use revisit poses, so the region is the visible-phase target mask at the same revisit pose, not the nominal reference mask (2026-11-03). On the check batch this differs for one view: SD1000 P4, 0.088 against 0.225 with the reference mask.
   - **These are geometric labels, not recognisability.** A target with some visible pixels below 0.90 is labelled non-diagnostic even if a detector might still recognise it. SD0001 is such a case: occluded visible fraction 0.022 at P1 and 0.005 at P5 (`data/raw/2026-11-03_sim_pilot/set_checks.txt`).
 
   `[ ] confirm the cut-offs / edit:`
-- **Intended-hidden subset.** The IND28 family and DES3 are *designed* to stay hidden. Episodes in which no stop is geometrically diagnostic are reported as a **geometric no-diagnostic-view share**, per split, environment and lighting. That share is context for coverage. **It is not a theoretical maximum coverage**, and coverage is never reported against it as a ceiling. The code's "max achievable coverage" output is renamed accordingly before the freeze.
+- **Intended-hidden subset.** The IND28 family and DES3 are *designed* to stay hidden. Episodes in which no stop is geometrically diagnostic are reported as a **geometric no-diagnostic-view share**, per split, environment and lighting. That share is context for coverage. **It is not a theoretical maximum coverage**, and coverage is never reported against it as a ceiling. The code reports it as `geometric_no_diagnostic_view_share`, computed per episode and lighting from the view labels. It was renamed from "max achievable coverage" on 2026-11-03.
 
 ## 4. Policies
 
@@ -141,23 +148,35 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 
 ## 7. Threshold calibration (`verify/select.py`, select-v4; dev only)
 
-- **Calibration.** τ_q, τ_occ and τ_match are calibrated per view on dev views of both lightings, Neyman-Pearson style:
-  - the false clear-miss rate is capped at α_clear = 0.10 on **geometrically diagnostic** views of present-target episodes (for τ_match), and the false-clear rate on **non-diagnostic** views of occluded-present episodes (for the τ_q / τ_occ gate);
-  - then correct clear misses on diagnostic removed views are maximised;
-  - ties go to the conservative setting.
+- **Calibration.** τ_q, τ_occ and τ_match are calibrated together per view, on dev views of both lightings, Neyman-Pearson style. **One joint search** runs over the full predeclared grid τ_q × τ_occ × τ_match. A setting is feasible only if it meets **both** limits:
+  - the false clear-miss rate on **geometrically diagnostic** views of present-target episodes is ≤ α_clear = 0.10;
+  - the false-clear rate (views passing the τ_q / τ_occ gate) on **non-diagnostic** views of occluded-present episodes is ≤ α_clear.
 
-  **No policy is run before the thresholds are fixed.**
-- **Infeasible α.** If no grid setting meets α_clear for some threshold, calibration **fails loudly**: no usable candidate, and a report of which constraint failed and the best achievable rate. Nothing is relaxed automatically. Any change (grid, α, or evidence v0.3) is a dated addendum made on dev before the freeze.
+  Among feasible settings, correct clear misses on diagnostic removed views are maximised. The tie-break order is complete:
+  1. lower false clear-miss rate;
+  2. lower false-clear rate;
+  3. lower τ_match;
+  4. higher τ_q;
+  5. lower τ_occ.
+
+  The choice therefore never depends on the order in which the grid is searched. The same joint search runs inside every CV training fold. **No policy is run before the thresholds are fixed.**
+- **Infeasible α.** If no grid setting meets both limits, calibration **fails loudly**: there is no usable candidate. The report says which limit binds and gives the best achievable rates. Nothing is relaxed automatically. Any change (grid, α, or evidence v0.3) is a dated addendum made on dev before the freeze.
+- **Procedure revision (2026-11-03, before any dev render from the revised generator and before the freeze).**
+  - **What changed.** The first select-v4 implementation was sequential: it fixed the most permissive gate that met its limit, then searched τ_match only under that gate. The PR #4 review showed this can declare infeasibility while other grid settings meet both limits. In a hand-built example, 315 of 693 settings were feasible, but the sequential search failed (`runs/2026-11-03-pr4-review/select1/`; independently reproduced in `runs/2026-11-02-joint-calibration-review/`). That figure comes from constructed scores, not rendered Isaac data.
+  - **What stays.** The joint search keeps the grid, both α limits, their label populations and the objective. The intent of this section is unchanged; the implemented method changed.
+- **Feasibility is not lighting robustness.** In that example, every feasible setting rejects all L2 views at the quality gate. The calibration report therefore gives gate pass rates per lighting, with counts, at the chosen setting and in every fold. It covers diagnostic removed views, diagnostic present views and all views. It flags any lighting whose pass share is ≤ 0.05, and reports an empty population as "no views"; that cut-off is a reporting flag, not a procedure parameter. Held-out recall and coverage per lighting, from the held-out policy check, stay the evidence for robustness.
 - **Fixed settings:** k = 2, λ = 0. The sensitivity runs are reported, never selected.
 - **Dev check.** Every policy's FRR / recall / coverage is reported on dev per lighting. A policy above 10 % is reported as such, and the thresholds are not retuned.
 - **Honest dev estimates** come from grouped (by arrangement) CV:
   - **Grouping.** All views, conditions and lighting variants of a held-out arrangement are left out together.
-  - **Per fold.** Each fold's thresholds are calibrated without the held-out arrangement, and **every policy is then run on it with that fold's thresholds** (the held-out policy check).
-  - **A.** When A is included, its training and model selection also exclude the held-out arrangement.
+  - **Per fold.** Each fold's thresholds are calibrated without the held-out arrangement, using the same joint search. **Every policy is then run on it with that fold's thresholds** (the held-out policy check). The policies are S, F, R, G, G-lookahead, G-myopic, FULL and the `-fcm` variants, at the primary budget, uncapped and under each cap. Results are reported per lighting with counts.
+  - **A.** When A is included, its training and model selection also exclude the held-out arrangement. Each fold builds A afresh from a factory and trains and runs it in its own process, on a training subset that holds a snapshot of the fold's training arrangements only. Nothing reachable from that subset leads to the held-out arrangement's evidence, truth, labels or input files, and no state carries from one fold to the next. A trainable that writes and rereads its own files is outside this guarantee and is checked by review.
   - **Thresholds.** One global threshold set is frozen.
 - **Freeze eligibility.**
   - **Required.** A candidate is eligible only if calibration succeeds on all dev data **and** in every planned CV fold.
-  - **Incomplete candidates** may be saved for investigation but are marked **ineligible for freeze**.
+  - **Incomplete candidates** may be saved for investigation, but they are marked `eligible_for_freeze: false` with the reasons.
+  - **Exit status:** `verify.select` exits 0 for eligible, 3 for infeasible on all dev data (no candidate) and 4 for ineligible.
+  - **Freeze check:** the freeze step accepts a candidate only through `require_freeze_eligible`. It takes the candidate file only, checked against its `.sha256` sidecar, and refuses ineligible and unmarked candidates. It refuses a synthetic one if any mark says so: the flag, the label or the synthetic provenance.
   - **Not required:** every held-out arrangement meeting α. Those held-out rates are reported checks.
 - **Flat threshold curves are acceptable.** Both the correct and the false clear-miss curves over the grid are inspected and reported. The declared tie-break is kept when it decides, and no variation is forced.
 
@@ -166,11 +185,11 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 ## 8. Uncertainty
 
 - **Primary:** the **paired arrangement-level cluster bootstrap**, resampling whole arrangements so their related views and episodes stay together.
-  - It is **stratified by occluder family**: each replicate keeps the design's quota counts.
+  - It is **stratified by occluder family**, so each replicate keeps the design's quota counts. A stratum is a quota slot class: S8, M16-left, M16-right, IND28, white box or YCB box. Design cases (DES0–DES3) are strata of their own. If any arrangement lacks family information, or any stratum has fewer than 2 arrangements (a single arrangement would only redraw itself and add no variance), the bootstrap falls back to unstratified, and the output says so.
   - B = 10,000 on test; per lighting and per environment.
-  - Percentile 95 % intervals for contrasts and for single rates.
+  - Percentile 95 % intervals for contrasts and for single rates (FRR, removal recall and coverage, per lighting), from the same draws. For R, arrangements are resampled but its seeds are not, so R's interval is for its expected rate over its own randomisation.
 - **Secondary, descriptive only:** Clopper-Pearson and Jeffreys bounds on integer counts. They treat episodes as independent, which they are not. Integer counts do not remove the dependence between views and episodes of one arrangement.
-- **FRR** is reported per episode and per arrangement (any false removal).
+- **FRR** is reported per episode and per arrangement (any false removal). For R, "any false removal" is computed per seed and then averaged over seeds, because R's matched episodes share a random stream.
 
 `[ ] confirm / edit:`
 
@@ -179,7 +198,7 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 - **Metrics:** FRR, removal recall, coverage (UNKNOWN in the denominator), resolved accuracy, mean views, mean travel, confusion counts. Every rate comes with its counts and with n_arrangements / n_episodes.
 - **Context, not a ceiling:** the geometric no-diagnostic-view share (§3).
 - **Breakdowns,** separately for L1 and L2:
-  - per environment, per occluder family and per condition;
+  - per environment, per occluder family and per condition. Every per-family result carries the family's target composition (targets are assigned per slot within the targets each family supports, §2), because a difference between families can reflect their targets as well as their occluders;
   - curves over b and over the cap grid;
   - risk-coverage curves sweeping τ_match, with the frozen point marked.
 - **Paired contrasts on test** (per lighting and environment):
@@ -189,6 +208,7 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
   - `X` vs `X-fcm`.
 
   Identical-run contrasts are flagged.
+- **Secondary, predeclared: A − G on common targets.** This is the A − G contrast restricted to the foam brick and tuna can episodes, the two targets every family supports, across all families. It uses consistent target weighting: within each family the two targets carry equal weight, so the comparison across families is not a difference in target mix. It is reported per lighting and environment, with the same stratified paired cluster bootstrap (§8). This addresses the target–family confound (2026-11-03); it is secondary and does not replace the primary A − G. `[ ] implementation pending (before the freeze)`
 - **Labels and the real-photo check.** Every result is labelled "simulation". Pilots 1–2 (real photos) are a separate sim-to-real check of score ranges and are never pooled.
 
 `[ ] confirm / edit:`
@@ -204,6 +224,7 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 ## 11. Exclusions, retries and failed renders
 
 - **Mechanical failures.** A render that fails mechanically (missing file, empty frame, no target in the reference mask) is re-rendered from the same seed, deterministically, and logged.
+- **Revisit redraws** (frame check, §3) are logged per stop; they change no family, side or target.
 - **Placement failures** are retried within the same family and then replaced from that family's reserve list (§2). This happens **before rendering**, never after evidence exists.
 - **No outcome-based exclusion.** Nothing is dropped for a wrong or UNKNOWN decision.
 - **Counts reported:** retries, replacements and exclusions, per split, environment and family.
@@ -214,11 +235,14 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 - **Code and render setup:**
   - the code commit and tag, and `uv.lock`;
   - the Isaac Sim version and install recipe;
-  - the renderer settings: mode, settle frames, subframes, tonemap.
+  - the renderer settings: mode, settle frames, subframes, tonemap, and `tags_enabled = false` (the render-settings hash);
+  - `sim/alignment.py` (evaluation only).
 - **Generator:**
   - its code and config hash, the object list with licences, and the quota table;
   - the **slot lists and test seed block, including the reserve lists**;
-  - the retry maximum and the intended subsets (IND28 family, design cases).
+  - the retry maximum and the intended subsets (IND28 family, design cases);
+  - the per-slot target lists and the excluded (target, family) pairs with their tested-search counts.
+  - Current generator config: `configs/sim/arrange_shelf_v3.json` (12 cm M16, v3 side rule, tag-free scenes). v1 and v2 and the check sets made with them are superseded records.
 - **Scene geometry:** `configs/rig_geometry.json`, the tabletop geometry, and the positions file per environment with per-stop pitch.
 - **Evidence and calibration:**
   - the evidence code (frozen v0.2.1, or a v0.3 developed on dev), with the detector, prompts and encoder;

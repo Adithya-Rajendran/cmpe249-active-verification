@@ -8,7 +8,16 @@ from unittest import mock
 import numpy as np
 
 from analysis import bootstrap
-from analysis.bootstrap import arrangement_draws, draw_diffs, pair, paired_diff
+from analysis.bootstrap import (
+    arrangement_draws,
+    draw_diffs,
+    pair,
+    paired_diff,
+    rate_intervals,
+    resolve_strata,
+    sample_draws,
+    stratified_arrangement_draws,
+)
 from analysis.metrics import metrics_on
 from verify.schema import (
     CONDITIONS,
@@ -202,6 +211,166 @@ class TestErrorsAndLabel(unittest.TestCase):
         self.assertTrue(d["synthetic"])
         self.assertEqual(d["label"], SYNTHETIC_LABEL)
         self.assertEqual(d["B"], 10)
+
+
+class TestStratified(unittest.TestCase):
+    """Family-stratified cluster bootstrap (prereg section 8): resample within strata, keeping each stratum's count."""
+    # A quota-like design: S8 x3, M16-L x2, M16-R x2, IND28 x1, white_box x2, ycb_box x2 (12 arrangements, unsorted)
+    STRATA = ["S8", "M16-L", "white_box", "S8", "M16-R", "ycb_box", "IND28", "M16-L", "S8", "white_box", "M16-R",
+              "ycb_box"]
+
+    def test_every_replicate_keeps_every_stratum_count(self) -> None:
+        B = 3000
+        draws = stratified_arrangement_draws(self.STRATA, B, seed=4)
+        self.assertEqual(draws.shape, (B, len(self.STRATA)))
+        want = Counter(self.STRATA)
+        lab = np.array(self.STRATA)
+        for d in draws:
+            self.assertEqual(Counter(lab[d]), want)            # every stratum's count, in every replicate
+        for j, st in enumerate(self.STRATA):                    # column j only ever holds members of j's stratum
+            self.assertTrue(set(lab[draws[:, j]]) == {st})
+
+    def test_members_are_drawn_uniformly_within_their_stratum(self) -> None:
+        draws = stratified_arrangement_draws(self.STRATA, 20000, seed=1)
+        s8 = [j for j, x in enumerate(self.STRATA) if x == "S8"]
+        freq = Counter(draws[:, s8].ravel().tolist())
+        self.assertEqual(set(freq), set(s8))
+        for j in s8:   # 60000 draws over 3 members: 1/3 each within a few standard errors (0.0019)
+            self.assertAlmostEqual(freq[j] / (20000 * 3), 1 / 3, delta=0.01)
+        ind = self.STRATA.index("IND28")   # a singleton stratum always resamples itself
+        self.assertTrue((draws[:, ind] == ind).all())
+
+    def test_stratum_draws_do_not_depend_on_the_order_arrangements_are_listed_in(self) -> None:
+        # Strata are visited in sorted order, so a stratum's draws depend on its name and size, not on where the
+        # manifest happens to list its arrangements (first-appearance order would change the stream).
+        a = self.STRATA                                    # S8 first
+        b = sorted(self.STRATA, reverse=True)              # ycb_box first, strata contiguous
+        c = [x for pair in zip(sorted(a)[:6], sorted(a)[6:]) for x in pair]   # interleaved strata
+        B, seed = 200, 7
+        base = stratified_arrangement_draws(a, B, seed)
+
+        def per_stratum(labels: list[str], draws: np.ndarray) -> dict[str, np.ndarray]:
+            out = {}
+            for st in set(labels):
+                members = [j for j, x in enumerate(labels) if x == st]
+                out[st] = np.stack([np.searchsorted(members, draws[:, j]) for j in members], axis=1)
+            return out
+        want = per_stratum(a, base)
+        for labels in (b, c):
+            self.assertNotEqual(list(dict.fromkeys(labels)), list(dict.fromkeys(a)))
+            got = per_stratum(labels, stratified_arrangement_draws(labels, B, seed))
+            self.assertEqual(got.keys(), want.keys())
+            for st in want:
+                self.assertTrue(np.array_equal(got[st], want[st]), st)
+
+    def test_one_stratum_is_the_unstratified_draw(self) -> None:
+        self.assertTrue(np.array_equal(stratified_arrangement_draws(["x"] * 9, 500, 42), arrangement_draws(9, 500, 42)))
+        ids = [f"A{i:02d}" for i in range(9)]
+        self.assertTrue(np.array_equal(sample_draws(ids, 500, 42, None), arrangement_draws(9, 500, 42)))
+
+    def test_missing_stratum_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            sample_draws(["A00", "A01"], 10, 0, {"A00": "S8"})
+
+    # The same 12 arrangements with no singleton stratum (each class at least twice)
+    STRATA2 = ["S8", "M16-L", "white_box", "S8", "M16-R", "ycb_box", "M16-L", "M16-R", "S8", "white_box", "ycb_box",
+               "S8"]
+
+    def test_singleton_strata_fall_back_to_unstratified(self) -> None:
+        # Review (checkpoint 2): with every arrangement in a stratum of its own, every stratified replicate is the
+        # sample itself and the CI collapsed to the point estimate (4/24, 4/24), still called stratified. A stratum of
+        # fewer than two arrangements now makes the bootstrap unstratified, and the result says why.
+        a = make(6, lambda i, c, l: R if i == 0 else correct(i, c, l), "G")
+        b = make(6, correct, "F")
+        u = paired_diff(a, b, truth_for(a), "false_removal_rate", B=500, seed=3)
+        self.assertFalse(u.stratified)
+        self.assertLess(u.ci_lo, u.ci_hi)
+        for strata, singles in (({f"A{i:02d}": f"s{i}" for i in range(6)}, ("s0", "s1", "s2", "s3", "s4", "s5")),
+                                ({f"A{i:02d}": "big" if i < 5 else "lone" for i in range(6)}, ("lone",))):
+            r = paired_diff(a, b, truth_for(a), "false_removal_rate", B=500, seed=3, strata=strata)
+            with self.subTest(singles=singles):
+                self.assertAlmostEqual(r.estimate, 4 / 24)
+                self.assertFalse(r.stratified)
+                self.assertEqual(r.singleton_strata, singles)
+                self.assertTrue(r.stratification_note.startswith("unstratified: singleton strata " + singles[0]))
+                self.assertEqual((r.ci_lo, r.ci_hi), (u.ci_lo, u.ci_hi))   # exactly the unstratified bootstrap
+                self.assertEqual(r.to_dict()["singleton_strata"], list(singles))
+        self.assertEqual(resolve_strata(["A", "B", "C", "D"], {"A": "x", "B": "x", "C": "y", "D": "y"}),
+                         ({"A": "x", "B": "x", "C": "y", "D": "y"}, (), ""))
+        self.assertEqual(resolve_strata(["A", "B"], None), (None, (), ""))
+        with self.assertRaises(ValueError):
+            resolve_strata(["A", "B"], {"A": "x"})
+
+    def test_paired_diff_uses_the_stratified_draws(self) -> None:
+        a, b = make(12, noisy, "G"), make(12, correct, "F")
+        truth = truth_for(a)
+        strata = {f"A{i:02d}": st for i, st in enumerate(self.STRATA2)}
+        r = paired_diff(a, b, truth, "coverage", B=400, seed=11, strata=strata)
+        sample = pair(a, b, truth)
+        draws = stratified_arrangement_draws([strata[x] for x in sample.arrangement_ids], 400, 11)
+        diffs = draw_diffs(sample, truth, "coverage", draws)
+        lo, hi = np.percentile(diffs, [2.5, 97.5])
+        self.assertEqual((r.ci_lo, r.ci_hi), (float(lo), float(hi)))
+        self.assertTrue(r.to_dict()["stratified"])
+        self.assertEqual((r.singleton_strata, r.stratification_note), ((), ""))
+        # and each draw's difference is the metric recomputed on the expanded multiset
+        for draw, d in list(zip(draws, diffs))[:25]:
+            ra, rb = sample.expand(draw)
+            self.assertAlmostEqual(d, metrics_on(ra, truth)["coverage"] - metrics_on(rb, truth)["coverage"], places=12)
+
+
+
+class TestRateIntervals(unittest.TestCase):
+    """Single-rate percentile intervals (prereg section 8: "for contrasts and for single rates")."""
+
+    def by_hand(self, results, truth, metric, draws) -> tuple[float, float]:
+        ids = sorted({r.arrangement_id for r in results})
+        vals = []
+        for d in draws:
+            multiset = [r for i in d for r in results if r.arrangement_id == ids[i]]
+            v = metrics_on(multiset, truth)[metric]
+            if v is not None:
+                vals.append(v)
+        lo, hi = np.percentile(vals, [2.5, 97.5])
+        return float(lo), float(hi)
+
+    def test_matches_a_hand_bootstrap_stratified_and_not(self) -> None:
+        a = make(12, noisy, "G")
+        truth = truth_for(a)
+        strata = {f"A{i:02d}": st for i, st in enumerate(TestStratified.STRATA2)}
+        ids = sorted(strata)
+        for st in (None, strata):
+            iv = rate_intervals(a, truth, B=300, seed=5, strata=st)
+            draws = sample_draws(ids, 300, 5, st)
+            for metric in ("false_removal_rate", "removal_recall", "coverage"):
+                with self.subTest(stratified=st is not None, metric=metric):
+                    r = iv[metric]
+                    lo, hi = self.by_hand(a, truth, metric, draws)
+                    self.assertAlmostEqual(r.ci_lo, lo, places=12)
+                    self.assertAlmostEqual(r.ci_hi, hi, places=12)
+                    self.assertEqual(r.estimate, metrics_on(a, truth)[metric])
+                    self.assertEqual((r.stratified, r.n_arrangements, r.n_episodes, r.B, r.seed, r.policy),
+                                     (st is not None, 12, 72, 300, 5, "G"))
+                    self.assertLess(r.ci_lo, r.ci_hi)
+
+    def test_seed_averaged_fractions_and_singleton_fallback(self) -> None:
+        # R's seed-averaged decision fractions enter as they are (one result per episode; seeds are not resampled)
+        half = {R: 0.5, P: 0.5}
+        a = make(6, lambda i, c, l: half if i < 3 and c.value == "visible" else correct(i, c, l), "R")
+        truth = truth_for(a)
+        iv = rate_intervals(a, truth, ("false_removal_rate",), B=400, seed=2)
+        self.assertAlmostEqual(iv["false_removal_rate"].estimate, (3 * 2 * 0.5) / 24)
+        lo, hi = self.by_hand(a, truth, "false_removal_rate", sample_draws(sorted({r.arrangement_id for r in a}),
+                                                                             400, 2))
+        self.assertAlmostEqual(iv["false_removal_rate"].ci_lo, lo, places=12)
+        self.assertAlmostEqual(iv["false_removal_rate"].ci_hi, hi, places=12)
+        lone = {f"A{i:02d}": f"s{i}" for i in range(6)}
+        fb = rate_intervals(a, truth, ("false_removal_rate",), B=400, seed=2, strata=lone)["false_removal_rate"]
+        self.assertFalse(fb.stratified)
+        self.assertEqual(len(fb.singleton_strata), 6)
+        self.assertEqual((fb.ci_lo, fb.ci_hi), (iv["false_removal_rate"].ci_lo, iv["false_removal_rate"].ci_hi))
+        with self.assertRaises(ValueError):   # one result per episode
+            rate_intervals(a + a[:1], truth, B=10)
 
 
 if __name__ == "__main__":

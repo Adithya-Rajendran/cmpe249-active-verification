@@ -25,7 +25,7 @@ and **imports only what this file names**. All shared types are already implemen
 | `verify/run.py` | run builder | everything above |
 | `analysis/intervals.py` | select builder | stdlib only |
 | `verify/lamgrid.py` | select builder (review F1) | schema, policies |
-| `verify/select.py` | select builder | schema, stopping, replay, policies, lamgrid, synthetic, analysis (+ numpy) |
+| `verify/select.py` | select builder | schema, stopping, replay, policies, lamgrid, synthetic, manifest, analysis (+ numpy) |
 | `tests/test_<module>.py` | the builder of that module | the module under test + schema (+ numpy) |
 
 Tests use stdlib `unittest` and run from the repo root:
@@ -505,6 +505,10 @@ class ArrangementRecord:
     split: Split
     lightings: tuple[Lighting, ...] = (Lighting.L1, Lighting.L2)
     indistinguishable: bool = False
+    occluder_family: str | None = None   # S8, M16, IND28, white_box, ycb_box (quota slot); None in legacy manifests
+    m16_side: str | None = None          # "L" / "R" for M16 only
+    design_case: bool = False            # DES0..DES3, dev checks outside the random quota slots
+    stratum -> str | None                # "S8", "M16-L", "M16-R", ..., "design:<family>"; None without a family
 
 def episodes_from_arrangements(arrs: Sequence[ArrangementRecord]) -> tuple[list[EpisodeSpec], GroundTruth]: ...
 def load_manifest(path: str | Path) -> tuple[list[EpisodeSpec], GroundTruth]: ...
@@ -513,7 +517,22 @@ def assign_splits(arrangement_ids: Sequence[str], n_dev: int, seed: int) -> dict
 def validate(specs: Sequence[EpisodeSpec], truth: GroundTruth | None = None) -> None: ...
 def filter_split(specs: Sequence[EpisodeSpec], split: Split) -> list[EpisodeSpec]: ...
 def summary(specs: Sequence[EpisodeSpec]) -> dict[str, int]: ...
+def load_manifest_info(path) -> ManifestInfo: ...        # (arrangements, simulation flag); .strata()
+def bootstrap_strata(arrs) -> dict[str, str] | None: ...  # None unless EVERY arrangement has its family
+def load_geometric_labels(path, n_stops=None) -> GeometricLabels: ...   # cmpe249.sim-view-labels-set.v1
 ```
+
+- **Checkpoint 2 (2026-11-03).** sim/episodes.py writes `occluder_family`, `m16_side` and `design_case` as plain
+  keys of each arrangement entry and a top-level `"simulation": true`. `ArrangementRecord` validates them
+  (`ManifestError`: unknown family, M16 without side "L"/"R", a side on another family, non-boolean flags) and
+  `to_dict` writes them only when a family is set or `design_case` is true, so legacy manifests keep their exact
+  bytes. `save_manifest(..., simulation=None|True|False)` writes the flag only when given; `load_manifest_info`
+  refuses a non-boolean flag. `bootstrap_strata` gives the stratum of the family-stratified cluster bootstrap (the
+  quota slot class: the family, M16 split by side; design cases in their own `design:` strata) and returns None, so
+  callers fall back to the unstratified bootstrap and flag it (`UNSTRATIFIED_NOTE`), when any arrangement lacks a
+  family. `load_geometric_labels` reads sim/episodes.py's `view_labels.json` (episodes -> stops) and checks that every
+  episode's arrangement, condition, lighting and truth agree with its id and that it lists stops 0..n-1 with boolean
+  `diagnostic` flags. The labels are development analysis and scoring inputs only, never a policy input.
 
 - `episodes_from_arrangements` produces 3 conditions x the given lightings per arrangement,
   sorted by (arrangement_id, condition order visible/occluded/removed, lighting). Truth comes
@@ -636,7 +655,24 @@ def compute_all(results, truth) -> dict: ...   # {"overall": ..., "by_condition"
   - `removal_recall` = Σ frac(REMOVED) over removed episodes / n_removed
   - `coverage` = Σ (1 - frac(UNKNOWN)) / n_episodes (unknown stays in the denominator)
   - `resolved_accuracy` = Σ frac(correct decision) / Σ (1 - frac(UNKNOWN))
-  - `max_achievable_coverage` = 1 - n_indistinguishable / n_episodes
+  - `geometric_no_diagnostic_view_share` = `n_no_diagnostic_view` / n_episodes: the share of episodes with no
+    geometrically diagnostic stop. `compute(..., no_diagnostic=)` / `compute_all(..., no_diagnostic)` take
+    `episode_id -> no diagnostic stop` from the view labels; without it the share falls back to the arrangement-level
+    predeclared indistinguishable flag. `no_diagnostic_view_source` says which. It is **context for coverage, not a
+    ceiling** (a policy can resolve an episode with no diagnostic view, and one with diagnostic views can stay
+    unknown); it replaced the old ceiling-named key on 2026-11-03.
+  - FRR per arrangement (`compute` only, unique episodes): `n_arr_with_present`, `arrangement_false_removal`,
+    `false_removal_rate_arrangement` (share of arrangements with a present episode that have any false removal) and
+    `arrangement_frr_binomial` (true for deterministic policies, whose counts are 0/1 per arrangement). A seeded policy
+    (R) is computed **per base seed** and averaged over the seeds: under seed s the arrangement counts 1 if any of its
+    present episodes in that row was falsely removed under s. R's salt (`r_seed_salt`) is condition-free, so the
+    visible and occluded episodes of one arrangement and lighting share R's random stream and are not independent;
+    a product over seed-averaged fractions would be wrong (perfectly correlated episodes removed in half the seeds
+    give 0.5, not 0.75). The per-seed decisions come from the logs (`seed_decisions(logs)`, passed as
+    `seed_removed`; `compute_all` takes them from bare EpisodeLogs itself, and `verify.run.score_stage` passes them
+    per run setting). Seeded results without them give `None` (undefined), never an estimate from the averages. The
+    pooled row pairs seed s of the L1 and the L2 stream, which use different salts. (Corrected 2026-11-03; the first
+    checkpoint-2 commit used the product formula.)
   - `mean_views`, `mean_additional_views`, `mean_travel_cm` (means of the per-episode means)
   - `confusion`: `{"present": {"present": x, "removed": x, "unknown": x}, "removed": {...}}`
     (float counts)
@@ -664,10 +700,16 @@ class BootstrapResult:
     n_undefined: int           # draws where either side was undefined (excluded)
     seed: int
     synthetic: bool
+    stratified: bool = False
+    singleton_strata: tuple[str, ...] = ()   # strata given, but fewer than 2 arrangements in these: fell back
+    stratification_note: str = ""            # "unstratified: singleton strata ..." when it fell back
     def to_dict(self) -> dict: ...
 
 def paired_diff(results_a, results_b, truth: GroundTruth, metric: str, B: int = 10000,
-                seed: int = 0) -> BootstrapResult: ...
+                seed: int = 0, strata: dict[str, str] | None = None) -> BootstrapResult: ...
+def rate_intervals(results, truth: GroundTruth, metrics=RATE_METRICS, B: int = 10000, seed: int = 0,
+                   strata: dict[str, str] | None = None) -> dict[str, RateInterval]: ...
+def resolve_strata(arrangement_ids, strata) -> tuple[strata | None, singleton_strata, note]: ...
 ```
 
 - `results_a` and `results_b` are normalised with `as_results` and must cover **the same
@@ -679,6 +721,34 @@ def paired_diff(results_a, results_b, truth: GroundTruth, metric: str, B: int = 
   computed as in `metrics.compute`. Share a helper that works on a multiset of results; don't
   call `compute` with duplicated ids.
 - The CI is the percentile interval at 2.5 and 97.5 (`numpy.percentile`, default method).
+- **Stratified** (docs/SIM_PREREGISTRATION.md section 8, the primary uncertainty): `paired_diff(..., strata=
+  {arrangement_id: stratum})` resamples arrangements within each stratum (`stratified_arrangement_draws`): column j of
+  every draw is filled from arrangement j's stratum, so every replicate keeps every stratum's count (the design's
+  quota counts). Strata are visited in sorted order with one `default_rng(seed)`; with a single stratum the draws are
+  exactly `arrangement_draws`. A sample arrangement without a stratum raises `ValueError`. `BootstrapResult.stratified`
+  records which bootstrap ran. Tests: the stratum counts in every replicate (3000 draws), uniform draws within a
+  stratum, the single-stratum identity, and the CI equal to `draw_diffs` on the stratified draws.
+- **Singleton strata fall back to unstratified** (review, checkpoint 2). A stratum with one arrangement always
+  redraws that arrangement, so it adds no variance: on the 6-arrangement check batch (6 slot classes) the "stratified"
+  CI of R - F recall was [0.058, 0.058], the point estimate, where the unstratified one is [0.0, 0.175]. So
+  `resolve_strata` drops the strata when any stratum holds fewer than `MIN_STRATUM_SIZE` (2) of the sample's
+  arrangements: the bootstrap is then the unstratified one, `stratified` is false, `singleton_strata` lists them and
+  `stratification_note` starts "unstratified: singleton strata". `paired_diff`, `rate_intervals` and verify.select's
+  `cluster_bootstrap` all use it. The planned designs have at least 6 arrangements per stratum and stay stratified.
+  Tests: a sample where every arrangement is its own stratum, and one with a single lone stratum, give exactly the
+  unstratified CI and the flag (`test_singleton_strata_fall_back_to_unstratified`).
+- **Single rates** (`rate_intervals`; prereg section 8, "Percentile 95 % intervals for contrasts and for single
+  rates"). One policy's FRR, removal recall and coverage get the percentile 95% interval of the same
+  arrangement-level cluster bootstrap: the draws are `sample_draws` over the sorted arrangement ids, so for the same
+  arrangements, B, seed and strata they are the draws `paired_diff` uses. The draw multiplicities are cached
+  (`_draw_counts`), since every policy row of one lighting resamples the same arrangements. Results must hold one
+  result per episode. **R's seed averaging:** R enters with its seed-averaged decision fractions per episode, as in
+  its point estimate. Arrangements are resampled and seeds are not, so R's interval is for its expected rate over its
+  own randomisation. Seeds add no samples (section 11), and with 20 seeds averaged the seed noise is small next to
+  the spread between arrangements. R's episodes that share a random stream (one per arrangement and lighting,
+  `r_seed_salt`) stay together in every draw, so that dependence is kept. Tests: every interval recomputed by hand
+  (`metrics_on` on each expanded multiset, then `numpy.percentile`), stratified and not, and on fractional R-like
+  decisions (`TestRateIntervals`).
 - Tests: identical policies give an estimate of 0 and a CI of [0, 0]; a constructed case with
   a known difference; determinism for a fixed seed; the episodes of an arrangement are never
   split (resampling one arrangement brings all of its episodes); undefined draws are counted.
@@ -691,11 +761,56 @@ def paired_diff(results_a, results_b, truth: GroundTruth, metric: str, B: int = 
 uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 0..4 \
     [--cap-steps 1,2,3,4,6 | none] [--block-anywhere] [--positions configs/positions.json] [--n-dev N] \
     [--r-seeds 20] [--bootstrap-B 10000] [--primary-budget 3] [--tag TAG] [--out runs/synthetic-<tag>/]
+uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SET/evidence.jsonl \
+    --positions configs/sim/positions_shelf_A.json [--view-labels SET/view_labels.json] [same options]
 ```
 
+- **Checkpoint 2 (2026-11-03), manifest path.** A manifest with a top-level `"simulation": true` is labelled
+  `SIMULATION - placeholder thresholds, not frozen` (`SIM_LABEL`) in config.json, results.json and table.md (it
+  used to read "REAL PILOT"); any other manifest keeps `REAL_LABEL`. The flag is in the hashed config
+  (`simulation`, config `real-v3`; synthetic runs hash `simulation: false`, `synthetic-v6`). A simulation manifest
+  needs an explicit `--positions` (exit 2 otherwise: `configs/positions.json` is the old close-spot arc). The
+  manifest path now also writes `table.md`, scored on test, or on dev with a plain note when the manifest has no
+  test arrangement (`table_scope`). `--view-labels` (cmpe249.sim-view-labels-set.v1) is hashed before the run but
+  read only after every policy has run, for the geometric no-diagnostic-view share; without it the share falls back
+  to the predeclared indistinguishable flag, labelled as such. The paired bootstrap is **stratified by quota slot
+  class** (`verify.manifest.bootstrap_strata`) when every arrangement of the manifest has its family; otherwise
+  (synthetic, legacy pilots) it is unstratified, and results.json (`bootstrap_stratification`, each bootstrap row's
+  `stratified`) and table.md say so. Every metrics row and table carries FRR per arrangement (x/n) next to the
+  per-episode FRR.
+- **Checkpoint 2 review fixes (2026-11-03).**
+  - **Singleton strata.** A stratum with fewer than two test arrangements makes the bootstrap unstratified (section
+    7): `bootstrap_stratification` has `stratified` false, `singleton_strata` and the note "unstratified: singleton
+    strata ...", each bootstrap row carries `singleton_strata` and `stratification_note`, and table.md says so in the
+    header line and in each row's note. The hashed config's `bootstrap_stratified` is now what the test bootstrap
+    will use, worked out from the manifest's splits and families before the run (no truth is read).
+  - **Single-rate intervals.** Every L1 / L2 metrics row on test has `rate_ci95`: the percentile 95% interval of its
+    FRR, removal recall and coverage (`analysis.bootstrap.rate_intervals`: the same stratified arrangement-level
+    cluster bootstrap and the same draws as that lighting's paired rows; R over its seed-averaged decisions, section
+    7). table.md prints them next to the rates (`0.083 [0.000, 0.250]`) in the primary tables, the budget curves and
+    the cap curve, with a header note. Dev rows and pooled rows have none (no bootstrap on pooled data).
+  - **No bootstrap ran.** With no test arrangement (a dev-only manifest such as the check batch),
+    `bootstrap_stratification` is `{"ran": false, "stratified": false, "strata": {}, ...}` with the note "no
+    bootstrap ran: ...", and table.md says so in the header and in each lighting's bootstrap section (it used to say
+    "stratified by quota slot class ( test arrangements)").
+  - **Stale outputs.** Every file the run writes is removed from the output directory before it starts
+    (`RUN_OUTPUTS` for `--synthetic`, `REAL_OUTPUTS` on the manifest path), so a run that fails part-way, e.g. at the
+    post-run labels check (exit 2), never leaves an earlier run's results.json next to its own config.json. An input
+    file that is one of those outputs is refused (exit 2) before anything is removed.
+  - **Fallback wording.** Without `--view-labels` the header line reads "predeclared indistinguishable share (no view
+    labels given)" and counts "occluded or removed episodes of arrangements flagged indistinguishable in the
+    manifest"; it no longer claims a geometric fact the run never measured. The per-condition column is named by its
+    source: "geometric no-diagnostic-view share (context; view labels)" or "predeclared indistinguishable share
+    (context; no view labels given)". The results.json key stays `geometric_no_diagnostic_view_share`, with
+    `no_diagnostic_view_source` naming the source.
+  - **Simulation flag.** A view-labels file whose `simulation` flag disagrees with the manifest's is refused (exit 2),
+    as verify.select refuses it. On a simulation manifest every line of logs.jsonl and ground_truth.json carries
+    `"label": SIM_LABEL` and `"simulation": true` (`EpisodeLog.from_dict` and `GroundTruth.load` ignore both keys).
+  - Config versions `synthetic-v7` and `real-v4`.
 - `--synthetic` is the main mode. Real data (v0): `--manifest MANIFEST.json --evidence
   <evidence.jsonl from perception/evidence.py>` runs the same run / score / diagnostics stages with
-  placeholder thresholds (truth re-read from the manifest only after the run; no table.md).
+  placeholder thresholds (truth re-read from the manifest only after the run). It writes table.md too,
+  scored on dev when the manifest has no test arrangement.
   MANIFEST.json is a placeholder: build the manifest with `verify.manifest` (`save_manifest`); there
   is no `configs/arrangements.json` yet. Until the far-spot stops are taped, `configs/positions.json`
   is the old close-spot arc, so travel/cap numbers from a real run are not meaningful (pilot 1 is a
@@ -724,8 +839,9 @@ uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 
 - Stages are kept separate, and the order matters:
   1. **Generate** (`generate_stage`): `synthetic.generate` produces specs, store and truth;
      `generate_stage` **drops the truth**, returns only specs and store, and writes nothing.
-     Stale `ground_truth.json`, `evidence.jsonl` and `episodes.json` in the output dir are
-     deleted first, so no truth-bearing or unvisited-evidence file exists while policies run.
+     Every output file in the output dir (`RUN_OUTPUTS`, including `ground_truth.json`,
+     `evidence.jsonl` and `episodes.json`) is deleted first, so no truth-bearing or
+     unvisited-evidence file exists while policies run and no stale result survives a failure.
   2. **Run** (`run_stage`, no truth parameter): mint every `ReplayKey` (`store.replay_keys()`),
      then for each episode run S once (`Budget(0)`, the k=1 rule object) and FULL once
      (`Budget(4)`). For each cap setting and each budget b, run `MULTI_VIEW` = F, R, G (primary,
@@ -778,41 +894,51 @@ uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 
   `{"label": SYNTHETIC_LABEL, "synthetic": true, "config": {...}, "config_sha256": ...,
   "positions": ..., "thresholds": ..., "generator": {...}, "files": {name: sha256},
   "n_logs", "metrics": [{"scope", "lighting", "policy", "budget", "travel_cap_cm", "role",
-  ...compute_all...}], "bootstrap": [{"scope", "lighting", "travel_cap_cm", "budget",
-  "identical_runs", ...BootstrapResult...}], "diagnostics": {"reachable_view_sets",
+  ...compute_all..., "rate_ci95" (test L1 / L2 rows only)}], "bootstrap": [{"scope", "lighting",
+  "travel_cap_cm", "budget", "identical_runs", ...BootstrapResult...}], "bootstrap_stratification":
+  {"ran", "stratified", "strata", "singleton_strata", "note"}, "diagnostics": {"reachable_view_sets",
   "used_view_sets", "disagreement"}}`; metrics rows have `lighting` "L1", "L2" or "pooled",
   bootstrap rows "L1" or "L2", and `used_view_sets` / `disagreement` rows "L1", "L2" or
   "pooled". The `config` dict (thresholds, positions,
   budgets, `cap_steps`, `travel_caps_cm`, `nominal_step_cm`, `travel_tol_cm`, `g_lookahead`
   {"G": false, "G-lookahead": true}, `g_myopic` {lam_deg, travel_norm_cm}, r_seeds, generator
-  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v5`; `real-v2`
-  for real data), model_id, positions file path and sha256) is hashed with `config_sha256`, and
+  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v7`; `real-v4`
+  for real data), `simulation`, `bootstrap_stratified`, model_id, positions file path and sha256) is hashed with `config_sha256`, and
   the same hash is in every log line. `cap_steps` is hashed as floats (`[null, 1.0, 2.0, ...]`),
   so the default caps and an explicit `--cap-steps 1,2,3,4,6` give the same hash. v4 (real-v1)
   hashed the default caps as ints, so the same caps could hash two ways; v5 (real-v2) changed
-  that and split the diagnostics by lighting.
-- `table.md` begins with `# SYNTHETIC - generated evidence, not study results`. The header
+  that and split the diagnostics by lighting; v6 (real-v3) added the simulation flag, the bootstrap strata flag and
+  (real) the view labels file hash; v7 (real-v4) added the single-rate intervals and the singleton-strata fallback,
+  made `bootstrap_stratified` the stratification the test bootstrap uses, and labels a simulation run's logs and truth.
+- `table.md` begins with its run label (`# SYNTHETIC - generated evidence, not study results`, or the SIMULATION /
+  REAL PILOT label on the manifest path). The header
   carries the per-lighting note, the generator-regime caveat (section 5), the D-cap note (caps in
   steps, 1e-6 cm tolerance; a warning if measured stops deviate from the nominal step), the
   G / G-lookahead / G-myopic note (always, also with `--cap-steps none`, where one more line
   says that uncapped G-lookahead takes G's path, so every G - G-lookahead row is identical), and
-  the maximum achievable coverage on test for each lighting
-  with the predeclared indistinguishable count. Then, **once for L1 queries and once for L2
+  the bootstrap stratification line (or "No bootstrap ran"), the single-rate interval note (test runs), and the
+  no-diagnostic-view share for each lighting with its counts and source, worded by that source (context for
+  coverage, not a ceiling). Then, **once for L1 queries and once for L2
   queries** (every heading starts with `L1 queries -` or `L2 queries -`): the primary table (one
-  row per policy at the primary budget, per cap setting: FRR, recall, coverage, resolved
-  accuracy, mean views, mean travel, and n_arr/n_ep; S and FULL are marked "actual effort" and
+  row per policy at the primary budget, per cap setting: FRR, FRR per arrangement (x/n), recall, coverage, resolved
+  accuracy, mean views, mean travel, and n_arr/n_ep, with `[lo, hi]` 95% intervals after FRR, recall and coverage on
+  test; S and FULL are marked "actual effort" and
   "higher-effort reference"; under a capped heading FULL is printed as `FULL (uncapped)` with the
   note "uncapped reference (exceeds cap)"), the budget curves, the per-condition table (with a
-  max achievable coverage column), the **cap curve at the primary budget** (each policy across the
+  no-diagnostic-view share column, labelled context and named by its source), the **cap curve at the primary
+  budget** (each policy across the
   cap grid), the bootstrap lines with their n and an `identical` note on degenerate pairs, and
   the two diagnostic tables for that lighting (distinct view sets; path / decision disagreement).
   Undefined values print as `undef`. Last comes the only section with numbers pooled over
   lighting, headed `Secondary, not a headline: pooled over L1 and L2 queries (test split)`: the
   policy x cap table at the primary budget (no bootstrap) and the two diagnostic tables over both
   lightings (the "pooled" rows). The default run (30 arrangements, 6 cap settings, 20
-  R seeds, B = 10000) writes 259,560 log lines (`logs.jsonl` about 210 MB, `results.json` about
-  12 MB); on the Jetson it took about 105 s (2026-11-02; before G-lookahead and the per-lighting
-  split it was 248,760 lines, 4 MB of results and about 90 s there).
+  R seeds, B = 10000) writes 259,560 log lines (`logs.jsonl` 219.5 MB, `results.json` 16.6 MB, table.md
+  274 KB); on the Jetson it took 134 s under a load average near 6 (2026-11-03, after the single-rate intervals,
+  measured twice, byte-identical; the f5593b7 code took 114 s at the same load, and the intervals themselves cost
+  about 5 s; earlier: 106 s unloaded, 16.2 MB of results; 2026-11-02: about 12 MB and 105 s; before G-lookahead and
+  the per-lighting split it was 248,760 lines, 4 MB of results and about 90 s there). The default `verify.select
+  --synthetic` took about 9 s.
 - `main(argv: list[str] | None = None) -> int`, for testing. `tests/test_end_to_end.py` runs
   `--n-arr 6 --r-seeds 3 --bootstrap-B 200` into a temp dir, checks the files, the label and
   the required log fields, checks that `logs.jsonl` lines contain no `truth` key, spies on
@@ -860,15 +986,22 @@ def clopper_pearson_upper_bisect(x, n, conf=0.95) -> float: ...  # CP upper by b
 
 ---
 
-## 10. `verify/select.py` (D-select, procedure `select-v4`; dev only)
+## 10. `verify/select.py` (D-select, procedure `select-v4`, revision 2; dev only)
 
 ```
 uv run --no-sync python -m verify.select --synthetic [--n-arr 30] [--seed 0] [--block-anywhere] \
     [--budget 3] [--cap-steps 1,2,3,4,6 | none] [--r-seeds 20] [--tau-match-grid ...] [--tau-q-grid ...] \
     [--tau-occ-grid ...] [--alpha-clear 0.10] [--frr-limit 0.10] [--k-sensitivity 3 | none] \
     [--lam-sensitivity 0.7,0.9,1.2 | none] [--bootstrap-B 2000] [--tag TAG] [--out runs/select-v4-<tag>/]
+uv run --no-sync python -m verify.select --manifest SET/manifest.json --evidence SET/evidence_refL1.jsonl \
+    --view-labels SET/view_labels.json --positions configs/sim/positions_shelf_A.json [same options] \
+    [--model-id perception.evidence-v0]
 uv run --no-sync python -m verify.select --lam-breakpoints [--lam-sensitivity ...] [--positions ...]
 ```
+
+Exit status: **0** candidate written and eligible for freeze; **2** usage or input error (including a non-dev
+arrangement); **3** calibration infeasible on all dev data (no candidate, `calibration_infeasible.json`); **4**
+candidate written but **not** eligible for freeze.
 
 **No compared policy's results set any shared setting.** DECISIONS 2026-10-12: "Shared thresholds are
 selected by a documented procedure that does not optimise them on G's results"; the student approved
@@ -877,166 +1010,210 @@ lam are fixed in advance, and every policy (S, F, R, G, G-lookahead, G-myopic; A
 same frozen settings. Every setting below is a *proposed default - confirm*, to be predeclared before any
 dev data are looked at.
 
-- **Data interfaces** (unchanged from select-v3). `StoreFactory` is a Protocol (`n_stops`, `__call__() ->
-  EvidenceStore`) that returns a **fresh, unsealed** store holding exactly the dev episodes, identical on
-  every call; `RecordStoreFactory(records, n_stops, synthetic=..., source=...)` implements it from an
-  immutable snapshot (`RecordStoreFactory.from_store(unsealed_store, episode_ids)`), with
-  `evidence_sha256()` for provenance. `ViewLabel(episode_id, stop, diagnostic)` is the per-view dev
-  annotation (ambiguous views are non-diagnostic); files use schema `cmpe249.view_labels.v1` via
-  `save_view_labels` / `load_view_labels`. `DevData(specs, store_factory, truth, view_labels, positions,
-  synthetic, label_source, evidence_sha256)` requires a label for every (dev episode, stop). Real data go
-  through the library (build a `DevData`, call `run_selection`); the CLI is `--synthetic` only, where
-  `synthetic_dev_data` uses stand-in labels from the generator's hidden layout (blocked or edge stop ->
-  non-diagnostic), clearly marked as such.
-- **Provenance.** `DevData` refuses a `synthetic` flag that disagrees with the evidence store's or the
-  truth's, in either direction, so synthetic evidence can never produce an unlabelled candidate (`verify.run`
-  has the same guard on its real-data path). Non-synthetic dev data need a non-empty `evidence_sha256`. The
-  labels set the thresholds as much as the evidence, so `view_labels_sha256` (the sha256 of the canonical
-  JSON of the label rows in (episode_id, stop) order, which is the `labels` list `save_view_labels` writes)
-  is recorded next to the evidence sha256 in `frozen_candidate.json`, `calibration_infeasible.json` and
-  both reports.
-- **Split refusal.** `DevData.__post_init__` and `run_selection` raise `SplitRefused` (a `ManifestError`)
-  for any non-DEV spec (test and pilot), and if the store or the labels hold any episode outside the dev
-  specs. `synthetic_dev_data` snapshots only DEV episodes.
-- **Step 1: per-view calibration; no policy runs.** It uses the dev views of **both lightings together**:
-  one frozen threshold set serves L1 and L2 queries, and the per-view rates are reported separately for L1
-  views, L2 views and both. `view_rows(dev)` turns every dev view into a `ViewRow(arrangement_id,
-  episode_id, condition, lighting, diagnostic, obs)`, where `obs` is the `Observation` the rule would see.
-  Every per-view criterion is the shared rule's own predicate, `StoppingRule.passes_gate`, `is_clear_miss`
-  or `is_strong_match` (section 1), never a copy.
-  - **1a. Gate (tau_q, tau_occ)**, select-v3's Step 2 rule. Grids: tau_q 0.30..0.80 and tau_occ 0.10..0.50,
-    step 0.05. Null set: non-diagnostic views of occluded-present episodes (a gate pass there is a false
-    clear). Power set: diagnostic views of removed episodes. Keep the gates whose false-clear rate is <=
-    `alpha_clear` (0.10), then maximise the clear rate. Ties: lower false-clear rate, higher tau_q, lower
-    tau_occ.
-  - **1b. tau_match, with the 1a gate.** Grid 0.40..0.70, step 0.05. A strong match (match >= tau_match)
-    and a clear miss (gate passed and match < tau_match) both read tau_match; on a gate-passing view they
-    are complements (section 1). Null set: diagnostic views of present episodes, where the target is there
-    and visible; a rule clear miss there is a false clear miss. Power set: diagnostic views of removed
-    episodes. Keep the values whose false clear-miss rate is <= `alpha_clear`, then maximise the clear-miss
-    rate. Ties: lower false clear-miss rate, then the lower, more conservative tau_match. The report also
-    gives the false strong-match rate on removed views (each such view decides PRESENT).
-  - **`alpha_clear`** is one predeclared value for 1a and 1b: an **empirical per-view calibration
-    constraint on the dev views**. It is not a bound on any policy's false removal rate (FRR is only
-    checked, in Step 4), and requiring k = 2 clear-miss stops does not turn it into alpha squared.
-  - **Fail loudly.** If no gate on the grid meets `alpha_clear` in 1a, or no tau_match on the grid meets it
-    in 1b under the gate 1a chose, or there is no view to measure the false rate on, `calibrate` raises
-    `CalibrationInfeasible`. Its `failure` gives the step and the constraint, the best achievable rate with
-    the settings that reach it, every searched setting's rate and the grid searched (for 1b, with the gate
-    it used). A 1b failure says that it searched one gate only (see Known gaps), never that no setting on
-    the predeclared grid meets `alpha_clear`. There is then no candidate. The CLI removes any earlier
-    `frozen_candidate.json` (with its `.sha256` and `selection_details.json`) and report from the output
-    directory, writes a new report and `calibration_infeasible.json` (schema
-    `cmpe249.calibration_infeasible.v1`, status `"infeasible"`, no thresholds), and exits with status 3.
-    `alpha_clear` is never relaxed, the grid is never widened, and no "least bad" setting is used (select-v3
-    fell back to the lowest false rate). An empty power set only warns; the tie-breaks then pick the most
-    conservative feasible setting.
-- **Step 2: fixed a priori.** `K_FIXED = 2` (the plan's "at least two distinct positions") and
-  `LAM_FIXED = 0` (G and A choose by spread or informativeness alone; travel is limited by the caps, which
-  are reported as curves). They are module constants, not settings: every `Thresholds` the calibration
-  produces comes from `frozen_thresholds` (k = 2, lam = 0), and the Step 5 runs only replace k or lam in a
-  copy of the frozen one.
-- **Step 3: honest per-view estimate.** Grouped cross-validation, leaving one arrangement out: each fold runs
-  Step 1 on the other arrangements' views and scores the held-out arrangement's views with the fold's
-  thresholds. The pooled held-out per-view rates, per lighting, are the estimate to quote. A fold whose
-  calibration is infeasible gets no thresholds and no held-out rates (no fallback). It is warned about and
-  listed in `grouped_cv.infeasible_folds`, and `grouped_cv.complete` is false. A candidate is still written
-  whenever Step 1 is feasible on all dev arrangements, but one with `grouped_cv.complete` false must not be
-  frozen; the report says so, and the candidate does not yet carry the mark (see Known gaps).
-- **Step 4: FRR <= `frr_limit` (0.10) is a check, not an objective.** With the frozen thresholds (k = 2,
-  lam = 0), `PolicyRunner` runs S, F, R, G, G-lookahead and G-myopic on dev at the primary budget (`budget`,
-  default 3), uncapped and under every cap of `cap_steps` (default 1, 2, 3, 4 and 6 arc steps; D-cap).
-  - S runs once, with `Budget(0)` and its k = 1 rule.
-  - R averages `r_seeds` (20) seeds within each episode (`run_r_seeds`).
-  - G is primary G, and G-lookahead the same scorer with the lookahead. G-myopic keeps its legacy weight.
-  - Every run uses a fresh store and env through `ReplayEnv` / `run_episode`.
+- **Procedure revision 2 (2026-11-03), found in review, before any test data and before the freeze.** The
+  intent of select-v4 is unchanged (per-view Neyman-Pearson calibration, the same grid, alpha_clear, label
+  populations and objective, no policy run, fail loudly); the implemented method changed. Revision 1 chose the
+  gate first (1a: max clear rate under the false-clear constraint) and then tau_match only under that one gate
+  (1b). With L2 queries against the L1 reference (the sim study's primary setting) the liberal 1a gate admitted
+  dim, poorly matched L2 present views, so 1b failed "infeasible" while 315 of 693 grid settings met both
+  constraints (`runs/2026-11-03-pr4-review/select1/probe_sequential_infeasible.py`; Codex's reproduction in
+  `runs/2026-11-02-joint-calibration-review/`). Revision 2 searches the grid jointly, repeats the whole joint
+  search in every CV training fold, adds the held-out policy check, freeze eligibility and the gate pass-rate
+  diagnostic. `PROCEDURE_REVISION` is recorded in the candidate, the infeasible record and the settings sha256, and
+  `require_freeze_eligible` refuses any other revision. The matching dated note in
+  `docs/SIM_PREREGISTRATION.md` section 7 belongs to the coordinator.
+- **Data interfaces.** `StoreFactory` is a Protocol (`n_stops`, `__call__() -> EvidenceStore`) that returns a
+  **fresh, unsealed** store holding exactly the dev episodes, identical on every call;
+  `RecordStoreFactory(records, n_stops, synthetic=..., source=...)` implements it from an immutable snapshot, with
+  `evidence_sha256()`; `SubsetStoreFactory(base, episode_ids)` is a `RecordStoreFactory` holding a snapshot of some
+  episodes of another factory, taken once from one fresh store of the base, which it then drops: it keeps **no
+  reference to the base**, and its `source` names no file. `ViewLabel(episode_id, stop, diagnostic)` is the per-view
+  label (ambiguous views are non-diagnostic). `DevData(specs, store_factory, truth, view_labels, positions,
+  synthetic, label_source, evidence_sha256, simulation=False, strata=None, inputs=None)` requires a label for every
+  (dev episode, stop); `DevData.subset(arrangements)` restricts specs, evidence, truth, labels and strata to those
+  arrangements, records the subset's own `evidence_sha256`, and keeps only the input files' sha256 in `inputs`
+  (`subset_inputs`: the paths are dropped, because the evidence and labels files hold every dev arrangement).
+  Review, checkpoint 2 (`leak2.py`): the old subset kept the full factory in `_base` and the full file paths in
+  `inputs`, so a fold-trained policy could reach the held-out arrangement's evidence and geometric labels. A test
+  walks everything reachable from each training subset (attributes, slots, containers, closures) and finds neither
+  a held-out episode nor an input file path (`test_training_subset_reaches_no_held_out_data`).
+- **Sim dev input** (`sim_dev_data`, the `--manifest` path). It reads the set files sim/episodes.py writes: the
+  manifest (every arrangement must be split dev: `SplitRefused` before any other file is read, CLI exit 2), the
+  evidence from `perception/evidence.py` on `jobs_refL1.json` (synthetic evidence refused), `view_labels.json`
+  (`cmpe249.sim-view-labels-set.v1`, episodes -> stops, via `verify.manifest.load_geometric_labels`) and the
+  positions file. It builds the same `DevData` the synthetic path builds. **Labels come only from
+  view_labels.json** (the manifest's indistinguishable flag is not a label), and they are never a policy input. The
+  evidence and labels files may hold other arrangements of the same rendered set (one jobs file covers the random
+  and the design manifests): only the manifest's episodes are read; the others are counted per file in
+  `inputs.ignored_episodes` and warned about. Every manifest episode needs evidence and a label at every stop, and
+  the manifest's and the labels file's `simulation` flags must agree. The sha256 of all four files is in
+  `inputs` (candidate, infeasible record, report) and in the settings sha256 (`data_provenance`, with the
+  simulation flag). The quota slot classes (`occluder_family`, `m16_side`, `design_case`) give `strata`.
+- **Provenance and labels.** `DevData` refuses a `synthetic` flag that disagrees with the evidence store's or the
+  truth's, synthetic together with simulation, and non-synthetic data without `evidence_sha256`.
+  `view_labels_sha256` is recorded next to the evidence sha256. The run label (`DevData.label`) is SYNTHETIC,
+  `SIMULATION - Isaac Sim renders; every result is a simulation result` (manifest `"simulation": true`), or empty
+  for real photo data; it heads the candidate, the infeasible record and both reports.
+- **Split refusal.** `DevData.__post_init__` and `run_selection` raise `SplitRefused` (a `ManifestError`) for any
+  non-DEV spec, and if the store or the labels hold any episode outside the dev specs.
+- **Step 1: one joint search; no policy runs.** On the dev views of **both lightings together** (one threshold set
+  serves L1 and L2 queries), `ViewTable` counts, per arrangement and once, every per-view predicate at every grid
+  setting with the rule's own `StoppingRule.passes_gate` / `is_clear_miss` / `is_strong_match`; a calibration on any
+  set of arrangements (all dev, or a CV training fold) sums those counts. `choose_joint` then takes, among the
+  settings of the full predeclared grid tau_q (0.30..0.80) x tau_occ (0.10..0.50) x tau_match (0.40..0.70) that meet
+  **both**
+  - the false-clear rate (`passes_gate` on non-diagnostic views of occluded-present episodes) <= `alpha_clear`, and
+  - the false clear-miss rate (`is_clear_miss` on diagnostic views of present episodes) <= `alpha_clear`,
 
-  FRR, recall, coverage, mean views and mean travel are reported **separately for L1 and L2 queries**; a
-  pooled row is a labelled secondary line. Each comes with one-sided Clopper-Pearson and Jeffreys bounds
-  (upper bounds on episode-level FRR and on arrangement-level FRR, "any false removal in the arrangement";
-  lower bounds on recall and coverage) and a percentile cluster bootstrap over arrangements. R's
-  seed-averaged decisions are not binomial counts, so R gets the bootstrap only. Every L1 or L2 row above
-  the limit is flagged (`dev_check.flags`), and nothing is changed to fix a flag.
+  the first in the **complete declared total order**: **maximise correct clear misses** (`is_clear_miss` on
+  diagnostic views of removed episodes), **then lower false clear-miss rate, then lower false-clear rate, then lower
+  tau_match, then higher tau_q, then lower tau_occ** (`GridPoint.order_key`; `FULL_ORDER`). Every point of one
+  calibration shares the denominators, so counts compare exactly like rates, and ties can never fall to iteration
+  order (a test permutes the grid points and the rows). The candidate records `n_feasible`, how many settings meet
+  each constraint, `n_tied_at_max`, `tie_break_decided` and `decided_by` (the first tie-break level that made the
+  choice unique). The false strong-match rate on removed views is reported too.
+  - **`alpha_clear`** (0.10) is one predeclared value for both constraints: an **empirical per-view calibration
+    constraint on the dev views**, not a bound on any policy's FRR, and k = 2 does not turn it into alpha squared.
+  - **Curves.** For each calibrated threshold, `threshold_curves` gives its grid with the other two held at the
+    chosen values: the correct clear-miss curve and the false clear-miss curve (and the false-clear rate), with
+    counts, the chosen point marked, `*_flat` when a curve does not move, and whether the tie-break decided along
+    that curve. A flat curve is reported as flat; no variation is forced.
+  - **Gate pass rates per lighting** (Codex review, 2026-11-03). Thresholds can meet both constraints by rejecting a
+    whole lighting at the quality gate (in the counterexample every feasible setting rejects every L2 view). So the
+    share of views passing the tau_q / tau_occ gate is reported per lighting (L1, L2, pooled), with counts, for
+    diagnostic removed views, diagnostic present views and all views: at the chosen setting
+    (`calibration.gate_pass_by_lighting`) and in every fold, on its training and its held-out views
+    (`grouped_cv.folds[].gate_pass_train / gate_pass_held`). A lighting where at most `GATE_PASS_LOW` (0.05) of any of
+    the three populations passes is flagged (`gate_pass_flags`, "the gate rejects ALL L2 removed diagnostic views
+    (0/30 ...)", "the gate passes nearly no L2 views (all) (3/120 = 0.025 <= 0.05)"), as section 7 of the prereg
+    says, and a population with no view in a lighting is reported as "no views: there are no L1 removed diagnostic
+    views (n = 0)", never skipped (review, checkpoint 2: only the two diagnostic populations were flagged, and an
+    empty one was skipped silently; on held-out folds of an arrangement whose stops are all blocked the removed
+    diagnostic population is empty). Feasibility is not evidence of lighting robustness; the held-out recall and
+    coverage per lighting are.
+  - **Fail loudly.** If no setting meets both constraints (or a false rate has no view to be measured on),
+    `CalibrationInfeasible` carries an `Infeasibility`: the `binding` constraint ("false-clear", "false clear-miss",
+    "both"; "jointly" is a defensive label that cannot occur, because the most conservative corner, max tau_q, min
+    tau_occ, min tau_match, has the lowest value of both false rates: a test checks this on random grids), the best
+    achievable false-clear and false clear-miss rates over the grid and within each constraint's feasible set (with
+    the settings that reach them), every setting's two rates and the grid. The CLI then removes any earlier
+    candidate files and report, writes a new report and `calibration_infeasible.json` (schema
+    `cmpe249.calibration_infeasible.v2`, status `"infeasible"`, no thresholds) and exits with status 3, on the
+    `--synthetic` and the `--manifest` path alike. alpha_clear is never relaxed, the grid never widened, and no
+    "least bad" setting is used.
+  - **Proof on small cases** (`tests/test_select.py`): an independent brute-force enumeration (fresh rule
+    predicates, exact fractions, the order written out again) agrees with the joint search on 150 random small
+    grids (feasible and infeasible, scores on the grid boundaries); each tie-break level decides a hand-built case;
+    the revision-1 counterexample is feasible, returns the brute-force optimum (tau_q 0.8, tau_occ 0.1, tau_match
+    0.4; 315 of 693 settings feasible) and flags that the gate rejects all L2 views.
+- **Step 2: fixed a priori.** `K_FIXED = 2` and `LAM_FIXED = 0`; module constants, not settings.
+- **Step 3: grouped cross-validation, leaving one arrangement out** (all its views, conditions and lightings
+  together). Every fold repeats the **whole joint search** on its training arrangements (the same `ViewTable`
+  counts, summed without the held-out arrangement).
+  - **(a) Per view:** the held-out arrangement's per-view rates at the fold's thresholds; pooled per lighting, the
+    honest per-view estimate.
+  - **(b) Held-out policy check** (`held_out_check`): in every feasible fold, every policy (`HELDOUT_POLICIES`: S,
+    F, R, G, G-lookahead, G-myopic, F-fcm, R-fcm, G-fcm, G-lookahead-fcm, G-myopic-fcm, FULL, as verify.run
+    reports) runs on the held-out arrangement's episodes with **that fold's thresholds**, at the primary budget,
+    uncapped and under every cap (S one view, FULL all five uncapped), on a fresh store per setting through the
+    public replay API. Outcomes are pooled over the folds into rows per policy, cap and lighting (L1, L2; pooled a
+    secondary line): FRR per episode and per arrangement, recall, coverage, mean views, mean travel, all with
+    counts, CP / Jeffreys bounds and the cluster bootstrap. Rates above the FRR limit are flagged as **reported
+    checks**; they never touch eligibility or a threshold.
+  - **Hook for A** (`FoldTrainable`: `name`, `train(train: DevData, thresholds) -> policy factory`). `run_selection`
+    and `held_out_check` take **factories** (`FoldTrainableFactory`: a callable with a `name` that builds a fresh
+    `FoldTrainable`; a `FoldTrainable` class is one), never trainable instances (`TypeError`). Per fold, in a
+    forked process of its own (`fold_isolated`), the factory builds a fresh trainable, `train` receives
+    `dev.subset(training arrangements)` (its store, truth, labels, strata and inputs hold nothing of the held-out
+    arrangement and lead nowhere else), and the returned policies run on the held-out episodes as `<name>` (k rule)
+    and `<name>-fcm`, logged under that name; only the results come back. The parent process never calls a
+    factory, so whatever a trainable keeps on itself, on its class or in its module ends with its fold: fold j cannot
+    inherit what fold i (whose training set holds j) learned. Review, checkpoint 2 (`leak.py`): one object was trained
+    in every fold, and in 2 of 3 folds it already held the held-out arrangement. A child's error comes back as a
+    `RuntimeError` with its traceback. Boundary: the guarantee covers in-memory state; a trainable that writes its
+    own files and reads them in a later fold, or that introspects the parent memory its process inherited (`gc`,
+    frames), is outside it, as for policies (section 2), and is excluded by review. Tests: a dummy trainable logs what
+    it saw from inside its process; a trainable that remembers every arrangement on itself, its class and its module
+    (also through a factory that hands out one shared instance) has an empty memory in every fold
+    (`test_fold_state_never_carries_over`).
+  - A fold whose calibration is infeasible gets no thresholds, no held-out rates and no held-out runs (no
+    fallback); it is listed with its binding constraint.
+- **Freeze eligibility.** A candidate is `eligible_for_freeze: true` only if calibration succeeds on all dev data
+  **and in every planned CV fold**; fewer than two dev arrangements plan no fold and are not eligible either.
+  Otherwise the candidate is still written, for investigation, with `eligible_for_freeze: false` and
+  `ineligible_reasons` (each fold and its binding constraint, with the best achievable rates), and the CLI exits
+  with status **4**. Held-out arrangements or policies that miss alpha_clear or the FRR limit do not make a
+  candidate ineligible. `require_freeze_eligible(path)` is what the freeze step calls. It takes the candidate
+  **file** only and checks it against its `.sha256` sidecar; a parsed document is refused, because it cannot be
+  checked (review, checkpoint 2, `rfe.py`: a dict skipped the tamper check, so an edited tau_q was accepted). It
+  refuses (`NotEligibleForFreeze`) another schema, procedure or revision, an unmarked candidate, any value but exactly
+  `true`, and a synthetic candidate by **any** of its marks: `synthetic` not exactly false, a label containing
+  SYNTHETIC, or a `synthetic_provenance` record (a synthetic candidate with its flag flipped to false and re-signed
+  used to pass while its label still read SYNTHETIC). The sidecar guards against accidental edits, not against
+  someone who rewrites both files.
+- **Step 4: FRR <= `frr_limit` (0.10) is a check, not an objective.** With the frozen thresholds (k = 2, lam = 0),
+  `PolicyRunner` runs S, F, R, G, G-lookahead and G-myopic on all dev episodes at the primary budget (3), uncapped
+  and under every cap (1, 2, 3, 4, 6 arc steps; D-cap). FRR (per episode and per arrangement), recall, coverage,
+  mean views and mean travel are reported **separately for L1 and L2 queries** (pooled: a labelled secondary line),
+  with one-sided Clopper-Pearson and Jeffreys bounds and the cluster bootstrap over arrangements. R's
+  seed-averaged decisions are not binomial counts: bootstrap only. Every L1 / L2 row above the limit is flagged and
+  nothing is changed; a row with FRR undefined is listed in `dev_check.unchecked`, and `all_within_limit` is true
+  only if every L1 and L2 row was checked and none is flagged (false if one is flagged, null otherwise). These rows
+  are resubstitution; Step 3b is the held-out estimate.
+- **Cluster bootstrap: family-stratified** (docs/SIM_PREREGISTRATION.md section 8). With `DevData.strata` (every
+  arrangement's quota slot class), `cluster_bootstrap` resamples arrangements within each stratum and keeps every
+  stratum's count (`analysis.bootstrap.stratified_arrangement_draws`), in the dev check and the held-out check.
+  Without family information (synthetic data, legacy manifests), or when any stratum holds fewer than two of the
+  arrangements resampled (`analysis.bootstrap.resolve_strata`, section 7), it is unstratified, and every bootstrap
+  record (`stratified`, `singleton_strata`, `note`), `bootstrap_stratification`, the warnings and the report say so
+  ("unstratified: singleton strata ..." next to each interval). The sim tests' 7-arrangement set has five singleton
+  classes and runs unstratified.
+- **Context, not a ceiling.** The candidate and the report give the geometric no-diagnostic-view share of the dev
+  episodes per lighting (episodes with no diagnostic stop, from the labels).
+- **Step 5: sensitivity, reported only and never selected.** k = 3 (F, R, G, G-lookahead, G-myopic) and lam in
+  {0.7, 0.9, 1.2} (G and G-lookahead), with the frozen taus, the primary budget and every cap; point estimates per
+  lighting. `verify.lamgrid.check_lam_grid` checks lam = 0 and the sensitivity values against primary G's
+  breakpoints.
+- **The order is the guarantee.** Steps 1-3a read views and labels only, and every threshold set (the candidate's
+  and every fold's) is fixed before the first policy runs. The Step 4 / 5 `PolicyRunner` only ever receives the
+  frozen thresholds (or a copy with k or lam replaced); each fold's held-out runner receives that fold's. The tests
+  spy on `run_episode` (where select calls it and where `run_r_seeds` does) and check that no calibration happens
+  after the first run, that the check sees only the frozen taus and the held-out runs only fold taus, that the
+  thresholds are unchanged when every policy decision is replaced, and that neither `frr_limit` nor the
+  sensitivity runs change the candidate.
+- **Settings.** `SelectionSettings` stores the grids, caps, lam values and rates as floats and the k values as
+  ints, so the settings sha256 does not depend on spelling. The three tau grids must be strictly ascending. An
+  invalid setting is a usage error (exit 2).
+- **Outputs** (deterministic, no timestamps; default directory `runs/select-v4-<tag>/`; default tag
+  `synthetic-n<N>-s<seed>`, or `sim-<set folder>` / `real-<set folder>` on the manifest path).
+  - `frozen_candidate.json`: schema `cmpe249.frozen_candidate.v3`, procedure `select-v4`, `procedure_revision`,
+    status "CANDIDATE - not frozen until the student signs FREEZE.md", `synthetic`, `simulation`, `label`,
+    `eligible_for_freeze`, `ineligible_reasons`, the thresholds, `fixed_a_priori`, `selected_on_policy_results:
+    false`, `alpha_clear`, the `calibration` (search, objective, constraints, `order`, the chosen point, the
+    counts and tie-break record, the curves, per-view rates, gate pass rates and flags, grouped CV with per-fold
+    gate pass rates), the `held_out_check`, `no_diagnostic_view_share`, `bootstrap_stratification`, the
+    `dev_check`, `sensitivity`, `lam_grid_check`, settings, the evidence and labels sha256, `inputs` and the dev
+    arrangements. On `--synthetic`: `synthetic_provenance`, which also enters the settings sha256.
+  - `frozen_candidate.json.sha256`, `selection_report.md`, and `selection_details.json` (the full joint grid with
+    every count, the curves, the folds, the per-episode check decisions and the held-out episode decisions).
+  - On an infeasible calibration: `calibration_infeasible.json` and the report only.
 
-  A row whose lighting has no present-target dev episode has FRR undefined and is listed in
-  `dev_check.unchecked`: the limit was not checked there. `dev_check.all_within_limit` is true only if
-  every L1 and L2 row was checked and none is flagged. It is false when a row is flagged, and null when no
-  row is flagged but some row was not checked, so an L1-only dev set cannot pass the L2 check vacuously.
-  The report then calls the check incomplete rather than saying no policy is above the limit. Its "Reading
-  these numbers" section states the best arrangement-level bound that the run's own number of dev
-  arrangements allows (the one-sided CP upper bound with no arrangement showing a false removal: 0.259 for
-  10 arrangements, above the 0.10 limit; 0.049 for 60).
-- **Step 5: sensitivity, reported only and never selected.**
-  - k = 3 (`k_sensitivity`) runs F, R, G, G-lookahead and G-myopic; S is k = 1 by construction.
-  - lam in {0.7, 0.9, 1.2} (`lam_sensitivity`) runs G and G-lookahead, the only policies that read
-    `Thresholds.lam`.
-
-  Both use the frozen taus, the primary budget and every cap, and give point estimates per lighting.
-  `verify.lamgrid.check_lam_grid` checks lam = 0 and the sensitivity values against primary G's breakpoints
-  (`lookahead=False`). At the design geometry and on `configs/positions.json`, lam = 0 stands for
-  [0, 2/3) and 0.7, 0.9 and 1.2 are one value per further behaviour class. The check warns when two values
-  collapse or one sits on a breakpoint.
-- **The order is the guarantee.** Steps 1-3 read views and labels only. The `PolicyRunner` is created after
-  the thresholds are frozen and only ever receives them (or a copy with k or lam replaced). The tests spy on
-  `run_episode`, both where select calls it and where `run_r_seeds` does. They check that:
-  - no policy runs before the thresholds are fixed, and an infeasible calibration runs nothing;
-  - the thresholds are unchanged when every policy decision is replaced;
-  - neither `frr_limit` nor the sensitivity runs change the candidate.
-- **Settings.** `SelectionSettings` stores the grids, caps, lam values and rates as floats and the k values
-  as ints, so the settings sha256 does not depend on how a number was written: the default caps and
-  `--cap-steps 1,2,3,4,6` hash alike. All three tau grids must be strictly ascending, without duplicates. The
-  CLI turns an invalid setting (for example `--lam-sensitivity 0`, `--k-sensitivity 2`, `--budget 0` or a
-  grid out of order) into a usage error: argparse prints it and the exit status is 2, before anything runs.
-- **Outputs** (deterministic, no timestamps). The default directory is `runs/select-v4-<tag>/`, so runs of
-  earlier procedures are not overwritten.
-  - `frozen_candidate.json`: schema `cmpe249.frozen_candidate.v2`, procedure `select-v4`, status
-    "CANDIDATE - not frozen until the student signs FREEZE.md". It holds the thresholds, `fixed_a_priori`
-    {k: 2, lam: 0}, `selected_on_policy_results: false`, `alpha_clear` with its note, and the `calibration`
-    (gate, tau_match curve, per-view rates for L1, L2 and both, grouped CV). It also holds the `dev_check`
-    (rows, flags, unchecked rows and `all_within_limit`), the `sensitivity` rows, `lam_grid_check`, the
-    settings, evidence and labels sha256, the dev arrangements and the label source. On `--synthetic` it
-    adds `synthetic_provenance`, which also enters the settings sha256.
-  - `frozen_candidate.json.sha256`, `selection_report.md`, and `selection_details.json` (the full gate grid,
-    the tau_match curve, the folds and the per-episode check decisions).
-  - On an infeasible calibration: `calibration_infeasible.json` and the report only (see Step 1).
-
-  Write order. `write_outputs` renders every text before it writes anything, so a failure while rendering
-  leaves the directory as it was. It then removes the earlier run's files (candidate, `.sha256`, report,
-  details and any `calibration_infeasible.json`) and writes each file as a temp file moved into place with
-  `os.replace`, `frozen_candidate.json` last. A failure while writing therefore leaves no candidate, never
-  a new candidate next to another run's report or details. On `--synthetic` every file is labelled
-  SYNTHETIC and nothing may be carried into FREEZE.md.
-- **Replaced: select-v3** (until 2026-11-02). Its Step 3 walked (k, tau_match) in a fixed conservative ->
-  liberal sequence, a step passing on its worst FRR over the lam grid. It then chose (k, tau_match, lam) by
-  **running primary G** on dev and maximising its coverage (D10: a recall >= 0.80 filter, then coverage,
-  recall and travel), and its Step 4 re-ran that selection inside nested CV. This optimised shared settings
-  on G's own results, contrary to DECISIONS 2026-10-12, and would have handed G-tuned settings to ranker A,
-  tilting the primary A-vs-G comparison. The study now runs in simulation (`docs/SIMULATION_STUDY.md`),
-  where dev arrangements come with exact per-view labels in any number, so per-view calibration is cheap
-  and reliable. The fixed-sequence walk, the D10 objective, the recall target and the `--policy`,
-  `--k-grid` and `--lam-grid` options are gone.
-- **Protocol documents.** The draft `docs/SIM_PREREGISTRATION.md` (section 7) describes select-v4 and is
-  open for the student's confirmation. **Conflict to resolve in `docs/` (not edited here):**
-  `docs/EXPERIMENT_PLAN.md` ("the required count (at least two) selected on development data") and
-  `docs/SIMULATION_STUDY.md` (k "selected on development data"; "thresholds, the travel penalty and ranker A
-  selected on development arrangements") still describe selecting k and the travel penalty on dev.
-  select-v4 fixes k = 2 and lam = 0 a priori, following the student's 2026-11-02 approval.
-- **Known gaps, next checkpoint.** Not implemented yet; until they are, the outputs above must be read
-  with them in mind.
-  - **Held-out policy check** (`docs/SIM_PREREGISTRATION.md` section 7). Each fold's thresholds are not yet
-    used to run the policies on the held-out arrangement. Today only the per-view CV rates of Step 3 exist,
-    and the Step 4 policy rows are resubstitution.
-  - **Freeze eligibility.** A candidate whose grouped CV is incomplete is not yet marked
-    `eligible_for_freeze: false`. Until it is, a candidate with `grouped_cv.complete` false must not be
-    frozen.
-  - **Sim dev input.** `verify/select.py` cannot read the sim set files yet: their `view_labels.json` is
-    `cmpe249.sim-view-labels-set.v0`, and the CLI is synthetic-only.
-  - **Gate and tau_match are chosen in sequence.** Step 1b searches tau_match only under the gate that
-    Step 1a picked, so it can report "infeasible" while other grid settings meet both alpha constraints.
-    The next checkpoint replaces this with a joint search that maximises correct clear misses subject to
-    both constraints, with a declared conservative tie-break. Until then the infeasible record says that no
-    tau_match met `alpha_clear` under the gate chosen in Step 1a, not that no setting on the predeclared
-    grid did.
+  Write order. `write_outputs` renders every text before it writes anything, then removes the earlier run's files
+  and writes each file as a temp file moved into place with `os.replace`, `frozen_candidate.json` last.
+- **Replaced: select-v3** (until 2026-11-02). It chose (k, tau_match, lam) by **running primary G** on dev and
+  maximising its coverage (D10), contrary to DECISIONS 2026-10-12; it would have handed G-tuned settings to ranker
+  A. The fixed-sequence walk, the D10 objective and the `--policy`, `--k-grid` and `--lam-grid` options are gone.
+- **Protocol documents.** `docs/SIM_PREREGISTRATION.md` section 7 describes select-v4 and is open for the student's
+  confirmation; the revision-2 note there is the coordinator's. **Conflict to resolve in `docs/` (not edited
+  here):** `docs/EXPERIMENT_PLAN.md` and `docs/SIMULATION_STUDY.md` still describe selecting k and the travel
+  penalty on dev; select-v4 fixes k = 2 and lam = 0 a priori.
+- **Known gaps, next checkpoint.**
+  - **Ranker A** is not built; the held-out check's `FoldTrainable` hook is where it plugs in (A is not yet in
+    the Step 4 dev check).
+  - **Per environment.** Nothing is split by environment yet (shelf only); the prereg wants every result per
+    environment.
+  - **verify.run thresholds.** `verify.run` still replays with the placeholder `Thresholds()`; it does not yet
+    read a frozen candidate (through `require_freeze_eligible`).
 
 ---
 
@@ -1052,8 +1229,13 @@ dev data are looked at.
   and the bootstrap within each lighting); a number pooled over lighting is a labelled secondary
   line only (DECISIONS 2026-11-02).
 - Threshold selection reads DEV arrangements only (`SplitRefused` otherwise), and no policy's results
-  set a shared setting: tau_q, tau_occ and tau_match are calibrated per view, k = 2 and lam = 0 are fixed,
-  and an infeasible calibration writes no candidate (section 10).
+  set a shared setting: tau_q, tau_occ and tau_match are calibrated per view (one joint search), k = 2 and
+  lam = 0 are fixed, an infeasible calibration writes no candidate, and a candidate with an infeasible CV fold
+  is marked ineligible for freeze (section 10).
+- A fold-trained policy (ranker A) is built fresh in every CV fold, in that fold's own process, from training data
+  that hold and lead to nothing of the held-out arrangement; the freeze step accepts only a candidate file that
+  matches its `.sha256` sidecar and carries no synthetic mark (section 10).
+- Every output of a manifest with `"simulation": true` is labelled SIMULATION.
 - Splits and the bootstrap work at the arrangement level. An arrangement's episodes are never
   split.
 - R is averaged within the episode before any paired comparison. Seeds add no samples.

@@ -8,3 +8,4 @@ checkpoints/
 runs/
 *.log
 .DS_Store
+configs/pipeline/remote.local.json

@@ -3,7 +3,14 @@ from __future__ import annotations
 
 import unittest
 
-from analysis.metrics import METRICS, compute, compute_all
+from analysis.metrics import (
+    METRICS,
+    NO_DIAG_SOURCE_FLAG,
+    NO_DIAG_SOURCE_LABELS,
+    compute,
+    compute_all,
+    seed_decisions,
+)
 from verify.schema import (
     SYNTHETIC_LABEL,
     Condition,
@@ -13,6 +20,7 @@ from verify.schema import (
     GroundTruth,
     Lighting,
     Split,
+    as_results,
     episode_id,
     truth_from_condition,
 )
@@ -79,7 +87,8 @@ class TestOverall(unittest.TestCase):
         self.assertAlmostEqual(m["removal_recall"], 2 / 4)       # 2 of 4 removed episodes
         self.assertAlmostEqual(m["coverage"], 9 / 12)            # 3 unknown stay in the denominator
         self.assertAlmostEqual(m["resolved_accuracy"], 7 / 9)    # 5 correct present + 2 correct removed
-        self.assertAlmostEqual(m["max_achievable_coverage"], 1.0)
+        self.assertAlmostEqual(m["geometric_no_diagnostic_view_share"], 0.0)
+        self.assertNotIn("max_achievable_coverage", m)
         self.assertTrue(all(m["defined"][k] for k in METRICS))
 
     def test_effort(self) -> None:
@@ -208,7 +217,10 @@ class TestUndefinedAndErrors(unittest.TestCase):
         ind = [episode_id("A02", "occluded", "L1"), episode_id("A02", "removed", "L2")]
         m = compute(r, truth_for(r, ind, synthetic=True))
         self.assertEqual(m["n_indistinguishable"], 2)
-        self.assertAlmostEqual(m["max_achievable_coverage"], 10 / 12)
+        # the legacy fallback: the predeclared flag, labelled as such (no view labels given)
+        self.assertAlmostEqual(m["geometric_no_diagnostic_view_share"], 2 / 12)
+        self.assertEqual(m["n_no_diagnostic_view"], 2)
+        self.assertEqual(m["no_diagnostic_view_source"], NO_DIAG_SOURCE_FLAG)
         self.assertTrue(m["synthetic"])
 
     def test_mixed_policy_or_budget(self) -> None:
@@ -238,6 +250,110 @@ class TestUndefinedAndErrors(unittest.TestCase):
         r = [res("A01", "visible", "L1", {P: 0.5, R: 0.2})]
         with self.assertRaises(ValueError):
             compute(r, truth_for(r))
+
+
+class TestNoDiagnosticShare(unittest.TestCase):
+    """geometric_no_diagnostic_view_share: context from the view labels, never a ceiling (2026-11-03)."""
+
+    def test_from_view_labels_per_lighting(self) -> None:
+        r = table_results()
+        # by hand: A01 occluded-L1 and removed-L1, A02 occluded-L2 have no diagnostic stop
+        nd = {x.episode_id: False for x in r}
+        for e in (episode_id("A01", "occluded", "L1"), episode_id("A01", "removed", "L1"),
+                  episode_id("A02", "occluded", "L2")):
+            nd[e] = True
+        m = compute_all(r, truth_for(r, [episode_id("A02", "removed", "L2")]), no_diagnostic=nd)
+        self.assertEqual((m["overall"]["n_no_diagnostic_view"], m["overall"]["n_episodes"]), (3, 12))
+        self.assertAlmostEqual(m["overall"]["geometric_no_diagnostic_view_share"], 3 / 12)
+        self.assertEqual(m["overall"]["no_diagnostic_view_source"], NO_DIAG_SOURCE_LABELS)
+        self.assertEqual(m["overall"]["n_indistinguishable"], 1)   # the flag is still counted, but not used
+        self.assertEqual((m["by_lighting"]["L1"]["n_no_diagnostic_view"], m["by_lighting"]["L1"]["n_episodes"]), (2, 6))
+        self.assertEqual((m["by_lighting"]["L2"]["n_no_diagnostic_view"], m["by_lighting"]["L2"]["n_episodes"]), (1, 6))
+        self.assertEqual(m["by_condition"]["occluded"]["n_no_diagnostic_view"], 2)
+        for g in (m["overall"], *m["by_lighting"].values(), *m["by_condition"].values()):
+            self.assertNotIn("max_achievable_coverage", g)
+
+    def test_missing_label_raises(self) -> None:
+        r = table_results()
+        with self.assertRaises(KeyError):
+            compute(r, truth_for(r), no_diagnostic={r[0].episode_id: False})
+
+
+class TestArrangementFRR(unittest.TestCase):
+    """FRR per arrangement (any false removal) next to the per-episode FRR (prereg section 8)."""
+
+    def test_deterministic_known_answer(self) -> None:
+        r = table_results()   # A01 has one false removal (occluded-L2); A02 none
+        m = compute_all(r, truth_for(r))
+        o = m["overall"]
+        self.assertEqual((o["arrangement_false_removal"], o["n_arr_with_present"]), (1, 2))
+        self.assertAlmostEqual(o["false_removal_rate_arrangement"], 0.5)
+        self.assertTrue(o["arrangement_frr_binomial"])
+        self.assertEqual((m["by_lighting"]["L1"]["arrangement_false_removal"],
+                          m["by_lighting"]["L2"]["arrangement_false_removal"]), (0, 1))
+        # removed-only group: no present episode, so FRR per arrangement is undefined, never 0
+        rem = m["by_condition"]["removed"]
+        self.assertEqual(rem["n_arr_with_present"], 0)
+        self.assertIsNone(rem["false_removal_rate_arrangement"])
+        self.assertFalse(rem["defined"]["false_removal_rate_arrangement"])
+
+    @staticmethod
+    def r_logs(removed: dict[str, set[int]], n_seeds: int = 4) -> list[EpisodeLog]:
+        """R logs of one arrangement at L1: episode condition -> the seeds under which it decided REMOVED (else
+        PRESENT for a present episode, UNKNOWN for the removed one)."""
+        out = []
+        for cond, rem in removed.items():
+            for s in range(n_seeds):
+                other = U if cond == "removed" else P
+                out.append(log("A01", cond, "L1", R if s in rem else other, seed=s))
+        return out
+
+    def test_r_correlated_seeds_give_the_per_seed_answer(self) -> None:
+        # visible and occluded (both present) falsely removed under the SAME half of R's seeds (common random numbers):
+        # any false removal in the arrangement happens under seeds 0 and 1 only -> 0.5 (the product formula said 0.75)
+        logs = self.r_logs({"visible": {0, 1}, "occluded": {0, 1}, "removed": {0}})
+        o = compute_all(logs, truth_for(as_results(logs)))["overall"]
+        self.assertAlmostEqual(o["false_removal_rate"], 0.5)
+        self.assertAlmostEqual(o["arrangement_false_removal"], 0.5)
+        self.assertAlmostEqual(o["false_removal_rate_arrangement"], 0.5)
+        self.assertFalse(o["arrangement_frr_binomial"])
+
+    def test_r_disjoint_seeds_give_one(self) -> None:
+        logs = self.r_logs({"visible": {0, 1}, "occluded": {2, 3}, "removed": set()})
+        o = compute_all(logs, truth_for(as_results(logs)))["overall"]
+        self.assertAlmostEqual(o["false_removal_rate"], 0.5)
+        self.assertAlmostEqual(o["false_removal_rate_arrangement"], 1.0)
+
+    def test_r_partial_overlap_and_explicit_seed_map(self) -> None:
+        # seeds {0, 1} and {1, 2}: any under 0, 1, 2 of 4 -> 0.75; the same through compute(..., seed_removed=)
+        logs = self.r_logs({"visible": {0, 1}, "occluded": {1, 2}, "removed": set()})
+        res = as_results(logs)
+        sm = seed_decisions(logs)
+        o = compute(res, truth_for(res), seed_removed=sm)
+        self.assertAlmostEqual(o["false_removal_rate_arrangement"], 0.75)
+        by = compute(res, truth_for(res), "condition", seed_removed=sm)
+        self.assertAlmostEqual(by["visible"]["false_removal_rate_arrangement"], 0.5)   # one episode: its own fraction
+        self.assertIsNone(by["removed"]["false_removal_rate_arrangement"])               # no present episode
+
+    def test_r_without_seed_decisions_is_undefined_not_estimated(self) -> None:
+        res = as_results(self.r_logs({"visible": {0, 1}, "occluded": {0, 1}, "removed": set()}))
+        o = compute(res, truth_for(res))
+        self.assertIsNone(o["arrangement_false_removal"])
+        self.assertIsNone(o["false_removal_rate_arrangement"])
+        self.assertFalse(o["defined"]["false_removal_rate_arrangement"])
+        self.assertIn("arrangement_frr_note", o)
+
+    def test_r_seed_map_must_match_the_results(self) -> None:
+        logs = self.r_logs({"visible": {0, 1}, "occluded": {0, 1}, "removed": set()})
+        res = as_results(logs)
+        sm = seed_decisions(logs)
+        sm[episode_id("A01", "visible", "L1")][0] = False   # disagrees with the averaged fraction
+        with self.assertRaises(ValueError):
+            compute(res, truth_for(res), seed_removed=sm)
+        sm = seed_decisions(logs)
+        del sm[episode_id("A01", "occluded", "L1")][3]        # different seed sets within one arrangement
+        with self.assertRaises(ValueError):
+            compute(res, truth_for(res), seed_removed=sm)
 
 
 if __name__ == "__main__":
