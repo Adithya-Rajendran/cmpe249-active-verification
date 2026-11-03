@@ -46,12 +46,15 @@ import statistics
 import subprocess
 import sys
 import time
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 STAGES = ("render", "episodes", "check", "evidence", "select", "summary")
 # perception/evidence.py is frozen (v0.2.1); the evidence stage refuses to ship a tree where it differs.
+# What the evidence stage runs on the GB10 (python -m perception.evidence / evidence_v03 and their imports).
+EVIDENCE_CODE = ("perception", "verify", "capture", "pyproject.toml", "uv.lock")
 FROZEN_EVIDENCE_SHA256 = "d0e0927ff9d36ee2a8027cc8050f1801e372faea1e12cd98c513345d258d46cf"
 ERROR_LINE = re.compile(r"^(Traceback \(most recent call last\)|\w*(Error|Exception): )")
 # Known harmless line from Isaac's Vulkan probe on the GB10.
@@ -234,17 +237,20 @@ def stage_evidence(run: Run) -> None:
     ev = run.spec["evidence"]
     remote = Remote(run.spec["remote"])
     head = git("rev-parse", "HEAD").strip()
+    # The GB10 job is keyed on the last commit that changed the code it runs, so a driver-only commit re-attaches
+    # to a running or finished job instead of recomputing it; that commit is what gets shipped.
+    code_commit = git("log", "-1", "--format=%H", "HEAD", "--", *EVIDENCE_CODE).strip()
     if git("status", "--porcelain", "--untracked-files=no").strip():
         run.fail("evidence", "tracked files differ from HEAD; commit first (the GB10 runs `git archive HEAD`)")
-    frozen = hashlib.sha256(subprocess.run(["git", "show", "HEAD:perception/evidence.py"], cwd=REPO,
+    frozen = hashlib.sha256(subprocess.run(["git", "show", f"{code_commit}:perception/evidence.py"], cwd=REPO,
                                            capture_output=True, check=True).stdout).hexdigest()
     if frozen != FROZEN_EVIDENCE_SHA256:
         run.fail("evidence", "perception/evidence.py at HEAD is not the frozen v0.2.1", sha256=frozen)
     steps = evidence_steps(run.spec)
     rd = run.spec["remote"]["run_dir"]
-    tag = f"evidence_{run.run_id}_{head[:12]}"
+    tag = f"evidence_{run.run_id}_{code_commit[:12]}"
     log, rc_file, pid_file = f"{rd}/{tag}.log", f"{rd}/{tag}.rc", f"{rd}/{tag}.pid"
-    code = f"{ev['code_dir']}/{head[:12]}"
+    code = f"{ev['code_dir']}/{code_commit[:12]}"
 
     def probe() -> dict:
         cmd = (f"test -f {pid_file} && kill -0 $(cat {pid_file}) 2>/dev/null && echo RUNNING=1 || echo RUNNING=0; "
@@ -254,7 +260,7 @@ def stage_evidence(run: Run) -> None:
 
     state = probe()
     if not state["running"] and state["rc"] == "":
-        archive = subprocess.run(["git", "archive", "--format=tar", head], cwd=REPO, capture_output=True,
+        archive = subprocess.run(["git", "archive", "--format=tar", code_commit], cwd=REPO, capture_output=True,
                                  check=True).stdout
         res = remote.run(f"rm -rf {code} && mkdir -p {code} {ev['out_dir']} && tar -x -C {code} && "
                          f"ln -sfn {ev['checkpoints']} {code}/checkpoints", timeout=300, stdin=archive)
@@ -272,8 +278,10 @@ def stage_evidence(run: Run) -> None:
         lines.append(f"echo 0 > {rc_file}")
         script = f"{rd}/{tag}.sh"
         remote.run(f"cat > {script}", stdin="\n".join(lines) + "\n")
-        remote.run(f"cd {rd} && setsid nohup bash {script} > {log} 2>&1 < /dev/null & echo $! > {pid_file}")
-        run.emit("evidence", "info", "launched", git=head, code=code, steps=[s["name"] for s in steps])
+        # braces: only the job goes to the background, so ssh returns at once (`a && b & c` would background a && b)
+        remote.run(f"cd {rd} && {{ setsid nohup bash {script} > {log} 2>&1 < /dev/null & echo $! > {pid_file}; }}")
+        run.emit("evidence", "info", "launched", git=head, code_commit=code_commit, code=code,
+                 steps=[s["name"] for s in steps])
     else:
         run.emit("evidence", "info", "attached", running=state["running"], rc=state["rc"])
 
@@ -331,12 +339,12 @@ def stage_evidence(run: Run) -> None:
             outputs[o] = {"sha256": sha256(path), "records": n}
             if n != st["records"]:
                 run.fail("evidence", f"{o} has {n} records, expected {st['records']} (one per job)")
-    prov = {"git": head, "code_dir": code, "frozen_evidence_sha256": frozen, "set_root": run.spec["set_root"],
+    prov = {"git": head, "code_commit": code_commit, "code_dir": code, "frozen_evidence_sha256": frozen, "set_root": run.spec["set_root"],
             "steps": steps, "outputs": outputs, "remote_log": log, "finished": now()}
     text = json.dumps(prov, indent=1, sort_keys=True)
     (run.dir / "evidence_provenance.json").write_text(text)
     # written by the GB10 user, who owns out_dir on the shared volume
-    remote.run(f"cat > {ev['out_dir']}/provenance_{head[:12]}.json", stdin=text)
+    remote.run(f"cat > {ev['out_dir']}/provenance_{code_commit[:12]}.json", stdin=text)
     run.emit("evidence", "info", "evidence finished", outputs=len(outputs))
 
 
@@ -374,6 +382,16 @@ def main() -> None:
     run.status.update(git=git, dirty=dirty, spec=str(args.spec))
     run.emit("driver", "info", "run started", git=git, dirty=dirty, spec=spec, from_stage=args.from_stage)
 
+    try:
+        run_stages(run, spec, args)
+    except SystemExit:
+        raise
+    except BaseException as e:  # any crash ends in a terminal alert, so a watcher never sees a silent death
+        run.fail("driver", f"driver crashed: {type(e).__name__}: {str(e)[:300]}",
+                 tail=traceback.format_exc().splitlines()[-15:])
+
+
+def run_stages(run: Run, spec: dict, args: argparse.Namespace) -> None:
     root = spec["set_root"]
     todo = STAGES[STAGES.index(args.from_stage):STAGES.index(args.to_stage) + 1]
     if "render" in todo:
