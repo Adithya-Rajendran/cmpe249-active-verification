@@ -11,9 +11,11 @@ Status: **contract v1**. D17 was accepted on 2026-10-12 with the relaxed pose/QC
 `configs/capture_lock.json`, and the pose check has been advisory since run_arrangement 1.3.0
 (DECISIONS 2026-10-13, §3.4).
 
-Current versions: `pi_capture.py` 0.4.0, `pose_check.py` 1.1.0, `run_arrangement.py` 1.3.0,
-`qc_session.py` 1.1.1, `tags.py` 0.2.0, `ecc.py` 1.0.0. The sections below give the original v1
-contract; where the code has moved on since, the text says so.
+Current versions: `pi_capture.py` 0.4.0, `pose_check.py` 1.1.0, `run_arrangement.py` 1.3.1,
+`qc_session.py` 1.1.1, `tags.py` 0.2.0, `ecc.py` 1.0.0, `phone_ui.py` 0.1.0. The sections below give
+the original v1 contract; where the code has moved on since, the text says so. run_arrangement 1.3.1
+only adds `main(run_factory=)`, through which `phone_ui.py` (a phone front end, capture/README.md)
+supplies the answers; the CLI and every file it writes are unchanged.
 
 ## 0. Files, owners and hosts
 

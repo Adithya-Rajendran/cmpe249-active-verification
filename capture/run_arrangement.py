@@ -38,7 +38,7 @@ import time
 from pathlib import Path
 
 TOOL_NAME = "run_arrangement.py"
-TOOL_VERSION = "1.3.0"  # 1.3.0: the pose check is advisory (recorded, never stops a sitting); 1.2.0: NTP preflight is a recorded warning, not exit 20
+TOOL_VERSION = "1.3.1"  # 1.3.1: main() takes run_factory (capture/phone_ui.py answers from a phone; CLI unchanged); 1.3.0: the pose check is advisory (recorded, never stops a sitting); 1.2.0: NTP preflight is a recorded warning, not exit 20
 SITTING_SCHEMA = "cmpe249.sitting.v1"
 RUN_SCHEMA = "cmpe249.run_arrangement.v1"
 LOCK_CONFIG_SCHEMA = "cmpe249.capture_lock.v1"
@@ -837,7 +837,9 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, run_factory=None) -> int:
+    """CLI entry. `run_factory(root, session, script, script_path)` replaces `Run` (capture/phone_ui.py
+    passes a Run whose answers come from a phone); everything else is the CLI's own path."""
     a = build_parser().parse_args(argv)
     try:
         if a.cmd == "plan":
@@ -867,7 +869,7 @@ def main(argv: list[str] | None = None) -> int:
             raise RunError("--lamp-settle-s must be >= 0", EXIT_USAGE)
         cfg = {"python": a.python, "pi_capture": a.pi_capture, "pose_check": a.pose_check, "rpicam": rpicam,
                "timedatectl": a.timedatectl, "lamp_settle_s": a.lamp_settle_s}
-        run = Run(root, a.session, script, a.script)
+        run = (run_factory or Run)(root, a.session, script, a.script)
         try:
             return a.func(a, cfg, run)
         except KeyboardInterrupt:

@@ -1,0 +1,402 @@
+{
+ "schema": "cmpe249.rig_geometry.v1",
+ "status": "MODEL, 2026-11-02. Not a measurement record: values are copied from the data/raw files named in each block's provenance by data/raw/2026-11-02_sim/make_rig_geometry.py. Change the sources or the generator, or edit by hand and say so in the provenance.",
+ "frame": {
+  "units": "m",
+  "axes": "x lateral (+ = right as seen from the camera), y depth behind the #3 front plane (+ = into the shelf), z height above the top of #3's floor board (the mug shelf). Right-handed.",
+  "origin": "#3 front plane, on the #3 centre line, at the mug-shelf top",
+  "from_analytic": "analytic design frame (geom_measured.py, geom_far.py; cm): x_a lateral, y_a height, z_a depth behind the front plane. sim (x, y, z) = (x_a, z_a, y_a) / 100",
+  "from_positions_draft": "floor_coords_cm lateral_cm -> x, out_from_front_cm -> -y, height_cm -> z (lens above the #3 floor top), heading_deg_right + = turned toward +x, tilt_deg = pitch down"
+ },
+ "shelf": {
+  "c3_inner": {
+   "half_width": 0.395,
+   "depth": 0.305,
+   "clear_height": 0.165
+  },
+  "c4_inner": {
+   "half_width": 0.395,
+   "depth": 0.305,
+   "z_min": 0.183727,
+   "z_max": 0.548727
+  },
+  "board_thickness": 0.018727,
+  "side_thickness": 0.018715,
+  "back_thickness": 0.003,
+  "unit_half_outer": 0.413715,
+  "parts": [
+   {
+    "name": "c3_floor_board",
+    "min": [
+     -0.395,
+     0.0,
+     -0.018727
+    ],
+    "max": [
+     0.395,
+     0.305,
+     0.0
+    ],
+    "note": "mug shelf; top face is z = 0"
+   },
+   {
+    "name": "mid_board",
+    "min": [
+     -0.395,
+     0.0,
+     0.165
+    ],
+    "max": [
+     0.395,
+     0.305,
+     0.183727
+    ],
+    "note": "#3 ceiling / #4 floor"
+   },
+   {
+    "name": "c4_top_board",
+    "min": [
+     -0.395,
+     0.0,
+     0.548727
+    ],
+    "max": [
+     0.395,
+     0.305,
+     0.567454
+    ],
+    "note": "#4 ceiling"
+   },
+   {
+    "name": "side_left",
+    "min": [
+     -0.413715,
+     0.0,
+     -0.018727
+    ],
+    "max": [
+     -0.395,
+     0.308,
+     0.567454
+    ],
+    "note": "left side panel, #3 floor-board bottom to #4 top"
+   },
+   {
+    "name": "side_right",
+    "min": [
+     0.395,
+     0.0,
+     -0.018727
+    ],
+    "max": [
+     0.413715,
+     0.308,
+     0.567454
+    ],
+    "note": "right side panel"
+   },
+   {
+    "name": "back_panel",
+    "min": [
+     -0.395,
+     0.305,
+     -0.018727
+    ],
+    "max": [
+     0.395,
+     0.308,
+     0.567454
+    ],
+    "note": "back wall; front face = inner depth"
+   }
+  ],
+  "not_modelled": "the bookcase continues below #3 (compartment #2, where tags 0/1 hang) and above #4 (where tags 2/3 stand); the neighbouring shelving left of the unit; the room floor and walls; the other props",
+  "provenance": {
+   "half_width 0.395, depth 0.305, clear_height 0.165": "data/raw/2026-10-09_measured-geometry/geom_measured.py HALF_W 39.5 (inner width W 79), DEPTH 30.5 (tape, inner depth), CLEAR 16.5 (student clear height)",
+   "board_thickness, side_thickness": "data/raw/2026-10-10_far-camera/pose_fit_far.json variant k1 at f 1731.26: board_t_cm 1.8727, side_t_cm 1.8715 (geom_far.py patches geom_measured with these; fitted, not taped)",
+   "c4 clear height 0.365": "data/raw/2026-10-10_far-camera/pose_fit_far.py H4N = 36.5 (a known input of the far fit); #4 depth taken equal to #3's, as that fit does for both compartments' back corners",
+   "back_thickness": "PLACEHOLDER 0.3 cm, not measured; nothing is behind it, so no visibility number depends on it",
+   "flush front": "all boards and both side panels end in the front plane y = 0, as in the pose fits' edge model (pose_fit_far.py: every front-plane edge at Z = 0)"
+  }
+ },
+ "camera": {
+  "model": "pinhole, square pixels, principal point at the image centre (W/2, H/2); continuous pixel coordinates with pixel i covering [i, i + 1)",
+  "f_px": 1731.26,
+  "width_px": 2304,
+  "height_px": 1296,
+  "k1": 0.056385,
+  "k1_note": "radial term of the far pose fit (x_d = x (1 + k1 r^2) on normalised coordinates). MuJoCo renders a pinhole and ignores it; sim/rig.py applies it only when asked (frame checks).",
+  "p3_fit": {
+   "x": -0.052192,
+   "y": -1.157995,
+   "z": 0.407752,
+   "heading_deg": -0.886786,
+   "pitch_down_deg": 6.832067,
+   "roll_deg": 1.980072
+  },
+  "p3_fit_note": "the real P3 camera as fitted on far_p3.jpg (before the 2026-10-10 bump); heading + = turned right (toward +x), roll in pose_fit_far.py's sign (reproduces pixel_budget.json corners, geom_far_selftest.txt)",
+  "provenance": {
+   "f_px": "data/raw/2026-10-09_measured-geometry/pose_rescale.json f_eff_px 1731.2599 (rounded to 1731.26 in every far-spot script); width/height: the 2304x1296 binned capture mode",
+   "k1, p3_fit": "data/raw/2026-10-10_far-camera/pose_fit_far.json variant k1, f 1731.26 (the nominal far fit used by geom_far.py / arc_far.py)"
+  }
+ },
+ "tags": {
+  "marker_size": 0.05,
+  "card_margin": 0.015,
+  "dictionary": "DICT_4X4_50",
+  "items": [
+   {
+    "id": 0,
+    "centre": [
+     -0.3567,
+     0.0,
+     -0.0404
+    ],
+    "inplane_rot_deg": -1.13,
+    "backprojected_side_cm": 4.888
+   },
+   {
+    "id": 1,
+    "centre": [
+     0.3534,
+     0.0,
+     -0.0407
+    ],
+    "inplane_rot_deg": -0.62,
+    "backprojected_side_cm": 5.055
+   },
+   {
+    "id": 2,
+    "centre": [
+     -0.3554,
+     0.0,
+     0.5867
+    ],
+    "inplane_rot_deg": 0.9,
+    "backprojected_side_cm": 4.903
+   },
+   {
+    "id": 3,
+    "centre": [
+     0.3533,
+     0.0,
+     0.5924
+    ],
+    "inplane_rot_deg": 1.19,
+    "backprojected_side_cm": 5.005
+   }
+  ],
+  "rotation_convention": "in-plane rotation of the marker about the front-plane normal; + = counter-clockwise as seen from the camera",
+  "accuracy": "APPROXIMATE: back-projected from one detection, never taped. The back-projected sides are 4.84-5.16 cm against the 5.0 cm print; without the now.jpg -> far_p3.jpg registration the centres move 1.1-1.6 cm",
+  "provenance": {
+   "centre, inplane_rot_deg": "data/raw/2026-11-02_sim/tags_frontplane.json (tags_backproject.py: data/raw/2026-10-12_pilot-prep/reviewer/tags_now.json detections, registered to far_p3.jpg, back-projected through pose_fit_far.json k1 onto the front plane; re-run 2026-11-02, identical output)",
+   "marker_size 0.05, card_margin 0.015": "hardware/fiducials/make_tags.py TAG_CM 5.0, MARGIN_CM 1.5 (capture/tags.py docstring: 5.0 cm DICT_4X4_50 squares, IDs 0-3, flush with the front plane)",
+   "placement": "capture/tags.py: 0 lower-left / 1 lower-right below the #3 floor (cards hang down from the mug shelf), 2 upper-left / 3 upper-right at the top of #4 (cards stand up)"
+  }
+ },
+ "mug": {
+  "profile": {
+   "z": [
+    0.0,
+    0.0025,
+    0.005,
+    0.0075,
+    0.01,
+    0.0125,
+    0.015,
+    0.0175,
+    0.02,
+    0.0225,
+    0.025,
+    0.0275,
+    0.03,
+    0.0325,
+    0.035,
+    0.0375,
+    0.04,
+    0.0425,
+    0.045,
+    0.0475,
+    0.05,
+    0.0525,
+    0.055,
+    0.05669
+   ],
+   "r": [
+    0.02069,
+    0.02069,
+    0.02499,
+    0.02824,
+    0.03154,
+    0.03339,
+    0.03524,
+    0.03614,
+    0.03699,
+    0.03739,
+    0.03829,
+    0.03819,
+    0.03859,
+    0.03854,
+    0.03844,
+    0.03789,
+    0.03784,
+    0.03724,
+    0.03719,
+    0.03664,
+    0.03559,
+    0.03554,
+    0.03449,
+    0.03449
+   ],
+   "note": "geom_measured.py 'frame' profile: widths measured on the left silhouette of ref_final (mug_from_frame.json width_profile_left_silhouette), shifted so the rim-row width equals the fitted rim diameter 2 x 3.449 cm; first row repeated at y = 0; rim row at the fitted rim height 5.669 cm"
+  },
+  "rim_height": 0.05669,
+  "max_radius": 0.03859,
+  "rim_radius_tape": 0.035,
+  "base_radius_tape": 0.02,
+  "handle": {
+   "protrusion": 0.02,
+   "z_range": [
+    0.01,
+    0.053
+   ],
+   "thickness": 0.01,
+   "embed": 0.003,
+   "directions": {
+    "toward": [
+     0.0,
+     -1.0
+    ],
+    "away": [
+     0.0,
+     1.0
+    ],
+    "left": [
+     -1.0,
+     0.0
+    ],
+    "right": [
+     1.0,
+     0.0
+    ]
+   },
+   "shape": "flat plate in the vertical plane through the mug axis along the handle direction: from 'embed' inside the body surface out to body radius + protrusion at every height in z_range, 'thickness' across. No hole (the real handle is a loop)."
+  },
+  "design_position": {
+   "x": 0.0,
+   "y": 0.24,
+   "handle": "toward"
+  },
+  "provenance": {
+   "profile, rim_height": "data/raw/2026-10-09_measured-geometry/mug_from_frame.json via geom_measured.py FRAME_Y / FRAME_W / MUG_H (student_dims_fixed H_rim_height_cm)",
+   "rim_radius_tape 0.035, base_radius_tape 0.02": "student tape 2026-10-09 (geom_measured.py docstring: rim 7 cm, base 4 cm); the analytic rim disc uses R_RIM 3.5 while the profile's top radius is the fitted 3.449",
+   "handle protrusion 0.02, z_range 0.01-0.053": "geom_measured.py HANDLE_LEN 2.0 (student: handle +2 cm), HANDLE_Y (1.0, 5.3) (no separate source given there); mug_from_frame.json handle_extent_right_of_axis_cm 5.67 is consistent (body half-width ~3.8 + ~1.9)",
+   "handle thickness": "ASSUMED 1.0 cm (not measured; see make_rig_geometry.py)",
+   "design_position": "data/raw/2026-10-10_far-camera/design_far.md sections 0 and 5: axis 24 cm behind the front edge, centred, handle pointing at the camera"
+  }
+ },
+ "occluders": {
+  "items": [
+   {
+    "name": "pick_S8",
+    "set": "pick",
+    "width": 0.08,
+    "height": 0.12,
+    "thickness": 0.005,
+    "y_back": 0.02,
+    "shift": -0.01,
+    "intended_pattern": "CCHCC",
+    "source": "occ_far_refine.txt A-mug CCHCC w8 zb2 s-1 (keep27 0.926)"
+   },
+   {
+    "name": "pick_M16+3",
+    "set": "pick",
+    "width": 0.16,
+    "height": 0.12,
+    "thickness": 0.005,
+    "y_back": 0.035,
+    "shift": 0.03,
+    "intended_pattern": "CCHHC",
+    "source": "occ_far_refine.txt A-mug CCHHC w16 zb3.5 s+3 (keep27 0.778)"
+   },
+   {
+    "name": "pick_M16-5",
+    "set": "pick",
+    "width": 0.16,
+    "height": 0.12,
+    "thickness": 0.005,
+    "y_back": 0.04,
+    "shift": -0.05,
+    "intended_pattern": "CHHCC",
+    "source": "occ_far_refine.txt A-mug CHHCC w16 zb4 s-5 (keep27 0.741)"
+   },
+   {
+    "name": "pick_IND28",
+    "set": "pick",
+    "width": 0.28,
+    "height": 0.12,
+    "thickness": 0.005,
+    "y_back": 0.16,
+    "shift": -0.01,
+    "intended_pattern": "HHHHH",
+    "source": "occ_far_refine.txt A-mug HHHHH w28 zb16 s-1 (keep27 1.0)"
+   },
+   {
+    "name": "plan_S8",
+    "set": "plan",
+    "width": 0.08,
+    "height": 0.12,
+    "thickness": 0.005,
+    "y_back": 0.02,
+    "shift": 0.0,
+    "intended_pattern": "CCHCC",
+    "source": "occ_far.py PLANNED('S8') at cup z 24 (occ_far.txt section 1)"
+   },
+   {
+    "name": "plan_M18+5",
+    "set": "plan",
+    "width": 0.18,
+    "height": 0.12,
+    "thickness": 0.005,
+    "y_back": 0.02,
+    "shift": 0.05,
+    "intended_pattern": "CCHHC",
+    "source": "occ_far.py PLANNED('M18+5') at cup z 24 (occ_far.txt section 1)"
+   },
+   {
+    "name": "plan_M18-5",
+    "set": "plan",
+    "width": 0.18,
+    "height": 0.12,
+    "thickness": 0.005,
+    "y_back": 0.02,
+    "shift": -0.05,
+    "intended_pattern": "CHHCC",
+    "source": "occ_far.py PLANNED('M18-5') at cup z 24 (occ_far.txt section 1)"
+   },
+   {
+    "name": "plan_IND26",
+    "set": "plan",
+    "width": 0.26,
+    "height": 0.12,
+    "thickness": 0.005,
+    "y_back": 0.18,
+    "shift": 0.0,
+    "intended_pattern": "HHHHH",
+    "source": "occ_far.py PLANNED('IND26') at cup z 24 (occ_far.txt section 1)"
+   }
+  ],
+  "placement": "box standing on the mug shelf; x centre = mug x + shift; back face at y = y_back (absolute depth behind the front plane, not relative to the mug), front face at y_back - thickness",
+  "intended_for": "option A-mug (positions_far_A_draft.json), cup axis at y 0.24, x 0, handle toward the camera",
+  "provenance": {
+   "height 0.12, thickness 0.005": "data/raw/2026-10-10_far-camera/occ_far.py HOCC 12.0, D_OCC 0.5",
+   "pick_*": "data/raw/2026-10-10_far-camera/design_far.md section 2 'Proposed adjustments' table = occ_far_refine.txt top row per pattern (A-mug); IND alternative w26 zb17 s-1 not listed",
+   "plan_*": "data/raw/2026-10-10_far-camera/occ_far.py PLANNED(zt=24): S8 lip centred, M18 lip +-5, IND26 back face 6 cm in front of the cup axis (y_back 0.18)"
+  }
+ },
+ "visibility_classes": {
+  "H_max": 0.05,
+  "C_min": 0.9,
+  "provenance": "data/raw/2026-10-09_measured-geometry/geom_measured.py cls(): H <= 0.05, C >= 0.90, else p"
+ }
+}

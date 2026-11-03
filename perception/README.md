@@ -23,6 +23,15 @@ uv run --no-sync python -m verify.run --manifest MANIFEST.json --evidence eviden
 
 Until the far-spot stops are taped, `configs/positions.json` is the old close-spot arc, so travel/cap numbers from a real run are not meaningful (pilot 1 is a single stop).
 
+### Known limits of v0.2.1 found after the freeze
+
+`evidence.py` is frozen (sha256 `d0e0927f…`), so its docstring still lists only the limits known on 2026-10-16. These were found later:
+
+- **Same-footprint occluders are invisible to the detector cue.** Detections with IoU ≥ `target_iou` (0.5) against the target box count as the target itself and are dropped. An occluder covering about the target's outline therefore adds nothing, even when it is detected. Pilot 2 lost the chess clock this way: the white box was detected at 0.553 with IoU 0.583, and the verdict was a false REMOVED ([notes](../notes/2026-10-20-pilot2.md)). On OCID dev it happens in 10 of 36 such views, though none of those became a false removal ([notes](../notes/2026-10-23-public-data-ocid.md)).
+- **Loose boxes keep removed targets "present".** The match compares the whole box. On OCID dev, removed targets were called present more often the less of the box they filled (16 % → 38 %). This is a correlation; the cause is untested.
+
+Both are candidates for a v0.3. Any v0.3 needs a new held-out set.
+
 ## Setup and run (from the repo root)
 
 ```bash
