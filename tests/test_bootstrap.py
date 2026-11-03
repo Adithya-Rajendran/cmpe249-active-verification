@@ -240,6 +240,29 @@ class TestStratified(unittest.TestCase):
         ind = self.STRATA.index("IND28")   # a singleton stratum always resamples itself
         self.assertTrue((draws[:, ind] == ind).all())
 
+    def test_stratum_draws_do_not_depend_on_the_order_arrangements_are_listed_in(self) -> None:
+        # Strata are visited in sorted order, so a stratum's draws depend on its name and size, not on where the
+        # manifest happens to list its arrangements (first-appearance order would change the stream).
+        a = self.STRATA                                    # S8 first
+        b = sorted(self.STRATA, reverse=True)              # ycb_box first, strata contiguous
+        c = [x for pair in zip(sorted(a)[:6], sorted(a)[6:]) for x in pair]   # interleaved strata
+        B, seed = 200, 7
+        base = stratified_arrangement_draws(a, B, seed)
+
+        def per_stratum(labels: list[str], draws: np.ndarray) -> dict[str, np.ndarray]:
+            out = {}
+            for st in set(labels):
+                members = [j for j, x in enumerate(labels) if x == st]
+                out[st] = np.stack([np.searchsorted(members, draws[:, j]) for j in members], axis=1)
+            return out
+        want = per_stratum(a, base)
+        for labels in (b, c):
+            self.assertNotEqual(list(dict.fromkeys(labels)), list(dict.fromkeys(a)))
+            got = per_stratum(labels, stratified_arrangement_draws(labels, B, seed))
+            self.assertEqual(got.keys(), want.keys())
+            for st in want:
+                self.assertTrue(np.array_equal(got[st], want[st]), st)
+
     def test_one_stratum_is_the_unstratified_draw(self) -> None:
         self.assertTrue(np.array_equal(stratified_arrangement_draws(["x"] * 9, 500, 42), arrangement_draws(9, 500, 42)))
         ids = [f"A{i:02d}" for i in range(9)]

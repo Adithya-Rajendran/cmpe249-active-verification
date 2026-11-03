@@ -167,6 +167,26 @@ class SimRunTest(unittest.TestCase):
             self.assertEqual(run_set(Path(d), "o", split="test")[0], 0)
         self.assertEqual(events, ["run", "labels"])
 
+    def test_view_labels_edited_during_the_run_are_refused(self) -> None:
+        # verify.run hashes --view-labels into the config, reads it only after the run and re-hashes it: a file edited
+        # in between must not be scored (exit 2, no results.json / table.md).
+        real_stage = run.run_stage
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            args = write_sim_set(d / "set", split="test")
+            labels, out = Path(args[5]), d / "out"
+
+            def stage(*a, **kw):
+                logs = real_stage(*a, **kw)
+                labels.write_text(labels.read_text() + "\n")   # still valid JSON, different bytes
+                return logs
+            with mock.patch.object(run, "run_stage", stage), contextlib.redirect_stdout(io.StringIO()), \
+                    contextlib.redirect_stderr(io.StringIO()) as err:
+                rc = run.main([*args, *BASE, "--out", str(out)])
+            self.assertEqual(rc, 2)
+            self.assertIn("changed during the run", err.getvalue())
+            self.assertFalse((out / "results.json").exists() or (out / "table.md").exists())
+
     def test_frr_per_arrangement_in_metrics_and_table(self) -> None:
         for m in self.res["metrics"]:
             o = m["overall"]

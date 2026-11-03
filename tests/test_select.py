@@ -421,6 +421,18 @@ class JointSearchTest(unittest.TestCase):
             "there",
             "here: the gate passes nearly no L2 views (all) (3/120 = 0.025 <= 0.05)"])
 
+    def test_gate_pass_flag_boundary_is_inclusive_for_every_population(self) -> None:
+        # The rule is share <= 0.05 (GATE_PASS_LOW): exactly 1/20 is flagged, 1/19 = 0.0526 is not, and the all-views
+        # population is held to the same boundary as the two diagnostic ones. A strict < slipped through unnoticed.
+        gp = {"L1": {"removed_diagnostic": (1, 20), "present_diagnostic": (1, 20), "all": (1, 20)},
+              "L2": {"removed_diagnostic": (1, 19), "present_diagnostic": (1, 19), "all": (1, 19)}}
+        flags = sel.gate_pass_flags(gp, "here")
+        self.assertEqual(flags, [
+            "here: the gate passes nearly no L1 removed diagnostic views (1/20 = 0.050 <= 0.05)",
+            "here: the gate passes nearly no L1 present diagnostic views (1/20 = 0.050 <= 0.05)",
+            "here: the gate passes nearly no L1 views (all) (1/20 = 0.050 <= 0.05)"])
+        self.assertFalse([f for f in flags if " L2 " in f])
+
     def test_known_tau_match_answers_under_one_gate(self) -> None:
         # select-v4's old Step 1b known answers still hold when the grid has one gate (the joint search reduces to it)
         for alpha, want in ((0.10, 0.40), (0.20, 0.45), (0.35, 0.50), (0.50, 0.55), (1.0, 0.65)):
