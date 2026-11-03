@@ -51,7 +51,7 @@ def write_sim_set(d: Path, slots=SLOTS, *, split: str = "dev", simulation: bool 
                   extra: str | None = None, family: bool = True, l2_quality: float = 0.85,
                   camouflaged: bool = False) -> list[str]:
     """A tiny sim set as sim/episodes.py lays it out: manifest.json (+ quota keys and the simulation flag),
-    evidence.jsonl (EvidenceStore format), view_labels.json (cmpe249.sim-view-labels-set.v0) and the positions.
+    evidence.jsonl (EvidenceStore format), view_labels.json (cmpe249.sim-view-labels-set.v1) and the positions.
     The occluder blocks blocked_of(i) in the occluded and removed episodes; those views are non-diagnostic. extra adds
     one more arrangement to the evidence and labels files only (as a combined jobs file would). camouflaged: the
     occluder hides the present target WITHOUT an obstruction cue (obstruction 0.05), so those occluded views are clear

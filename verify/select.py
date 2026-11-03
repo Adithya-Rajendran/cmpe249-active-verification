@@ -826,7 +826,7 @@ def sim_dev_data(manifest: str | Path, evidence: str | Path, view_labels: str | 
     manifest     manifest.json (cmpe249.arrangements.v1): every arrangement must be split dev (SplitRefused otherwise,
                  before any other file is read); "simulation", occluder_family / m16_side / design_case are read.
     evidence     evidence.jsonl from perception/evidence.py on jobs_refL1.json (EvidenceStore format).
-    view_labels  view_labels.json (cmpe249.sim-view-labels-set.v0): the geometric labels, the only label source.
+    view_labels  view_labels.json (cmpe249.sim-view-labels-set.v1): the geometric labels, the only label source.
     positions    the stops, e.g. configs/sim/positions_shelf_A.json.
 
     The evidence and labels files may hold episodes of other arrangements of the same rendered set (one jobs file

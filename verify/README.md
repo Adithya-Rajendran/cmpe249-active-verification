@@ -519,7 +519,7 @@ def filter_split(specs: Sequence[EpisodeSpec], split: Split) -> list[EpisodeSpec
 def summary(specs: Sequence[EpisodeSpec]) -> dict[str, int]: ...
 def load_manifest_info(path) -> ManifestInfo: ...        # (arrangements, simulation flag); .strata()
 def bootstrap_strata(arrs) -> dict[str, str] | None: ...  # None unless EVERY arrangement has its family
-def load_geometric_labels(path, n_stops=None) -> GeometricLabels: ...   # cmpe249.sim-view-labels-set.v0
+def load_geometric_labels(path, n_stops=None) -> GeometricLabels: ...   # cmpe249.sim-view-labels-set.v1
 ```
 
 - **Checkpoint 2 (2026-11-03).** sim/episodes.py writes `occluder_family`, `m16_side` and `design_case` as plain
@@ -745,7 +745,7 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   (`simulation`, config `real-v3`; synthetic runs hash `simulation: false`, `synthetic-v6`). A simulation manifest
   needs an explicit `--positions` (exit 2 otherwise: `configs/positions.json` is the old close-spot arc). The
   manifest path now also writes `table.md`, scored on test, or on dev with a plain note when the manifest has no
-  test arrangement (`table_scope`). `--view-labels` (cmpe249.sim-view-labels-set.v0) is hashed before the run but
+  test arrangement (`table_scope`). `--view-labels` (cmpe249.sim-view-labels-set.v1) is hashed before the run but
   read only after every policy has run, for the geometric no-diagnostic-view share; without it the share falls back
   to the predeclared indistinguishable flag, labelled as such. The paired bootstrap is **stratified by quota slot
   class** (`verify.manifest.bootstrap_strata`) when every arrangement of the manifest has its family; otherwise
@@ -969,7 +969,7 @@ dev data are looked at.
 - **Sim dev input** (`sim_dev_data`, the `--manifest` path). It reads the set files sim/episodes.py writes: the
   manifest (every arrangement must be split dev: `SplitRefused` before any other file is read, CLI exit 2), the
   evidence from `perception/evidence.py` on `jobs_refL1.json` (synthetic evidence refused), `view_labels.json`
-  (`cmpe249.sim-view-labels-set.v0`, episodes -> stops, via `verify.manifest.load_geometric_labels`) and the
+  (`cmpe249.sim-view-labels-set.v1`, episodes -> stops, via `verify.manifest.load_geometric_labels`) and the
   positions file. It builds the same `DevData` the synthetic path builds. **Labels come only from
   view_labels.json** (the manifest's indistinguishable flag is not a label), and they are never a policy input. The
   evidence and labels files may hold other arrangements of the same rendered set (one jobs file covers the random

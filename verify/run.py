@@ -10,7 +10,7 @@ placeholders, and the numbers are pipeline checks, not study results.
 Real or simulated data: --manifest MANIFEST.json --evidence evidence.jsonl [--view-labels view_labels.json]
 [--positions P], where the evidence file comes from perception/evidence.py (EvidenceStore.to_jsonl format). The
 same run stage replays it with no truth; the manifest is re-read for truth only after the run, and the optional sim
-view labels (cmpe249.sim-view-labels-set.v0) are read only after the run too, for the geometric
+view labels (cmpe249.sim-view-labels-set.v1) are read only after the run too, for the geometric
 no-diagnostic-view share. Thresholds are still the placeholders. A manifest with a top-level "simulation": true
 (sim/episodes.py) is labelled SIMULATION everywhere; any other is a REAL PILOT. It writes config.json, logs.jsonl,
 ground_truth.json, results.json and table.md (scored on test, or on dev when the manifest has no test arrangement).
@@ -165,7 +165,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--manifest", default=None, help="real data: arrangements manifest (with --evidence)")
     p.add_argument("--evidence", default=None, help="real data: evidence.jsonl from perception/evidence.py")
     p.add_argument("--view-labels", default=None,
-                   help="real/sim data: view_labels.json (cmpe249.sim-view-labels-set.v0), read only after the run, for "
+                   help="real/sim data: view_labels.json (cmpe249.sim-view-labels-set.v1), read only after the run, for "
                         "the geometric no-diagnostic-view share (context, not a ceiling); without it the share falls "
                         "back to the manifest's predeclared indistinguishable flag, labelled as such")
     p.add_argument("--n-arr", type=int, default=30, help="number of arrangements (default 30)")

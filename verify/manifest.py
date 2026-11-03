@@ -10,7 +10,7 @@ Checkpoint 2 additions (docs/SIM_PREREGISTRATION.md sections 2, 3 and 8):
     M16 split by side, and design cases kept apart from the random slots.
   - A top-level "simulation": true marks a manifest of Isaac Sim renders (load_manifest_info reads it); verify.run
     and verify.select then label every output SIMULATION.
-  - load_geometric_labels reads the sim view labels (cmpe249.sim-view-labels-set.v0): per-view geometric diagnostic
+  - load_geometric_labels reads the sim view labels (cmpe249.sim-view-labels-set.v1): per-view geometric diagnostic
     labels, for development analysis and scoring only, never a policy input.
 """
 from __future__ import annotations
@@ -37,7 +37,7 @@ from verify.schema import (
 )
 
 MANIFEST_SCHEMA = "cmpe249.arrangements.v1"
-SIM_VIEW_LABELS_SCHEMA = "cmpe249.sim-view-labels-set.v0"   # written by sim/episodes.py (view_labels.json)
+SIM_VIEW_LABELS_SCHEMA = "cmpe249.sim-view-labels-set.v1"   # written by sim/episodes.py (view_labels.json)
 # Quota-slot classes (docs/SIM_PREREGISTRATION.md, occluder quotas). M16 is split by side in the strata.
 OCCLUDER_FAMILIES = ("S8", "M16", "IND28", "white_box", "ycb_box")
 M16_SIDES = ("L", "R")
@@ -209,7 +209,7 @@ class GeometricLabels:
 
 
 def load_geometric_labels(path: str | Path, n_stops: int | None = None) -> GeometricLabels:
-    """Read a cmpe249.sim-view-labels-set.v0 file. Every episode must name its arrangement, condition and lighting
+    """Read a cmpe249.sim-view-labels-set.v1 file. Every episode must name its arrangement, condition and lighting
     consistently with its episode_id, list its stops 0..n-1 exactly once (n_stops when given) and give a boolean
     "diagnostic" for each; anything else raises ManifestError."""
     doc = json.loads(Path(path).read_text())
