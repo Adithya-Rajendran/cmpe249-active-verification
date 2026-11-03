@@ -700,10 +700,16 @@ class BootstrapResult:
     n_undefined: int           # draws where either side was undefined (excluded)
     seed: int
     synthetic: bool
+    stratified: bool = False
+    singleton_strata: tuple[str, ...] = ()   # strata given, but fewer than 2 arrangements in these: fell back
+    stratification_note: str = ""            # "unstratified: singleton strata ..." when it fell back
     def to_dict(self) -> dict: ...
 
 def paired_diff(results_a, results_b, truth: GroundTruth, metric: str, B: int = 10000,
-                seed: int = 0) -> BootstrapResult: ...
+                seed: int = 0, strata: dict[str, str] | None = None) -> BootstrapResult: ...
+def rate_intervals(results, truth: GroundTruth, metrics=RATE_METRICS, B: int = 10000, seed: int = 0,
+                   strata: dict[str, str] | None = None) -> dict[str, RateInterval]: ...
+def resolve_strata(arrangement_ids, strata) -> tuple[strata | None, singleton_strata, note]: ...
 ```
 
 - `results_a` and `results_b` are normalised with `as_results` and must cover **the same
@@ -721,8 +727,28 @@ def paired_diff(results_a, results_b, truth: GroundTruth, metric: str, B: int = 
   quota counts). Strata are visited in sorted order with one `default_rng(seed)`; with a single stratum the draws are
   exactly `arrangement_draws`. A sample arrangement without a stratum raises `ValueError`. `BootstrapResult.stratified`
   records which bootstrap ran. Tests: the stratum counts in every replicate (3000 draws), uniform draws within a
-  stratum, the single-stratum identity, a degenerate CI when every arrangement is its own stratum, and the CI equal to
-  `draw_diffs` on the stratified draws.
+  stratum, the single-stratum identity, and the CI equal to `draw_diffs` on the stratified draws.
+- **Singleton strata fall back to unstratified** (review, checkpoint 2). A stratum with one arrangement always
+  redraws that arrangement, so it adds no variance: on the 6-arrangement check batch (6 slot classes) the "stratified"
+  CI of R - F recall was [0.058, 0.058], the point estimate, where the unstratified one is [0.0, 0.175]. So
+  `resolve_strata` drops the strata when any stratum holds fewer than `MIN_STRATUM_SIZE` (2) of the sample's
+  arrangements: the bootstrap is then the unstratified one, `stratified` is false, `singleton_strata` lists them and
+  `stratification_note` starts "unstratified: singleton strata". `paired_diff`, `rate_intervals` and verify.select's
+  `cluster_bootstrap` all use it. The planned designs have at least 6 arrangements per stratum and stay stratified.
+  Tests: a sample where every arrangement is its own stratum, and one with a single lone stratum, give exactly the
+  unstratified CI and the flag (`test_singleton_strata_fall_back_to_unstratified`).
+- **Single rates** (`rate_intervals`; prereg section 8, "Percentile 95 % intervals for contrasts and for single
+  rates"). One policy's FRR, removal recall and coverage get the percentile 95% interval of the same
+  arrangement-level cluster bootstrap: the draws are `sample_draws` over the sorted arrangement ids, so for the same
+  arrangements, B, seed and strata they are the draws `paired_diff` uses. The draw multiplicities are cached
+  (`_draw_counts`), since every policy row of one lighting resamples the same arrangements. Results must hold one
+  result per episode. **R's seed averaging:** R enters with its seed-averaged decision fractions per episode, as in
+  its point estimate. Arrangements are resampled and seeds are not, so R's interval is for its expected rate over its
+  own randomisation. Seeds add no samples (section 11), and with 20 seeds averaged the seed noise is small next to
+  the spread between arrangements. R's episodes that share a random stream (one per arrangement and lighting,
+  `r_seed_salt`) stay together in every draw, so that dependence is kept. Tests: every interval recomputed by hand
+  (`metrics_on` on each expanded multiset, then `numpy.percentile`), stratified and not, and on fractional R-like
+  decisions (`TestRateIntervals`).
 - Tests: identical policies give an estimate of 0 and a CI of [0, 0]; a constructed case with
   a known difference; determinism for a fixed seed; the episodes of an arrangement are never
   split (resampling one arrangement brings all of its episodes); undefined draws are counted.
@@ -752,6 +778,35 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   (synthetic, legacy pilots) it is unstratified, and results.json (`bootstrap_stratification`, each bootstrap row's
   `stratified`) and table.md say so. Every metrics row and table carries FRR per arrangement (x/n) next to the
   per-episode FRR.
+- **Checkpoint 2 review fixes (2026-11-03).**
+  - **Singleton strata.** A stratum with fewer than two test arrangements makes the bootstrap unstratified (section
+    7): `bootstrap_stratification` has `stratified` false, `singleton_strata` and the note "unstratified: singleton
+    strata ...", each bootstrap row carries `singleton_strata` and `stratification_note`, and table.md says so in the
+    header line and in each row's note. The hashed config's `bootstrap_stratified` is now what the test bootstrap
+    will use, worked out from the manifest's splits and families before the run (no truth is read).
+  - **Single-rate intervals.** Every L1 / L2 metrics row on test has `rate_ci95`: the percentile 95% interval of its
+    FRR, removal recall and coverage (`analysis.bootstrap.rate_intervals`: the same stratified arrangement-level
+    cluster bootstrap and the same draws as that lighting's paired rows; R over its seed-averaged decisions, section
+    7). table.md prints them next to the rates (`0.083 [0.000, 0.250]`) in the primary tables, the budget curves and
+    the cap curve, with a header note. Dev rows and pooled rows have none (no bootstrap on pooled data).
+  - **No bootstrap ran.** With no test arrangement (a dev-only manifest such as the check batch),
+    `bootstrap_stratification` is `{"ran": false, "stratified": false, "strata": {}, ...}` with the note "no
+    bootstrap ran: ...", and table.md says so in the header and in each lighting's bootstrap section (it used to say
+    "stratified by quota slot class ( test arrangements)").
+  - **Stale outputs.** Every file the run writes is removed from the output directory before it starts
+    (`RUN_OUTPUTS` for `--synthetic`, `REAL_OUTPUTS` on the manifest path), so a run that fails part-way, e.g. at the
+    post-run labels check (exit 2), never leaves an earlier run's results.json next to its own config.json. An input
+    file that is one of those outputs is refused (exit 2) before anything is removed.
+  - **Fallback wording.** Without `--view-labels` the header line reads "predeclared indistinguishable share (no view
+    labels given)" and counts "occluded or removed episodes of arrangements flagged indistinguishable in the
+    manifest"; it no longer claims a geometric fact the run never measured. The per-condition column is named by its
+    source: "geometric no-diagnostic-view share (context; view labels)" or "predeclared indistinguishable share
+    (context; no view labels given)". The results.json key stays `geometric_no_diagnostic_view_share`, with
+    `no_diagnostic_view_source` naming the source.
+  - **Simulation flag.** A view-labels file whose `simulation` flag disagrees with the manifest's is refused (exit 2),
+    as verify.select refuses it. On a simulation manifest every line of logs.jsonl and ground_truth.json carries
+    `"label": SIM_LABEL` and `"simulation": true` (`EpisodeLog.from_dict` and `GroundTruth.load` ignore both keys).
+  - Config versions `synthetic-v7` and `real-v4`.
 - `--synthetic` is the main mode. Real data (v0): `--manifest MANIFEST.json --evidence
   <evidence.jsonl from perception/evidence.py>` runs the same run / score / diagnostics stages with
   placeholder thresholds (truth re-read from the manifest only after the run; no table.md).
@@ -783,8 +838,9 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
 - Stages are kept separate, and the order matters:
   1. **Generate** (`generate_stage`): `synthetic.generate` produces specs, store and truth;
      `generate_stage` **drops the truth**, returns only specs and store, and writes nothing.
-     Stale `ground_truth.json`, `evidence.jsonl` and `episodes.json` in the output dir are
-     deleted first, so no truth-bearing or unvisited-evidence file exists while policies run.
+     Every output file in the output dir (`RUN_OUTPUTS`, including `ground_truth.json`,
+     `evidence.jsonl` and `episodes.json`) is deleted first, so no truth-bearing or
+     unvisited-evidence file exists while policies run and no stale result survives a failure.
   2. **Run** (`run_stage`, no truth parameter): mint every `ReplayKey` (`store.replay_keys()`),
      then for each episode run S once (`Budget(0)`, the k=1 rule object) and FULL once
      (`Budget(4)`). For each cap setting and each budget b, run `MULTI_VIEW` = F, R, G (primary,
@@ -837,44 +893,51 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   `{"label": SYNTHETIC_LABEL, "synthetic": true, "config": {...}, "config_sha256": ...,
   "positions": ..., "thresholds": ..., "generator": {...}, "files": {name: sha256},
   "n_logs", "metrics": [{"scope", "lighting", "policy", "budget", "travel_cap_cm", "role",
-  ...compute_all...}], "bootstrap": [{"scope", "lighting", "travel_cap_cm", "budget",
-  "identical_runs", ...BootstrapResult...}], "diagnostics": {"reachable_view_sets",
+  ...compute_all..., "rate_ci95" (test L1 / L2 rows only)}], "bootstrap": [{"scope", "lighting",
+  "travel_cap_cm", "budget", "identical_runs", ...BootstrapResult...}], "bootstrap_stratification":
+  {"ran", "stratified", "strata", "singleton_strata", "note"}, "diagnostics": {"reachable_view_sets",
   "used_view_sets", "disagreement"}}`; metrics rows have `lighting` "L1", "L2" or "pooled",
   bootstrap rows "L1" or "L2", and `used_view_sets` / `disagreement` rows "L1", "L2" or
   "pooled". The `config` dict (thresholds, positions,
   budgets, `cap_steps`, `travel_caps_cm`, `nominal_step_cm`, `travel_tol_cm`, `g_lookahead`
   {"G": false, "G-lookahead": true}, `g_myopic` {lam_deg, travel_norm_cm}, r_seeds, generator
-  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v6`; `real-v3`
+  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v7`; `real-v4`
   for real data), `simulation`, `bootstrap_stratified`, model_id, positions file path and sha256) is hashed with `config_sha256`, and
   the same hash is in every log line. `cap_steps` is hashed as floats (`[null, 1.0, 2.0, ...]`),
   so the default caps and an explicit `--cap-steps 1,2,3,4,6` give the same hash. v4 (real-v1)
   hashed the default caps as ints, so the same caps could hash two ways; v5 (real-v2) changed
   that and split the diagnostics by lighting; v6 (real-v3) added the simulation flag, the bootstrap strata flag and
-  (real) the view labels file hash.
+  (real) the view labels file hash; v7 (real-v4) added the single-rate intervals and the singleton-strata fallback,
+  made `bootstrap_stratified` the stratification the test bootstrap uses, and labels a simulation run's logs and truth.
 - `table.md` begins with its run label (`# SYNTHETIC - generated evidence, not study results`, or the SIMULATION /
   REAL PILOT label on the manifest path). The header
   carries the per-lighting note, the generator-regime caveat (section 5), the D-cap note (caps in
   steps, 1e-6 cm tolerance; a warning if measured stops deviate from the nominal step), the
   G / G-lookahead / G-myopic note (always, also with `--cap-steps none`, where one more line
   says that uncapped G-lookahead takes G's path, so every G - G-lookahead row is identical), and
-  the bootstrap stratification line, and the geometric no-diagnostic-view share for each lighting with its counts and
-  source (context for coverage, not a ceiling). Then, **once for L1 queries and once for L2
+  the bootstrap stratification line (or "No bootstrap ran"), the single-rate interval note (test runs), and the
+  no-diagnostic-view share for each lighting with its counts and source, worded by that source (context for
+  coverage, not a ceiling). Then, **once for L1 queries and once for L2
   queries** (every heading starts with `L1 queries -` or `L2 queries -`): the primary table (one
   row per policy at the primary budget, per cap setting: FRR, FRR per arrangement (x/n), recall, coverage, resolved
-  accuracy, mean views, mean travel, and n_arr/n_ep; S and FULL are marked "actual effort" and
+  accuracy, mean views, mean travel, and n_arr/n_ep, with `[lo, hi]` 95% intervals after FRR, recall and coverage on
+  test; S and FULL are marked "actual effort" and
   "higher-effort reference"; under a capped heading FULL is printed as `FULL (uncapped)` with the
   note "uncapped reference (exceeds cap)"), the budget curves, the per-condition table (with a
-  no-diagnostic-view share column, labelled context), the **cap curve at the primary budget** (each policy across the
+  no-diagnostic-view share column, labelled context and named by its source), the **cap curve at the primary
+  budget** (each policy across the
   cap grid), the bootstrap lines with their n and an `identical` note on degenerate pairs, and
   the two diagnostic tables for that lighting (distinct view sets; path / decision disagreement).
   Undefined values print as `undef`. Last comes the only section with numbers pooled over
   lighting, headed `Secondary, not a headline: pooled over L1 and L2 queries (test split)`: the
   policy x cap table at the primary budget (no bootstrap) and the two diagnostic tables over both
   lightings (the "pooled" rows). The default run (30 arrangements, 6 cap settings, 20
-  R seeds, B = 10000) writes 259,560 log lines (`logs.jsonl` 219.5 MB, `results.json` 16.2 MB, table.md
-  234 KB); on the Jetson it took 106 s (2026-11-03, measured twice, byte-identical; 2026-11-02: about 12 MB of
-  results and about 105 s; before G-lookahead and the per-lighting split it was 248,760 lines, 4 MB of results and
-  about 90 s there). The default `verify.select --synthetic` took about 9 s.
+  R seeds, B = 10000) writes 259,560 log lines (`logs.jsonl` 219.5 MB, `results.json` 16.6 MB, table.md
+  274 KB); on the Jetson it took 134 s under a load average near 6 (2026-11-03, after the single-rate intervals,
+  measured twice, byte-identical; the f5593b7 code took 114 s at the same load, and the intervals themselves cost
+  about 5 s; earlier: 106 s unloaded, 16.2 MB of results; 2026-11-02: about 12 MB and 105 s; before G-lookahead and
+  the per-lighting split it was 248,760 lines, 4 MB of results and about 90 s there). The default `verify.select
+  --synthetic` took about 9 s.
 - `main(argv: list[str] | None = None) -> int`, for testing. `tests/test_end_to_end.py` runs
   `--n-arr 6 --r-seeds 3 --bootstrap-B 200` into a temp dir, checks the files, the label and
   the required log fields, checks that `logs.jsonl` lines contain no `truth` key, spies on
@@ -961,11 +1024,18 @@ dev data are looked at.
 - **Data interfaces.** `StoreFactory` is a Protocol (`n_stops`, `__call__() -> EvidenceStore`) that returns a
   **fresh, unsealed** store holding exactly the dev episodes, identical on every call;
   `RecordStoreFactory(records, n_stops, synthetic=..., source=...)` implements it from an immutable snapshot, with
-  `evidence_sha256()`; `SubsetStoreFactory(base, episode_ids)` copies some episodes of another factory into a new
-  store per call. `ViewLabel(episode_id, stop, diagnostic)` is the per-view label (ambiguous views are
-  non-diagnostic). `DevData(specs, store_factory, truth, view_labels, positions, synthetic, label_source,
-  evidence_sha256, simulation=False, strata=None, inputs=None)` requires a label for every (dev episode, stop);
-  `DevData.subset(arrangements)` restricts specs, evidence, truth, labels and strata to those arrangements.
+  `evidence_sha256()`; `SubsetStoreFactory(base, episode_ids)` is a `RecordStoreFactory` holding a snapshot of some
+  episodes of another factory, taken once from one fresh store of the base, which it then drops: it keeps **no
+  reference to the base**, and its `source` names no file. `ViewLabel(episode_id, stop, diagnostic)` is the per-view
+  label (ambiguous views are non-diagnostic). `DevData(specs, store_factory, truth, view_labels, positions,
+  synthetic, label_source, evidence_sha256, simulation=False, strata=None, inputs=None)` requires a label for every
+  (dev episode, stop); `DevData.subset(arrangements)` restricts specs, evidence, truth, labels and strata to those
+  arrangements, records the subset's own `evidence_sha256`, and keeps only the input files' sha256 in `inputs`
+  (`subset_inputs`: the paths are dropped, because the evidence and labels files hold every dev arrangement).
+  Review, checkpoint 2 (`leak2.py`): the old subset kept the full factory in `_base` and the full file paths in
+  `inputs`, so a fold-trained policy could reach the held-out arrangement's evidence and geometric labels. A test
+  walks everything reachable from each training subset (attributes, slots, containers, closures) and finds neither
+  a held-out episode nor an input file path (`test_training_subset_reaches_no_held_out_data`).
 - **Sim dev input** (`sim_dev_data`, the `--manifest` path). It reads the set files sim/episodes.py writes: the
   manifest (every arrangement must be split dev: `SplitRefused` before any other file is read, CLI exit 2), the
   evidence from `perception/evidence.py` on `jobs_refL1.json` (synthetic evidence refused), `view_labels.json`
@@ -1012,10 +1082,14 @@ dev data are looked at.
     share of views passing the tau_q / tau_occ gate is reported per lighting (L1, L2, pooled), with counts, for
     diagnostic removed views, diagnostic present views and all views: at the chosen setting
     (`calibration.gate_pass_by_lighting`) and in every fold, on its training and its held-out views
-    (`grouped_cv.folds[].gate_pass_train / gate_pass_held`). A lighting where at most `GATE_PASS_LOW` (0.05) of a
-    diagnostic population passes is flagged (`gate_pass_flags`, "the gate rejects ALL L2 removed diagnostic views
-    (0/30 ...)"). Feasibility is not evidence of lighting robustness; the held-out recall and coverage per lighting
-    are.
+    (`grouped_cv.folds[].gate_pass_train / gate_pass_held`). A lighting where at most `GATE_PASS_LOW` (0.05) of any of
+    the three populations passes is flagged (`gate_pass_flags`, "the gate rejects ALL L2 removed diagnostic views
+    (0/30 ...)", "the gate passes nearly no L2 views (all) (3/120 = 0.025 <= 0.05)"), as section 7 of the prereg
+    says, and a population with no view in a lighting is reported as "no views: there are no L1 removed diagnostic
+    views (n = 0)", never skipped (review, checkpoint 2: only the two diagnostic populations were flagged, and an
+    empty one was skipped silently; on held-out folds of an arrangement whose stops are all blocked the removed
+    diagnostic population is empty). Feasibility is not evidence of lighting robustness; the held-out recall and
+    coverage per lighting are.
   - **Fail loudly.** If no setting meets both constraints (or a false rate has no view to be measured on),
     `CalibrationInfeasible` carries an `Infeasibility`: the `binding` constraint ("false-clear", "false clear-miss",
     "both"; "jointly" is a defensive label that cannot occur, because the most conservative corner, max tau_q, min
@@ -1045,11 +1119,22 @@ dev data are looked at.
     secondary line): FRR per episode and per arrangement, recall, coverage, mean views, mean travel, all with
     counts, CP / Jeffreys bounds and the cluster bootstrap. Rates above the FRR limit are flagged as **reported
     checks**; they never touch eligibility or a threshold.
-  - **Hook for A** (`FoldTrainable`: `name`, `train(train: DevData, thresholds) -> policy factory`). Per fold,
-    `train` receives `dev.subset(training arrangements)`: its store, truth, labels and strata hold nothing of the
-    held-out arrangement, so A's training and model selection exclude it by construction. The returned factory's
-    policies run on the held-out episodes as `<name>` (k rule) and `<name>-fcm`, logged under that name. A test
-    trains a dummy policy that records what it saw.
+  - **Hook for A** (`FoldTrainable`: `name`, `train(train: DevData, thresholds) -> policy factory`). `run_selection`
+    and `held_out_check` take **factories** (`FoldTrainableFactory`: a callable with a `name` that builds a fresh
+    `FoldTrainable`; a `FoldTrainable` class is one), never trainable instances (`TypeError`). Per fold, in a
+    forked process of its own (`fold_isolated`), the factory builds a fresh trainable, `train` receives
+    `dev.subset(training arrangements)` (its store, truth, labels, strata and inputs hold nothing of the held-out
+    arrangement and lead nowhere else), and the returned policies run on the held-out episodes as `<name>` (k rule)
+    and `<name>-fcm`, logged under that name; only the results come back. The parent process never calls a
+    factory, so whatever a trainable keeps on itself, on its class or in its module ends with its fold: fold j cannot
+    inherit what fold i (whose training set holds j) learned. Review, checkpoint 2 (`leak.py`): one object was trained
+    in every fold, and in 2 of 3 folds it already held the held-out arrangement. A child's error comes back as a
+    `RuntimeError` with its traceback. Boundary: the guarantee covers in-memory state; a trainable that writes its
+    own files and reads them in a later fold, or that introspects the parent memory its process inherited (`gc`,
+    frames), is outside it, as for policies (section 2), and is excluded by review. Tests: a dummy trainable logs what
+    it saw from inside its process; a trainable that remembers every arrangement on itself, its class and its module
+    (also through a factory that hands out one shared instance) has an empty memory in every fold
+    (`test_fold_state_never_carries_over`).
   - A fold whose calibration is infeasible gets no thresholds, no held-out rates and no held-out runs (no
     fallback); it is listed with its binding constraint.
 - **Freeze eligibility.** A candidate is `eligible_for_freeze: true` only if calibration succeeds on all dev data
@@ -1057,9 +1142,14 @@ dev data are looked at.
   Otherwise the candidate is still written, for investigation, with `eligible_for_freeze: false` and
   `ineligible_reasons` (each fold and its binding constraint, with the best achievable rates), and the CLI exits
   with status **4**. Held-out arrangements or policies that miss alpha_clear or the FRR limit do not make a
-  candidate ineligible. `require_freeze_eligible(path or doc)` is what the freeze step calls: it checks the file
-  against its `.sha256` sidecar and refuses (`NotEligibleForFreeze`) another schema, procedure or revision, an
-  unmarked candidate, any value but exactly `true`, and a synthetic candidate.
+  candidate ineligible. `require_freeze_eligible(path)` is what the freeze step calls. It takes the candidate
+  **file** only and checks it against its `.sha256` sidecar; a parsed document is refused, because it cannot be
+  checked (review, checkpoint 2, `rfe.py`: a dict skipped the tamper check, so an edited tau_q was accepted). It
+  refuses (`NotEligibleForFreeze`) another schema, procedure or revision, an unmarked candidate, any value but exactly
+  `true`, and a synthetic candidate by **any** of its marks: `synthetic` not exactly false, a label containing
+  SYNTHETIC, or a `synthetic_provenance` record (a synthetic candidate with its flag flipped to false and re-signed
+  used to pass while its label still read SYNTHETIC). The sidecar guards against accidental edits, not against
+  someone who rewrites both files.
 - **Step 4: FRR <= `frr_limit` (0.10) is a check, not an objective.** With the frozen thresholds (k = 2, lam = 0),
   `PolicyRunner` runs S, F, R, G, G-lookahead and G-myopic on all dev episodes at the primary budget (3), uncapped
   and under every cap (1, 2, 3, 4, 6 arc steps; D-cap). FRR (per episode and per arrangement), recall, coverage,
@@ -1072,8 +1162,11 @@ dev data are looked at.
 - **Cluster bootstrap: family-stratified** (docs/SIM_PREREGISTRATION.md section 8). With `DevData.strata` (every
   arrangement's quota slot class), `cluster_bootstrap` resamples arrangements within each stratum and keeps every
   stratum's count (`analysis.bootstrap.stratified_arrangement_draws`), in the dev check and the held-out check.
-  Without family information (synthetic data, legacy manifests) it is unstratified, and every bootstrap record,
-  `bootstrap_stratification`, the warnings and the report say so.
+  Without family information (synthetic data, legacy manifests), or when any stratum holds fewer than two of the
+  arrangements resampled (`analysis.bootstrap.resolve_strata`, section 7), it is unstratified, and every bootstrap
+  record (`stratified`, `singleton_strata`, `note`), `bootstrap_stratification`, the warnings and the report say so
+  ("unstratified: singleton strata ..." next to each interval). The sim tests' 7-arrangement set has five singleton
+  classes and runs unstratified.
 - **Context, not a ceiling.** The candidate and the report give the geometric no-diagnostic-view share of the dev
   episodes per lighting (episodes with no diagnostic stop, from the labels).
 - **Step 5: sensitivity, reported only and never selected.** k = 3 (F, R, G, G-lookahead, G-myopic) and lam in
@@ -1120,8 +1213,6 @@ dev data are looked at.
     environment.
   - **verify.run thresholds.** `verify.run` still replays with the placeholder `Thresholds()`; it does not yet
     read a frozen candidate (through `require_freeze_eligible`).
-  - **Single-rate bootstrap intervals in verify.run.** The prereg's section 8 asks for percentile intervals for
-    single rates too; verify.run reports paired contrasts only (select's tables carry single-rate intervals).
 
 ---
 
@@ -1140,6 +1231,9 @@ dev data are looked at.
   set a shared setting: tau_q, tau_occ and tau_match are calibrated per view (one joint search), k = 2 and
   lam = 0 are fixed, an infeasible calibration writes no candidate, and a candidate with an infeasible CV fold
   is marked ineligible for freeze (section 10).
+- A fold-trained policy (ranker A) is built fresh in every CV fold, in that fold's own process, from training data
+  that hold and lead to nothing of the held-out arrangement; the freeze step accepts only a candidate file that
+  matches its `.sha256` sidecar and carries no synthetic mark (section 10).
 - Every output of a manifest with `"simulation": true` is labelled SIMULATION.
 - Splits and the bootstrap work at the arrangement level. An arrangement's episodes are never
   split.

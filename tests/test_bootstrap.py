@@ -13,6 +13,8 @@ from analysis.bootstrap import (
     draw_diffs,
     pair,
     paired_diff,
+    rate_intervals,
+    resolve_strata,
     sample_draws,
     stratified_arrangement_draws,
 )
@@ -247,25 +249,39 @@ class TestStratified(unittest.TestCase):
         with self.assertRaises(ValueError):
             sample_draws(["A00", "A01"], 10, 0, {"A00": "S8"})
 
-    def test_each_arrangement_its_own_stratum_gives_a_degenerate_ci(self) -> None:
-        # Hand-computed: with every arrangement in a stratum of its own, every replicate is the sample itself, so the
-        # CI collapses to the point estimate (an unstratified bootstrap of the same data has a wide CI).
+    # The same 12 arrangements with no singleton stratum (each class at least twice)
+    STRATA2 = ["S8", "M16-L", "white_box", "S8", "M16-R", "ycb_box", "M16-L", "M16-R", "S8", "white_box", "ycb_box",
+               "S8"]
+
+    def test_singleton_strata_fall_back_to_unstratified(self) -> None:
+        # Review (checkpoint 2): with every arrangement in a stratum of its own, every stratified replicate is the
+        # sample itself and the CI collapsed to the point estimate (4/24, 4/24), still called stratified. A stratum of
+        # fewer than two arrangements now makes the bootstrap unstratified, and the result says why.
         a = make(6, lambda i, c, l: R if i == 0 else correct(i, c, l), "G")
         b = make(6, correct, "F")
-        strata = {f"A{i:02d}": f"s{i}" for i in range(6)}
-        r = paired_diff(a, b, truth_for(a), "false_removal_rate", B=500, seed=3, strata=strata)
-        self.assertAlmostEqual(r.estimate, 4 / 24)
-        self.assertAlmostEqual(r.ci_lo, 4 / 24)
-        self.assertAlmostEqual(r.ci_hi, 4 / 24)
-        self.assertTrue(r.stratified)
         u = paired_diff(a, b, truth_for(a), "false_removal_rate", B=500, seed=3)
         self.assertFalse(u.stratified)
         self.assertLess(u.ci_lo, u.ci_hi)
+        for strata, singles in (({f"A{i:02d}": f"s{i}" for i in range(6)}, ("s0", "s1", "s2", "s3", "s4", "s5")),
+                                ({f"A{i:02d}": "big" if i < 5 else "lone" for i in range(6)}, ("lone",))):
+            r = paired_diff(a, b, truth_for(a), "false_removal_rate", B=500, seed=3, strata=strata)
+            with self.subTest(singles=singles):
+                self.assertAlmostEqual(r.estimate, 4 / 24)
+                self.assertFalse(r.stratified)
+                self.assertEqual(r.singleton_strata, singles)
+                self.assertTrue(r.stratification_note.startswith("unstratified: singleton strata " + singles[0]))
+                self.assertEqual((r.ci_lo, r.ci_hi), (u.ci_lo, u.ci_hi))   # exactly the unstratified bootstrap
+                self.assertEqual(r.to_dict()["singleton_strata"], list(singles))
+        self.assertEqual(resolve_strata(["A", "B", "C", "D"], {"A": "x", "B": "x", "C": "y", "D": "y"}),
+                         ({"A": "x", "B": "x", "C": "y", "D": "y"}, (), ""))
+        self.assertEqual(resolve_strata(["A", "B"], None), (None, (), ""))
+        with self.assertRaises(ValueError):
+            resolve_strata(["A", "B"], {"A": "x"})
 
     def test_paired_diff_uses_the_stratified_draws(self) -> None:
         a, b = make(12, noisy, "G"), make(12, correct, "F")
         truth = truth_for(a)
-        strata = {f"A{i:02d}": st for i, st in enumerate(self.STRATA)}
+        strata = {f"A{i:02d}": st for i, st in enumerate(self.STRATA2)}
         r = paired_diff(a, b, truth, "coverage", B=400, seed=11, strata=strata)
         sample = pair(a, b, truth)
         draws = stratified_arrangement_draws([strata[x] for x in sample.arrangement_ids], 400, 11)
@@ -273,10 +289,65 @@ class TestStratified(unittest.TestCase):
         lo, hi = np.percentile(diffs, [2.5, 97.5])
         self.assertEqual((r.ci_lo, r.ci_hi), (float(lo), float(hi)))
         self.assertTrue(r.to_dict()["stratified"])
+        self.assertEqual((r.singleton_strata, r.stratification_note), ((), ""))
         # and each draw's difference is the metric recomputed on the expanded multiset
         for draw, d in list(zip(draws, diffs))[:25]:
             ra, rb = sample.expand(draw)
             self.assertAlmostEqual(d, metrics_on(ra, truth)["coverage"] - metrics_on(rb, truth)["coverage"], places=12)
+
+
+
+class TestRateIntervals(unittest.TestCase):
+    """Single-rate percentile intervals (prereg section 8: "for contrasts and for single rates")."""
+
+    def by_hand(self, results, truth, metric, draws) -> tuple[float, float]:
+        ids = sorted({r.arrangement_id for r in results})
+        vals = []
+        for d in draws:
+            multiset = [r for i in d for r in results if r.arrangement_id == ids[i]]
+            v = metrics_on(multiset, truth)[metric]
+            if v is not None:
+                vals.append(v)
+        lo, hi = np.percentile(vals, [2.5, 97.5])
+        return float(lo), float(hi)
+
+    def test_matches_a_hand_bootstrap_stratified_and_not(self) -> None:
+        a = make(12, noisy, "G")
+        truth = truth_for(a)
+        strata = {f"A{i:02d}": st for i, st in enumerate(TestStratified.STRATA2)}
+        ids = sorted(strata)
+        for st in (None, strata):
+            iv = rate_intervals(a, truth, B=300, seed=5, strata=st)
+            draws = sample_draws(ids, 300, 5, st)
+            for metric in ("false_removal_rate", "removal_recall", "coverage"):
+                with self.subTest(stratified=st is not None, metric=metric):
+                    r = iv[metric]
+                    lo, hi = self.by_hand(a, truth, metric, draws)
+                    self.assertAlmostEqual(r.ci_lo, lo, places=12)
+                    self.assertAlmostEqual(r.ci_hi, hi, places=12)
+                    self.assertEqual(r.estimate, metrics_on(a, truth)[metric])
+                    self.assertEqual((r.stratified, r.n_arrangements, r.n_episodes, r.B, r.seed, r.policy),
+                                     (st is not None, 12, 72, 300, 5, "G"))
+                    self.assertLess(r.ci_lo, r.ci_hi)
+
+    def test_seed_averaged_fractions_and_singleton_fallback(self) -> None:
+        # R's seed-averaged decision fractions enter as they are (one result per episode; seeds are not resampled)
+        half = {R: 0.5, P: 0.5}
+        a = make(6, lambda i, c, l: half if i < 3 and c.value == "visible" else correct(i, c, l), "R")
+        truth = truth_for(a)
+        iv = rate_intervals(a, truth, ("false_removal_rate",), B=400, seed=2)
+        self.assertAlmostEqual(iv["false_removal_rate"].estimate, (3 * 2 * 0.5) / 24)
+        lo, hi = self.by_hand(a, truth, "false_removal_rate", sample_draws(sorted({r.arrangement_id for r in a}),
+                                                                             400, 2))
+        self.assertAlmostEqual(iv["false_removal_rate"].ci_lo, lo, places=12)
+        self.assertAlmostEqual(iv["false_removal_rate"].ci_hi, hi, places=12)
+        lone = {f"A{i:02d}": f"s{i}" for i in range(6)}
+        fb = rate_intervals(a, truth, ("false_removal_rate",), B=400, seed=2, strata=lone)["false_removal_rate"]
+        self.assertFalse(fb.stratified)
+        self.assertEqual(len(fb.singleton_strata), 6)
+        self.assertEqual((fb.ci_lo, fb.ci_hi), (iv["false_removal_rate"].ci_lo, iv["false_removal_rate"].ci_hi))
+        with self.assertRaises(ValueError):   # one result per episode
+            rate_intervals(a + a[:1], truth, B=10)
 
 
 if __name__ == "__main__":

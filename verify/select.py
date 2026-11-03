@@ -57,9 +57,11 @@ threshold; every number from a manifest with "simulation": true is a SIMULATION 
           (a) Per-view: the held-out arrangement's per-view rates at the fold's thresholds.
           (b) Held-out policy check: every policy (S, F, R, G, G-lookahead, G-myopic, FULL and the -fcm variants
               verify.run reports, plus any fold-trained policy, e.g. A later) runs on the held-out arrangement's
-              episodes with THAT FOLD'S thresholds, at the primary budget, uncapped and under every cap. Fold-trained
-              policies are built per fold from a DevData holding the training arrangements only, so their training
-              and model selection exclude the held-out arrangement by construction. Rates per policy and lighting
+              episodes with THAT FOLD'S thresholds, at the primary budget, uncapped and under every cap. A fold-trained
+              policy is built fresh per fold by its factory, in that fold's own process, and trained on a DevData
+              holding the training arrangements only (a snapshot with no path back to the full dev data), so its
+              training and model selection exclude the held-out arrangement by construction, and nothing it learned
+              in one fold reaches another. Rates per policy and lighting
               (pooled only as a secondary line): FRR per episode and per arrangement, recall, coverage, mean views,
               mean travel, with counts and the stratified cluster bootstrap.
           A fold whose calibration is infeasible gets no thresholds, no held-out rates and no held-out runs (no
@@ -68,16 +70,18 @@ threshold; every number from a manifest with "simulation": true is a SIMULATION 
           fold (docs/SIM_PREREGISTRATION.md section 7). Otherwise the candidate is still written for investigation,
           marked "eligible_for_freeze": false with ineligible_reasons, and the CLI exits with status 4. Held-out
           arrangements or policies missing alpha / the FRR limit do not make a candidate ineligible: those are
-          reported checks. require_freeze_eligible() is what the freeze step calls; it refuses an ineligible,
-          unmarked, synthetic or tampered candidate.
+          reported checks. require_freeze_eligible(path) is what the freeze step calls; it takes the candidate file
+          only (checked against its .sha256 sidecar) and refuses an ineligible, unmarked, synthetic (by its flag,
+          label or synthetic_provenance) or tampered candidate.
   Step 4  FRR <= frr_limit is a CHECK, not an objective. With the frozen thresholds (k = 2, lam = 0)
           every policy (S, F, R, G, G-lookahead, G-myopic) runs on dev at the primary budget, uncapped
           and under every cap of the grid. FRR (per episode and per arrangement), recall and coverage are reported
           separately for L1 and L2 queries, with one-sided Clopper-Pearson and Jeffreys bounds and a cluster
           bootstrap over arrangements, stratified by quota slot class (occluder family, M16 split by side) when
-          the manifest has it, else unstratified and flagged. A policy above the limit is flagged; nothing is
-          changed to fix it. A row with no present-target episode (FRR undefined) is not checked, and the check is
-          then incomplete (all_within_limit null), never passed.
+          the manifest has it and every class holds at least two of the arrangements resampled, else unstratified
+          and flagged ("unstratified: singleton strata" when a class has one). A policy above the limit is flagged;
+          nothing is changed to fix it. A row with no present-target episode (FRR undefined) is not checked, and the
+          check is then incomplete (all_within_limit null), never passed.
   Step 5  Sensitivity, reported and never selected: k = 3 (F, R, G, G-lookahead, G-myopic) and lam in
           {0.7, 0.9, 1.2} (G and G-lookahead, the only policies that read lam), with the frozen taus.
 
@@ -113,8 +117,10 @@ import hashlib
 import json
 import logging
 import math
+import multiprocessing
 import os
 import sys
+import traceback
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -122,7 +128,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from analysis.bootstrap import arrangement_draws, stratified_arrangement_draws
+from analysis.bootstrap import arrangement_draws, resolve_strata, stratified_arrangement_draws
 from analysis.intervals import (
     clopper_pearson_lower,
     clopper_pearson_upper,
@@ -625,27 +631,20 @@ class RecordStoreFactory:
         return store
 
 
-class SubsetStoreFactory:
-    """A StoreFactory holding only some episodes of another one: each call builds a fresh store from the base factory
-    and copies the listed episodes into a new, unsealed store. Nothing else is reachable through it, so a policy
-    trained on a fold's training subset cannot read the held-out arrangement's evidence."""
+class SubsetStoreFactory(RecordStoreFactory):
+    """A StoreFactory holding only some episodes of another one: a snapshot of the listed episodes' records, taken
+    once at construction from one fresh store of the base factory, which is then dropped. It keeps no reference to the
+    base (review, checkpoint 2: it used to keep the full factory in self._base and rebuild from it on every call, so a
+    fold-trained policy could call train.store_factory._base() and read the held-out arrangement's evidence). Nothing
+    but the listed episodes is reachable through it, by construction. Its source names no file: the base's source
+    can carry the evidence file's path, and that file holds every dev arrangement."""
 
     def __init__(self, base: StoreFactory, episode_ids: Iterable[str]) -> None:
-        self._base = base
-        self._ids = tuple(sorted(set(episode_ids)))
-        self.n_stops = base.n_stops
-
-    @property
-    def episode_ids(self) -> tuple[str, ...]:
-        return self._ids
-
-    def __call__(self) -> EvidenceStore:
-        src = self._base()
-        out = EvidenceStore(src.n_stops, synthetic=src.synthetic, source=f"{src.source} (subset)")
-        for eid in self._ids:
-            for s in range(src.n_stops):
-                out.put(eid, src.get(eid, s))
-        return out
+        src = base()
+        ids = sorted(set(episode_ids))
+        super().__init__({eid: [src.get(eid, s) for s in range(src.n_stops)] for eid in ids}, src.n_stops,
+                         synthetic=src.synthetic,
+                         source=f"subset of the dev evidence ({len(ids)} episodes; source file not recorded)")
 
 
 @dataclass(frozen=True)
@@ -762,8 +761,13 @@ class DevData:
         return SYNTHETIC_LABEL if self.synthetic else (SIMULATION_LABEL if self.simulation else "")
 
     def subset(self, arrangements: Iterable[str]) -> DevData:
-        """The same dev data restricted to the given arrangements: specs, evidence (SubsetStoreFactory), truth, labels
-        and strata hold nothing else. Used per CV fold, so a fold-trained policy never sees the held-out one."""
+        """The same dev data restricted to the given arrangements: specs, evidence (a SubsetStoreFactory snapshot with
+        no reference to this store factory), truth, labels and strata hold nothing else, and evidence_sha256 is the
+        subset's own. Used per CV fold, so a fold-trained policy never sees the held-out one.
+
+        inputs keeps only the input files' sha256 (subset_inputs): the file paths are dropped, because the evidence and
+        labels files hold every dev arrangement, the held-out one included (review, checkpoint 2: json.load of
+        train.inputs["view_labels"]["file"] gave the held-out arrangement's geometric labels)."""
         keep = set(arrangements)
         unknown = keep - set(self.arrangements)
         if unknown or not keep:
@@ -772,11 +776,27 @@ class DevData:
         ids = {s.episode_id for s in specs}
         truth = GroundTruth({e: self.truth[e] for e in sorted(ids)}, self.truth.indistinguishable & ids,
                             synthetic=self.truth.synthetic)
-        return DevData(specs, SubsetStoreFactory(self.store_factory, ids), truth,
+        factory = SubsetStoreFactory(self.store_factory, ids)
+        return DevData(specs, factory, truth,
                        tuple(l for l in self.view_labels if l.episode_id in ids), self.positions, self.synthetic,
-                       self.label_source, self.evidence_sha256, simulation=self.simulation,
+                       self.label_source, factory.evidence_sha256(), simulation=self.simulation,
                        strata=None if self.strata is None else {a: self.strata[a] for a in sorted(keep)},
-                       inputs=self.inputs)
+                       inputs=subset_inputs(self.inputs))
+
+
+SUBSET_INPUTS_NOTE = ("a subset of the dev data (e.g. a CV training fold): the input files hold every dev arrangement, "
+                      "so their paths are dropped and only their sha256 is kept")
+
+
+def subset_inputs(inputs: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """A subset's inputs: {name: {"sha256"}} for every input file, with no path (and no ignored_episodes list), plus
+    a note. Nothing in it leads back to a file that holds another arrangement's evidence or labels."""
+    if inputs is None:
+        return None
+    out: dict[str, Any] = {k: {"sha256": v["sha256"]} for k, v in sorted(inputs.items())
+                           if isinstance(v, Mapping) and "sha256" in v}
+    out["note"] = SUBSET_INPUTS_NOTE
+    return out
 
 
 def refuse_non_dev(specs: Iterable[EpisodeSpec]) -> None:
@@ -1086,13 +1106,18 @@ def gate_pass_by_lighting(rows: Sequence[ViewRow], th: Thresholds) -> dict[str, 
 
 
 def gate_pass_flags(gp: Mapping[str, Mapping[str, Sequence[int]]], where: str) -> list[str]:
-    """One line per lighting and diagnostic population where (nearly) no view passes the gate: thresholds that are
-    feasible by rejecting a whole lighting must be obvious."""
+    """One line per lighting and population (diagnostic removed views, diagnostic present views and all views,
+    docs/SIM_PREREGISTRATION.md section 7) where (nearly) no view passes the gate, and one line per lighting and
+    population that has no view at all: thresholds that are feasible by rejecting a whole lighting must be obvious,
+    and a share that could not be measured must say so (review, checkpoint 2: only the two diagnostic populations
+    were flagged, and an empty one was skipped without a word)."""
     out = []
     for light in REPORT_LIGHTINGS:
-        for pop in ("removed_diagnostic", "present_diagnostic"):
+        for pop in GATE_PASS_POPULATIONS:
             x, n = gp[light][pop]
             if not n:
+                out.append(f"{where}: no views: there are no {light} {GATE_PASS_TEXT[pop]} (n = 0), so their gate "
+                           "pass share is undefined there")
                 continue
             if x == 0:
                 out.append(f"{where}: the gate rejects ALL {light} {GATE_PASS_TEXT[pop]} (0/{n} pass tau_q / tau_occ)")
@@ -1258,13 +1283,83 @@ def freeze_eligibility(folds: Sequence[ViewFold], arrangements: Sequence[str]) -
 
 class FoldTrainable(Protocol):
     """A policy trained per CV fold (ranker A later). train() receives a DevData holding the fold's TRAINING
-    arrangements only (DevData.subset: its store, truth, labels and strata have nothing of the held-out arrangement)
-    and the fold's thresholds, and returns a factory of fresh policy instances, which then run on the held-out
-    arrangement through the public replay API with the fold's stopping rule. Its training and model selection can
-    therefore never see the held-out arrangement."""
+    arrangements only (DevData.subset: its store, truth, labels and strata have nothing of the held-out arrangement,
+    and its store factory and inputs lead nowhere else) and the fold's thresholds, and returns a factory of fresh
+    policy instances, which then run on the held-out arrangement through the public replay API with the fold's
+    stopping rule."""
     name: str
 
     def train(self, train: DevData, thresholds: Thresholds) -> Callable[[], Any]: ...
+
+
+class FoldTrainableFactory(Protocol):
+    """What run_selection / held_out_check take for a fold-trained policy: a callable with a `name` that builds a
+    FRESH FoldTrainable (a FoldTrainable class is one). Each fold calls it once, in a process of its own
+    (fold_isolated), and trains and runs the new trainable there; the parent process never calls it. State a
+    trainable keeps, on itself, on its class or in its module, therefore ends with its fold: fold j can never inherit
+    what fold i (whose training set holds j) learned (review, checkpoint 2: one object was trained in every fold)."""
+    name: str
+
+    def __call__(self) -> FoldTrainable: ...
+
+
+def check_trainable_factories(trainables: Sequence[Any]) -> None:
+    """TypeError unless every entry is a FoldTrainableFactory: callable, with a str name, and not itself a trainable
+    instance (an instance passed here would be trained in every fold, carrying its state across them)."""
+    for t in trainables:
+        if not isinstance(t, type) and callable(getattr(t, "train", None)):
+            raise TypeError(f"{t!r} is a FoldTrainable instance; pass a factory that builds a fresh one per fold "
+                            "(e.g. its class), so no state can carry over from one fold to the next")
+        if not callable(t) or not isinstance(getattr(t, "name", None), str):
+            raise TypeError(f"{t!r} is not a FoldTrainableFactory (a callable with a str name)")
+
+
+def fold_isolated(fn: Callable[..., Any], *args: Any) -> Any:
+    """fn(*args) in a forked child process; returns its (pickled) result or raises RuntimeError with the child's
+    traceback. The child starts from the parent's memory, in which no fold-trained code has run (the parent never
+    calls a FoldTrainableFactory), and everything it changes dies with it."""
+    ctx = multiprocessing.get_context("fork")
+    recv, send = ctx.Pipe(duplex=False)
+
+    def child() -> None:
+        recv.close()
+        try:
+            msg = ("ok", fn(*args))
+        except BaseException:   # report everything, then exit: nothing may run on in the child
+            msg = ("error", traceback.format_exc())
+        try:
+            send.send(msg)
+        except Exception:   # e.g. an unpicklable result
+            send.send(("error", traceback.format_exc()))
+        send.close()
+    proc = ctx.Process(target=child)
+    proc.start()
+    send.close()
+    try:
+        status, value = recv.recv()   # before join: a large result would fill the pipe and block the child
+    except EOFError:
+        status, value = "error", "the fold process exited without a result"
+    finally:
+        recv.close()
+        proc.join()
+    if status != "ok":
+        raise RuntimeError(f"fold-isolated run failed:\n{value}")
+    return value
+
+
+def _train_and_run_fold(factory: FoldTrainableFactory, train: DevData, held: DevData, thresholds: Thresholds,
+                        settings: SelectionSettings, context: RunContext
+                        ) -> tuple[dict[tuple[str, float | None], tuple[EpisodeResult, ...]], int]:
+    """In a fold's own process (fold_isolated): build a fresh trainable, train it on the fold's training subset, and
+    run it (k rule and -fcm) on the held-out arrangement's episodes, uncapped and under every cap. Returns
+    {(policy, cap_steps): results} and the number of replays."""
+    trained = {factory.name: factory().train(train, thresholds)}
+    runner = PolicyRunner(held, settings, context, trained)
+    out = {}
+    for p in (factory.name, f"{factory.name}-fcm"):
+        for cap in policy_caps(p, settings):
+            out[(p, cap)] = runner.results(p, thresholds, run_budget(p, cap, settings, held.positions))
+    return out, runner.n_runs
 
 
 def split_policy(name: str) -> tuple[str, bool]:
@@ -1486,21 +1581,28 @@ def _draw_counts(n_arrangements: int, B: int, seed: int, strata: tuple[str, ...]
 
 
 def stratification(strata: Mapping[str, str] | None, arrangements: Iterable[str]) -> dict[str, Any]:
-    """{"stratified", "strata": {stratum: n_arrangements}, "note"} over the given arrangements."""
+    """{"stratified", "strata": {stratum: n_arrangements}, "singleton_strata", "note"} over the given arrangements.
+    With a stratum of fewer than two of them the bootstrap is unstratified (analysis.bootstrap.resolve_strata): a
+    stratum of one always redraws itself and adds no variance, and the note says "unstratified: singleton strata"."""
     arrs = sorted(set(arrangements))
     if strata is None:
-        return {"stratified": False, "strata": {}, "note": UNSTRATIFIED_NOTE}
+        return {"stratified": False, "strata": {}, "singleton_strata": [], "note": UNSTRATIFIED_NOTE}
+    used, singles, note = resolve_strata(arrs, strata)
     counts: dict[str, int] = {}
     for a in arrs:
         counts[strata[a]] = counts.get(strata[a], 0) + 1
-    return {"stratified": True, "strata": dict(sorted(counts.items())),
+    if used is None:
+        return {"stratified": False, "strata": dict(sorted(counts.items())), "singleton_strata": list(singles),
+                "note": note}
+    return {"stratified": True, "strata": dict(sorted(counts.items())), "singleton_strata": [],
             "note": "resampled within quota slot classes (occluder family, M16 by side), keeping each class's count"}
 
 
 def cluster_bootstrap(outcomes: Sequence[Outcome], B: int, seed: int,
                       strata: Mapping[str, str] | None = None) -> dict[str, Any]:
     """Percentile 95% CIs for FRR, recall, coverage, resampling arrangements with replacement (fractions for R);
-    within each stratum, keeping its count, when strata ({arrangement_id: stratum}) is given."""
+    within each stratum, keeping its count, when strata ({arrangement_id: stratum}) is given and no stratum of these
+    arrangements is a singleton (else unstratified, flagged: stratification)."""
     arrs = sorted({o.arrangement_id for o in outcomes})
     out: dict[str, Any] = {"B": B, "seed": seed, "n_arrangements": len(arrs), **stratification(strata, arrs)}
     if not arrs:
@@ -1514,7 +1616,7 @@ def cluster_bootstrap(outcomes: Sequence[Outcome], B: int, seed: int,
         terms[m][1][i] += 1
         terms["coverage"][0][i] += o.resolved
         terms["coverage"][1][i] += 1
-    counts = _draw_counts(len(arrs), B, seed, None if strata is None else tuple(strata[a] for a in arrs))
+    counts = _draw_counts(len(arrs), B, seed, tuple(strata[a] for a in arrs) if out["stratified"] else None)
     for m, (num, den) in terms.items():
         n, d = counts @ num, counts @ den
         ok = d > EPS
@@ -1605,8 +1707,9 @@ def run_sensitivity(runner: PolicyRunner, th: Thresholds, settings: SelectionSet
     return {"k": k_rows, "lam": lam_rows}
 
 
-def heldout_policies(trainables: Sequence[FoldTrainable]) -> tuple[str, ...]:
+def heldout_policies(trainables: Sequence[FoldTrainableFactory]) -> tuple[str, ...]:
     """HELDOUT_POLICIES, then every fold-trained policy with its -fcm variant."""
+    check_trainable_factories(trainables)
     names = [t.name for t in trainables]
     for n in names:
         if n in BUILTIN_POLICIES or n.endswith("-fcm") or not n:
@@ -1617,12 +1720,14 @@ def heldout_policies(trainables: Sequence[FoldTrainable]) -> tuple[str, ...]:
 
 
 def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContext, folds: Sequence[ViewFold],
-                   trainables: Sequence[FoldTrainable] = ()) -> dict[str, Any]:
+                   trainables: Sequence[FoldTrainableFactory] = ()) -> dict[str, Any]:
     """Step 3b, the held-out policy check: in every feasible fold, every policy runs on the held-out arrangement's
-    episodes (all conditions and lightings) with that fold's thresholds; fold-trained policies are trained on
-    dev.subset(training arrangements) only. Outcomes are pooled over folds into rows per policy, cap and lighting
-    (FRR per episode and per arrangement, recall, coverage, mean views and travel, counts, bounds and the stratified
-    bootstrap). FRR above the limit is flagged as a reported check; it never touches eligibility or thresholds."""
+    episodes (all conditions and lightings) with that fold's thresholds; a fold-trained policy is built fresh by its
+    factory, trained on dev.subset(training arrangements) only and run on the held-out episodes, all in the fold's
+    own process (fold_isolated), so nothing it keeps reaches another fold. Outcomes are pooled over folds into rows
+    per policy, cap and lighting (FRR per episode and per arrangement, recall, coverage, mean views and travel, counts,
+    bounds and the stratified bootstrap). FRR above the limit is flagged as a reported check; it never touches
+    eligibility or thresholds."""
     policies = heldout_policies(trainables)
     outs: dict[tuple[str, float | None], list[Outcome]] = {}
     fold_log: list[dict[str, Any]] = []
@@ -1636,13 +1741,18 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
             continue
         train_arrs = [a for a in dev.arrangements if a != f.held_out]
         train = dev.subset(train_arrs)
-        trained = {t.name: t.train(train, f.thresholds) for t in trainables}
         held = dev.subset([f.held_out])
-        runner = PolicyRunner(held, settings, context, trained)
+        fold_trained: dict[tuple[str, float | None], tuple[EpisodeResult, ...]] = {}
+        for t in trainables:   # one process per fold and trainable: no state outlives its fold
+            got, n = fold_isolated(_train_and_run_fold, t, train, held, f.thresholds, settings, context)
+            fold_trained.update(got)
+            n_runs += n
+        runner = PolicyRunner(held, settings, context)   # built-in policies only
         for p in policies:
             for cap in policy_caps(p, settings):
                 budget = run_budget(p, cap, settings, dev.positions)
-                for r in runner.results(p, f.thresholds, budget):
+                got = fold_trained.get((p, cap))
+                for r in (got if got is not None else runner.results(p, f.thresholds, budget)):
                     outs.setdefault((p, cap), []).append(Outcome.of(r, held.truth))
                     episodes.append({"fold": f.held_out, "policy": p, "cap_steps": cap,
                                      "travel_cap_cm": budget.travel_cap_cm, "episode_id": r.episode_id,
@@ -1651,7 +1761,7 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
                                      "mean_views": r.mean_views, "mean_travel_cm": r.mean_travel_cm})
         n_runs += runner.n_runs
         fold_log.append({"held_out": f.held_out, "ran": True, "thresholds": f.thresholds.to_dict(),
-                         "training_arrangements": train_arrs, "trained_policies": sorted(trained)})
+                         "training_arrangements": train_arrs, "trained_policies": sorted(t.name for t in trainables)})
     rows: list[CheckRow] = []
     th0 = frozen_thresholds(0.5, 0.5, 0.5)   # only k and lam are read from it (the same in every fold)
     for p in policies:
@@ -1713,14 +1823,15 @@ def all_within_limit(flags: Sequence[str], unchecked: Sequence[str]) -> bool | N
 # ---------------------------------------------------------------- the whole procedure
 
 def run_selection(dev: DevData, settings: SelectionSettings, context: RunContext,
-                  trainables: Sequence[FoldTrainable] = ()) -> dict[str, Any]:
+                  trainables: Sequence[FoldTrainableFactory] = ()) -> dict[str, Any]:
     """select-v4 on dev; returns everything the report and the frozen candidate need.
 
     The order is the guarantee: Steps 1-3a read views only and fix every threshold set (the candidate's and every
     fold's) before any policy runs. The Step 4 / 5 PolicyRunner only ever receives the frozen thresholds (or, in
     Step 5, a copy with k or lam replaced); the held-out check gives each fold's runner that fold's thresholds. If
     Step 1 is infeasible on all dev arrangements, CalibrationInfeasible propagates before any fold or policy runs.
-    trainables: fold-trained policies for the held-out check (FoldTrainable; ranker A later).
+    trainables: factories of fold-trained policies for the held-out check (FoldTrainableFactory, e.g. a FoldTrainable
+    class; ranker A later), each built fresh and trained in every fold's own process.
     """
     refuse_non_dev(dev.specs)
     heldout_policies(trainables)                          # a bad name fails before anything runs
@@ -1769,8 +1880,9 @@ def run_selection(dev: DevData, settings: SelectionSettings, context: RunContext
     lam_check = check_lam_grid((LAM_FIXED, *settings.lam_sensitivity), dev.positions, lookahead=False)
     for w in lam_check.warnings:
         log.warning(w)
-    if dev.strata is None:
-        extra.append(f"bootstrap: {UNSTRATIFIED_NOTE}")
+    st = stratification(dev.strata, dev.arrangements)
+    if not st["stratified"]:
+        extra.append(f"bootstrap: {st['note']}")
     return {"calibration": cal, "thresholds": th, "curves": curves, "view_rates": rates, "folds": folds,
             "gate_pass": gate_pass, "gate_pass_flags": gate_flags,
             "cv_held_out": held, "check": check, "flags": flags, "unchecked": unchecked,
@@ -1907,23 +2019,33 @@ class NotEligibleForFreeze(RuntimeError):
     """require_freeze_eligible refused a candidate."""
 
 
-def require_freeze_eligible(candidate: str | Path | Mapping[str, Any]) -> dict[str, Any]:
-    """What the freeze step calls before anything is frozen. Given a path, the file must match its .sha256 sidecar
-    (written by write_outputs). Refuses (NotEligibleForFreeze) a candidate that is not this schema / procedure, is
-    unmarked (no eligible_for_freeze), is marked anything but exactly true, or is synthetic. Returns the document."""
-    if isinstance(candidate, Mapping):
-        doc = dict(candidate)
-    else:
-        path = Path(candidate)
-        text = path.read_text()
-        side = path.with_name(path.name + ".sha256")
-        if not side.is_file():
-            raise NotEligibleForFreeze(f"{path}: no {side.name} next to it; refusing an unverifiable candidate")
-        want = side.read_text().split()[0] if side.read_text().split() else ""
-        got = hashlib.sha256(text.encode()).hexdigest()
-        if got != want:
-            raise NotEligibleForFreeze(f"{path}: sha256 {got} does not match {side.name} ({want})")
+def require_freeze_eligible(candidate: str | Path) -> dict[str, Any]:
+    """What the freeze step calls before anything is frozen. It takes the candidate FILE only: the file must match
+    its .sha256 sidecar (written by write_outputs). A parsed document is refused, because it cannot be checked against
+    the sidecar (review, checkpoint 2: a dict skipped the tamper check, so an edited tau_q was accepted). Refuses
+    (NotEligibleForFreeze) a candidate that is not this schema / procedure, is unmarked (no eligible_for_freeze), is
+    marked anything but exactly true, or is synthetic by ANY of its marks: the "synthetic" flag not exactly false, a
+    SYNTHETIC label, or a synthetic_provenance record (a flipped and re-signed flag must not pass while the label still
+    says SYNTHETIC). Returns the document."""
+    if not isinstance(candidate, (str, os.PathLike)):
+        raise NotEligibleForFreeze(f"require_freeze_eligible takes the candidate file's path, not a "
+                                   f"{type(candidate).__name__}: only a file can be checked against its .sha256 "
+                                   "sidecar")
+    path = Path(candidate)
+    text = path.read_text()
+    side = path.with_name(path.name + ".sha256")
+    if not side.is_file():
+        raise NotEligibleForFreeze(f"{path}: no {side.name} next to it; refusing an unverifiable candidate")
+    want = side.read_text().split()[0] if side.read_text().split() else ""
+    got = hashlib.sha256(text.encode()).hexdigest()
+    if got != want:
+        raise NotEligibleForFreeze(f"{path}: sha256 {got} does not match {side.name} ({want})")
+    try:
         doc = json.loads(text)
+    except ValueError as e:
+        raise NotEligibleForFreeze(f"{path}: not JSON ({e})") from e
+    if not isinstance(doc, dict):
+        raise NotEligibleForFreeze(f"{path}: not a candidate document (a JSON {type(doc).__name__})")
     if (doc.get("schema"), doc.get("procedure_version"), doc.get("procedure_revision")) != \
             (CANDIDATE_SCHEMA, PROCEDURE_VERSION, PROCEDURE_REVISION):
         raise NotEligibleForFreeze(f"candidate schema/procedure/revision {doc.get('schema')!r}/"
@@ -1935,8 +2057,12 @@ def require_freeze_eligible(candidate: str | Path | Mapping[str, Any]) -> dict[s
         why = "; ".join(r.get("reason", "?") for r in doc.get("ineligible_reasons") or []) or "no reason recorded"
         raise NotEligibleForFreeze(f"candidate is not eligible for freeze (eligible_for_freeze = "
                                    f"{doc['eligible_for_freeze']!r}): {why}")
-    if doc.get("synthetic") is not False:
-        raise NotEligibleForFreeze("a synthetic candidate is never frozen (its numbers are not thresholds)")
+    marks = [m for m, hit in (("synthetic is not exactly false", doc.get("synthetic") is not False),
+                              (f"label {doc.get('label')!r}", "SYNTHETIC" in str(doc.get("label") or "").upper()),
+                              ("it carries synthetic_provenance", "synthetic_provenance" in doc)) if hit]
+    if marks:
+        raise NotEligibleForFreeze("a synthetic candidate is never frozen (its numbers are not thresholds): "
+                                   + "; ".join(marks))
     return doc
 
 
@@ -1968,7 +2094,8 @@ def _ci(boot: Mapping[str, Any] | None, m: str) -> str:
     if boot is None:
         return "-"
     lo, hi = boot[m]["ci95"]
-    return f"[{_f(lo)}, {_f(hi)}]"
+    # a row whose strata had a singleton fell back to the unstratified bootstrap: say so next to the interval
+    return f"[{_f(lo)}, {_f(hi)}]" + (" (unstratified: singleton strata)" if boot.get("singleton_strata") else "")
 
 
 def _steps(steps: float) -> str:
@@ -2078,9 +2205,11 @@ def frr_bound_note(n_arr: int, frr_limit: float, conf: float) -> str:
 
 def _strat_text(dev: DevData) -> str:
     st = stratification(dev.strata, dev.arrangements)
+    classes = ", ".join(f"{k} {v}" for k, v in st["strata"].items())
     if st["stratified"]:
-        return ("stratified by quota slot class (" + ", ".join(f"{k} {v}" for k, v in st["strata"].items())
-                + " arrangements): each replicate keeps every class's count")
+        return f"stratified by quota slot class ({classes} arrangements): each replicate keeps every class's count"
+    if st["singleton_strata"]:
+        return f"**UNSTRATIFIED** ({classes} dev arrangements): {st['note']}"
     return f"**UNSTRATIFIED**: {st['note']}"
 
 
@@ -2121,8 +2250,8 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
           f"evidence sha256 `{dev.evidence_sha256}`",
           f"- view labels: {dev.label_source}; labels sha256 `{dev.view_labels_sha256}`"]
     if dev.inputs:
-        L.append("- input files: " + "; ".join(f"{k} `{v['file']}` sha256 `{v['sha256']}`"
-                                               for k, v in dev.inputs.items() if "sha256" in v))
+        L.append("- input files: " + "; ".join(f"{k} `{v.get('file')}` sha256 `{v['sha256']}`" for k, v in
+                                               dev.inputs.items() if isinstance(v, Mapping) and "sha256" in v))
         ign = dev.inputs.get("ignored_episodes")
         if ign and (ign["evidence"]["n"] or ign["view_labels"]["n"]):
             L.append(f"- ignored (not in the manifest, never read): {ign['evidence']['n']} evidence episodes "
@@ -2199,8 +2328,8 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
             f"| {_rate_xn(gp[k]['all'])} |" for k in (*REPORT_LIGHTINGS, POOLED)), ""]
     gflags = res["gate_pass_flags"]
     L += [f"- **GATE FLAG** {w}" for w in gflags] or [
-        f"- no lighting has (nearly) no diagnostic view passing the gate (threshold {GATE_PASS_LOW:g}), at the chosen "
-        "setting or in any fold"]
+        f"- in no lighting does (nearly) no view pass the gate (share <= {GATE_PASS_LOW:g}; removed diagnostic, "
+        "present diagnostic and all views), and no population is empty, at the chosen setting or in any fold"]
     L += ["", "### Per-view rates at the frozen thresholds, by lighting (resubstitution: the views that chose them)", ""]
     L += _view_table(res["view_rates"], conf, lights)
     L += ["", "Views of one arrangement are correlated, so the view-level CP bounds are optimistic.", ""]

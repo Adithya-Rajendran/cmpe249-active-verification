@@ -10,10 +10,25 @@ Stratified (docs/SIM_PREREGISTRATION.md section 8, the primary uncertainty): giv
 side), each draw resamples arrangements WITHIN each stratum, with replacement, keeping every
 stratum's count, so each replicate keeps the design's quota counts. Without strata the draw is
 the unstratified one above, unchanged.
+
+Singleton strata (review, checkpoint 2): a stratum with one arrangement of the sample always redraws that
+arrangement, so it adds no variance, and a sample whose strata are mostly singletons (the 6-arrangement check batch
+has 6 slot classes) gets a near zero-width "stratified" CI. So when any stratum holds fewer than MIN_STRATUM_SIZE
+arrangements of the sample, the bootstrap falls back to the unstratified draw and says so (resolve_strata:
+stratified False, singleton_strata, stratification_note "unstratified: singleton strata ..."). The planned designs
+have at least 6 arrangements per stratum and stay stratified.
+
+Single rates (docs/SIM_PREREGISTRATION.md section 8: "Percentile 95 % intervals for contrasts and for single
+rates"): rate_intervals gives FRR, removal recall and coverage of one policy the same percentile interval over the
+same draws (same sorted arrangement ids, B, seed and strata give the same draws as paired_diff). R enters with its
+seed-averaged decision fractions, as in the point estimate: arrangements are resampled, seeds are not, so the
+interval is for R's expected rate over its own randomisation (seeds add no samples), and R's common-random-number
+episodes (one stream per arrangement and lighting, verify.policies.r_seed_salt) stay together in every draw.
 """
 from __future__ import annotations
 
 import dataclasses
+import functools
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -52,12 +67,73 @@ class BootstrapResult:
     seed: int
     synthetic: bool
     stratified: bool = False   # True: arrangements resampled within strata (stratified_arrangement_draws)
+    singleton_strata: tuple[str, ...] = ()   # strata given but with < MIN_STRATUM_SIZE arrangements: fell back
+    stratification_note: str = ""            # "unstratified: singleton strata ..." when it fell back, else ""
 
     def to_dict(self) -> dict[str, Any]:
         d = dataclasses.asdict(self)
+        d["singleton_strata"] = list(self.singleton_strata)
         if self.synthetic:
             d["label"] = SYNTHETIC_LABEL
         return d
+
+
+@dataclass(frozen=True)
+class RateInterval:
+    """Percentile 95% interval of one policy's single rate (rate_intervals): the same arrangement-level cluster
+    bootstrap as paired_diff, on one policy's results."""
+    metric: str
+    policy: str
+    estimate: float | None     # the metric on the full sample (None if undefined)
+    ci_lo: float | None        # 2.5th percentile of the defined draws (None if no draw is defined)
+    ci_hi: float | None        # 97.5th percentile
+    n_arrangements: int
+    n_episodes: int
+    B: int
+    n_undefined: int           # draws where the rate is undefined (denominator 0; excluded)
+    seed: int
+    synthetic: bool
+    stratified: bool = False
+    singleton_strata: tuple[str, ...] = ()
+    stratification_note: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        d = dataclasses.asdict(self)
+        d["singleton_strata"] = list(self.singleton_strata)
+        if self.synthetic:
+            d["label"] = SYNTHETIC_LABEL
+        return d
+
+
+MIN_STRATUM_SIZE = 2   # a stratum of one always redraws itself: it adds no variance (falls back to unstratified)
+SINGLETON_PREFIX = "unstratified: singleton strata"
+
+
+def singleton_note(singletons: Sequence[str]) -> str:
+    """The flag a fallback carries in results.json, the bootstrap rows and the tables."""
+    return (f"{SINGLETON_PREFIX} {', '.join(singletons)} (fewer than {MIN_STRATUM_SIZE} arrangements each: a stratum "
+            "of one always redraws itself and adds no variance, so a stratified CI would be too narrow); the "
+            "unstratified arrangement-level cluster bootstrap ran instead")
+
+
+def resolve_strata(arrangement_ids: Sequence[str], strata: Mapping[str, str] | None
+                   ) -> tuple[Mapping[str, str] | None, tuple[str, ...], str]:
+    """(strata to resample within, singleton strata, note) for a sample's arrangements. None in, None out (no note:
+    the caller flags a missing family itself). If any stratum holds fewer than MIN_STRATUM_SIZE of the sample's
+    arrangements, the strata are dropped (unstratified) and the singletons and the note say why. An arrangement
+    without a stratum raises ValueError, as sample_draws does."""
+    if strata is None:
+        return None, (), ""
+    missing = [a for a in arrangement_ids if a not in strata]
+    if missing:
+        raise ValueError(f"no bootstrap stratum for arrangements {missing[:5]}")
+    counts: dict[str, int] = {}
+    for a in set(arrangement_ids):
+        counts[strata[a]] = counts.get(strata[a], 0) + 1
+    singles = tuple(sorted(k for k, v in counts.items() if v < MIN_STRATUM_SIZE))
+    if singles:
+        return None, singles, singleton_note(singles)
+    return strata, (), ""
 
 
 @dataclass(frozen=True)
@@ -137,9 +213,14 @@ def sample_draws(arrangement_ids: Sequence[str], B: int, seed: int,
 def _group_terms(sample: PairedSample, results: Sequence[EpisodeResult], truth: GroundTruth,
                  metric: str) -> tuple[np.ndarray, np.ndarray]:
     """Per-arrangement summed (numerator, denominator) of the metric terms."""
-    num = np.zeros(len(sample.groups))
-    den = np.zeros(len(sample.groups))
-    for g, idx in enumerate(sample.groups):
+    return _terms(sample.groups, results, truth, metric)
+
+
+def _terms(groups: Sequence[Sequence[int]], results: Sequence[EpisodeResult], truth: GroundTruth,
+           metric: str) -> tuple[np.ndarray, np.ndarray]:
+    num = np.zeros(len(groups))
+    den = np.zeros(len(groups))
+    for g, idx in enumerate(groups):
         for i in idx:
             n, d = episode_terms(results[i], truth)[metric]
             num[g] += n
@@ -173,7 +254,8 @@ def paired_diff(results_a: Iterable[EpisodeLog | EpisodeResult], results_b: Iter
     ma = metrics_on(list(sample.results_a), truth)
     mb = metrics_on(list(sample.results_b), truth)
     estimate = None if ma[metric] is None or mb[metric] is None else ma[metric] - mb[metric]
-    diffs = draw_diffs(sample, truth, metric, sample_draws(sample.arrangement_ids, B, seed, strata))
+    used, singles, note = resolve_strata(sample.arrangement_ids, strata)
+    diffs = draw_diffs(sample, truth, metric, sample_draws(sample.arrangement_ids, B, seed, used))
     ok = diffs[~np.isnan(diffs)]
     lo = hi = None
     if ok.size:
@@ -181,4 +263,60 @@ def paired_diff(results_a: Iterable[EpisodeLog | EpisodeResult], results_b: Iter
     return BootstrapResult(metric=metric, policy_a=ma["policy"], policy_b=mb["policy"], estimate=estimate,
                            ci_lo=lo, ci_hi=hi, n_arrangements=len(sample.arrangement_ids),
                            n_episodes=sample.n_episodes, B=B, n_undefined=int(diffs.size - ok.size),
-                           seed=seed, synthetic=bool(ma["synthetic"] or mb["synthetic"]), stratified=strata is not None)
+                           seed=seed, synthetic=bool(ma["synthetic"] or mb["synthetic"]), stratified=used is not None,
+                           singleton_strata=singles, stratification_note=note)
+
+
+@functools.lru_cache(maxsize=16)
+def _draw_counts(arrangement_ids: tuple[str, ...], B: int, seed: int,
+                 strata: tuple[str, ...] | None) -> np.ndarray:
+    """(B, n) multiplicity of each arrangement in each draw of sample_draws (read-only; cached, since every policy row
+    of one lighting resamples the same arrangements with the same draws)."""
+    st = None if strata is None else dict(zip(arrangement_ids, strata))
+    draws = sample_draws(arrangement_ids, B, seed, st)
+    counts = np.zeros((B, len(arrangement_ids)))
+    np.add.at(counts, (np.arange(B)[:, None], draws), 1.0)
+    counts.setflags(write=False)
+    return counts
+
+
+RATE_METRICS = ("false_removal_rate", "removal_recall", "coverage")
+
+
+def rate_intervals(results: Iterable[EpisodeLog | EpisodeResult], truth: GroundTruth,
+                   metrics: Sequence[str] = RATE_METRICS, B: int = 10000, seed: int = 0,
+                   strata: Mapping[str, str] | None = None) -> dict[str, RateInterval]:
+    """{metric: RateInterval}: percentile 95% intervals of one policy's single rates from the arrangement-level
+    cluster bootstrap, stratified within the given {arrangement_id: stratum} unless a stratum of the sample is a
+    singleton (resolve_strata). The draws are sample_draws over the sorted arrangement ids, the same draws paired_diff
+    uses for the same arrangements, B and seed. One result per episode (R: seeds averaged within the episode)."""
+    if B < 1:
+        raise ValueError("B must be >= 1")
+    for m in metrics:
+        if m not in METRICS:
+            raise ValueError(f"metric must be one of {METRICS}, got {m!r}")
+    res = sorted(as_results(results), key=lambda r: r.episode_id)
+    policy, _, _ = check_single_run(res)
+    ids = [r.episode_id for r in res]
+    if len(set(ids)) != len(ids):
+        raise ValueError("duplicate episode_id in results")
+    check_truth(res, truth)
+    arr_ids = tuple(sorted({r.arrangement_id for r in res}))
+    groups = tuple(tuple(i for i, r in enumerate(res) if r.arrangement_id == a) for a in arr_ids)
+    used, singles, note = resolve_strata(arr_ids, strata)
+    counts = _draw_counts(arr_ids, B, seed, None if used is None else tuple(used[a] for a in arr_ids))
+    full = metrics_on(res, truth)
+    out = {}
+    for m in metrics:
+        num, den = _terms(groups, res, truth, m)
+        n, d = counts @ num, counts @ den
+        ok = d > EPS
+        vals = n[ok] / d[ok]
+        lo = hi = None
+        if vals.size:
+            lo, hi = (float(x) for x in np.percentile(vals, [2.5, 97.5]))
+        out[m] = RateInterval(metric=m, policy=policy, estimate=full[m], ci_lo=lo, ci_hi=hi,
+                              n_arrangements=len(arr_ids), n_episodes=len(res), B=B, n_undefined=int((~ok).sum()),
+                              seed=seed, synthetic=bool(full["synthetic"]), stratified=used is not None,
+                              singleton_strata=singles, stratification_note=note)
+    return out
