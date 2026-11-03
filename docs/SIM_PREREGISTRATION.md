@@ -191,7 +191,7 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 - **Metrics:** FRR, removal recall, coverage (UNKNOWN in the denominator), resolved accuracy, mean views, mean travel, confusion counts. Every rate comes with its counts and with n_arrangements / n_episodes.
 - **Context, not a ceiling:** the geometric no-diagnostic-view share (§3).
 - **Breakdowns,** separately for L1 and L2:
-  - per environment, per occluder family and per condition;
+  - per environment, per occluder family and per condition. Every per-family result carries the family's target composition (targets are assigned per slot within the targets each family supports, §2), because a difference between families can reflect their targets as well as their occluders;
   - curves over b and over the cap grid;
   - risk-coverage curves sweeping τ_match, with the frozen point marked.
 - **Paired contrasts on test** (per lighting and environment):
@@ -201,6 +201,7 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
   - `X` vs `X-fcm`.
 
   Identical-run contrasts are flagged.
+- **Secondary, predeclared: A − G on common targets.** This is the A − G contrast restricted to the foam brick and tuna can episodes, the two targets every family supports, across all families. It uses consistent target weighting: within each family the two targets carry equal weight, so the comparison across families is not a difference in target mix. It is reported per lighting and environment, with the same stratified paired cluster bootstrap (§8). This addresses the target–family confound (2026-11-03); it is secondary and does not replace the primary A − G. `[ ] implementation pending (before the freeze)`
 - **Labels and the real-photo check.** Every result is labelled "simulation". Pilots 1–2 (real photos) are a separate sim-to-real check of score ranges and are never pooled.
 
 `[ ] confirm / edit:`
