@@ -523,7 +523,7 @@
     },
     "note": "ASYMMETRIC (SIM_PREREGISTRATION section 2). The slot gives the side. SIDE: seen from the cameras (the rig frame, +x = right at the start stop), the side is the sign of the board's lateral displacement from the sight line start stop -> target centre, measured on the board's plane: R = board centre displaced toward +x by side_shift_m (a magnitude drawn uniformly), L = toward -x. The covered stops then lie toward that side of the arc: R hides P3 and P4 (CCHHC), L hides P2 and P3 (CHHCC). ACCEPTED only if, on the analytic hull coverage: the start stop is hidden (p3_coverage_min); the adjacent stop on the board's side is hidden too (adjacent_min 0.95); the nearest stop on the opposite side is covered at most opposite_near_max (0.10: it renders as a C view, visible fraction >= 0.90); every further opposite-side stop is clear (clear_coverage_max); and at least min_clear_stops stops are clear. The far same-side stop is free (it may render p). The rule is on projected hulls, which over-state the rendered coverage, so a stop it calls clear is at least that clear; the rendered patterns (H <= 0.05, C >= 0.90) are reported after rendering.",
     "height_m": 0.12,
-    "height_note": "The physical board again (2026-11-03): 0.12 m, the height of pick_M16+3 / pick_M16-5 in configs/rig_geometry.json, so the simulated M16 matches the physical 10-10 board (width 16 cm, thickness 0.5 cm). shelf_v2 used 0.15 m; `python -m sim.feasibility scan` (notes/2026-11-03-m16-and-render-check.md) found the same target models admitted at 0.12 m as at 0.15 m: the foam brick from 0.11 m, the tuna can from 0.10 m. For the tomato soup can, the potted meat can and the mug no valid placement was found in the tested generator search (0 of 100 tries on either side). The finer height scan did find rare left-side mug placements at heights >= 0.14 m (2 grid combinations in 60 placements), so zero in N tries is not a proof."
+    "height_note": "The physical board again (2026-11-03): 0.12 m, the height of pick_M16+3 / pick_M16-5 in configs/rig_geometry.json, so the simulated M16 matches the physical 10-10 board (width 16 cm, thickness 0.5 cm). shelf_v2 used 0.15 m; `python -m sim.feasibility scan` (notes/2026-11-03-m16-and-render-check.md) found the same target models admitted at 0.12 m as at 0.15 m: the foam brick from 0.11 m, the tuna can from 0.10 m. For the tomato soup can, the potted meat can and the mug no valid placement was found in the tested generator search (0 of 100 tries on either side). The finer height scan (60 placements per target and side, with the v3 rules) did find rare left-side placements of boards taller than the physical one: the potted meat can from 0.13 m (1 grid combination) and the mug from 0.14 m (2), none for the tomato soup can or on side R, so zero in N tries is not a proof."
    },
    "IND28": {
     "kind": "board",
@@ -868,7 +868,7 @@
     },
     "M16-L": {
      "4": "tomato_soup_can: no valid placement found in the tested generator search (0 of 100 tries)",
-     "9": "potted_meat_can: no valid placement found in the tested generator search (0 of 100 tries)",
+     "9": "potted_meat_can: no valid placement found in the tested generator search (0 of 100 tries); the finer height scan found a rare left-side placement at heights >= 0.13 m",
      "14": "mug: no valid placement found in the tested generator search (0 of 100 tries); the finer height scan found rare left-side mug placements at heights >= 0.14 m"
     },
     "M16-R": {
@@ -882,7 +882,7 @@
      "14": "mug: no valid placement found in the tested generator search (0 of 100 tries)"
     }
    },
-   "excluded_note": "Pairs left out of a class's list are pairs for which no valid placement was found in the tested generator search (the number of tries is in each reason); zero in N tries is not a proof that none exists (the finer height scan found rare left-side mug placements at heights >= 0.14 m, a board taller than the physical one). They are not hidden: they are open questions for the student."
+   "excluded_note": "Pairs left out of a class's list are pairs for which no valid placement was found in the tested generator search (the number of tries is in each reason); zero in N tries is not a proof that none exists (the finer height scan found rare left-side placements of the potted meat can from 0.13 m and of the mug from 0.14 m, boards taller than the physical one). They are not hidden: they are open questions for the student."
   }
  },
  "revisit": {
