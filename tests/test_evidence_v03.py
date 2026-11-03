@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import cv2
 import numpy as np
 
 from perception import evidence as e021
@@ -171,6 +172,102 @@ class TestRowInterpolate(unittest.TestCase):
     def test_empty_hole_is_a_copy(self) -> None:
         img = np.ones((5, 5, 3), np.float32)
         np.testing.assert_array_equal(v03.row_interpolate(img, (3, 3, 3, 4)), img)
+
+
+def shelf_scene(seed: int = 0) -> np.ndarray:
+    """A 400 x 300 shelf-like frame for registration: grey backdrop, a light shelf frame with a darker interior,
+    two boards, a few small objects; mild noise."""
+    rng = np.random.default_rng(seed)
+    img = np.full((300, 400, 3), 120, np.float32)
+    img[40:270, 60:350] = 225                         # shelf front frame
+    img[55:255, 75:335] = 150                         # interior
+    img[150:162, 75:335] = 215                        # middle board
+    img[60:150, 120:150] = (40, 60, 160)              # objects
+    img[95:150, 250:290] = (150, 90, 40)
+    img[200:250, 200:215] = (60, 160, 60)
+    img += rng.normal(0, 2, img.shape)
+    return np.clip(img, 0, 255).astype(np.uint8)
+
+
+SBOX = (170.0, 190.0, 200.0, 250.0)   # expected box in shelf_scene (an empty spot on the lower board)
+
+
+def warp_by(img: np.ndarray, G: np.ndarray) -> np.ndarray:
+    """Query = reference content moved by G (reference px -> query px)."""
+    return cv2.warpPerspective(img, G, (img.shape[1], img.shape[0]), flags=cv2.INTER_LINEAR,
+                               borderMode=cv2.BORDER_REPLICATE)
+
+
+def box_error(H: np.ndarray, G: np.ndarray, box=SBOX) -> float:
+    c = np.array([[box[0], box[1], 1], [box[2], box[1], 1], [box[2], box[3], 1], [box[0], box[3], 1]], float).T
+    a = np.linalg.inv(H) @ c
+    b = G @ c
+    return float(np.abs(a[:2] / a[2] - b[:2] / b[2]).max())
+
+
+G_TRUE = np.array([[np.cos(0.006), -np.sin(0.006), 9.0], [np.sin(0.006), np.cos(0.006), -6.0], [0, 0, 1]])
+
+
+class TestImageAlign(unittest.TestCase):
+    def test_recovers_a_known_warp_under_a_lighting_change(self) -> None:
+        ref = shelf_scene()
+        q = np.clip(warp_by(shelf_scene(1), G_TRUE).astype(np.float32) * 1.3, 0, 255).astype(np.uint8)
+        H, info = v03.image_align(ref, q, SBOX)
+        self.assertIsNotNone(H, info)
+        self.assertLess(box_error(H, G_TRUE), 0.5)
+        self.assertGreater(info["cc"], 0.5)
+
+    def test_an_occluder_in_the_box_does_not_pull_the_fit(self) -> None:
+        ref = shelf_scene()
+        q = warp_by(shelf_scene(1), G_TRUE)
+        q[180:262, 160:215] = (230, 230, 235)   # a plain board over the (moved) box, in the excluded region
+        H, _ = v03.image_align(ref, q, SBOX)
+        self.assertIsNotNone(H)
+        self.assertLess(box_error(H, G_TRUE), 0.5)
+
+    def test_blank_images_are_refused(self) -> None:
+        flat = np.full((300, 400, 3), 128, np.uint8)
+        H, info = v03.image_align(flat, flat.copy(), SBOX)
+        self.assertIsNone(H)
+        self.assertIn("refused", info)
+
+    def test_everything_excluded_is_refused(self) -> None:
+        ref = shelf_scene()
+        H, info = v03.image_align(ref, ref.copy(), SBOX, exclude=np.ones(ref.shape[:2], bool))
+        self.assertIsNone(H)
+        self.assertIn("usable pixels", info["refused"])
+
+    def test_deterministic_and_restores_the_thread_count(self) -> None:
+        ref, q = shelf_scene(), warp_by(shelf_scene(1), G_TRUE)
+        before = cv2.getNumThreads()
+        a, _ = v03.image_align(ref, q, SBOX)
+        b, _ = v03.image_align(ref.copy(), q.copy(), SBOX)
+        self.assertEqual(a.tobytes(), b.tobytes())
+        self.assertEqual(cv2.getNumThreads(), before)
+
+    def test_evidence_uses_image_alignment_by_default(self) -> None:
+        ref = shelf_scene()
+        q = warp_by(shelf_scene(1), G_TRUE)
+        rec, diag = v03.evidence_for(ref, SBOX, q, 1, MeanColour(), no_detections)
+        self.assertTrue(diag["align_ok"])
+        self.assertEqual(diag["registration"]["method"], "ecc-homography-edges")
+        self.assertGreater(rec.quality, 0.5)
+        self.assertLess(rec.obstruction, 0.1)    # nothing changed: aligned, the empty spot reads unchanged
+
+    def test_refused_alignment_zeroes_quality(self) -> None:
+        flat = np.full((300, 400, 3), 128, np.uint8)
+        rec, diag = v03.evidence_for(flat, SBOX, flat.copy(), 1, MeanColour(), no_detections)
+        self.assertFalse(diag["align_ok"])
+        self.assertEqual(rec.quality, 0.0)
+        self.assertIn("refused", diag["registration"])
+
+    def test_without_alignment_the_shift_reads_as_change(self) -> None:
+        # identity (v0.2.1's no-tag fallback) on a moved view: the shelf edges near the box read as changed
+        ref = shelf_scene()
+        q = warp_by(shelf_scene(1), G_TRUE)
+        _, d_id = v03.evidence_for(ref, SBOX, q, 1, MeanColour(), no_detections, align=e021.identity_align)
+        _, d_im = v03.evidence_for(ref, SBOX, q, 1, MeanColour(), no_detections)
+        self.assertGreater(d_id["v03_parts"]["ring_changed"], d_im["v03_parts"]["ring_changed"] + 0.05)
 
 
 class TestRecordAndJobs(unittest.TestCase):
