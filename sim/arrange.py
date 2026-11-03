@@ -25,11 +25,11 @@ plain seed; 1..retry_max are the retries, retry_max = 20 in the config); after t
 reserve list is tried the same way. A slot NEVER falls back to another family, M16 side or target model (the old family_weights
 fallback turned SD0001 of shelf_dev_v0 into IND28).
 
-Target models (shelf_v2, slots.target_assignment). The target is a property of the slot, like its family and M16 side: within
+Target models (shelf_v2 and v3, slots.target_assignment). The target is a property of the slot, like its family and M16 side: within
 each slot class the targets come from a seeded, balanced list over the models that class can place (assign_targets), and a
 failed try retries the SAME (family, side, target) and then the family's reserve seeds. shelf_v1 drew the target per try and
 redrew it on every retry, which made the target a function of the family (M16 only ever got the two shortest models). Pairs
-that no placement can serve are left out of the class's list with the reason in the config (`excluded`), not hidden. Every failed try and replacement is logged in the arrangement's 'slot' record
+that no valid placement was found for in the tested generator search are left out of the class's list with the reason in the config (`excluded`; zero in N tries is not a proof), not hidden. Every failed try and replacement is logged in the arrangement's 'slot' record
 and in the set-level generation log (generate_set).
 
 M16 is asymmetric. SIDE: seen from the cameras (the rig frame, +x = image right at the start stop P3), the board's side is
@@ -37,17 +37,22 @@ the sign of its lateral displacement from the sight line P3 -> target centre, me
 centre displaced toward +x, L = toward -x, by a magnitude drawn from the config's side_shift_m. The covered stops then lie
 toward that side of the arc: R hides P3 and P4 (pattern CCHHC), L hides P2 and P3 (CHHCC). The slot gives the side; a draw
 is accepted only if side_rule_ok (config occluder.families.M16.side_rule) holds on the analytic hull coverage: the start
-stop hidden, the adjacent stop on the board's side covered >= adjacent_min (shelf_v2: 0.95, hidden; shelf_v1: 0.5), the
-nearest opposite stop covered <= opposite_near_max, every further opposite stop clear and (shelf_v2) the stops beyond the adjacent
-one on the board's side covered <= same_far_max. DES1 (pick_M16+3) is side R, DES2
-(pick_M16-5) side L. shelf_v2's M16 board is a revised simulation variant, 15 cm tall (`height_m`; the physical pick_M16 boards
-are 12 cm); the design cases keep the physical boards.
+stop hidden, the adjacent stop on the board's side covered >= adjacent_min (shelf_v2 / v3: 0.95, hidden; shelf_v1: 0.5), the
+nearest opposite stop covered <= opposite_near_max and every further opposite stop clear. shelf_v2 also limited the stops beyond
+the adjacent one on the board's side (same_far_max); shelf_v3 does not, so a pHHCC (L) or CCHHp (R) board is accepted and is still
+one-sided. DES1 (pick_M16+3) is side R, DES2 (pick_M16-5) side L. M16's `height_m` is the physical 12 cm in shelf_v1 and v3
+(shelf_v2 used a 15 cm simulation variant); the design cases always keep the physical boards.
+
+Tag-free scenes (shelf_v3, config scene.tags false; decision 2026-11-03: no fiducials on a home robot's shelf): the scene spec has
+no tag quads and no tag cards (scene.tags_enabled false), and the frame check of the revisit draws (frame_check) is the #3 outline
+and the target's projected hull instead of the four tags. shelf_v1 / v2 keep their tags. The true query-to-reference homographies
+come from the known camera poses (sim/alignment.py).
 
 Revisit noise (query captures only). Every arrangement records one bounded uniform draw per stop (revisit_cameras): the
 camera moves by +-translation_m on each world axis and by +-rotation_deg about its own yaw (heading), pitch and roll axes,
 seeded from the arrangement seed and the stop, and the same pose serves the visible / occluded / removed phases, both
-lightings and every policy. A draw that would put the #3 outline or a tag outside the frame (sim/rig.py frame_margins,
-fitted k1, min margin >= min_margin_px, the nominal check) is redrawn with attempt + 1; rejected draws are logged. The
+lightings and every policy. A draw that would put the #3 outline or a tag (tag-free scenes: the target's hull) outside the frame
+(frame_check, fitted k1, min margin >= min_margin_px, the nominal check) is redrawn with attempt + 1; rejected draws are logged. The
 renderer reads scene.revisit_cameras; references use scene.cameras (nominal).
 
 Geometry is decided by projecting shapes through the pinhole cameras of the positions file (as rendered), so the
@@ -102,7 +107,7 @@ SIDES = ("L", "R")
 UNHASHED_KEYS = ("arrangement_sha256", "unhashed")
 DEV_SEED_RANGE = (0, 9999)
 TEST_SEED_MIN = 100000           # reserved for test ([open]); never generated, rendered, scored or viewed before the freeze
-DEFAULT_CONFIG_PATH = R.REPO_ROOT / "configs" / "sim" / "arrange_shelf_v2.json"     # shelf_v1 (the legacy draw-per-try path) stays loadable via --config
+DEFAULT_CONFIG_PATH = R.REPO_ROOT / "configs" / "sim" / "arrange_shelf_v3.json"     # shelf_v1 (draw-per-try) and shelf_v2 stay loadable via --config
 THIS_FILE = Path(__file__).resolve()
 RIG_FILE = Path(R.__file__).resolve()
 
@@ -453,6 +458,12 @@ def compartments(geometry: Mapping) -> dict:
             "c4": {"x": (-c4["half_width"], c4["half_width"]), "y": (0.0, c4["depth"]), "z": (c4["z_min"], c4["z_max"])}}
 
 
+def tags_enabled(config: Mapping) -> bool:
+    """Whether the scenes carry the four corner ArUco tags (and their cards). shelf_v1 / shelf_v2 have no `scene` block and
+    keep them; shelf_v3 sets scene.tags false (decision 2026-11-03: no fiducials on a home robot's shelf)."""
+    return bool(config.get("scene", {}).get("tags", True))
+
+
 def load_config(config: str | Path | Mapping = DEFAULT_CONFIG_PATH) -> tuple[dict, str | None, str]:
     """(config dict, path or None, sha256). The sha256 is of the config's canonical JSON (sorted keys, so it ignores
     formatting and key order, for a file and an in-memory dict alike); the file's own byte hash goes to the unhashed
@@ -470,6 +481,8 @@ def load_config(config: str | Path | Mapping = DEFAULT_CONFIG_PATH) -> tuple[dic
         raise ValueError(f"config seed ranges {cfg['seeds']} disagree with the generator's dev {DEV_SEED_RANGE} / test "
                          f">= {TEST_SEED_MIN}; changing them is a protocol decision")
     check_slot_config(cfg)
+    if "scene" in cfg and not isinstance(cfg["scene"].get("tags"), bool):
+        raise ValueError("config scene.tags must be a boolean when the scene block is present")
     return cfg, path, sha
 
 
@@ -986,33 +999,58 @@ def revisit_draw(rc: Mapping, entropy: Sequence[int], stop_index: int, attempt: 
     return {k: round(v, 9) for k, v in delta.items()}
 
 
-def revisit_cameras(ctx: Context, rig: R.Rig, seed: int | str) -> tuple[dict, list[R.Camera]]:
-    """(record, cameras): one revisit pose per stop. The first draw whose pose keeps the #3 outline and all four tags in
-    the frame (sim/rig.py frame_margins, fitted k1, min margin >= min_margin_px: the nominal check) is used; each rejected
-    draw is logged with its margin. RuntimeError if max_redraws draws are all rejected."""
+def frame_check(ctx: Context, rig: R.Rig, cam: R.Camera, target_pts: np.ndarray | None, distort: bool) -> dict:
+    """In-frame margins (px, negative = outside) of one camera. With tags (shelf_v1 / v2): the #3 outline and the four tags'
+    corners (sim/rig.py frame_margins). Tag-free scenes (shelf_v3, scene.tags false): the #3 outline (the front opening) and the
+    target's projected convex hull (its hull points, the same set the generator tests visibility with), both with the fitted
+    k1 when `distort`. 'min' is the smallest margin."""
+    if tags_enabled(ctx.config):
+        return R.frame_margins(rig, cam, distort=distort)
+    if target_pts is None:
+        raise ValueError("a tag-free frame check needs the target's points")
+    out = {"c3": cam.frame_margin(rig.c3_outline(), distort), "target": cam.frame_margin(target_pts, distort)}
+    out["min"] = min(out["c3"], out["target"])
+    return out
+
+
+def _margin_rec(m: Mapping) -> dict:
+    rec = {"c3": round(float(m["c3"]), 3)}
+    if "tags" in m:
+        rec["tags"] = {str(k): round(float(v), 3) for k, v in m["tags"].items()}
+    else:
+        rec["target"] = round(float(m["target"]), 3)
+    rec["min"] = round(float(m["min"]), 3)
+    return rec
+
+
+def revisit_cameras(ctx: Context, rig: R.Rig, seed: int | str, target_pts: np.ndarray | None = None) -> tuple[dict, list[R.Camera]]:
+    """(record, cameras): one revisit pose per stop. The first draw whose pose passes the frame check (frame_check: the #3
+    outline and all four tags, or, tag-free, the #3 outline and the target's hull; fitted k1, min margin >= min_margin_px) is
+    used; each rejected draw is logged with its margin. RuntimeError if max_redraws draws are all rejected. The nominal pose must
+    pass too in a tag-free scene (RuntimeError otherwise)."""
     rc = ctx.config["revisit"]
     entropy = revisit_entropy(seed)
     distort, floor = bool(rc["distort"]), float(rc["min_margin_px"])
+    tag_free = not tags_enabled(ctx.config)
     stops, cams = {}, []
     for i, cam in enumerate(rig.cameras):
+        nm = frame_check(ctx, rig, cam, target_pts, distort)
+        if tag_free and nm["min"] < floor:
+            raise RuntimeError(f"{seed}: the nominal pose of {cam.name} fails the frame check (margin {nm['min']:.2f} px: {_margin_rec(nm)})")
         rejected = []
         for attempt in range(int(rc["max_redraws"]) + 1):
             delta = revisit_draw(rc, entropy, i, attempt)
             pc = perturb_camera(cam, delta)
-            m = R.frame_margins(rig, pc, distort=distort)
+            m = frame_check(ctx, rig, pc, target_pts, distort)
             if m["min"] >= floor:
                 break
             rejected.append({"attempt": attempt, "delta": delta, "min_margin_px": round(float(m["min"]), 3)})
         else:
             raise RuntimeError(f"{seed}: no revisit pose for {cam.name} inside the frame in {rc['max_redraws'] + 1} draws")
-        nm = R.frame_margins(rig, cam, distort=distort)
         stops[cam.name] = {
             "attempt": attempt, "n_rejected": len(rejected), "rejected": rejected, "delta": delta,
             "nominal": _cam_pose(cam), "pose": _cam_pose(pc),
-            "margin_px": {"c3": round(float(m["c3"]), 3), "tags": {str(k): round(float(v), 3) for k, v in m["tags"].items()},
-                          "min": round(float(m["min"]), 3)},
-            "nominal_margin_px": {"c3": round(float(nm["c3"]), 3), "tags": {str(k): round(float(v), 3) for k, v in nm["tags"].items()},
-                                  "min": round(float(nm["min"]), 3)}}
+            "margin_px": _margin_rec(m), "nominal_margin_px": _margin_rec(nm)}
         cams.append(pc)
     rec = {"schema": REVISIT_SCHEMA,
            "applies_to": "query captures only (phases visible, occluded, removed; L1 and L2); the reference captures use the nominal cameras",
@@ -1021,12 +1059,18 @@ def revisit_cameras(ctx: Context, rig: R.Rig, seed: int | str) -> tuple[dict, li
            "stream": "Draw([*entropy, stream_salt, stop_index, attempt]); six uniform draws: dx, dy, dz (world axes, m), dyaw (heading), "
                      "dpitch (pitch_down), droll (deg)",
            "entropy": entropy, "stream_salt": int(rc["stream_salt"]), "stops": stops}
+    if tag_free:
+        rec["frame_check"] = "tag-free scene: the #3 outline (front opening) and the target's projected hull inside the frame"
     return rec, cams
 
 
 def _scene(ctx: Context, rig: R.Rig, keep_mug: bool, revisit_cams: Sequence[R.Camera]) -> dict:
     spec = R.export_scene_spec(rig)
     spec["boxes"] = [b for b in spec["boxes"] if b["role"] != "occluder"]
+    if not tags_enabled(ctx.config):                     # tag-free scene: no tag quads, no tag cards
+        spec["boxes"] = [b for b in spec["boxes"] if b["role"] not in ("tag_card", "tag_marker")]
+        spec["tags"] = []
+        spec["tags_enabled"] = False
     if not keep_mug:
         spec["meshes"], spec["mug"] = [], None
     spec["occluder"] = None
@@ -1049,7 +1093,8 @@ def _finish(ctx: Context, arr: dict, rig: R.Rig, keep_mug: bool) -> dict:
     arr["stops"] = [c.name for c in ctx.cams]
     arr["start_stop"] = ctx.positions.get("start_stop", "P3")
     arr["provenance"] = ctx.provenance
-    arr["revisit"], rcams = revisit_cameras(ctx, rig, arr["seed"])
+    tp = body_of(arr["objects"]["target"], ctx=ctx).shape_points()
+    arr["revisit"], rcams = revisit_cameras(ctx, rig, arr["seed"], tp)
     arr["scene"] = _scene(ctx, rig, keep_mug, rcams)
     arr["unhashed"] = dict(ctx.unhashed)
     arr["arrangement_sha256"] = arrangement_hash(arr)

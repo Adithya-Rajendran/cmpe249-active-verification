@@ -1259,5 +1259,138 @@ class TestShelfV2Config(unittest.TestCase):
         self.assertEqual(slots, A.slot_list(A.load_context(V2_REL), "dev"))
 
 
+V2_SHA256 = "24745ab3a575e656645f6b11721d54c314543d76e483588259e9e873dde3fa47"      # the record of shelf_dev_v2_check
+V3_REL = "configs/sim/arrange_shelf_v3.json"
+FORBIDDEN_WORDS = ("impossible", "can't", "cannot take", "cannot be placed", "none can be placed", "no placement exists")
+
+
+class TestShelfV3Config(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.v2 = json.loads((REPO / V2_REL).read_text())
+        cls.v3 = json.loads((REPO / V3_REL).read_text())
+        cls.ctx = A.load_context(V3_REL)
+
+    def test_v1_and_v2_are_untouched_and_v3_is_the_default(self):
+        self.assertEqual(A.sha256_file(V1), V1_SHA256)
+        self.assertEqual(A.sha256_file(REPO / V2_REL), V2_SHA256)
+        self.assertEqual(A.DEFAULT_CONFIG_PATH.name, "arrange_shelf_v3.json")
+        self.assertEqual(A.load_context().config["name"], "shelf_v3")
+
+    def test_only_the_intended_values_differ_from_v2(self):
+        a, b = _flatten(self.v2), _flatten(self.v3)
+        changed = {k for k in set(a) | set(b) if a.get(k) != b.get(k)}
+        allowed = {"name", "status", "revisit.note", "occluder.families.M16.height_m", "occluder.families.M16.height_note",
+                   "occluder.families.M16.note", "occluder.families.M16.side_rule.same_far_max",
+                   "occluder.families.M16.side_rule.same_far_note", "occluder.families.M16.side_rule.far_same_stop_note"}
+        stray = sorted(k for k in changed if k not in allowed and not k.startswith(("scene.", "slots.target_assignment.")))
+        self.assertEqual(stray, [])
+        for split in ("dev", "test"):                                   # the slot list, seeds and quotas are unchanged
+            for k in ("quota", "permutation_seed", "primary_seed_start", "reserve", "target_seed"):
+                self.assertEqual(self.v3["slots"][split][k], self.v2["slots"][split][k])
+        self.assertEqual([(x["family"], x["m16_side"]) for x in A.slot_list(self.v2, "dev")],
+                         [(x["family"], x["m16_side"]) for x in A.slot_list(self.v3, "dev")])
+
+    def test_m16_is_the_physical_board_and_the_side_rule_has_no_far_limit(self):
+        m = self.v3["occluder"]["families"]["M16"]
+        phys = R.occluder_spec(self.ctx.geometry, m["geometry_occluder"])
+        self.assertEqual((m["height_m"], phys.height, phys.width), (0.12, 0.12, 0.16))
+        tb = A.Body((0.05, 0.05, 0.05), (0.0, 0.2, 0.0))
+        self.assertEqual(A._board(self.ctx, A.Draw([3]), m, tb, "R")["body"].size, (0.16, 0.005, 0.12))
+        rule = m["side_rule"]
+        self.assertNotIn("same_far_max", rule)
+        self.assertEqual((rule["adjacent_min"], rule["opposite_near_max"]), (0.95, 0.10))
+        clear = self.v3["occluder"]["clear_coverage_max"]
+        # pHHCC (L) and CCHHp (R) are accepted: partial cover of the far same-side stop
+        self.assertTrue(A.side_rule_ok([0.234, 1, 1, 0.05, 0], 2, "L", rule, clear))
+        self.assertTrue(A.side_rule_ok([0, 0.05, 1, 1, 0.25], 2, "R", rule, clear))
+        self.assertFalse(A.side_rule_ok([0, 0.5, 1, 0.05, 0], 2, "L", rule, clear))              # the adjacent stop must be hidden
+        self.assertFalse(A.side_rule_ok([0, 0.3, 1, 1, 0], 2, "R", rule, clear))                 # the near opposite stop must stay visible
+        self.assertEqual(self.v3["occluder"]["min_clear_stops"], 2)
+        self.assertIn("physical", self.v3["occluder"]["families"]["M16"]["height_note"])
+        self.assertNotIn("REVISED SIMULATION VARIANT", json.dumps(self.v3["status"]))
+
+    def test_wording_of_exclusions(self):
+        ta = self.v3["slots"]["target_assignment"]
+        allowed = {str(v) for v in self.v3["target"]["objects"]}
+        for key in A.class_keys(self.v3["slots"]["dev"]["quota"]):
+            inc, exc = {str(v) for v in ta["classes"][key]}, ta["excluded"].get(key, {})
+            self.assertEqual(inc | set(exc), allowed, key)
+            for reason in exc.values():
+                self.assertRegex(reason, r"no valid placement found in the tested generator search \(0 of \d+ tries\)")
+        text = json.dumps(self.v3).lower()
+        for w in FORBIDDEN_WORDS:
+            self.assertNotIn(w, text)
+        self.assertIn("not a proof", ta["excluded_note"])
+        self.assertIn("0.14", ta["excluded_note"])
+        self.assertEqual(ta["classes"]["M16-L"], [21, 6])
+        self.assertEqual(ta["classes"]["S8"], [9, 14, 21, 6])
+        self.assertEqual(ta["classes"]["IND28"], [4, 9, 14, 21, 6])
+
+    def test_dev_and_test_slot_targets_are_balanced_and_fixed(self):
+        for split in ("dev", "test"):
+            slots = A.slot_list(self.v3, split)
+            self.assertEqual(slots, A.slot_list(A.load_context(V3_REL), split))
+            for key, lst in _by_class(slots).items():
+                allowed = self.v3["slots"]["target_assignment"]["classes"][key]
+                counts = [sum(sl["target"] == t for sl in lst) for t in allowed]
+                self.assertTrue(all(sl["target"] in allowed for sl in lst))
+                self.assertLessEqual(max(counts) - min(counts), 1, (split, key, counts))
+                self.assertEqual(sum(counts), len(lst))
+
+    def test_scenes_have_no_tags(self):
+        self.assertFalse(A.tags_enabled(self.v3))
+        self.assertTrue(A.tags_enabled(json.loads(V1.read_text())) and A.tags_enabled(self.v2))
+        for i in (0, 1, 2, 3):
+            d = A.design_arrangement(i, ctx=self.ctx)
+            sc = d["scene"]
+            self.assertEqual((sc["tags"], sc["tags_enabled"]), ([], False))
+            self.assertFalse({b["role"] for b in sc["boxes"]} & {"tag_card", "tag_marker", "occluder"})
+            for st in d["revisit"]["stops"].values():
+                self.assertEqual(set(st["margin_px"]), {"c3", "target", "min"})            # no tag margins
+                self.assertGreaterEqual(st["margin_px"]["min"], 0.0)
+                self.assertGreaterEqual(st["nominal_margin_px"]["min"], 0.0)
+            self.assertIn("tag-free", d["revisit"]["frame_check"])
+        v1 = A.design_arrangement(1, ctx=_ctx())                                              # v1 keeps its four tags, unchanged keys
+        self.assertEqual(len(v1["scene"]["tags"]), 4)
+        self.assertNotIn("tags_enabled", v1["scene"])
+        self.assertNotIn("frame_check", v1["revisit"])
+        self.assertEqual(set(v1["revisit"]["stops"]["P3"]["margin_px"]), {"c3", "tags", "min"})
+
+    def test_the_frame_check_is_the_opening_and_the_targets_hull(self):
+        ctx, rig = self.ctx, self.ctx.rig
+        cam = rig.cameras[2]
+        tp = np.array([[0.0, 0.2, 0.0], [0.05, 0.2, 0.05]])
+        m = A.frame_check(ctx, rig, cam, tp, True)
+        self.assertEqual(set(m), {"c3", "target", "min"})
+        self.assertAlmostEqual(m["c3"], cam.frame_margin(rig.c3_outline(), True))
+        self.assertAlmostEqual(m["target"], cam.frame_margin(tp, True))
+        far = np.array([[1.5, 0.2, 0.0], [1.6, 0.2, 0.1]])                                     # a target far outside the frame
+        self.assertLess(A.frame_check(ctx, rig, cam, far, True)["min"], 0)
+        with self.assertRaises(ValueError):
+            A.frame_check(ctx, rig, cam, None, True)
+        # the draws: a target whose hull sits at the frame edge makes every redraw check bind; an impossible one raises
+        with self.assertRaisesRegex(RuntimeError, "fails the frame check"):
+            A.revisit_cameras(ctx, rig, 1, far)
+        rec, cams = A.revisit_cameras(ctx, rig, 1, tp)
+        for c in cams:
+            self.assertGreaterEqual(A.frame_check(ctx, rig, c, tp, True)["min"], 0.0)
+
+    def test_generated_m16_boards_are_one_sided_with_two_clear_stops(self):
+        slots = A.slot_list(self.ctx, "dev")
+        first = {side: next(sl for sl in slots if sl["family"] == "M16" and sl["m16_side"] == side) for side in "LR"}
+        rule = self.v3["occluder"]["families"]["M16"]["side_rule"]
+        clear = self.v3["occluder"]["clear_coverage_max"]
+        for side, sl in first.items():
+            arr, _ = A.generate_slot(self.ctx, sl, {})
+            cov = [arr["analytic"]["placed_coverage"][s] for s in arr["stops"]]
+            self.assertTrue(A.side_rule_ok(cov, 2, side, rule, clear), (side, cov))
+            self.assertGreaterEqual(sum(v <= clear for v in cov), 2)
+            self.assertEqual(arr["objects"]["occluder"]["size_m"][2], 0.12)
+            self.assertEqual(arr["target_id"], self.ctx.item(sl["target"])["name"])        # the slot's target, whatever failed
+            self.assertIn(sl["target"], (21, 6))
+            self.assertEqual(arr["scene"]["tags"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

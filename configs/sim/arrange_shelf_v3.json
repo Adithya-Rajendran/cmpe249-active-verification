@@ -1,0 +1,957 @@
+{
+ "schema": "cmpe249.sim-arrange-config.v1",
+ "name": "shelf_v3",
+ "status": "DEV config, 2026-11-03 (student's decisions of 2026-11-03). NOT FROZEN. Succeeds arrange_shelf_v2.json (the record of shelf_dev_v2_check) and arrange_shelf_v1.json (shelf_dev_v1_check), both untouched. Changes against v2 (nothing else differs): (1) M16 is the PHYSICAL board again: height_m 0.12, the geometry file's pick_M16+3 / pick_M16-5 height, so it matches the physical 10-10 board (v2 used a 15 cm simulation variant, which admitted no target the 12 cm board does not); (2) side_rule has no same_far_max: the adjacent same-side stop must still be hidden (adjacent_min 0.95) and the near opposite stop <= 0.10, but partial cover of the far same-side stop is accepted, so pHHCC and CCHHp boards are still one-sided; (3) scene.tags false: the scenes have NO corner ArUco tags and no tag cards (no fiducials on a home robot's shelf), and the revisit frame check requires the #3 outline and the target's projected hull inside the frame instead of the four tags; (4) the per-class target lists are the result of the feasibility matrix under these rules (slots.target_assignment). The design cases DES0-DES3 keep their fixed templates.",
+ "environment": "shelf",
+ "geometry": "configs/rig_geometry.json",
+ "positions": "configs/sim/positions_shelf_A.json",
+ "seeds": {
+  "dev": [
+   0,
+   9999
+  ],
+  "test_reserved_min": 100000,
+  "note": "Dev seeds 0-9999 only. Seeds >= 100000 are reserved for test ([open] in docs/SIMULATION_STUDY.md) and are refused by sim/arrange.py and sim/isaac_batch.py; 10000-99999 are unassigned and refused too."
+ },
+ "ids": {
+  "dev_prefix": "SD",
+  "design_prefix": "DES",
+  "note": "SD + 4-digit dev seed that was actually used (SD1003 = seed 1003; a slot replaced from the reserve list is named after the reserve seed, the slot index is in the record); DES0..DES3 = the design cases. Both match verify's ^[A-Z][A-Z0-9]{1,15}$."
+ },
+ "objects": {
+  "source": "YCB-Video BOP models, ycbv_models.zip models/ (mm, bounding box centred on the origin, +Z up in the resting pose). min_mm/size_mm copied by script from models/models_info.json (sha256 13978298d8c37f089a7e0c421ed8be867fa836818936f5499786175da2c4c4cb); names from ycbv_base.zip ycbv/dataset_info.md.",
+  "licence": "YCB-Video / YCB object models keep their own terms (dataset README on the share); renders used in a paper carry attribution (docs/SIMULATION_STUDY.md rule 5).",
+  "hulls": {
+   "path": "configs/sim/ycbv_hulls.json",
+   "sha256": "9d7004d0be6226a13ca219324eae9c21f35ef20ba6e25ccfa89e1c3725bb7e3c",
+   "note": "convex-hull support points per model (mm, BOP frame), from data/raw/2026-11-03_sim_pilot/make_ycbv_hulls.py; the generator refuses a hull file with another hash"
+  },
+  "items": {
+   "1": {
+    "ycb": "002_master_chef_can",
+    "name": "master_chef_can",
+    "ply": "obj_000001.ply",
+    "min_mm": [
+     -51.1445,
+     -51.223,
+     -70.072
+    ],
+    "size_mm": [
+     102.289,
+     102.446,
+     140.144
+    ]
+   },
+   "2": {
+    "ycb": "003_cracker_box",
+    "name": "cracker_box",
+    "ply": "obj_000002.ply",
+    "min_mm": [
+     -35.865,
+     -81.9885,
+     -106.743
+    ],
+    "size_mm": [
+     71.73,
+     163.977,
+     213.486
+    ]
+   },
+   "3": {
+    "ycb": "004_sugar_box",
+    "name": "sugar_box",
+    "ply": "obj_000003.ply",
+    "min_mm": [
+     -24.772,
+     -47.024,
+     -88.0075
+    ],
+    "size_mm": [
+     49.544,
+     94.048,
+     176.015
+    ]
+   },
+   "4": {
+    "ycb": "005_tomato_soup_can",
+    "name": "tomato_soup_can",
+    "ply": "obj_000004.ply",
+    "min_mm": [
+     -33.927,
+     -33.875,
+     -51.0185
+    ],
+    "size_mm": [
+     67.854,
+     67.75,
+     102.037
+    ]
+   },
+   "5": {
+    "ycb": "006_mustard_bottle",
+    "name": "mustard_bottle",
+    "ply": "obj_000005.ply",
+    "min_mm": [
+     -48.575,
+     -33.31,
+     -95.704
+    ],
+    "size_mm": [
+     97.15,
+     66.62,
+     191.408
+    ]
+   },
+   "6": {
+    "ycb": "007_tuna_fish_can",
+    "name": "tuna_fish_can",
+    "ply": "obj_000006.ply",
+    "min_mm": [
+     -42.755,
+     -42.807,
+     -16.7555
+    ],
+    "size_mm": [
+     85.51,
+     85.614,
+     33.511
+    ]
+   },
+   "7": {
+    "ycb": "008_pudding_box",
+    "name": "pudding_box",
+    "ply": "obj_000007.ply",
+    "min_mm": [
+     -68.924,
+     -64.3955,
+     -19.414
+    ],
+    "size_mm": [
+     137.848,
+     128.791,
+     38.828
+    ]
+   },
+   "8": {
+    "ycb": "009_gelatin_box",
+    "name": "gelatin_box",
+    "ply": "obj_000008.ply",
+    "min_mm": [
+     -44.6775,
+     -50.5545,
+     -15.06
+    ],
+    "size_mm": [
+     89.355,
+     101.109,
+     30.12
+    ]
+   },
+   "9": {
+    "ycb": "010_potted_meat_can",
+    "name": "potted_meat_can",
+    "ply": "obj_000009.ply",
+    "min_mm": [
+     -51.0615,
+     -30.161,
+     -41.8185
+    ],
+    "size_mm": [
+     102.123,
+     60.322,
+     83.637
+    ]
+   },
+   "10": {
+    "ycb": "011_banana",
+    "name": "banana",
+    "ply": "obj_000010.ply",
+    "min_mm": [
+     -54.444,
+     -89.206,
+     -18.335
+    ],
+    "size_mm": [
+     108.888,
+     178.412,
+     36.67
+    ]
+   },
+   "11": {
+    "ycb": "019_pitcher_base",
+    "name": "pitcher_base",
+    "ply": "obj_000011.ply",
+    "min_mm": [
+     -74.4985,
+     -72.3845,
+     -121.32
+    ],
+    "size_mm": [
+     148.997,
+     144.769,
+     242.64
+    ]
+   },
+   "12": {
+    "ycb": "021_bleach_cleanser",
+    "name": "bleach_cleanser",
+    "ply": "obj_000012.ply",
+    "min_mm": [
+     -51.203,
+     -33.856,
+     -125.32
+    ],
+    "size_mm": [
+     102.406,
+     67.712,
+     250.64
+    ]
+   },
+   "13": {
+    "ycb": "024_bowl",
+    "name": "bowl",
+    "ply": "obj_000013.ply",
+    "min_mm": [
+     -80.722,
+     -80.5565,
+     -27.485
+    ],
+    "size_mm": [
+     161.444,
+     161.113,
+     54.97
+    ]
+   },
+   "14": {
+    "ycb": "025_mug",
+    "name": "mug",
+    "ply": "obj_000014.ply",
+    "min_mm": [
+     -58.483,
+     -46.5375,
+     -40.692
+    ],
+    "size_mm": [
+     116.966,
+     93.075,
+     81.384
+    ]
+   },
+   "15": {
+    "ycb": "035_power_drill",
+    "name": "power_drill",
+    "ply": "obj_000015.ply",
+    "min_mm": [
+     -92.1205,
+     -93.717,
+     -28.6585
+    ],
+    "size_mm": [
+     184.241,
+     187.434,
+     57.317
+    ]
+   },
+   "16": {
+    "ycb": "036_wood_block",
+    "name": "wood_block",
+    "ply": "obj_000016.ply",
+    "min_mm": [
+     -51.9755,
+     -51.774,
+     -102.945
+    ],
+    "size_mm": [
+     103.951,
+     103.548,
+     205.89
+    ]
+   },
+   "17": {
+    "ycb": "037_scissors",
+    "name": "scissors",
+    "ply": "obj_000017.ply",
+    "min_mm": [
+     -48.04,
+     -100.772,
+     -7.858
+    ],
+    "size_mm": [
+     96.08,
+     201.544,
+     15.716
+    ]
+   },
+   "18": {
+    "ycb": "040_large_marker",
+    "name": "large_marker",
+    "ply": "obj_000018.ply",
+    "min_mm": [
+     -10.5195,
+     -60.4225,
+     -9.4385
+    ],
+    "size_mm": [
+     21.039,
+     120.845,
+     18.877
+    ]
+   },
+   "19": {
+    "ycb": "051_large_clamp",
+    "name": "large_clamp",
+    "ply": "obj_000019.ply",
+    "min_mm": [
+     -59.978,
+     -85.639,
+     -19.575
+    ],
+    "size_mm": [
+     119.956,
+     171.278,
+     39.15
+    ]
+   },
+   "20": {
+    "ycb": "052_extra_large_clamp",
+    "name": "extra_large_clamp",
+    "ply": "obj_000020.ply",
+    "min_mm": [
+     -104.897,
+     -82.18,
+     -18.1665
+    ],
+    "size_mm": [
+     209.794,
+     164.36,
+     36.333
+    ]
+   },
+   "21": {
+    "ycb": "061_foam_brick",
+    "name": "foam_brick",
+    "ply": "obj_000021.ply",
+    "min_mm": [
+     -26.315,
+     -38.921,
+     -25.5655
+    ],
+    "size_mm": [
+     52.63,
+     77.842,
+     51.131
+    ]
+   }
+  }
+ },
+ "rest_poses": {
+  "note": "3x3 rotation R (world = R @ model) applied before the yaw about z; the renderer and the generator both centre the rotated bounding box in x/y on base_xy and put its lowest point on base_z.",
+  "upright": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    0
+   ],
+   [
+    0,
+    0,
+    1
+   ]
+  ],
+  "side": [
+   [
+    0,
+    0,
+    1
+   ],
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    0
+   ]
+  ],
+  "edge": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    -1
+   ],
+   [
+    0,
+    1,
+    0
+   ]
+  ]
+ },
+ "clearances_m": {
+  "wall": 0.01,
+  "front": 0.01,
+  "back": 0.01,
+  "between_objects": 0.01,
+  "ceiling": 0.015,
+  "occluder_front": 0.005
+ },
+ "target": {
+  "objects": [
+   4,
+   9,
+   14,
+   21,
+   6
+  ],
+  "max_height_m": 0.105,
+  "max_height_note": "below the 12 cm design boards, so every family can hide the target at P3 when placed close",
+  "region_m": {
+   "x": [
+    -0.32,
+    0.32
+   ],
+   "y": [
+    0.08,
+    0.27
+   ]
+  },
+  "region_note": "base-centre sampling box; a draw is kept only if every stop sees the target whole (every point of its convex hull has a sight line through the #3 opening with opening_margin_m to spare and projects frame_margin_px inside the frame) and its front face is at least min_front_y_m behind the front plane (room for an occluder)",
+  "min_front_y_m": 0.05,
+  "opening_margin_m": 0.005,
+  "frame_margin_px": 40,
+  "tries": 2000,
+  "objects_note": "tomato_soup_can, potted_meat_can, mug, foam_brick, tuna_fish_can. From shelf_v2 the target is NOT drawn per try: slots.target_assignment gives every slot its model, and a failed try retries the same (family, side, target), then the family's reserve seeds, never another target. The bowl (13, 16.1 cm wide) was dropped on 2026-11-03 because no family could hide it at P3 and leave 2 clear stops in #3's 30.5 cm depth. It remains a distractor."
+ },
+ "distractors": {
+  "count": [
+   2,
+   5
+  ],
+  "p_c3": 0.5,
+  "c3_objects": [
+   1,
+   4,
+   6,
+   7,
+   8,
+   9,
+   10,
+   13,
+   14,
+   15,
+   17,
+   18,
+   19,
+   20,
+   21
+  ],
+  "c4_objects": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18,
+   19,
+   20,
+   21
+  ],
+  "c3_note": "objects whose resting height fits #3 with the ceiling clearance (<= 15.0 cm)",
+  "tries_each": 200,
+  "rule": "distinct objects, not the target's or the occluder's model; footprints inside the compartment and clear of every other footprint (placed occluder included); in #3 a distractor may not occlude the target from any stop (projected convex hulls overlap only if the distractor is wholly behind the target)"
+ },
+ "occluder": {
+  "p3_coverage_min": 0.95,
+  "coverage_note": "share of the target's projected convex hull (YCB-V hull points, configs/sim/ycbv_hulls.json; the measured mug's mesh) at P3 covered by the occluder's projected hull (pinhole, as rendered); the rendered visible fraction is checked after rendering",
+  "min_clear_stops": 2,
+  "clear_coverage_max": 0.001,
+  "stop_rule_note": "families other than IND28 must leave at least min_clear_stops stops where the occluder's projected hull does not touch the target's (coverage <= clear_coverage_max), so another view resolves the occluded episode and a removed episode can reach the k = 2 clear-miss rule (the design picks leave 3-4 such stops); IND28 (predeclared_indistinguishable) must cover the target's hull at every stop (p3_coverage_min); M16 also has to satisfy its side_rule",
+  "families": {
+   "S8": {
+    "kind": "board",
+    "geometry_occluder": "pick_S8",
+    "gap_m": [
+     0.01,
+     0.3
+    ],
+    "shift_m": [
+     -0.015,
+     0.015
+    ],
+    "note": "symmetric: shift_m is a signed range about the start-stop sight line (no side)"
+   },
+   "M16": {
+    "kind": "board",
+    "geometry_occluder": "pick_M16+3",
+    "gap_m": [
+     0.01,
+     0.3
+    ],
+    "side_shift_m": [
+     0.01,
+     0.06
+    ],
+    "tries": 300,
+    "side_rule": {
+     "opposite_near_max": 0.1,
+     "adjacent_min": 0.95,
+     "adjacent_note": "2026-11-03: the adjacent same-side stop must be HIDDEN (analytic coverage >= 0.95 = p3_coverage_min, an H view), so that both sides render the intended CHHCC / CCHHC. shelf_v1 allowed 0.5, which rendered a partial 'p' at that stop on 4 of the 9 M16-L dev boards (SD1000: CpHCC).",
+     "far_same_stop_note": "2026-11-03: the stops BEYOND the adjacent one on the board's side (P1 for L, P5 for R) are not limited: partial cover there is accepted, so a pHHCC (L) or CCHHp (R) board is still one-sided. shelf_v2 limited them to 0.10 (same_far_max)."
+    },
+    "note": "ASYMMETRIC (SIM_PREREGISTRATION section 2). The slot gives the side. SIDE: seen from the cameras (the rig frame, +x = right at the start stop), the side is the sign of the board's lateral displacement from the sight line start stop -> target centre, measured on the board's plane: R = board centre displaced toward +x by side_shift_m (a magnitude drawn uniformly), L = toward -x. The covered stops then lie toward that side of the arc: R hides P3 and P4 (CCHHC), L hides P2 and P3 (CHHCC). ACCEPTED only if, on the analytic hull coverage: the start stop is hidden (p3_coverage_min); the adjacent stop on the board's side is hidden too (adjacent_min 0.95); the nearest stop on the opposite side is covered at most opposite_near_max (0.10: it renders as a C view, visible fraction >= 0.90); every further opposite-side stop is clear (clear_coverage_max); and at least min_clear_stops stops are clear. The far same-side stop is free (it may render p). The rule is on projected hulls, which over-state the rendered coverage, so a stop it calls clear is at least that clear; the rendered patterns (H <= 0.05, C >= 0.90) are reported after rendering.",
+    "height_m": 0.12,
+    "height_note": "The physical board again (2026-11-03): 0.12 m, the height of pick_M16+3 / pick_M16-5 in configs/rig_geometry.json, so the simulated M16 matches the physical 10-10 board (width 16 cm, thickness 0.5 cm). shelf_v2 used 0.15 m; `python -m sim.feasibility scan` (notes/2026-11-03-m16-and-render-check.md) found the same target models admitted at 0.12 m as at 0.15 m: the foam brick from 0.11 m, the tuna can from 0.10 m. For the tomato soup can, the potted meat can and the mug no valid placement was found in the tested generator search (0 of 100 tries on either side). The finer height scan did find rare left-side mug placements at heights >= 0.14 m (2 grid combinations in 60 placements), so zero in N tries is not a proof."
+   },
+   "IND28": {
+    "kind": "board",
+    "geometry_occluder": "pick_IND28",
+    "gap_m": [
+     0.01,
+     0.04
+    ],
+    "shift_m": [
+     -0.02,
+     0.02
+    ],
+    "predeclared_indistinguishable": true
+   },
+   "white_box": {
+    "kind": "white_box",
+    "material": "white_box",
+    "gap_m": [
+     0.005,
+     0.3
+    ],
+    "depth_m": [
+     0.03,
+     0.08
+    ],
+    "pad_m": [
+     0.005,
+     0.015
+    ],
+    "shift_m": [
+     -0.005,
+     0.005
+    ],
+    "note": "pilot-2 failure case: a plain white box (the shelf's colour) whose front face is the smallest rectangle hiding the target's bounding box from P3 (corners back-projected along their sight lines), padded by pad_m, so its P3 image footprint is about the target's; anywhere between the front lip and the target"
+   },
+   "ycb_box": {
+    "kind": "ycbv",
+    "choices": [
+     [
+      3,
+      "side"
+     ],
+     [
+      7,
+      "edge"
+     ],
+     [
+      8,
+      "edge"
+     ],
+     [
+      16,
+      "side"
+     ]
+    ],
+    "gap_m": [
+     0.005,
+     0.3
+    ],
+    "shift_m": [
+     -0.03,
+     0.03
+    ],
+    "note": "sugar box on its long side (17.6 x 5.0 x 9.4 cm), pudding box on edge (13.8 x 3.9 x 12.9), gelatin box on edge (8.9 x 3.0 x 10.1), wood block on its side (20.6 x 10.4 x 10.4); width x depth x height"
+   }
+  },
+  "tries_per_family": 100,
+  "parked": {
+   "compartments": [
+    "c4",
+    "c3"
+   ],
+   "tries": 600,
+   "target_window_context": 1.0,
+   "rule": "inside the compartment, footprint clear of every object, occluding no object from any stop (same projected test as distractors), and outside the target's context window at every stop (its projected box grown by target_window_context x its size on every side; perception/evidence.py Params.context = 1.0), so moving it does not change the target's background between phases"
+  },
+  "gap_note": "gap_m = target front face to occluder back face, drawn uniformly in the range clipped to the room in front of the target (occluder front face >= occluder_front behind the front plane); 0.30 = anywhere up to the front lip. IND28 and the white box stay close (they must cover every stop / the target's own footprint); a family's own 'tries' overrides tries_per_family"
+ },
+ "slots": {
+  "note": "Quotas are SLOTS, not weights (SIM_PREREGISTRATION section 2, decided 2026-11-02/03). slot_list(split) expands the quota table in sorted key order (family, then side), permutes it with a Fisher-Yates shuffle driven by Draw([permutation_seed]), and gives slot i the primary seed primary_seed_start + i. A slot never changes family or M16 side. Placement failure: the generator retries (seed, attempt 1..retry_max) within the slot's family; if all fail, it takes the next unused seed of that family's reserve list (consumed in slot order, one list per family, disjoint from every primary seed and from each other) and tries it with attempts 0..retry_max again; an exhausted reserve list is an error. Every failed try and replacement is logged in the arrangement and in the set-level generation_log.json. The test block exists only so slot_list('test') can be inspected: no test arrangement is generated (sim/arrange.py refuses seeds >= 100000). All values are DEV and not frozen. shelf_v2: each slot also has a target model (slots.target_assignment); the slot list and the seeds are otherwise those of shelf_v1.",
+  "retry_max": 20,
+  "dev": {
+   "permutation_seed": 20261103,
+   "primary_seed_start": 1000,
+   "quota": {
+    "S8": 12,
+    "M16": {
+     "L": 9,
+     "R": 9
+    },
+    "IND28": 6,
+    "white_box": 12,
+    "ycb_box": 12
+   },
+   "reserve": {
+    "S8": [
+     2000,
+     2001,
+     2002,
+     2003,
+     2004,
+     2005,
+     2006,
+     2007,
+     2008,
+     2009,
+     2010,
+     2011
+    ],
+    "M16": [
+     2100,
+     2101,
+     2102,
+     2103,
+     2104,
+     2105,
+     2106,
+     2107,
+     2108,
+     2109,
+     2110,
+     2111,
+     2112,
+     2113,
+     2114,
+     2115,
+     2116,
+     2117
+    ],
+    "IND28": [
+     2200,
+     2201,
+     2202,
+     2203,
+     2204,
+     2205
+    ],
+    "white_box": [
+     2300,
+     2301,
+     2302,
+     2303,
+     2304,
+     2305,
+     2306,
+     2307,
+     2308,
+     2309,
+     2310,
+     2311
+    ],
+    "ycb_box": [
+     2400,
+     2401,
+     2402,
+     2403,
+     2404,
+     2405,
+     2406,
+     2407,
+     2408,
+     2409,
+     2410,
+     2411
+    ]
+   },
+   "target_seed": 20261105
+  },
+  "test": {
+   "permutation_seed": 20261104,
+   "primary_seed_start": 100000,
+   "quota": {
+    "S8": 20,
+    "M16": {
+     "L": 15,
+     "R": 15
+    },
+    "IND28": 10,
+    "white_box": 20,
+    "ycb_box": 20
+   },
+   "reserve": {
+    "S8": [
+     101000,
+     101001,
+     101002,
+     101003,
+     101004,
+     101005,
+     101006,
+     101007,
+     101008,
+     101009,
+     101010,
+     101011,
+     101012,
+     101013,
+     101014,
+     101015,
+     101016,
+     101017,
+     101018,
+     101019
+    ],
+    "M16": [
+     101100,
+     101101,
+     101102,
+     101103,
+     101104,
+     101105,
+     101106,
+     101107,
+     101108,
+     101109,
+     101110,
+     101111,
+     101112,
+     101113,
+     101114,
+     101115,
+     101116,
+     101117,
+     101118,
+     101119,
+     101120,
+     101121,
+     101122,
+     101123,
+     101124,
+     101125,
+     101126,
+     101127,
+     101128,
+     101129
+    ],
+    "IND28": [
+     101200,
+     101201,
+     101202,
+     101203,
+     101204,
+     101205,
+     101206,
+     101207,
+     101208,
+     101209
+    ],
+    "white_box": [
+     101300,
+     101301,
+     101302,
+     101303,
+     101304,
+     101305,
+     101306,
+     101307,
+     101308,
+     101309,
+     101310,
+     101311,
+     101312,
+     101313,
+     101314,
+     101315,
+     101316,
+     101317,
+     101318,
+     101319
+    ],
+    "ycb_box": [
+     101400,
+     101401,
+     101402,
+     101403,
+     101404,
+     101405,
+     101406,
+     101407,
+     101408,
+     101409,
+     101410,
+     101411,
+     101412,
+     101413,
+     101414,
+     101415,
+     101416,
+     101417,
+     101418,
+     101419
+    ]
+   },
+   "target_seed": 20261106
+  },
+  "target_assignment": {
+   "rule": "Quotas are slots, not weights, for targets too. Within each slot class (S8, M16-L, M16-R, IND28, white_box, ycb_box; the two M16 sides are separate classes) slot targets come from a seeded balanced list over the class's models below: a class of n slots over k models gives every model n // k slots and n % k models one more, those with the lowest running total over the classes already assigned (classes in sorted key order, ties by the class's seeded shuffle), so the totals are as even as the class sizes allow as well. The class's list is shuffled with Draw([target_seed, class number]) and handed to its slots in index order (sim/arrange.py assign_targets). A failed try retries the same (family, side, target) and then uses the family's reserve seeds; it never changes the target.",
+   "classes": {
+    "IND28": [
+     4,
+     9,
+     14,
+     21,
+     6
+    ],
+    "white_box": [
+     4,
+     9,
+     14,
+     21,
+     6
+    ],
+    "S8": [
+     9,
+     14,
+     21,
+     6
+    ],
+    "M16-L": [
+     21,
+     6
+    ],
+    "M16-R": [
+     21,
+     6
+    ],
+    "ycb_box": [
+     21,
+     6
+    ]
+   },
+   "model_ids": {
+    "4": "tomato_soup_can",
+    "9": "potted_meat_can",
+    "14": "mug",
+    "21": "foam_brick",
+    "6": "tuna_fish_can"
+   },
+   "excluded": {
+    "S8": {
+     "4": "tomato_soup_can: no valid placement found in the tested generator search (0 of 100 tries)"
+    },
+    "M16-L": {
+     "4": "tomato_soup_can: no valid placement found in the tested generator search (0 of 100 tries)",
+     "9": "potted_meat_can: no valid placement found in the tested generator search (0 of 100 tries)",
+     "14": "mug: no valid placement found in the tested generator search (0 of 100 tries); the finer height scan found rare left-side mug placements at heights >= 0.14 m"
+    },
+    "M16-R": {
+     "4": "tomato_soup_can: no valid placement found in the tested generator search (0 of 100 tries)",
+     "9": "potted_meat_can: no valid placement found in the tested generator search (0 of 100 tries)",
+     "14": "mug: no valid placement found in the tested generator search (0 of 100 tries)"
+    },
+    "ycb_box": {
+     "4": "tomato_soup_can: no valid placement found in the tested generator search (0 of 100 tries)",
+     "9": "potted_meat_can: no valid placement found in the tested generator search (0 of 100 tries)",
+     "14": "mug: no valid placement found in the tested generator search (0 of 100 tries)"
+    }
+   },
+   "excluded_note": "Pairs left out of a class's list are pairs for which no valid placement was found in the tested generator search (the number of tries is in each reason); zero in N tries is not a proof that none exists (the finer height scan found rare left-side mug placements at heights >= 0.14 m, a board taller than the physical one). They are not hidden: they are open questions for the student."
+  }
+ },
+ "revisit": {
+  "note": "Revisit noise (SIM_PREREGISTRATION 'Decisions in force', 2026-11-03). QUERY captures only (phases visible / occluded / removed, both lightings): the camera is moved from its nominal pose by one bounded uniform draw per (arrangement, stop), reused for all three conditions, both lightings and every policy. The reference captures stay at the nominal poses. Translation: world axes x, y, z, each uniform in +-translation_m. Rotation: the camera's own yaw (heading about the vertical), pitch (about its right axis) and roll (about its optical axis), each uniform in +-rotation_deg, added to the nominal heading_deg / pitch_down_deg / roll_deg. The draw (arrangement seed, stop, attempt) is accepted only if the #3 outline and all four tags are inside the frame with the nominal check's margin (sim/rig.py frame_margins, fitted k1, 'min' >= min_margin_px); otherwise attempt + 1 is drawn, up to max_redraws (an error after that). Every rejected draw is logged in the arrangement record. shelf_v3 (scene.tags false): the frame check is the #3 outline and the target's projected hull inside the frame (sim/arrange.py frame_check), not the four tags.",
+  "translation_m": 0.01,
+  "rotation_deg": 0.5,
+  "min_margin_px": 0.0,
+  "distort": true,
+  "max_redraws": 400,
+  "stream_salt": 1383428169
+ },
+ "materials": {
+  "white_box": {
+   "rgba": [
+    0.93,
+    0.93,
+    0.9,
+    1.0
+   ],
+   "note": "the shelf's render colour (sim/rig.py RGBA['shelf'])"
+  }
+ },
+ "design_cases": {
+  "note": "The four option-A design cases of data/raw/2026-10-10_far-camera/design_far.md with the measured mug (configs/rig_geometry.json profile + handle plate) at x 0, y (design z) 0.24, handle toward the camera, and the design occluders. No distractors: the design scene is shelf + mug + occluder. Fixed, predeclared dev arrangements. 'family' and 'm16_side' are the manifest fields (R = shifted toward +x like pick_M16+3, L like pick_M16-5); they are not slots and are outside the 60.",
+  "mug_x": 0.0,
+  "mug_z": 0.24,
+  "handle": "toward",
+  "target_name": "study_mug",
+  "parked": {
+   "compartment": "c4",
+   "x": 0.2,
+   "y": 0.25,
+   "note": "back right of #4: outside the mug's context window at every stop for S8, M16 and IND28 (checked by design_arrangement)"
+  },
+  "cases": [
+   {
+    "seed": "design-0",
+    "arrangement_id": "DES0",
+    "occluder": "pick_S8",
+    "family": "S8",
+    "m16_side": null
+   },
+   {
+    "seed": "design-1",
+    "arrangement_id": "DES1",
+    "occluder": "pick_M16+3",
+    "family": "M16",
+    "m16_side": "R"
+   },
+   {
+    "seed": "design-2",
+    "arrangement_id": "DES2",
+    "occluder": "pick_M16-5",
+    "family": "M16",
+    "m16_side": "L"
+   },
+   {
+    "seed": "design-3",
+    "arrangement_id": "DES3",
+    "occluder": "pick_IND28",
+    "predeclared_indistinguishable": true,
+    "family": "IND28",
+    "m16_side": null
+   }
+  ]
+ },
+ "scene": {
+  "tags": false,
+  "note": "2026-11-03 decision: no corner ArUco tags and no tag cards in any simulated scene, dev and test (no fiducials on a home robot's shelf). Evidence v0.3 aligns query and reference images itself; frozen v0.2.1 falls back to no alignment when it finds no tags. The true query-to-reference homographies are known from the camera poses and are written by sim/episodes.py as true_alignment.json (evaluation-only, sim/alignment.py). shelf_v1 / shelf_v2 have no scene block and keep their tags. The physical capture code is unaffected.",
+  "frame_check": "Revisit and nominal frame check without tags: the #3 outline (the front opening) and the target's projected hull must be inside the frame with margin >= revisit.min_margin_px (0), with the fitted k1 (revisit.distort). The per-stop pitch values of configs/sim/positions_shelf_A.json are unchanged: they were chosen to keep #3 and the four tags in frame, and #3 in frame is what remains of that rationale since 2026-11-03 (the file itself is not edited: shelf_v1 / v2 arrangements record its sha256)."
+ }
+}

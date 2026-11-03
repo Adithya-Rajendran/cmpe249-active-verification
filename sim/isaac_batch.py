@@ -320,14 +320,15 @@ def render_settings(arr: Mapping, *, renderer: str, rt_subframes: int, settle: i
     cams = arr["scene"]["cameras"]
     models_info = Path(assets_dir) / "models_info.json"
     tag_hashes = {}
-    for t in arr["scene"].get("tags", []):
+    for t in (arr["scene"].get("tags", []) if arr["scene"].get("tags_enabled", True) else []):
         f = Path(tags_dir) / f"aruco_4x4_50_id{t['id']}.png"
         tag_hashes[f.name] = sha256_file(f) if f.is_file() else None
     return {"resolution": [[c["width"], c["height"]] for c in cams], "renderer": renderer, "rt_subframes": int(rt_subframes),
             "settle_updates": int(settle), "capture_updates": int(capture_updates), "alone_updates": ALONE_UPDATES,
             "lightings": list(lightings), "lighting_presets": {k: ir.LIGHTING[k] for k in lightings}, "materials": ir.MATERIALS,
             "focal_mm": ir.FOCAL_MM, "isaacsim": isaacsim,
-            "models_info_sha256": sha256_file(models_info) if models_info.is_file() else None, "tag_image_sha256": tag_hashes}
+            "models_info_sha256": sha256_file(models_info) if models_info.is_file() else None, "tag_image_sha256": tag_hashes,
+            "tags_enabled": bool(arr["scene"].get("tags_enabled", True))}
 
 
 def needs_render(folder: Path, arr_bytes: bytes, expect: Mapping | None = None) -> tuple[bool, str]:
@@ -439,7 +440,7 @@ def build_stage(arr: dict, assets_dir: Path, tags_dir: Path, ply_cache: dict) ->
         m = ir.box_matrix(b["center"], b["half"], b.get("quat_wxyz", (1.0, 0.0, 0.0, 0.0)))
         UsdGeom.Xformable(cube.GetPrim()).AddTransformOp().Set(Gf.Matrix4d(*m.reshape(-1).tolist()))
         ir._bind(cube.GetPrim(), mats.get(b.get("material", "grey"), mats["grey"]))
-    for t in spec.get("tags", []):
+    for t in (spec.get("tags", []) if spec.get("tags_enabled", True) else []):      # tag-free scenes (shelf_v3) build no tag quads
         c = ir.tag_quad(t["corners"])
         png = Path(tags_dir) / f"aruco_4x4_50_id{t['id']}.png"
         prim = ir._mesh(stage, f"/World/Shelf/tag_{t['id']}", c, [[0, 3, 2], [0, 2, 1]], uv=[(0, 1), (1, 1), (1, 0), (0, 0)])
@@ -666,7 +667,7 @@ def render_arrangement(app, arr: dict, arr_bytes: bytes, out_dir: Path, assets_d
         "occluder_family": arr["objects"]["occluder"]["family"], "m16_side": arr.get("m16_side"),
         "design_case": bool(arr.get("design_case", False)),
         "intended_pattern": arr["objects"]["occluder"].get("intended_pattern"),
-        "class_ids": {"background (shelf, tags, dome)": 0, "target": 1, "occluder": 2,
+        "class_ids": {"background (shelf, tags if any, dome)": 0, "target": 1, "occluder": 2,
                       **{f"distractor_{i}": CLASS_IDS["distractor0"] + i for i in range(len(built["distractors"]))}},
         "masks_from_lighting": L0, "simulation": True,
         "hashes": {"arrangement_file_sha256": hashlib.sha256(arr_bytes).hexdigest(),
@@ -696,7 +697,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--arrangements", nargs="+", required=True,
                     help="arrangement JSON files (sim/arrange.py); the generator's index/slots/log JSON files are skipped")
     ap.add_argument("--assets-dir", required=True, help="YCB-Video BOP models/ (obj_0000NN.ply + .png)")
-    ap.add_argument("--tags-dir", required=True, help="aruco_4x4_50_id<N>.png files")
+    ap.add_argument("--tags-dir", default="tags", help="aruco_4x4_50_id<N>.png files (read only for scenes with tags; "
+                                                      "shelf_v3 scenes are tag-free)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--lighting", nargs="+", default=["L1", "L2"], choices=sorted(ir.LIGHTING))
     ap.add_argument("--renderer", default="RaytracedLighting", choices=["RaytracedLighting", "PathTracing"])

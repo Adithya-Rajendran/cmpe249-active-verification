@@ -19,7 +19,9 @@ verify/. Both read fixed formats, so this step writes exactly those (no conversi
     SIMULATION; each entry = verify's ArrangementRecord.to_dict() plus the plain keys occluder_family, m16_side and
     design_case); split dev; indistinguishable = the arrangement's predeclared flag, i.e. the IND28 occluder family;
   - truth.json (scoring only), view_labels.json (exact per-view visible fractions and diagnostic labels from the
-    masks, for development analysis only: never a policy input), summary.md, set.json (hashes, revisit deltas);
+    masks, for development analysis only: never a policy input), true_alignment.json (the true query-to-reference homographies
+    of the shelf front plane and of the target's depth plane from the known camera poses, sim/alignment.py: evaluation-only,
+    never an evidence or policy input; the corner tags are gone from shelf_v3 scenes), summary.md, set.json (hashes, revisit deltas);
   - optional contact sheets (cv2) per arrangement and lighting, and a crop sheet around the target.
 
 The random slots and the predeclared design cases DES0..3 are separate groups: the files above (manifest, jobs, truth,
@@ -47,6 +49,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from sim import alignment as AL
 from sim import arrange as A
 from verify.schema import episode_id
 
@@ -123,6 +126,11 @@ def rgb_path(folder: Path, phase: str, stop: str, lighting: str) -> Path:
     return folder / "rgb" / f"{phase}_{stop}_{lighting}.png"
 
 
+def tag_free(arr: Mapping) -> bool:
+    """True for a scene without the corner ArUco tags (shelf_v3: scene.tags false -> scene.tags_enabled false)."""
+    return arr.get("scene", {}).get("tags_enabled", True) is False
+
+
 def annotation_doc(arr: Mapping, labels: Mapping, folder: Path, stop_index: int, lighting: str) -> dict:
     stop = labels["stops"][stop_index]
     box = labels["reference_box"][lighting][stop]
@@ -136,8 +144,11 @@ def annotation_doc(arr: Mapping, labels: Mapping, folder: Path, stop_index: int,
                                            "where": f"{stop}, compartment #3, from the {lighting} reference instance mask"}},
             "note": "SIMULATION (Isaac Sim render). Box = bounding box of the target's instance mask in this lighting's "
                     "reference render (nominal camera), continuous pixel coordinates (pixel i covers [i, i + 1)). Query views "
-                    "are rendered at the arrangement's revisit pose (a small seeded camera perturbation); the evidence step "
-                    "registers the query to this reference through the tags. Written by sim/episodes.py before any evidence run.",
+                    "are rendered at the arrangement's revisit pose (a small seeded camera perturbation); "
+                    + ("the scene has NO corner tags: the evidence step must align the query to this reference itself (or fall back to "
+                       "no alignment); the true alignment is in true_alignment.json, for scoring only. "
+                       if tag_free(arr) else "the evidence step registers the query to this reference through the tags. ")
+                    + "Written by sim/episodes.py before any evidence run.",
             "simulation": True, "arrangement_id": arr["arrangement_id"], "stop_name": stop, "lighting": lighting,
             "provenance": {"generator_sha256": prov.get("generator", {}).get("sha256"),
                            "config_sha256": prov.get("config", {}).get("sha256"),
@@ -357,6 +368,7 @@ def check_positions(positions: str | Path, rendered: Sequence[tuple[dict, dict, 
 def _group_files(group: str) -> dict[str, str]:
     sfx = "" if group == "random" else "_design"
     return {"manifest": f"manifest{sfx}.json", "truth": f"truth{sfx}.json", "view_labels": f"view_labels{sfx}.json",
+            "true_alignment": f"true_alignment{sfx}.json",
             "summary": f"summary{sfx}.md", "jobs_L1": f"jobs{sfx}_refL1.json", "jobs_same": f"jobs{sfx}_same.json"}
 
 
@@ -419,6 +431,9 @@ def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positi
         for key, doc in (("manifest", manifest_doc(items)), ("truth", truth_doc(items)), ("view_labels", view_labels_doc(items))):
             (root / fn[key]).write_text(json.dumps(doc, indent=1 if key != "manifest" else 2) + "\n")
             written[fn[key]] = sha256_file(root / fn[key])
+        if all(a.get("scene", {}).get("revisit_cameras") and "forward" in a["scene"]["revisit_cameras"][0] for a, _, _ in items):
+            (root / fn["true_alignment"]).write_text(json.dumps(AL.doc([(a, lab) for a, lab, _ in items], g)) + "\n")
+            written[fn["true_alignment"]] = sha256_file(root / fn["true_alignment"])
         (root / fn["summary"]).write_text(summary_md(items))
         group_docs[g] = {"arrangements": [a["arrangement_id"] for a, _, _ in items], "n_arrangements": len(items),
                          "n_episodes": sum(len(CONDITIONS) * len(lab["lightings"]) for _, lab, _ in items),
@@ -474,12 +489,19 @@ def set_readme(root: Path, groups: Mapping[str, Sequence[tuple[dict, dict, Path]
         "- Episodes: 3 conditions x 2 lightings per arrangement; 5 stops per episode, stop index = position in "
         "`positions_shelf_A.json` (P3 = 2, the start stop).",
         "- Query views (visible / occluded / removed, both lightings) are rendered at the arrangement's revisit poses (a small "
-        "seeded camera perturbation, one draw per stop); the references at the nominal poses.", "",
+        "seeded camera perturbation, one draw per stop); the references at the nominal poses.",
+        ("- The scenes have no corner ArUco tags (shelf_v3): the query is aligned to its reference by the evidence step itself "
+         "(or not at all); `true_alignment.json` is the ground truth for scoring that." if any(tag_free(a) for a, _, _ in rendered)
+         else "- The scenes carry the four corner ArUco tags (shelf_v1 / v2)."), "",
         "## Files", "",
         *jobs,
         "- `manifest.json`: verify manifest (`verify.manifest`), split dev, `\"simulation\": true`, with `occluder_family`, "
         "`m16_side` and `design_case` per arrangement. `manifest_design.json` is the same for the design cases.",
         "- `truth.json`: present / removed per episode (scoring only).",
+        "- `true_alignment.json`: the true query-to-reference homographies (front plane y = 0 and the target's depth plane) per "
+        "arrangement and stop, with the revisit pose deltas and the reference-box corner displacement; from the simulator's "
+        "camera poses (sim/alignment.py). Evaluation-only, never an evidence or policy input. The corner tags are not in "
+        "shelf_v3 scenes; shelf_v1 / v2 sets still have them.",
         "- `view_labels.json`: exact per-view visible fractions and diagnostic labels from the instance masks at each view's "
         "own pose (development analysis and scoring only; never a policy input).",
         "- `summary.md`: per-arrangement table. `set.json`: file hashes, generator / config hashes, revisit deltas.",
@@ -501,7 +523,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     help="reference pairing(s) to write: L1 -> jobs_refL1.json (PRIMARY), same -> jobs_same.json "
                          "(SECONDARY, a separate run); default both")
     ap.add_argument("--positions", default="configs/sim/positions_shelf_A.json",
-                    help="copied into the set; must be the file the arrangements were generated with (sha256 checked)")
+                    help="copied into the set; must be the file the arrangements were generated with (sha256 checked; shelf_v1, v2 "
+                         "and v3 all use positions_shelf_A.json)")
     ap.add_argument("--generation-log", default=None, help="the generator's generation_log.json, copied into the set")
     ap.add_argument("--contact-sheets", action="store_true", help="also write contact sheets (needs cv2)")
     a = ap.parse_args(argv)
