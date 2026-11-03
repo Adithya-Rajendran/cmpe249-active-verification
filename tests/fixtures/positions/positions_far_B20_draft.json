@@ -1,0 +1,84 @@
+{
+ "schema": "cmpe249.positions.v1",
+ "status": "DRAFT 2026-10-10 far camera spot (not adopted; configs/positions.json unchanged). Option B20: smaller footprint; occluder patterns weaker (occ_far_refine.txt).",
+ "note": "Shelf rig, compartment #3, far camera spot. MODELLED from far_p3.jpg (pose_fit_far.json k1, f 1731.26 px, not tape-checked): P3 lens 115.8 cm in front of the shelf front plane, -5.22 cm lateral (left) of the #3 centre line. Arc centre on the #3 centre line 10.89 cm behind the front plane; R = distance P3 -> centre. The arc is ROTATED so P3 stays a stop: P3 sits at -2.36 deg about the centre, azimuths below are relative to it. Each stop yawed to face the arc centre, same tilt. Travel = |d az| (rad) x R = 44.26 cm per 20.0 deg step. Floor coordinates: floor_coords_cm (lateral from the #3 centre line, + = right; out from the shelf front plane). Evidence: data/raw/2026-10-10_far-camera/arc_far.txt, design_far.md.",
+ "radius_cm": 126.8,
+ "arc_centre_behind_front_cm": 10.89,
+ "arc_rotation_deg": -2.36,
+ "height_cm": 40.78,
+ "height_note": "Lens height above the TOP of #3's floor board, far pose fit (variants 40.4-41.2 cm). Not tape-measured.",
+ "tilt_deg": 6.83,
+ "tilt_note": "Downward pitch from the far fit (variants 6.7-7.1 deg). Roll fitted 1.98 deg.",
+ "stops": [
+  {
+   "name": "P1",
+   "azimuth_deg": -40.0
+  },
+  {
+   "name": "P2",
+   "azimuth_deg": -20.0
+  },
+  {
+   "name": "P3",
+   "azimuth_deg": 0.0
+  },
+  {
+   "name": "P4",
+   "azimuth_deg": 20.0
+  },
+  {
+   "name": "P5",
+   "azimuth_deg": 40.0
+  }
+ ],
+ "start_stop": "P3",
+ "f_order": [
+  "P1",
+  "P2",
+  "P4",
+  "P5"
+ ],
+ "floor_coords_cm": {
+  "P1": {
+   "lateral_cm": -85.43,
+   "out_from_front_cm": 82.8,
+   "heading_deg_right": 42.36,
+   "dist_to_left_front_corner_cm": 93.8,
+   "dist_to_right_front_corner_cm": 151.45
+  },
+  "P2": {
+   "lateral_cm": -48.23,
+   "out_from_front_cm": 106.37,
+   "heading_deg_right": 22.36,
+   "dist_to_left_front_corner_cm": 106.6,
+   "dist_to_right_front_corner_cm": 139.09
+  },
+  "P3": {
+   "lateral_cm": -5.22,
+   "out_from_front_cm": 115.8,
+   "heading_deg_right": 2.36,
+   "dist_to_left_front_corner_cm": 121.31,
+   "dist_to_right_front_corner_cm": 124.82
+  },
+  "P4": {
+   "lateral_cm": 38.43,
+   "out_from_front_cm": 109.94,
+   "heading_deg_right": -17.64,
+   "dist_to_left_front_corner_cm": 135.85,
+   "dist_to_right_front_corner_cm": 109.98
+  },
+  "P5": {
+   "lateral_cm": 77.44,
+   "out_from_front_cm": 89.51,
+   "heading_deg_right": -37.64,
+   "dist_to_left_front_corner_cm": 148.76,
+   "dist_to_right_front_corner_cm": 96.51
+  }
+ },
+ "tape_arc_cm": {
+  "P1-P2": null,
+  "P2-P3": null,
+  "P3-P4": null,
+  "P4-P5": null
+ }
+}

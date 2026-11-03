@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -25,6 +26,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from sim import alignment as AL
+from sim import isaac_batch as B
 from sim import rig as R
 
 REPO = R.REPO_ROOT
@@ -32,6 +35,7 @@ PHASES = ("reference", "visible", "occluded", "removed")
 CONDITIONS = ("visible", "occluded", "removed")
 LIGHTINGS = ("L1", "L2")
 N_TAGS = 4
+LEFTOVER = re.compile(r"\.(partial|old\d*)$")     # <ARR>.partial (interrupted render), <ARR>.old<pid> (crash while installing)
 
 
 def _tags_module():
@@ -84,15 +88,23 @@ def read_png(p: Path, flags=cv2.IMREAD_COLOR) -> np.ndarray:
     return img
 
 
+def is_tag_free(arr: dict) -> bool:
+    """A scene without the corner ArUco tags (shelf_v3): there is nothing to detect or register."""
+    return arr.get("scene", {}).get("tags_enabled", True) is False
+
+
 def check_arrangement(folder: Path, tags) -> dict:
     arr = json.loads((folder / "arrangement.json").read_text())
     lab = json.loads((folder / "labels.json").read_text())
     render = json.loads((folder / "render.json").read_text())
+    if arr["arrangement_id"] != folder.name or lab.get("arrangement_id") != folder.name:
+        raise ValueError(f"{folder}: arrangement.json has id {arr['arrangement_id']!r} and labels.json {lab.get('arrangement_id')!r}; "
+                         "a folder must be named after its arrangement (the same check as sim/episodes.py load_rendered)")
     stops = lab["stops"]
     out: dict = {"arrangement_id": arr["arrangement_id"], "seed": arr["seed"], "family": arr["occluder_family"],
                  "m16_side": arr.get("m16_side"), "design_case": arr.get("design_case"), "target": arr["target_id"],
                  "slot": (arr.get("slot") or {}).get("index"), "render_s": render["timings"]["total_s"],
-                 "render_steps": render["timings"]["steps"]}
+                 "render_steps": render["timings"]["steps"], "tag_free": is_tag_free(arr)}
     # revisit deltas and margins from the record
     out["revisit"] = {s: {"delta": v["delta"], "attempt": v["attempt"], "n_rejected": v["n_rejected"],
                           "analytic_min_margin_px": v["margin_px"]["min"], "nominal_min_margin_px": v["nominal_margin_px"]["min"]}
@@ -106,6 +118,10 @@ def check_arrangement(folder: Path, tags) -> dict:
     for ph in PHASES:
         for s in stops:
             for L in LIGHTINGS:
+                if out["tag_free"]:          # no tags in the scene: no detection, no registration (see true_alignment below)
+                    caps.append({"phase": ph, "stop": s, "lighting": L, "camera": "nominal" if ph == "reference" else "revisit",
+                                 "tags": None, "all_four": None, "extra_ids": [], "tag_corner_border_px": None})
+                    continue
                 img = refs[(s, L)] if ph == "reference" else read_png(folder / "rgb" / f"{ph}_{s}_{L}.png")
                 det = tags.detect(img)
                 h, w = img.shape[:2]
@@ -139,8 +155,8 @@ def check_arrangement(folder: Path, tags) -> dict:
                    "max_abs_grey": int(d.max())}
             # after tag registration, inside the tag rectangle (where both views are valid): what is left is parallax of
             # the shelf interior, the target's offset and render noise
-            al = tags.align(refs[(s, L)], qimg)
-            if al.ok:
+            al = None if out["tag_free"] else tags.align(refs[(s, L)], qimg)
+            if al is not None and al.ok:
                 h, w = ref.shape
                 x0, y0, x1, y1 = tags.default_rect(refs[(s, L)])
                 x0, y0, x1, y1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
@@ -151,12 +167,34 @@ def check_arrangement(folder: Path, tags) -> dict:
                 rec["registered_frac_over_8_in_tag_rect"] = float((dd > 8).mean())
             diffs.append(rec)
     out["visible_vs_reference"] = diffs
+    # true alignment from the known camera poses (sim/alignment.py): the displacement of the reference box's corners between the
+    # reference and the query view with no alignment, under the true homography of the front plane and of the target's plane
+    ta = AL.arrangement_alignment(arr, lab)
+    out["true_alignment"] = {s: {"pose_delta": v["pose_delta"], "front_plane_max_corner_px": v["box_corner_displacement_px"]["front_plane"]["max_px"],
+                                 "target_plane_max_corner_px": v["box_corner_displacement_px"]["target_plane"]["max_px"]}
+                             for s, v in ta["stops"].items()}
+    # for scenes with tags: the true front-plane H against the tag-based one on a grid of the frame's central 60 %
+    if not out["tag_free"]:
+        h, w = refs[(stops[0], "L1")].shape[:2]
+        grid = [[u, v] for u in np.linspace(0.2 * w, 0.8 * w, 5) for v in np.linspace(0.2 * h, 0.8 * h, 5)]
+        cmp = {}
+        for r in reg:
+            if r["ok"] and r["lighting"] == "L1" and r["phase"] == "visible":
+                th = np.array(ta["stops"][r["stop"]]["H_front_plane"])
+                tag_h = tags.align(refs[(r["stop"], "L1")], read_png(folder / "rgb" / f"visible_{r['stop']}_L1.png")).H
+                d = np.linalg.norm(AL.apply(tag_h, grid) - AL.apply(th, grid), axis=1)
+                cmp[r["stop"]] = {"mean_px": float(d.mean()), "max_px": float(d.max())}
+        out["true_front_plane_vs_tag_h"] = cmp
     # labels
     out["labels"] = {"patterns": lab["patterns"], "n_diagnostic": lab["n_diagnostic"], "intended_pattern": lab.get("intended_pattern"),
                      "visible_fraction": lab["visible_fraction"], "region_obstruction": lab["region_obstruction"],
                      "predeclared_indistinguishable": lab["predeclared_indistinguishable"],
                      "indistinguishable_by_masks": lab["indistinguishable_by_masks"],
                      "analytic_placed_coverage": arr["analytic"]["placed_coverage"]}
+    # label sanity, recomputed from the stored pixel counts (older renders have no label_sanity block): the visible-phase
+    # target pixels must be at least 0.9 x the target-alone pixels at the same revisit pose, at every stop
+    out["label_sanity"] = B.label_sanity(stops, lab["target_px"]["visible"], lab["alone_px"]["query"])
+    out["label_sanity_recorded"] = lab.get("label_sanity", {}).get("ok")
     return out
 
 
@@ -167,19 +205,51 @@ def side_of_pattern(pattern: str, start: int = 2) -> str | None:
     return "both" if left and right else ("L" if left else ("R" if right else None))
 
 
+def list_folders(root: Path) -> tuple[list[Path], list[str]]:
+    """(rendered arrangement folders, leftover folder names). A leftover is <ARR>.partial or <ARR>.old<pid>: crash debris
+    that sim/episodes.py refuses and that must not be counted here (an .old folder is a complete copy of its arrangement)."""
+    folders, leftovers = [], []
+    for p in sorted(Path(root).iterdir()):
+        if not p.is_dir():
+            continue
+        if LEFTOVER.search(p.name):
+            leftovers.append(p.name)
+        elif (p / "labels.json").is_file():
+            folders.append(p)
+    return folders, leftovers
+
+
 def check_set(root: Path) -> dict:
     tags = _tags_module()
-    folders = sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "labels.json").is_file())
+    folders, leftovers = list_folders(root)
     arrs = [check_arrangement(f, tags) for f in folders]
     caps = [c for a in arrs for c in a["captures"]]
     reg = [r for a in arrs for r in a["registration"]]
+    n_free = sum(a["tag_free"] for a in arrs)
+    tag_arrs = [a for a in arrs if not a["tag_free"]]
+    tcaps = [c for a in tag_arrs for c in a["captures"]]
+    ta_all = [v for a in arrs for v in a["true_alignment"].values()]
     summary = {
+        "tag_free_arrangements": n_free,
+        "tag_checks": ("SKIPPED: the scenes have no corner ArUco tags (tag detection, tag registration, tag-based target IoU and "
+                       "the registered visible-vs-reference difference are not computed)" if n_free == len(arrs) else
+                       f"{len(tag_arrs)} of {len(arrs)} arrangements have tags; the tag statistics cover those only" if n_free else
+                       "all arrangements have tags"),
+        "true_alignment_corner_displacement_px": {
+            "note": "per (arrangement, stop) view: the largest displacement of the reference box's 4 corners between reference and "
+                    "query under the TRUE homography (what no alignment would leave); all queries of a stop share the pose",
+            "n_views": len(ta_all),
+            "front_plane": summarize([v["front_plane_max_corner_px"] for v in ta_all]),
+            "target_plane": summarize([v["target_plane_max_corner_px"] for v in ta_all])},
+        "true_front_plane_vs_tag_h_px": summarize([v["max_px"] for a in arrs for v in a.get("true_front_plane_vs_tag_h", {}).values()]),
         "n_arrangements": len(arrs), "n_captures": len(caps), "n_query_views": len(reg),
+        "leftover_folders_skipped": leftovers,
+        "label_sanity_flagged": {a["arrangement_id"]: a["label_sanity"]["flagged_stops"] for a in arrs if not a["label_sanity"]["ok"]},
         "extra_tag_ids": [(a["arrangement_id"], c["phase"], c["stop"], c["lighting"], c["extra_ids"]) for a in arrs for c in a["captures"] if c["extra_ids"]],
-        "tags_all_four": {"captures": sum(c["all_four"] for c in caps), "of": len(caps),
-                          "nominal": [sum(c["all_four"] for c in caps if c["camera"] == "nominal"), sum(c["camera"] == "nominal" for c in caps)],
-                          "revisit": [sum(c["all_four"] for c in caps if c["camera"] == "revisit"), sum(c["camera"] == "revisit" for c in caps)]},
-        "tag_corner_border_px": {k: summarize([c["tag_corner_border_px"] for c in caps if c["camera"] == k]) for k in ("nominal", "revisit")},
+        "tags_all_four": {"captures": sum(c["all_four"] for c in tcaps), "of": len(tcaps),
+                          "nominal": [sum(c["all_four"] for c in tcaps if c["camera"] == "nominal"), sum(c["camera"] == "nominal" for c in tcaps)],
+                          "revisit": [sum(c["all_four"] for c in tcaps if c["camera"] == "revisit"), sum(c["camera"] == "revisit" for c in tcaps)]},
+        "tag_corner_border_px": {k: summarize([c["tag_corner_border_px"] for c in tcaps if c["camera"] == k]) for k in ("nominal", "revisit")},
         "registration_ok": {"views": sum(r["ok"] for r in reg), "of": len(reg), "failed": [(a["arrangement_id"], r["phase"], r["stop"], r["lighting"], r["reason"])
                                                                                      for a in arrs for r in a["registration"] if not r["ok"]]},
         "registration_rms_px": summarize([r["rms_px"] for r in reg]),
@@ -215,13 +285,24 @@ def main(argv=None) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(res, indent=1) + "\n")
     print(json.dumps(res["summary"], indent=1))
+    print(f"TAGS: {res['summary']['tag_checks']}")
+    ta = res["summary"]["true_alignment_corner_displacement_px"]
+    print(f"TRUE ALIGNMENT (evaluation-only): largest reference-box corner displacement per view, {ta['n_views']} views: front plane "
+          f"{json.dumps(ta['front_plane'])}; target plane {json.dumps(ta['target_plane'])}")
+    if res["summary"]["leftover_folders_skipped"]:
+        print(f"NOTE: skipped crash leftovers (not checked, and sim/episodes.py refuses them): {res['summary']['leftover_folders_skipped']}")
+    flagged = res["summary"]["label_sanity_flagged"]
+    for arr_id, stops in flagged.items():
+        print(f"WARNING LABEL SANITY {arr_id}: visible-phase target pixels are below {B.LABEL_SANITY_MIN} x the target-alone pixels "
+              f"at {stops}: the shelf or a distractor hides the target, which the generator rules prevent; its removed views get a "
+              "small region. Do not use this arrangement until it is understood.")
     for arr in res["arrangements"]:
         lb = arr["labels"]
         print(f"{arr['arrangement_id']:7s} {arr['family']:9s} {arr['m16_side'] or '-':1s} patterns ref/vis/occ "
               f"{lb['patterns']['reference']}/{lb['patterns']['visible']}/{lb['patterns']['occluded']} rendered side {arr['rendered_side']} "
               f"n_diag {lb['n_diagnostic']} render {arr['render_s']} s")
     print(f"wrote {out}")
-    return 0
+    return 1 if flagged else 0
 
 
 if __name__ == "__main__":
