@@ -28,12 +28,14 @@ look" from a MuJoCo render; use the Isaac Sim backend for appearance.
 | `sim/isaac_rig.py` | Isaac Sim 6.2 backend: scene spec → USD stage (materials, rotated boxes, tags on cards, YCB textured models, L1/L2 lighting, Pi camera) → RTX renders with target masks and visible fractions. Runs in the Isaac env on the GB10; the pure parts are numpy-only. |
 | `tests/test_sim_isaac.py` | The Isaac backend's pure parts: PLY reader, camera and box transforms, tag offset, apertures (numpy only). |
 | `configs/sim/positions_shelf_A.json` | The simulated shelf's stops: option A with a per-stop pitch (`stops[i].tilt_deg`) that maximises the smallest in-frame margin over #3 and all four tags with k1. Written by `data/raw/2026-11-03_sim_pilot/make_positions_shelf_A.py`; `sim/rig.py` reads per-stop tilts. |
-| `configs/sim/arrange_shelf_v2.json`, `configs/sim/ycbv_hulls.json` | Generator config (objects, ranges, occluder families, quota slots with retry maximum, reserve seed lists and the per-slot target assignment, revisit-noise ranges, seed ranges, design cases) and the YCB-V convex-hull points it uses (hash pinned in the config). DEV, not frozen. **shelf_v2 is the default.** It differs from `arrange_shelf_v1.json` in three things: the M16 board is a revised simulation variant (15 cm tall, no longer the physical 10-10 board), the M16 side rule needs the adjacent same-side stop hidden (0.95), and targets are assigned per slot. `arrange_shelf_v1.json` (target drawn per try; made `shelf_dev_v1_check`) and `arrange_shelf_v0.json` (family weights with a family fallback; the old `shelf_dev_v0` set) are left untouched as records; pass `--config` to use them. |
+| `configs/sim/arrange_shelf_v3.json`, `configs/sim/ycbv_hulls.json` | Generator config (objects, ranges, occluder families, quota slots with retry maximum, reserve seed lists and the per-slot target assignment, revisit-noise ranges, the `scene` block, seed ranges, design cases) and the YCB-V convex-hull points it uses (hash pinned in the config). DEV, not frozen. **shelf_v3 is the default.** Against shelf_v2 it has: the physical M16 board again (0.12 m, matching the physical 10-10 board), no limit on the far same-side stop (`same_far_max` removed; the adjacent same-side stop must still be hidden), and **no corner ArUco tags** (`scene.tags` false). `arrange_shelf_v2.json` (15 cm M16 variant; made `shelf_dev_v2_check`), `arrange_shelf_v1.json` (target drawn per try; made `shelf_dev_v1_check`) and `arrange_shelf_v0.json` are left untouched as records and keep their tags; pass `--config` to use them. |
+| `sim/alignment.py` | The true query-to-reference homographies of the shelf front plane and of the target's depth plane, from the known camera poses (numpy only). Evaluation-only ground truth, written by `sim/episodes.py` as `true_alignment.json`; never an evidence or policy input. |
 | `sim/feasibility.py` | Geometry checks behind shelf_v2 (slow, on request): `scan` = does any M16 placement exist per target, side and board height; `matrix` = real generator tries per (target model, slot class). Its outputs decide the config's `slots.target_assignment` lists and the M16 height. |
 | `sim/arrange.py` | Seeded generator (numpy only): `slot_list` (the quota slots), `generate` / `generate_slot` / `generate_set` (a try `(seed, attempt)`, a slot with retries and reserve seeds, a set with its log), asymmetric M16, `revisit_cameras` (one bounded camera perturbation per stop for the query captures), the four phases, design cases DES0-3. Dev seeds 0-9999 only; seeds >= 100000 (test) are refused. |
 | `sim/isaac_batch.py` | Batch Isaac renderer (GB10, Isaac env): one process, a new stage per arrangement, phases x stops x L1/L2 RGB (references at the nominal cameras, queries at the revisit cameras), instance masks, visible fractions, diagnostic labels from the revisit renders. Writes each arrangement into `<ARR>.partial` and renames it into place when complete. |
 | `sim/episodes.py` | Rendered set -> evidence annotations, jobs (`jobs_refL1.json` primary, `jobs_same.json` secondary), verify manifest (`"simulation": true`, plus `occluder_family`, `m16_side`, `design_case` per arrangement), truth, view labels, contact sheets. Random slots and the design cases are separate groups with separate manifests and jobs. Refuses incomplete, mixed and wrong-positions sets. |
-| `sim/check_batch.py` | Checks on a rendered set from its files: tag detection and frame margins of every capture, registration of every query onto its L1 reference (`capture/tags.py`), revisit deltas, patterns, how far visible-phase queries differ from their references, render seconds, and the label-sanity guard (below). It skips and reports `<ARR>.partial` / `<ARR>.old*` crash leftovers, refuses a folder whose arrangement id is not its name, and exits 1 if an arrangement is flagged. |
+| `sim/check_batch.py` | Checks on a rendered set from its files: tag detection and frame margins of every capture, registration of every query onto its L1 reference (`capture/tags.py`; both skipped, and said so, for tag-free sets), the true-alignment corner displacement per view (`sim/alignment.py`), revisit deltas, patterns, how far visible-phase queries differ from their references, render seconds, and the label-sanity guard (below). It skips and reports `<ARR>.partial` / `<ARR>.old*` crash leftovers, refuses a folder whose arrangement id is not its name, and exits 1 if an arrangement is flagged. |
+| `tests/test_sim_alignment.py` | The plane homography on synthetic cameras (points of a plane projected through both cameras map through H), `true_alignment.json` through `episodes`, and `check_batch` on a tag-free set. |
 | `tests/test_sim_arrange.py`, `tests/test_sim_batch.py`, `tests/fake_isaac.py` | Generator: slots, M16 side, revisit draws, hash provenance, placements, design cases, the positions file. Renderer and episodes: labels at the query poses, atomic writing and `--skip-existing`, manifest formats, refusals; `fake_isaac.py` stubs Isaac / omni / PIL so `render_arrangement` and `main` run end to end in the tests (numpy and cv2 only). |
 
 ## Coordinate frame
@@ -218,23 +220,24 @@ depends only on the config content, not on dict order. The test list can be insp
 displacement from the sight line P3 to the target centre, measured on the board's plane. **R** = board centre displaced
 toward +x by `side_shift_m` (a magnitude of 1-6 cm), **L** = toward -x. The covered stops then lie toward that side of the
 arc: R hides P3 and P4 (CCHHC), L hides P2 and P3 (CHHCC). The slot gives the side. A draw is accepted only if, on the
-analytic hull coverage: P3 is hidden (>= 0.95), the adjacent stop on the board's side is covered >= `adjacent_min` (shelf_v2: 0.95,
-hidden, so L and R both render the intended pattern; shelf_v1: 0.5, which rendered a partial `p` there on 4 of 9 M16-L boards),
-the stops beyond that one on the board's side are covered <= `same_far_max` (shelf_v2: 0.10, so they render C; shelf_v1 left them free,
-and with `adjacent_min` alone the first shelf_v2 dev 60 had 5 of 18 boards covering them by 0.03-0.25),
-the nearest stop on the other side is covered <= `opposite_near_max` (0.10, so it renders as a C view), every further stop on the other side is clear
-(hulls do not touch), and (as for every resolvable family) at least 2 stops are clear. `pick_M16+3` (DES1) is R and
-`pick_M16-5` (DES2) is L. **Revised simulation variant (shelf_v2):** the M16 board is 15 cm tall (`height_m`; width 16 cm and
-thickness 0.5 cm as before), so it no longer matches the physical 10-10 board (12 cm); the design cases keep the physical
-boards. The height is the tallest the ceiling clearance admits (0.165 - 0.015 = 0.150 m). It does not make every target
-feasible: the side rule and the 2-clear-stop rule limit the targets, not the height. A 16 cm board that hides the target at P3
-and the next stop but leaves the near opposite stop and one more stop clear needs a large gap, and the target must stand
-deep enough for that gap, but deep targets are not seen whole from the outer stops. `python -m sim.feasibility scan` found
-no placement for the tomato soup can or the potted meat can at any height up to 0.25 m (ceiling removed), and for the mug
-only on side L from 0.14 m (2 combinations in 60 placements); in 100 real generator tries none of the three placed on either
-side. M16 slots therefore take the foam brick (feasible from 0.11 m, saturated by 0.13 m) and the tuna can (from 0.10 m,
-saturated by 0.11 m). The rendered patterns are reported after rendering; the generator
-test only checks the analytic rule.
+analytic hull coverage: P3 is hidden (>= 0.95), the adjacent stop on the board's side is covered >= `adjacent_min` (shelf_v2 / v3:
+0.95, hidden; shelf_v1: 0.5, which rendered a partial `p` there on 4 of 9 M16-L boards), the nearest stop on the other side is
+covered <= `opposite_near_max` (0.10, so it renders as a C view), every further stop on the other side is clear (hulls do not
+touch), and (as for every resolvable family) at least 2 stops are clear. **The far same-side stop (P1 for L, P5 for R) is free in
+shelf_v3**: partial cover there is accepted, so pHHCC and CCHHp boards are still one-sided (shelf_v2 limited it with
+`same_far_max` 0.10). `pick_M16+3` (DES1) is R and `pick_M16-5` (DES2) is L, with fixed templates.
+
+**Height.** shelf_v3 and shelf_v1 use the physical board, 0.12 m (width 16 cm, thickness 0.5 cm), so the simulated M16 matches
+the physical 10-10 board. shelf_v2 used a 15 cm simulation variant (`height_m`), the tallest the ceiling clearance admits (0.165 -
+0.015 = 0.150 m); it admitted no target the 12 cm board does not. `python -m sim.feasibility scan` (evidence in
+`SIM/shelf_v3_geometry/height_scan.out`, v3 rules, 60 placements per target and side, ceiling removed): the tuna can is feasible
+from 0.10 m and the foam brick from 0.10 m (87 / 161 combinations at 0.11 m, 204 / 250 at 0.12 m, saturated by 0.13 m); the
+tomato soup can has no placement at any height up to 0.25 m; the potted meat can and the mug have rare left-side placements
+only for boards taller than the physical one (meat can from 0.13 m, 1-2 combinations; mug from 0.14 m, 2), none on side R. The
+limit for the tall targets is the side rule together with the 2-clear-stop rule for a 16 cm board, not the height. In the
+generator search itself (`SIM/shelf_v3_geometry/matrix_100_tall.json`) the tomato soup can, the potted meat can and the mug had no
+valid placement in 0 of 100 tries on either side, so M16 slots take the foam brick and the tuna can; zero in N tries is not a
+proof. The rendered patterns are reported after rendering; the generator test only checks the analytic rule.
 
 ### Revisit noise (query captures only)
 
@@ -245,7 +248,12 @@ is seeded by `(arrangement seed, stop, attempt)` and is the same for the visible
 lightings and every policy. References use the nominal cameras. A draw that would put the #3 outline or one of the four tags
 outside the frame (`sim/rig.py frame_margins`, fitted k1, min margin >= 0, the nominal check) is redrawn with `attempt + 1`;
 rejected draws are logged. P1 and P5 have the narrowest pitch windows (0.80 and 0.97 deg wide against the +-0.5 deg range),
-so most redraws are there.
+so most redraws are there. **Tag-free scenes (shelf_v3):** the check is the #3 outline (the front opening) and the target's
+projected hull inside the frame, margin >= 0 with the fitted k1 (`frame_check`), for the nominal and the revisit poses. The per-stop
+pitch values of `positions_shelf_A.json` are unchanged (that file is not edited: shelf_v1 / v2 arrangements record its sha256); they
+were chosen to keep #3 and the four tags in frame, and #3 in frame is what remains of that rationale. On the 60 dev slots plus
+DES0-3 (`SIM/shelf_v3_geometry/redraw_rate.txt`) the same draws are rejected 89 times at 52 of 320 stops under the tag rule (P1 55,
+P5 34) and never under the tag-free rule.
 
 ### Hash provenance
 
@@ -262,8 +270,20 @@ provenance records, and numpy's version.
     reference.
   - Results are reported separately for L1 and L2 queries; the lighting is in every episode_id.
   - The design cases have their own `*_design*` files.
-- **Evidence annotation.** The expected box stays the reference's (nominal camera). The evidence step registers each query to
-  its reference through the four tags.
+- **Evidence annotation.** The expected box stays the reference's (nominal camera). With tags (shelf_v1 / v2) the evidence step
+  registers each query to its reference through the four tags. **shelf_v3 scenes have no tags** (2026-11-03: no fiducials on a home
+  robot's shelf): evidence v0.3 aligns the query itself, frozen v0.2.1 falls back to no alignment when it finds no tags.
+- **True alignment (`true_alignment.json`, `true_alignment_design.json`).** From the known reference (nominal) and query (revisit)
+  camera poses, `sim/alignment.py` gives per (arrangement, stop) the exact homography `H` (3 x 3, row-major, `H[2][2]` = 1)
+  that maps a homogeneous QUERY pixel `(u, v, 1)` to the REFERENCE pixel, for two world planes: `H_front_plane` (y = 0, the shelf
+  front plane where the tags were) and `H_target_plane` (y = the target's centre depth, `target_plane_y_m`). Pixels are continuous,
+  origin at the image's top-left corner, u right, v down, pixel i covers [i, i + 1) (as the annotation boxes); the cameras are the
+  rendered pinhole cameras (no distortion). Each stop also has `pose_delta` (dx, dy, dz in m, dyaw, dpitch, droll in deg),
+  `reference_box` (the L1 reference mask's box) and `box_corner_displacement_px` per plane (|H^-1 c - c| for the 4 box corners: what no
+  alignment would leave). One H serves L1 and L2 queries and all three conditions. **Evaluation-only**: marked
+  `evaluation_only` and `never_an_evidence_or_policy_input`, like `view_labels.json`. On the v2 check set (which has tags) the true
+  front-plane H agrees with the tag-based `capture/tags.py align` H within 0.58 px (25 views, central 60 % of the frame;
+  `SIM/shelf_v3_geometry/valid_align.txt`).
 - **Labels:** come only from the rendered instance masks (`labels.json`), never from the generator's geometry.
   - Visible fraction at a query stop = target pixels with the scene / target pixels with everything else hidden, both at that
     stop's revisit pose (`masks/target_alone_revisit_<stop>.png`). The reference uses the nominal pose.
@@ -343,9 +363,13 @@ positions copy are fixed in checkpoint 2 (above). Still open:
 
 - **One-sidedness is an analytic rule.** The M16 side rule is checked on projected convex hulls at the nominal poses; the
   rendered pattern at the revisit poses can differ (reported by `sim/check_batch.py`).
-- **M16 targets are limited by the side rule, not by the board's height** (shelf_v2, see "Asymmetric M16"): the tomato soup
-  can, the potted meat can and the mug cannot get a one-sided board that satisfies the rule on both sides at any height, so
-  M16 slots take the foam brick and the tuna can only. Which pairs the other classes admit is in the config's
+- **M16 targets are limited by the side rule, not by the board's height** (shelf_v2 and v3, see "Asymmetric M16"): for the tomato soup
+  can, the potted meat can and the mug no valid placement was found in the tested generator search (0 of 100 tries on either side;
+  the finer height scan found rare left-side placements of boards taller than the physical one, so this is not a proof), so M16
+  slots take the foam brick and the tuna can only. Which pairs the other classes admit is in the config's
   `slots.target_assignment` and `notes/2026-11-03-m16-and-render-check.md`.
-- **The revisit check is at the nominal margin (>= 0 px), not with a safety margin.** A tag corner can sit a pixel from the
-  frame edge in a query view.
+- **The revisit check is at the nominal margin (>= 0 px), not with a safety margin.** The #3 outline or the target's hull can sit a
+  pixel from the frame edge in a query view (with tags, a tag corner could).
+- **True alignment is exact for two planes only.** `true_alignment.json` gives the homography of the front plane and of the target's
+  depth plane; the rest of the shelf interior moves by parallax, so an image-based alignment is scored against these, not against
+  a per-pixel truth.
