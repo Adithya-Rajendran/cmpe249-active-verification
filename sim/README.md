@@ -229,3 +229,15 @@ needs the same care.
   - Roll is the P3 fit's value at every stop.
   - The lens pose is the 2026-10-10 fit from before the bump (`design_far.md`).
 - **Statics only.** No physics: the "mocap" bodies exist only to move the mug and occluder between renders.
+
+### Known gaps in the generator and batch (PR #4 review, 2026-11-03; fixed in the next checkpoint before the dev renders)
+
+- **Occluder family.** `sim/arrange.py` still draws the family from `family_weights` and falls back to the next family when a pair fails. In dev seeds 0–99, 27 arrangements changed family this way; SD0001 went from M16 to IND28. M16 has no side, so most M16 boards end up centred (pattern CpHpC). The quota slot list with within-family retries, reserve seeds and one-sided M16 (`docs/SIM_PREREGISTRATION.md` §2) replaces all of this. `shelf_dev_v0` is a development set from the old rule only.
+- **Hash provenance.** `arrangement_sha256` covers the provenance block. That block holds the config path as the caller spelled it and the Python version, so identical arrangements can hash differently. For in-memory configs, the hash ignores the key order that `weighted_order` depends on.
+- **Shell globs.** `python -m sim.arrange --out ARR` writes `ARR/index.json` next to the arrangements, so `isaac_batch.py --arrangements ARR/*.json` refuses the batch. Until the fix, pass the arrangement files explicitly.
+- **Re-renders and incomplete folders.**
+  - A re-render over an existing folder overwrites `arrangement.json` before `labels.json`. `--skip-existing` checks only that `labels.json` exists, so an interrupted re-render can mix old labels with new files.
+  - `sim/episodes.py` silently skips folders without `labels.json`.
+  - `sim/episodes.py` copies the `--positions` file without checking it against the positions hash each arrangement records.
+- **Labels for select-v4.** `view_labels.json` (`cmpe249.sim-view-labels-set.v0`) is not yet readable by `verify.select`.
+- **Simulation label.** The manifest carries no simulation flag, so `verify.run --manifest` labels sim results "REAL PILOT".

@@ -769,7 +769,7 @@ uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 
      (G, G-lookahead), (G, G-myopic), (G-myopic, F), per scope test/dev/all (pairs with R are
      averaged over R's seeds within each episode). Like the metrics, the used view sets and the
      disagreement are computed **per query lighting**: every row has `lighting` "L1" or "L2",
-     plus a "pooled-secondary" row over both lightings that is reported only in the secondary
+     plus a "pooled" row over both lightings that is reported only in the secondary
      section. The reachable sets are geometry only and carry no lighting. The view-set counts
      describe paths. The disagreement rates compare paths and final decisions, and decision
      disagreement is an outcome comparison: it says how often two policies decide differently,
@@ -782,7 +782,7 @@ uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 
   "identical_runs", ...BootstrapResult...}], "diagnostics": {"reachable_view_sets",
   "used_view_sets", "disagreement"}}`; metrics rows have `lighting` "L1", "L2" or "pooled",
   bootstrap rows "L1" or "L2", and `used_view_sets` / `disagreement` rows "L1", "L2" or
-  "pooled-secondary". The `config` dict (thresholds, positions,
+  "pooled". The `config` dict (thresholds, positions,
   budgets, `cap_steps`, `travel_caps_cm`, `nominal_step_cm`, `travel_tol_cm`, `g_lookahead`
   {"G": false, "G-lookahead": true}, `g_myopic` {lam_deg, travel_norm_cm}, r_seeds, generator
   params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v5`; `real-v2`
@@ -809,7 +809,7 @@ uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 
   Undefined values print as `undef`. Last comes the only section with numbers pooled over
   lighting, headed `Secondary, not a headline: pooled over L1 and L2 queries (test split)`: the
   policy x cap table at the primary budget (no bootstrap) and the two diagnostic tables over both
-  lightings (the "pooled-secondary" rows). The default run (30 arrangements, 6 cap settings, 20
+  lightings (the "pooled" rows). The default run (30 arrangements, 6 cap settings, 20
   R seeds, B = 10000) writes 259,560 log lines (`logs.jsonl` about 210 MB, `results.json` about
   12 MB); on the Jetson it took about 105 s (2026-11-02; before G-lookahead and the per-lighting
   split it was 248,760 lines, 4 MB of results and about 90 s there).
@@ -826,7 +826,7 @@ uv run --no-sync python -m verify.run --synthetic --n-arr 30 --seed 0 --budgets 
   computed from the L1 episodes only (3 per arrangement; one row recomputed exactly from the
   logs), that the bootstrap runs per lighting (never pooled) and matches a direct call, and the
   per-lighting table headings. It also checks that the diagnostics carry a lighting (each L1, L2
-  and pooled-secondary disagreement row recomputed from the logs, the pooled row the sum of the
+  and pooled disagreement row recomputed from the logs, the pooled row the sum of the
   two, each table cell from its own lighting's row) and that pooled numbers appear only in the
   final secondary section; that the G note is in the header with `--cap-steps none` (and the
   G - G-lookahead rows are identical there); that the default and explicit caps hash alike; and

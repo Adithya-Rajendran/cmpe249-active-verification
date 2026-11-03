@@ -102,7 +102,7 @@ SCOPES = (Split.TEST, Split.DEV)
 # lighting. A number pooled over lighting is a labelled secondary line only, never a headline.
 REPORT_LIGHTINGS = tuple(x.value for x in Lighting)
 POOLED = "pooled"
-POOLED_DIAGNOSTIC = "pooled-secondary"   # the lighting of a diagnostics row over both lightings (secondary section)
+POOLED_DIAGNOSTIC = POOLED   # the lighting of a diagnostics row over both lightings (secondary section), as for metrics
 ROLE = {"S": "actual effort (1 view, budget-independent)",
         "FULL": "higher-effort reference (5 views, ignores budget)"}
 
@@ -386,7 +386,7 @@ def diagnostics_stage(logs: Sequence[EpisodeLog], positions: Positions, budgets:
     distinct view sets each policy actually used, and path / decision disagreement between policies.
 
     The used view sets and the disagreement are computed per query lighting, like the metrics: every row has
-    `lighting` "L1" or "L2", plus a "pooled-secondary" row over both lightings that is only reported in the
+    `lighting` "L1" or "L2", plus a "pooled" row over both lightings that is only reported in the
     secondary section (review: they were pooled over L1 and L2, with no lighting key). The reachable sets are
     geometry only and have no lighting.
 

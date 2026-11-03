@@ -236,9 +236,9 @@ class TestEndToEnd(unittest.TestCase):
         d = self.results["diagnostics"]
         self.assertEqual({x["policy"] for x in d["used_view_sets"]}, {"F", "R", "G", "G-lookahead", "G-myopic"})
         # Review: these were pooled over L1 and L2 with no lighting key. Now per query lighting, like the metrics,
-        # plus a "pooled-secondary" row; the reachable sets are geometry only.
+        # plus a "pooled" row; the reachable sets are geometry only.
         for kind in ("used_view_sets", "disagreement"):
-            self.assertEqual({x["lighting"] for x in d[kind]}, {"L1", "L2", "pooled-secondary"}, kind)
+            self.assertEqual({x["lighting"] for x in d[kind]}, {"L1", "L2", "pooled"}, kind)
         self.assertFalse([x for x in d["reachable_view_sets"] if "lighting" in x])
         dis = {(x["scope"], x["lighting"], x["policy_a"], x["policy_b"], x["budget"], x["travel_cap_cm"]): x
                for x in d["disagreement"]}
@@ -247,7 +247,7 @@ class TestEndToEnd(unittest.TestCase):
             self.assertTrue(0.0 <= x["path_disagreement_rate"] <= 1.0)
             self.assertTrue(0.0 <= x["decision_disagreement_rate"] <= x["path_disagreement_rate"] + 1e-12)
         for (scope, light, a, b, bud, cap), x in dis.items():   # the pooled row sums the two lightings' rows
-            if light == "pooled-secondary":
+            if light == "pooled":
                 l1, l2 = (dis[(scope, lt, a, b, bud, cap)] for lt in ("L1", "L2"))
                 self.assertEqual(x["n_episodes"], l1["n_episodes"] + l2["n_episodes"])
                 for k in ("path_differs", "decision_differs"):
@@ -255,8 +255,8 @@ class TestEndToEnd(unittest.TestCase):
         used = {(u["scope"], u["lighting"], u["policy"], u["budget"], u["travel_cap_cm"]): u["n_view_sets"]
                 for u in d["used_view_sets"]}
         for (scope, light, p, bud, cap), n in used.items():   # a lighting's episodes are a subset of both
-            if light != "pooled-secondary":
-                self.assertLessEqual(n, used[(scope, "pooled-secondary", p, bud, cap)])
+            if light != "pooled":
+                self.assertLessEqual(n, used[(scope, "pooled", p, bud, cap)])
         # recompute G vs G-lookahead and G vs F at the 2-step cap, b = 3, from the logs, per lighting and pooled
         paths, light_of = {}, {}
         for g in self.logs:
@@ -264,8 +264,8 @@ class TestEndToEnd(unittest.TestCase):
             if g["budget_additional_views"] == 3 and g["travel_cap_cm"] == CAP2 and \
                     g["policy"] in ("F", "G", "G-lookahead"):
                 paths.setdefault(g["episode_id"], {})[g["policy"]] = g["requested_stops"]
-        for light in ("L1", "L2", "pooled-secondary"):
-            sub = [p for e, p in paths.items() if light == "pooled-secondary" or light_of[e] == light]
+        for light in ("L1", "L2", "pooled"):
+            sub = [p for e, p in paths.items() if light == "pooled" or light_of[e] == light]
             n_diff = sum(p["G-lookahead"] != p["G"] for p in sub)
             row = dis[("all", light, "G", "G-lookahead", 3, CAP2)]
             self.assertEqual((row["path_differs"], row["n_episodes"]), (n_diff, len(sub)), light)
@@ -274,7 +274,7 @@ class TestEndToEnd(unittest.TestCase):
             self.assertEqual(sum(p["F"] != p["G"] for p in sub), 0)
             self.assertEqual(dis[("all", light, "G", "F", 3, CAP2)]["path_differs"], 0)
         # the lookahead leaves the P3 -> P1 path at 2 steps; primary G does not
-        self.assertGreater(dis[("all", "pooled-secondary", "G", "G-lookahead", 3, CAP2)]["path_differs"], 0)
+        self.assertGreater(dis[("all", "pooled", "G", "G-lookahead", 3, CAP2)]["path_differs"], 0)
 
     def test_without_synthetic_exits_2(self) -> None:
         with mock.patch("sys.stderr"):
@@ -388,7 +388,7 @@ class TestReviewFixes(unittest.TestCase):
             d["scope"], d["policy_a"], d["policy_b"], d["budget"], d["travel_cap_cm"]) ==
             ("test", "G", "G-lookahead", 3, CAP2)}
         for light, start in (("L1", f"## L1 queries - {dis_h}"), ("L2", f"## L2 queries - {dis_h}"),
-                             ("pooled-secondary", f"### {dis_h.replace(':', ', pooled:')}")):
+                             ("pooled", f"### {dis_h.replace(':', ', pooled:')}")):
             section = table[table.index(start):].split("\n\n#", 1)[0]
             row = next(x for x in section.splitlines() if x.startswith(f"| 2 steps ({CAP2:.2f} cm) | 3 |"))
             d = dis[light]

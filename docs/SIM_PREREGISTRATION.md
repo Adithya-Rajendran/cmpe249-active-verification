@@ -30,7 +30,9 @@
 - **Primary operating point:** **uncapped travel, b = 3 additional views.** This is described as *view-budgeted verification*, with travel reported alongside accuracy and coverage. The finite-cap curves are secondary. b = 1 and b = 2 are secondary and are **not** promoted on the basis of dev results; the old D14 trigger is withdrawn.
 - **Counts:**
   - Per environment: **60 dev + 100 test random arrangements**, with DES0–DES3 as separate dev checks outside the 60.
-  - This is a practical allocation, **not a power guarantee**. A planning estimate of about 5.4 h of rendering for the 320 random arrangements comes from 10 shelf dev arrangements at about 61 s each (`runs/2026-11-02-sim-prereg-review/planning_checks.json`). It excludes inference, retries and any tabletop differences, so complete dev throughput is measured before the counts are frozen.
+  - This is a practical allocation, **not a power guarantee**.
+  - **Render time.** The first planning estimate was about 5.4 h for the 320 random arrangements, at about 61 s each (`runs/2026-11-02-sim-prereg-review/planning_checks.json`). That was measured before the ghost fix, which renders every capture with fresh render products. With the fix, the same 10 shelf dev arrangements took 120.9–126.4 s each, median 124.4 s (`data/raw/2026-11-03_sim_pilot/set_checks.json`). That gives about 11 h of rendering for 320.
+  - Neither figure includes inference, retries or any tabletop differences. Complete dev throughput is measured before the counts are frozen.
 - **Occluder quotas** (fixed before rendering, §2):
 
   | Family | Share | Dev (per env.) | Test (per env.) |
