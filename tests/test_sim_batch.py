@@ -15,6 +15,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -29,6 +30,7 @@ from verify.schema import Condition, Lighting, episode_id
 STOPS = ["P1", "P2", "P3", "P4", "P5"]
 REPO = Path(__file__).resolve().parents[1]
 POS = REPO / "configs" / "sim" / "positions_shelf_A.json"
+V1 = "configs/sim/arrange_shelf_v1.json"       # the shelf_v1 config: these tests use the legacy (draw-per-try) generator path
 
 
 def _labels(arr_id: str, seed, target: str, arr_bytes: bytes, ind: bool = False, family: str = "S8", side=None,
@@ -118,7 +120,7 @@ class TestRendererGuard(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             out = Path(t) / "ARR"
             with contextlib.redirect_stdout(io.StringIO()):
-                A.main(["--slots", "10", "--design", "--out", str(out)])
+                A.main(["--config", V1, "--slots", "10", "--design", "--out", str(out)])
             files = sorted(str(p) for p in out.glob("*.json"))
             self.assertEqual(len(files), 5)
             items, skipped = B.load_arrangement_files(files)
@@ -148,7 +150,7 @@ class TestTransforms(unittest.TestCase):
         self.assertTrue(all(np.min(np.linalg.norm(want - w, axis=1)) < 1e-9 for w in world))
 
     def test_asset_local_matches_generator_frame(self):
-        ctx = A.load_context()
+        ctx = A.load_context(V1)
         item = ctx.item(3)                       # sugar box: 50 x 94 x 176 mm, laid on its long side
         lo = np.asarray(item["min_mm"])
         hi = lo + np.asarray(item["size_mm"])
@@ -257,6 +259,32 @@ class TestMasksAndLabels(unittest.TestCase):
         self.assertEqual(lab["region_obstruction"]["removed"]["P3"], 0.0)
         self.assertTrue(lab["diagnostic"]["removed"]["P3"])
 
+    def test_region_denominator_is_the_visible_phase_mask_at_the_revisit_pose(self):
+        """Revisit noise changes the target's area between the reference (nominal pose) and the query poses. The reference
+        mask here has 100 px, the visible-phase mask and the target-alone mask at the revisit pose 64 px (an 8 x 8 square). The
+        occluder covers 16 of those 64 px: the share is 16 / 64 = 0.25 and region_px is 64, not 16 / 100 and 100."""
+        sq = self._square
+        alone_ref = {s: sq(5, 5, n=10) for s in STOPS}
+        alone_q = {s: sq(5, 8, n=8) for s in STOPS}
+        tgt, occ = {}, {}
+        for s in STOPS:
+            tgt[("reference", s)] = alone_ref[s].copy()
+            tgt[("visible", s)] = alone_q[s].copy()
+            o = np.zeros_like(alone_q[s])
+            o[5:13, 8:10] = True                      # columns 8-9 of the 8 x 8 square: 8 rows x 2 columns = 16 px
+            occluded = alone_q[s] & ~o
+            tgt[("occluded", s)] = occluded
+            occ[("occluded", s)] = o
+            occ[("removed", s)] = o.copy()
+        self.assertEqual(int(np.count_nonzero(o)), 16)
+        lab = B.compute_labels(STOPS, tgt, alone_ref, alone_q, occ)
+        self.assertEqual(lab["region_px"], {s: 64 for s in STOPS})
+        self.assertEqual(lab["region_obstruction"]["removed"], {s: 0.25 for s in STOPS})
+        self.assertEqual(lab["region_obstruction"]["occluded"], {s: 0.25 for s in STOPS})
+        self.assertNotEqual(lab["region_obstruction"]["removed"]["P3"], 0.16)             # 16 / 100 of the reference mask
+        self.assertEqual(lab["visible_fraction"]["occluded"]["P3"], 0.75)                 # 48 / 64 at the query pose
+        self.assertEqual(lab["alone_px"], {"reference": {s: 100 for s in STOPS}, "query": {s: 64 for s in STOPS}})
+
     def test_cutoffs_are_the_preregistered_ones(self):
         self.assertEqual((B.PRESENT_DIAGNOSTIC_MIN, B.REMOVED_OBSTRUCTION_MAX), (0.90, 0.10))
         tgt, alone_ref, alone_q, occ = self._scene([10, 11, 9, 0, 0])
@@ -330,10 +358,11 @@ class FakeIsaacCase(unittest.TestCase):
         p.write_text(json.dumps(arr, indent=1))
         return p
 
-    def run_main(self, files, out: Path, run: int = 1, crash_at=None, skip=False) -> str:
+    def run_main(self, files, out: Path, run: int = 1, crash_at=None, skip=False, extra=()) -> str:
         FI.reset(run, crash_at)
         argv = ["--arrangements", *map(str, files), "--assets-dir", str(self.root / "assets"), "--tags-dir", "tags", "--out", str(out)]
         argv += ["--skip-existing"] if skip else []
+        argv += list(extra)
         buf = io.StringIO()
         try:
             with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
@@ -395,6 +424,11 @@ class TestRenderFlow(FakeIsaacCase):
         self.assertEqual(lab["removed_target_px"]["P3"], 0)
         self.assertEqual(lab["alone_px"], {"reference": {s: 16 for s in STOPS}, "query": {s: 16 for s in STOPS}})
         self.assertEqual(lab["hashes"]["arrangement_file_sha256"], hashlib.sha256(f.read_bytes()).hexdigest())
+        rec = json.loads((d / "render.json").read_text())
+        self.assertEqual(lab["hashes"]["render_settings_sha256"], B.sha256_json(rec["settings"]))
+        self.assertEqual(rec["settings"]["lightings"], ["L1", "L2"])
+        self.assertTrue(lab["label_sanity"]["ok"])
+        self.assertEqual(lab["label_sanity"]["ratio"], {s: 1.0 for s in STOPS})
         self.assertEqual((lab["occluder_family"], lab["m16_side"], lab["design_case"]), ("white_box", None, False))
         self.assertEqual(lab["revisit"]["stops"]["P2"]["delta"], FI.arrangement()["revisit"]["stops"]["P2"]["delta"])
         for s in STOPS:
@@ -681,6 +715,278 @@ class TestEpisodes(unittest.TestCase):
             doc = E.build(root, positions=POS, generation_log=log)
             self.assertEqual(json.loads((root / "generation_log.json").read_text())["schema"], A.GENERATION_LOG_SCHEMA)
             self.assertIn("generation_log.json", doc["files"])
+
+
+def _expect(**over) -> dict:
+    e = {"isaac_batch_sha256": "b" * 64, "isaac_rig_sha256": "r" * 64, "lightings": ["L1", "L2"], "render_settings_sha256": "s" * 64}
+    e.update(over)
+    return e
+
+
+class TestSkipExistingChecksMoreThanTheArrangement(unittest.TestCase):
+    """--skip-existing may skip only a folder that a fresh render with today's code, lightings and settings would reproduce."""
+
+    def _folder(self, root: Path, arr_bytes: bytes = b"v1", lightings=("L1", "L2"), **hashes) -> Path:
+        f = root / "SD1"
+        f.mkdir(parents=True)
+        (f / "arrangement.json").write_bytes(arr_bytes)
+        h = {"arrangement_file_sha256": hashlib.sha256(arr_bytes).hexdigest(), "isaac_batch_sha256": "b" * 64,
+             "isaac_rig_sha256": "r" * 64, "render_settings_sha256": "s" * 64}
+        h.update(hashes)
+        (f / "labels.json").write_text(json.dumps({"schema": B.LABELS_SCHEMA, "stops": STOPS, "lightings": list(lightings), "hashes": h}))
+        (f / "render.json").write_text("{}")
+        (f / "rgb").mkdir()
+        for ph in B.PHASE_ORDER:
+            for st in STOPS:
+                for L in lightings:
+                    (f / "rgb" / f"{ph}_{st}_{L}.png").write_bytes(b"x")
+        return f
+
+    def test_a_matching_folder_is_skipped(self):
+        with tempfile.TemporaryDirectory() as t:
+            f = self._folder(Path(t))
+            self.assertEqual(B.needs_render(f, b"v1", _expect()), (False, "complete render of the same arrangement file"))
+
+    def test_other_code_lightings_settings_or_files_re_render(self):
+        for name, expect, mutate, word in (
+                ("label code", _expect(isaac_batch_sha256="c" * 64), None, "isaac_batch"),
+                ("rig code", _expect(isaac_rig_sha256="c" * 64), None, "isaac_rig"),
+                ("settings", _expect(render_settings_sha256="c" * 64), None, "render settings"),
+                ("L1 folder, L1+L2 wanted", _expect(), "l1_only", "lightings"),
+                ("L1+L2 folder, L2 wanted", _expect(lightings=["L2"]), None, "lightings"),
+                ("an image is missing", _expect(), "drop_png", "missing")):
+            with self.subTest(name), tempfile.TemporaryDirectory() as t:
+                f = self._folder(Path(t), lightings=("L1",) if mutate == "l1_only" else ("L1", "L2"))
+                if mutate == "drop_png":
+                    (f / "rgb" / "removed_P3_L2.png").unlink()
+                redo, why = B.needs_render(f, b"v1", expect)
+                self.assertTrue(redo, name)
+                self.assertIn(word, why)
+
+    def test_folder_without_the_new_hashes_is_not_skipped(self):
+        with tempfile.TemporaryDirectory() as t:
+            f = self._folder(Path(t))
+            lab = json.loads((f / "labels.json").read_text())
+            del lab["hashes"]["render_settings_sha256"]                         # a folder rendered before this check existed
+            (f / "labels.json").write_text(json.dumps(lab))
+            self.assertTrue(B.needs_render(f, b"v1", _expect())[0])
+
+    def test_render_settings_cover_resolution_renderer_updates_and_lighting(self):
+        arr = FI.arrangement()
+        kw = dict(renderer="RaytracedLighting", rt_subframes=16, settle=200, capture_updates=100, lightings=["L1", "L2"],
+                  assets_dir="/nonexistent", tags_dir="/nonexistent", isaacsim="6.2.0")
+        base = B.sha256_json(B.render_settings(arr, **kw))
+        self.assertEqual(base, B.sha256_json(B.render_settings(arr, **kw)))
+        for over in ({"renderer": "PathTracing"}, {"rt_subframes": 8}, {"settle": 100}, {"capture_updates": 50},
+                     {"lightings": ["L1"]}, {"isaacsim": "6.3.0"}):
+            with self.subTest(**over):
+                self.assertNotEqual(base, B.sha256_json(B.render_settings(arr, **{**kw, **over})))
+        bigger = json.loads(json.dumps(arr))
+        for c in bigger["scene"]["cameras"]:
+            c["width"] *= 2
+        self.assertNotEqual(base, B.sha256_json(B.render_settings(bigger, **kw)))
+
+
+class TestSkipExistingFlow(FakeIsaacCase):
+    def _images(self, d: Path) -> set:
+        return {p.name for p in (d / "rgb").glob("*.png")}
+
+    def test_an_l1_only_folder_resumed_with_l1_and_l2_is_re_rendered(self):
+        out = self.root / "out"
+        f = self.write(FI.arrangement())
+        self.assertTrue(self.run_main([f], out, run=1, extra=["--lighting", "L1"]).startswith("ok:"))
+        d = out / "SD1003"
+        self.assertEqual(len(self._images(d)), 4 * 5)
+        res = self.run_main([f], out, run=2, skip=True)                                     # default lightings: L1 L2
+        self.assertIn("re-render SD1003", res)
+        self.assertIn("lightings", res)
+        self.assertEqual(len(self._images(d)), 4 * 5 * 2)
+        self.assertEqual(json.loads((d / "labels.json").read_text())["lightings"], ["L1", "L2"])
+        self.assertEqual(E.build(out, positions=None)["n_episodes"], 3 * 2)
+        res = self.run_main([f], out, run=3, skip=True)                                     # now complete: skipped
+        self.assertIn("skip SD1003", res)
+        self.assertEqual(FI.STATE["captures"], [])
+
+    def test_a_label_code_change_re_renders(self):
+        out = self.root / "out"
+        f = self.write(FI.arrangement())
+        self.run_main([f], out, run=1)
+        d = out / "SD1003"
+        other = self.root / "isaac_batch_changed.py"
+        other.write_text(B.THIS_FILE.read_text() + "\n# a compute_labels fix\n")
+        with mock.patch.object(B, "THIS_FILE", other):
+            res = self.run_main([f], out, run=2, skip=True)
+        self.assertIn("re-render SD1003", res)
+        self.assertIn("isaac_batch", res)
+        self.assertEqual({self.px(p) % 100 for p in (d / "rgb").glob("*.png")}, {2, 12})
+        self.assertEqual(json.loads((d / "labels.json").read_text())["hashes"]["isaac_batch_sha256"], B.sha256_file(other))
+
+    def test_a_rig_code_change_and_a_settings_change_re_render(self):
+        out = self.root / "out"
+        f = self.write(FI.arrangement())
+        self.run_main([f], out, run=1)
+        self.assertIn("skip SD1003", self.run_main([f], out, run=2, skip=True))
+        res = self.run_main([f], out, run=3, skip=True, extra=["--rt-subframes", "8"])
+        self.assertIn("re-render SD1003", res)
+        self.assertIn("render settings", res)
+        res = self.run_main([f], out, run=4, skip=True, extra=["--rt-subframes", "8", "--settle", "50"])
+        self.assertIn("re-render SD1003", res)
+        other = self.root / "isaac_rig_changed.py"
+        other.write_text(Path(B.ir.__file__).read_text() + "\n# changed\n")
+        with mock.patch.object(B.ir, "__file__", str(other)):
+            res = self.run_main([f], out, run=5, skip=True, extra=["--rt-subframes", "8", "--settle", "50"])
+        self.assertIn("re-render SD1003", res)
+        self.assertIn("isaac_rig", res)
+
+
+class TestLabelSanity(unittest.TestCase):
+    def test_visible_phase_must_show_the_target_whole(self):
+        ok = B.label_sanity(STOPS, dict(zip(STOPS, [100, 95, 90, 100, 100])), {s: 100 for s in STOPS})
+        self.assertTrue(ok["ok"])                                                      # 0.90 is not below 0.90
+        self.assertEqual(ok["flagged_stops"], [])
+        bad = B.label_sanity(STOPS, dict(zip(STOPS, [100, 95, 89, 100, 40])), {s: 100 for s in STOPS})
+        self.assertFalse(bad["ok"])
+        self.assertEqual(bad["flagged_stops"], ["P3", "P5"])
+        self.assertEqual(bad["ratio"]["P3"], 0.89)
+        none = B.label_sanity(STOPS, {s: 0 for s in STOPS}, {**{s: 100 for s in STOPS}, "P2": 0})
+        self.assertEqual(none["flagged_stops"], ["P1", "P2", "P3", "P4", "P5"])           # P2 has nothing to compare with
+
+    def test_compute_labels_records_it(self):
+        sq = TestMasksAndLabels._square
+        alone = {s: sq(5, 5) for s in STOPS}
+        tgt = {("reference", s): alone[s].copy() for s in STOPS}
+        tgt.update({("visible", s): alone[s].copy() for s in STOPS})
+        tgt.update({("occluded", s): alone[s].copy() for s in STOPS})
+        occ = {(ph, s): np.zeros_like(alone[s]) for ph in ("occluded", "removed") for s in STOPS}
+        self.assertTrue(B.compute_labels(STOPS, tgt, alone, alone, occ)["label_sanity"]["ok"])
+        part = alone["P3"].copy()
+        part[5:15, 5:10] = False                                                          # the shelf hides half the target
+        tgt[("visible", "P3")] = part
+        lab = B.compute_labels(STOPS, tgt, alone, alone, occ)
+        self.assertFalse(lab["label_sanity"]["ok"])
+        self.assertEqual(lab["label_sanity"]["flagged_stops"], ["P3"])
+        self.assertEqual(lab["label_sanity"]["ratio"]["P3"], 0.5)
+
+
+class TestEpisodeSetIntegrity(unittest.TestCase):
+    @staticmethod
+    def _retag(root: Path, arr_id: str, generator=None, config=None) -> None:
+        d = root / arr_id
+        arr = json.loads((d / "arrangement.json").read_text())
+        if generator:
+            arr["provenance"]["generator"]["sha256"] = generator
+        if config:
+            arr["provenance"]["config"]["sha256"] = config
+        b = json.dumps(arr).encode()
+        (d / "arrangement.json").write_bytes(b)
+        lab = json.loads((d / "labels.json").read_text())
+        lab["hashes"]["arrangement_file_sha256"] = hashlib.sha256(b).hexdigest()
+        (d / "labels.json").write_text(json.dumps(lab))
+
+    def test_a_set_from_two_generator_or_config_versions_is_refused(self):
+        for what, kw in (("generator", {"generator": "h" * 64}), ("config", {"config": "d" * 64})):
+            with self.subTest(what), tempfile.TemporaryDirectory() as t:
+                root = Path(t) / "set"
+                _write_set(root, [("SD1002", 1002, "random", "mug", False), ("SD1003", 1003, "random", "mug", False)])
+                self.assertEqual(E.build(root, positions=None)["n_arrangements"], 2)          # one version: fine
+                self._retag(root, "SD1003", **kw)
+                for f in root.glob("*.json"):
+                    f.unlink()
+                with self.assertRaisesRegex(ValueError, f"2 {what} versions"):
+                    E.build(root, positions=None)
+                self.assertFalse((root / "manifest.json").exists())                            # refused before anything is written
+                with contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(E.main(["--root", str(root), "--positions", str(POS)]), 2)
+
+    def test_a_design_case_from_another_version_is_refused_too(self):
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t) / "set"
+            _write_set(root, [("SD1002", 1002, "random", "mug", False),
+                              ("DES0", "design-0", "design", "study_mug", False, {"design": True})])
+            self._retag(root, "DES0", generator="h" * 64)
+            with self.assertRaisesRegex(ValueError, "generator versions"):
+                E.build(root, positions=None)
+
+    def test_n_episodes_counts_the_rendered_lightings(self):
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t) / "set"
+            _write_set(root, [("SD1002", 1002, "random", "mug", False), ("SD1003", 1003, "random", "mug", False)])
+            self.assertEqual(E.build(root, positions=None)["n_episodes"], 2 * 3 * 2)
+            for arr_id in ("SD1002", "SD1003"):
+                lab = json.loads((root / arr_id / "labels.json").read_text())
+                lab["lightings"] = ["L1"]
+                (root / arr_id / "labels.json").write_text(json.dumps(lab))
+            doc = E.build(root, positions=None)
+            self.assertEqual((doc["n_episodes"], doc["groups"]["random"]["n_episodes"]), (2 * 3, 2 * 3))
+            jobs = json.loads((root / "jobs_refL1.json").read_text())["jobs"]
+            self.assertEqual(len(jobs), 2 * 3 * 5)                                            # what the jobs hold
+            self.assertEqual(len(json.loads((root / "manifest.json").read_text())["arrangements"]), 2)
+            self.assertEqual(len({j["episode_id"] for j in jobs}), 2 * 3)
+
+    def test_contact_sheets_survive_missing_fractions(self):
+        import cv2
+
+        with tempfile.TemporaryDirectory() as t:
+            f = Path(t) / "SD1002"
+            (f / "rgb").mkdir(parents=True)
+            (f / "masks").mkdir()
+            blob = np.zeros((48, 64), np.uint8)
+            blob[10:20, 10:20] = 255
+            for ph in B.PHASE_ORDER:
+                for st in STOPS:
+                    cv2.imwrite(str(f / "rgb" / f"{ph}_{st}_L1.png"), np.full((48, 64, 3), 120, np.uint8))
+                    cv2.imwrite(str(f / "masks" / f"classes_{ph}_{st}.png"), (blob > 0).astype(np.uint8))
+                    cv2.imwrite(str(f / "masks" / f"target_alone_{st}.png"), blob)
+                    cv2.imwrite(str(f / "masks" / f"target_alone_revisit_{st}.png"), blob)
+            none = {s: None for s in STOPS}
+            lab = _labels("SD1002", 1002, "mug", b"x")
+            lab.update(lightings=["L1"], visible_fraction={"reference": dict(none), "visible": dict(none), "occluded": dict(none)},
+                       region_obstruction={"occluded": dict(none), "removed": dict(none)},
+                       diagnostic={"visible": {s: False for s in STOPS}, "occluded": {s: False for s in STOPS},
+                                   "removed": {s: False for s in STOPS}},
+                       reference_box={"L1": dict(none)}, query_box_visible={"L1": dict(none)})
+            paths = E.contact_sheets(f, lab)
+            self.assertEqual(sorted(p.name for p in paths), ["contact_L1.jpg", "crops_L1.jpg"])
+            self.assertTrue(all(p.is_file() and p.stat().st_size > 0 for p in paths))
+
+    def test_summary_survives_a_set_without_reference_fractions(self):
+        arr = _arr_doc("SD1002", 1002, "random", "mug", False)
+        arr["objects"]["occluder"].update(kind="box", label="S8")
+        lab = _labels("SD1002", 1002, "mug", b"x")
+        lab["visible_fraction"]["reference"] = {s: None for s in STOPS}
+        lab["visible_fraction"]["occluded"]["P2"] = None
+        lab["region_obstruction"]["removed"]["P1"] = None
+        self.assertIn("| SD1002 |", E.summary_md([(arr, lab, Path("."))]))
+
+
+class TestCheckBatchFolders(unittest.TestCase):
+    def test_crash_leftovers_are_skipped_and_reported(self):
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t)
+            for name in ("SD1002", "SD1003", "SD1003.partial", "SD1002.old12345", "SD1002.old", "check"):
+                (root / name).mkdir()
+                if name != "check":
+                    (root / name / "labels.json").write_text("{}")
+            (root / "notes.txt").write_text("x")
+            folders, leftovers = CB.list_folders(root)
+            self.assertEqual([p.name for p in folders], ["SD1002", "SD1003"])
+            self.assertEqual(leftovers, ["SD1002.old", "SD1002.old12345", "SD1003.partial"])
+
+    def test_the_folder_name_must_be_the_arrangement_id(self):
+        with tempfile.TemporaryDirectory() as t:
+            f = Path(t) / "SD1004"
+            f.mkdir()
+            (f / "arrangement.json").write_text(json.dumps({"arrangement_id": "SD1002"}))
+            (f / "labels.json").write_text(json.dumps({"arrangement_id": "SD1002", "stops": STOPS}))
+            (f / "render.json").write_text("{}")
+            with self.assertRaisesRegex(ValueError, "named after its arrangement"):
+                CB.check_arrangement(f, None)
+
+    def test_label_sanity_is_recomputed_from_the_pixel_counts(self):
+        lab = {"target_px": {"visible": dict(zip(STOPS, [100, 100, 80, 100, 100]))}, "alone_px": {"query": {s: 100 for s in STOPS}}}
+        res = B.label_sanity(STOPS, lab["target_px"]["visible"], lab["alone_px"]["query"])
+        self.assertEqual(res["flagged_stops"], ["P3"])
+        self.assertEqual(CB.B.LABEL_SANITY_MIN, 0.90)
 
 
 class TestCheckBatch(unittest.TestCase):

@@ -243,7 +243,7 @@ def summary_md(rendered: Sequence[tuple[dict, dict, Path]]) -> str:
                     f"{'' if o['kind'] == 'box' else ' (' + o['label'] + ')'} | {arr.get('m16_side') or ''} | "
                     + " / ".join("-" if occ[s] is None else f"{occ[s]:.3f}" for s in stops)
                     + f" | {lab['patterns']['occluded']} | {lab.get('intended_pattern') or ''} | "
-                    f"{n['visible']} / {n['occluded']} / {n['removed']} | {min(ref):.4f} | "
+                    f"{n['visible']} / {n['occluded']} / {n['removed']} | {'-' if not ref else format(min(ref), '.4f')} | "
                     + " / ".join("-" if rem[s] is None else f"{rem[s]:.3f}" for s in stops) + " |")
     return "\n".join(["SIMULATION (Isaac Sim renders; labels from instance masks at the revisit poses of the query views). "
                       "Diagnostic: present views with visible fraction >= 0.90; removed views where the occluder covers < 10 % "
@@ -269,13 +269,16 @@ def contact_sheets(folder: Path, labels: Mapping, tile_w: int = 460) -> list[Pat
         cs = [(c * scale).astype(np.int32) for c in cs]
         cv2.drawContours(img, cs, -1, colour, 2)
 
+    def num(v):
+        return "-" if v is None else f"{v:.2f}"       # None: no target pixels to divide by (visible fraction / obstruction)
+
     def label_text(ph, s):
         if ph == "removed":
             v = labels["region_obstruction"]["removed"][s]
-            return f"{ph} {s} occ {v:.2f} {'D' if labels['diagnostic']['removed'][s] else 'nd'}"
+            return f"{ph} {s} occ {num(v)} {'D' if labels['diagnostic']['removed'][s] else 'nd'}"
         v = labels["visible_fraction"][ph][s]
         d = labels["diagnostic"].get(ph, {}).get(s)
-        return f"{ph} {s} vf {v:.2f}" + ("" if d is None else (" D" if d else " nd"))
+        return f"{ph} {s} vf {num(v)}" + ("" if d is None else (" D" if d else " nd"))
 
     def alone_mask(ph, s):
         name = f"target_alone_{s}.png" if ph == "reference" else f"target_alone_revisit_{s}.png"
@@ -313,7 +316,10 @@ def contact_sheets(folder: Path, labels: Mapping, tile_w: int = 460) -> list[Pat
         tiles = []
         for s in stops:
             img = cv2.imread(str(rgb_path(folder, ph, s, L)))
-            x0, y0, x1, y1 = labels["reference_box"][L][s] if ph == "reference" else labels["query_box_visible"][L][s]
+            box = labels["reference_box"][L][s] if ph == "reference" else labels["query_box_visible"][L][s]
+            if box is None:                       # no target pixels at this view: show the whole frame
+                box = [0, 0, img.shape[1], img.shape[0]]
+            x0, y0, x1, y1 = box
             w, h = x1 - x0, y1 - y0
             g = max(w, h)
             cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
@@ -359,12 +365,31 @@ def revisit_summary(arr: Mapping) -> dict:
             for s, v in arr["revisit"]["stops"].items()}
 
 
+def check_single_version(rendered: Sequence[tuple[dict, dict, Path]]) -> tuple[set, set]:
+    """({generator sha256}, {config sha256}) of the set; ValueError if the arrangements (the random slots and the design
+    cases) come from more than one generator sha256 or config sha256: a set built from two generator or config versions
+    would silently mix them in the manifest, jobs and view labels (regenerate and re-render the odd ones out). An
+    arrangement without a recorded hash counts as its own version."""
+    gens = {a.get("provenance", {}).get("generator", {}).get("sha256") for a, _, _ in rendered}
+    cfgs = {a.get("provenance", {}).get("config", {}).get("sha256") for a, _, _ in rendered}
+    for what, vals, key in (("generator", gens, "generator"), ("config", cfgs, "config")):
+        if len(vals) > 1:
+            by = {}
+            for a, _, _ in rendered:
+                by.setdefault(str(a.get("provenance", {}).get(key, {}).get("sha256"))[:12], []).append(a["arrangement_id"])
+            raise ValueError(f"the arrangements come from {len(vals)} {what} versions, not one: "
+                             + "; ".join(f"{sha}: {ids[:6]}{' ...' if len(ids) > 6 else ''}" for sha, ids in sorted(by.items()))
+                             + ". Regenerate and re-render the odd ones out.")
+    return gens, cfgs
+
+
 def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positions: str | Path | None = None,
           sheets: bool = False, generation_log: str | Path | None = None) -> dict:
     root = Path(root).resolve()
     rendered = load_rendered(root)
     if not rendered:
         raise ValueError(f"no rendered arrangements under {root}")
+    gens, cfgs = check_single_version(rendered)           # before anything is written
     pos_sha = check_positions(positions, rendered) if positions is not None else None
     for arr, lab, d in rendered:
         lab["_file_sha256"] = sha256_file(d / "labels.json")
@@ -373,8 +398,6 @@ def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positi
                 p = annotation_path(d, stop, lighting)
                 p.parent.mkdir(exist_ok=True)
                 p.write_text(json.dumps(annotation_doc(arr, lab, d, i, lighting), indent=1) + "\n")
-    gens = {a.get("provenance", {}).get("generator", {}).get("sha256") for a, _, _ in rendered if a["kind"] == "random"}
-    cfgs = {a.get("provenance", {}).get("config", {}).get("sha256") for a, _, _ in rendered}
     prov = {"generator_sha256": sorted(x for x in gens if x), "config_sha256": sorted(x for x in cfgs if x),
             "episodes_py_sha256": sha256_file(THIS_FILE), "positions_sha256": pos_sha,
             "arrangements": {a["arrangement_id"]: {"seed": a["seed"], "arrangement_sha256": a.get("arrangement_sha256"),
@@ -398,7 +421,7 @@ def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positi
             written[fn[key]] = sha256_file(root / fn[key])
         (root / fn["summary"]).write_text(summary_md(items))
         group_docs[g] = {"arrangements": [a["arrangement_id"] for a, _, _ in items], "n_arrangements": len(items),
-                         "n_episodes": len(items) * len(CONDITIONS) * 2,
+                         "n_episodes": sum(len(CONDITIONS) * len(lab["lightings"]) for _, lab, _ in items),
                          "jobs": {JOBS_ROLE[rl]: fn["jobs_" + ("L1" if rl == "L1" else "same")] for rl in ref_lightings},
                          "manifest": fn["manifest"]}
     if positions is not None:
@@ -418,6 +441,8 @@ def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positi
            "jobs_note": "primary = jobs_refL1.json (every query vs the L1 reference at its stop); secondary = jobs_same.json "
                         "(a separate run, reported separately, never a relabelling of the primary); report L1 and L2 queries "
                         "separately. The random slots and the design cases DES0..3 are separate groups (files with _design).",
+           "label_sanity_flagged": {a["arrangement_id"]: lab["label_sanity"]["flagged_stops"] for a, lab, _ in rendered
+                                    if lab.get("label_sanity") and not lab["label_sanity"]["ok"]},
            "files": written, "provenance": prov}
     (root / "set.json").write_text(json.dumps(doc, indent=1) + "\n")
     (root / "README.md").write_text(set_readme(root, groups, ref_lightings))

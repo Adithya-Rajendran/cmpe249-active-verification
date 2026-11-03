@@ -38,7 +38,10 @@ Per arrangement, OUT/<ARR>/ gets:
 
 Writing is atomic per arrangement: everything is rendered into OUT/<ARR>.partial and renamed to OUT/<ARR> when complete
 (an existing folder is replaced). --skip-existing skips an arrangement only if its labels.json records the sha256 of the
-very arrangement file given now (labels.hashes.arrangement_file_sha256); otherwise it is re-rendered. A leftover
+very arrangement file given now (labels.hashes.arrangement_file_sha256), the sha256 of this file and isaac_rig.py, the same
+lighting set and the same render settings (render_settings(): resolution, renderer, rt subframes, settle and capture
+updates, lighting presets, materials, Isaac version, models_info and tag images), and the rgb/ folder is complete;
+otherwise it is re-rendered, with the reason printed. A leftover
 OUT/<ARR>.partial marks an interrupted render and makes sim/episodes.py refuse the set until it is rendered again.
 
 Render history: the real-time RTX renderer keeps per-pixel history in each render product. A target hidden between
@@ -77,7 +80,7 @@ try:
 except ImportError:  # run as a script from the GB10 run dir, next to a copy of isaac_rig.py
     import isaac_rig as ir
 
-BATCH_VERSION = "0.2.0"
+BATCH_VERSION = "0.3.0"
 ARRANGEMENT_SCHEMA = "cmpe249.sim-arrangement.v1"
 LABELS_SCHEMA = "cmpe249.sim-view-labels.v1"
 NON_ARRANGEMENT_SCHEMAS = ("cmpe249.sim-arrangement-index.v0", "cmpe249.sim-slots.v0", "cmpe249.sim-generation-log.v0")   # = sim/arrange.py
@@ -85,9 +88,11 @@ RENDER_SCHEMA = "cmpe249.sim-render.v0"
 DEV_SEED_RANGE = (0, 9999)       # = sim/arrange.py (tests/test_sim_batch.py checks)
 TEST_SEED_MIN = 100000
 PRESENT_DIAGNOSTIC_MIN = 0.90    # visible fraction for a diagnostic present-target view (the plan's C class)
-REMOVED_OBSTRUCTION_MAX = 0.10   # occluder share of the target's reference region for a diagnostic removed view
+REMOVED_OBSTRUCTION_MAX = 0.10   # occluder share of the target's region (the visible-phase target mask at the same revisit pose, not the
+                                 # nominal reference mask) below which a removed view is diagnostic
 CLASS_IDS = {"background": 0, "target": 1, "occluder": 2, "distractor0": 10}
 PHASE_ORDER = ("reference", "visible", "occluded", "removed")
+LABEL_SANITY_MIN = 0.90         # visible-phase target pixels / target-alone pixels at the same pose; below it the arrangement is flagged
 CAPTURE_UPDATES = 100            # app updates on fresh render products before each capture (ghost_test2.json)
 ALONE_UPDATES = 10               # the target-alone pass reads segmentation only
 CAMERA_SETS = ("nominal", "revisit")       # arrangement['phases'][i]['camera']: references nominal, queries revisit
@@ -244,6 +249,7 @@ def compute_labels(stops: Sequence[str], target: Mapping[tuple[str, str], np.nda
         for s in stops:
             n = region_px[s]
             obstruction[ph][s] = None if n == 0 else round(int(np.count_nonzero(target[("visible", s)] & occluder[(ph, s)])) / n, 6)
+    sanity = label_sanity(stops, px["visible"], {s: int(np.count_nonzero(alone_query[s])) for s in stops})
     diag = {"visible": {s: vis["visible"][s] is not None and vis["visible"][s] >= present_min for s in stops},
             "occluded": {s: vis["occluded"][s] is not None and vis["occluded"][s] >= present_min for s in stops},
             "removed": {s: obstruction["removed"][s] is not None and obstruction["removed"][s] < removed_max for s in stops}}
@@ -254,6 +260,7 @@ def compute_labels(stops: Sequence[str], target: Mapping[tuple[str, str], np.nda
                      "query": {s: int(np.count_nonzero(alone_query[s])) for s in stops}},
         "region_px": region_px,
         "region_obstruction": obstruction,
+        "label_sanity": sanity,
         "patterns": {ph: "".join(classify(vis[ph][s], h_max, c_min) for s in stops) for ph in ("reference", "visible", "occluded")},
         "truth": dict(CONDITION_TRUTH),
         "diagnostic": diag,
@@ -266,6 +273,19 @@ def compute_labels(stops: Sequence[str], target: Mapping[tuple[str, str], np.nda
                   "classes": f"H <= {h_max}, C >= {c_min}, else p",
                   "poses": "reference: nominal cameras; visible, occluded, removed: revisit cameras (one draw per stop)"},
     }
+
+
+def label_sanity(stops: Sequence[str], visible_px: Mapping[str, int], alone_px: Mapping[str, int],
+                 min_ratio: float = LABEL_SANITY_MIN) -> dict:
+    """Guard on the labels. In the visible phase (target present, occluder parked) a stop must show nearly all of the target
+    that it shows with everything else hidden: visible-phase target pixels >= min_ratio x target-alone pixels at the same
+    revisit pose. A lower ratio means the shelf or a distractor hides part of the target, which the generator's rules
+    (seen_whole, may_occlude) prevent; the arrangement is flagged (ok = False) and its removed views get a small region. A
+    stop with no target-alone pixels is flagged too (nothing to compare with)."""
+    ratio = {s: (None if alone_px[s] == 0 else round(visible_px[s] / alone_px[s], 6)) for s in stops}
+    flagged = [s for s in stops if ratio[s] is None or ratio[s] < min_ratio]
+    return {"rule": f"visible-phase target pixels >= {min_ratio} x target-alone pixels at the same revisit pose, every stop",
+            "min_ratio": min_ratio, "ratio": ratio, "flagged_stops": flagged, "ok": not flagged}
 
 
 def png_meta(arr: Mapping, phase: str, stop: str, lighting: str, camera: str = "nominal") -> dict:
@@ -286,10 +306,40 @@ def partial_dir(out: Path, arrangement_id: str) -> Path:
     return Path(out) / f"{arrangement_id}.partial"
 
 
-def needs_render(folder: Path, arr_bytes: bytes) -> tuple[bool, str]:
+def sha256_json(obj) -> str:
+    return hashlib.sha256(json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def render_settings(arr: Mapping, *, renderer: str, rt_subframes: int, settle: int, capture_updates: int, lightings: Sequence[str],
+                    assets_dir: str | Path, tags_dir: str | Path, isaacsim: str | None) -> dict:
+    """Everything outside the arrangement file and the two code files that changes the pixels of a render: resolution (the
+    arrangement's cameras), renderer, rt_subframes, settle and capture updates, the target-alone update count, the lighting
+    set and its presets, materials, focal length, the Isaac Sim version, the sha256 of models_info.json (the assets) and of the
+    tag images the scene uses. Stored in render.json; its hash is in labels.hashes.render_settings_sha256 and --skip-existing
+    compares it."""
+    cams = arr["scene"]["cameras"]
+    models_info = Path(assets_dir) / "models_info.json"
+    tag_hashes = {}
+    for t in arr["scene"].get("tags", []):
+        f = Path(tags_dir) / f"aruco_4x4_50_id{t['id']}.png"
+        tag_hashes[f.name] = sha256_file(f) if f.is_file() else None
+    return {"resolution": [[c["width"], c["height"]] for c in cams], "renderer": renderer, "rt_subframes": int(rt_subframes),
+            "settle_updates": int(settle), "capture_updates": int(capture_updates), "alone_updates": ALONE_UPDATES,
+            "lightings": list(lightings), "lighting_presets": {k: ir.LIGHTING[k] for k in lightings}, "materials": ir.MATERIALS,
+            "focal_mm": ir.FOCAL_MM, "isaacsim": isaacsim,
+            "models_info_sha256": sha256_file(models_info) if models_info.is_file() else None, "tag_image_sha256": tag_hashes}
+
+
+def needs_render(folder: Path, arr_bytes: bytes, expect: Mapping | None = None) -> tuple[bool, str]:
     """(True, reason) unless `folder` holds a COMPLETE render of exactly these arrangement bytes: arrangement.json equal to
     the input, a readable labels.json of the current schema whose hashes.arrangement_file_sha256 is the input's sha256,
-    and render.json. --skip-existing skips only on (False, ...)."""
+    and render.json. --skip-existing skips only on (False, ...).
+    `expect` (main() always passes it) adds what else must match for the pixels and labels to be the ones a fresh render would
+    give: labels.hashes.isaac_batch_sha256 and isaac_rig_sha256 equal expect['isaac_batch_sha256'] / ['isaac_rig_sha256'] (a
+    code change re-renders), labels['lightings'] equals expect['lightings'] (a folder rendered with L1 only is not complete for
+    L1 + L2), labels.hashes.render_settings_sha256 equals expect['render_settings_sha256'] (resolution, renderer, rt
+    subframes, settle and capture updates, lighting presets, ...), and the rgb/ folder holds every phase x stop x lighting
+    PNG."""
     want = hashlib.sha256(arr_bytes).hexdigest()
     lab = Path(folder) / "labels.json"
     if not lab.is_file():
@@ -308,6 +358,20 @@ def needs_render(folder: Path, arr_bytes: bytes) -> tuple[bool, str]:
     af = Path(folder) / "arrangement.json"
     if not af.is_file() or hashlib.sha256(af.read_bytes()).hexdigest() != want:
         return True, "arrangement.json differs from the input"
+    if expect is not None:
+        hs = doc.get("hashes", {})
+        for key in ("isaac_batch_sha256", "isaac_rig_sha256"):
+            if hs.get(key) != expect.get(key):
+                return True, f"code ({key[:-7]}) differs: folder {str(hs.get(key))[:12]}, now {str(expect.get(key))[:12]}"
+        if list(doc.get("lightings", [])) != list(expect["lightings"]):
+            return True, f"folder was rendered with lightings {doc.get('lightings')}, now {list(expect['lightings'])}"
+        if hs.get("render_settings_sha256") != expect.get("render_settings_sha256"):
+            return True, (f"render settings differ: folder {str(hs.get('render_settings_sha256'))[:12]}, "
+                          f"now {str(expect.get('render_settings_sha256'))[:12]}")
+        missing = [f"{ph}_{s}_{L}.png" for ph in PHASE_ORDER for s in doc.get("stops", []) for L in expect["lightings"]
+                   if not (Path(folder) / "rgb" / f"{ph}_{s}_{L}.png").is_file()]
+        if missing:
+            return True, f"{len(missing)} rgb file(s) missing, e.g. {missing[0]}"
     return False, "complete render of the same arrangement file"
 
 
@@ -462,7 +526,7 @@ def _visible(stage, path: str, on: bool) -> None:
 
 def render_arrangement(app, arr: dict, arr_bytes: bytes, out_dir: Path, assets_dir: Path, tags_dir: Path,
                        lightings: Sequence[str], rt_subframes: int, settle: int, capture_updates: int, ply_cache: dict,
-                       pool) -> dict:
+                       pool, settings: Mapping | None = None) -> dict:
     """Render one arrangement into `out_dir` (main() passes a fresh OUT/<ARR>.partial and installs it when this returns)."""
     import omni.replicator.core as rep
     import omni.usd
@@ -609,7 +673,8 @@ def render_arrangement(app, arr: dict, arr_bytes: bytes, out_dir: Path, assets_d
                    "arrangement_sha256": arr.get("arrangement_sha256"),
                    "generator_sha256": prov.get("generator", {}).get("sha256"),
                    "config_sha256": prov.get("config", {}).get("sha256"),
-                   "isaac_batch_sha256": sha256_file(THIS_FILE), "isaac_rig_sha256": sha256_file(ir.__file__)},
+                   "isaac_batch_sha256": sha256_file(THIS_FILE), "isaac_rig_sha256": sha256_file(ir.__file__),
+                   "render_settings_sha256": None if settings is None else sha256_json(settings)},
     })
     (out_dir / "labels.json").write_text(json.dumps(labels, indent=1) + "\n")
     timings["steps"] = steps
@@ -641,7 +706,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="app updates on fresh render products before each (phase, lighting) capture")
     ap.add_argument("--skip-existing", action="store_true",
                     help="skip an arrangement only if OUT/<ARR> holds a complete render of exactly this arrangement file "
-                         "(labels.hashes.arrangement_file_sha256 equals its sha256); otherwise re-render")
+                         "(labels.hashes.arrangement_file_sha256 equals its sha256) made by the same code (isaac_batch.py and "
+                         "isaac_rig.py sha256), the same lighting set and the same render settings (resolution, renderer, rt "
+                         "subframes, settle / capture updates, lighting presets, Isaac version, assets, tags); otherwise re-render")
     a = ap.parse_args(argv)
     items, skipped = load_arrangement_files(a.arrangements)     # refuses test / malformed arrangements before Isaac starts
     for f, schema in skipped:
@@ -677,7 +744,12 @@ def main(argv: list[str] | None = None) -> int:
         with ThreadPoolExecutor(max_workers=8) as pool:
             for arr, b in items:
                 d = out / arr["arrangement_id"]
-                redo, why = needs_render(d, b)
+                settings = render_settings(arr, renderer=a.renderer, rt_subframes=a.rt_subframes, settle=a.settle,
+                                           capture_updates=a.capture_updates, lightings=a.lighting, assets_dir=a.assets_dir,
+                                           tags_dir=a.tags_dir, isaacsim=report["isaacsim"])
+                expect = {"isaac_batch_sha256": report["isaac_batch_sha256"], "isaac_rig_sha256": report["isaac_rig_sha256"],
+                          "lightings": list(a.lighting), "render_settings_sha256": sha256_json(settings)}
+                redo, why = needs_render(d, b, expect)
                 if a.skip_existing and not redo:
                     print(f"skip {arr['arrangement_id']} ({why})", flush=True)
                     continue
@@ -689,16 +761,23 @@ def main(argv: list[str] | None = None) -> int:
 
                     shutil.rmtree(tmp)
                 r = render_arrangement(app, arr, b, tmp, Path(a.assets_dir), Path(a.tags_dir), a.lighting, a.rt_subframes,
-                                       a.settle, a.capture_updates, ply_cache, pool)
+                                       a.settle, a.capture_updates, ply_cache, pool, settings)
                 rec = {k: v for k, v in report.items() if k != "arrangements"}
-                rec.update(arrangement_id=arr["arrangement_id"], timings=r["timings"])
+                rec.update(arrangement_id=arr["arrangement_id"], timings=r["timings"], settings=settings,
+                           settings_sha256=sha256_json(settings))
                 (tmp / "render.json").write_text(json.dumps(rec, indent=1) + "\n")
                 install_rendered(tmp, d)            # complete folder or none: never a mix of two renders
                 report["arrangements"][arr["arrangement_id"]] = r["timings"]
                 lab = r["labels"]
                 print("ISAAC_BATCH " + json.dumps({"arrangement_id": arr["arrangement_id"], "total_s": r["timings"]["total_s"],
                                                    "occluded_vf": lab["visible_fraction"]["occluded"],
-                                                   "patterns": lab["patterns"], "n_diagnostic": lab["n_diagnostic"]}), flush=True)
+                                                   "patterns": lab["patterns"], "n_diagnostic": lab["n_diagnostic"],
+                                                   "label_sanity_ok": lab["label_sanity"]["ok"]}), flush=True)
+                if not lab["label_sanity"]["ok"]:
+                    print(f"WARNING LABEL SANITY {arr['arrangement_id']}: visible-phase target pixels below "
+                          f"{LABEL_SANITY_MIN} x target-alone at stops {lab['label_sanity']['flagged_stops']} "
+                          f"(ratios {lab['label_sanity']['ratio']}): the shelf or a distractor hides the target; see labels.json",
+                          flush=True)
         (out / f"render_report_{time.strftime('%Y%m%dT%H%M%S')}.json").write_text(json.dumps(report, indent=1) + "\n")
     except BaseException:
         # SimulationApp.close() ends the process (fast shutdown) before Python would print the exception

@@ -15,6 +15,9 @@ import importlib.util
 import io
 import json
 import math
+import os
+import platform
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -27,8 +30,10 @@ from sim import rig as R
 
 REPO = Path(__file__).resolve().parents[1]
 POS = REPO / "configs" / "sim" / "positions_shelf_A.json"
-DRAFT_A = REPO / "data" / "raw" / "2026-10-10_far-camera" / "positions_far_A_draft.json"
-CFG_REL = "configs/sim/arrange_shelf_v1.json"
+DRAFT_A = REPO / "tests" / "fixtures" / "positions" / "positions_far_A_draft.json"       # copy of data/raw/2026-10-10_far-camera/ (gitignored)
+CFG_REL = "configs/sim/arrange_shelf_v1.json"       # the legacy path (target drawn per try); shelf_v2 has its own tests below
+V1 = REPO / CFG_REL
+V2_REL = "configs/sim/arrange_shelf_v2.json"
 # (seed, family, m16_side, attempt): the first successful try of the first slot of each class in the dev slot list
 KNOWN = [(1002, "S8", None, 0), (1010, "white_box", None, 0), (1005, "ycb_box", None, 1), (1001, "IND28", None, 9),
          (1000, "M16", "L", 10), (1007, "M16", "R", 6)]
@@ -36,7 +41,7 @@ KNOWN = [(1002, "S8", None, 0), (1010, "white_box", None, 0), (1005, "ycb_box", 
 
 def _ctx():
     if not hasattr(_ctx, "c"):
-        _ctx.c = A.load_context()
+        _ctx.c = A.load_context(CFG_REL)
     return _ctx.c
 
 
@@ -86,12 +91,12 @@ class TestSeedGuard(unittest.TestCase):
             out = Path(t) / "out"
             err = io.StringIO()
             with contextlib.redirect_stderr(err):
-                self.assertEqual(A.main(["--split", "test", "--slots", "all", "--out", str(out)]), 2)
+                self.assertEqual(A.main(["--config", CFG_REL, "--split", "test", "--slots", "all", "--out", str(out)]), 2)
             self.assertIn("TEST", err.getvalue())
             self.assertFalse(out.exists())
 
     def test_config_seed_ranges_are_the_generators(self):
-        cfg = json.loads(A.DEFAULT_CONFIG_PATH.read_text())
+        cfg = json.loads(V1.read_text())
         self.assertEqual(tuple(cfg["seeds"]["dev"]), A.DEV_SEED_RANGE)
         self.assertEqual(cfg["seeds"]["test_reserved_min"], A.TEST_SEED_MIN)
         bad = json.loads(json.dumps(cfg))
@@ -128,7 +133,7 @@ class TestSlotList(unittest.TestCase):
 
     def test_deterministic_and_a_permutation(self):
         ctx = _ctx()
-        a, b = A.slot_list(ctx, "dev"), A.slot_list(A.load_context(), "dev")
+        a, b = A.slot_list(ctx, "dev"), A.slot_list(A.load_context(CFG_REL), "dev")
         self.assertEqual(a, b)
         sorted_classes = sorted((sl["family"], sl["m16_side"] or "") for sl in a)
         table = sorted((f, s) for f, s in A._quota_entries(ctx.config["slots"]["dev"]["quota"]))
@@ -210,11 +215,11 @@ def _forcing(fail):
     real = A.try_place
     calls = []
 
-    def fake(ctx, seed, attempt, family, side):
+    def fake(ctx, seed, attempt, family, side, target=None):
         calls.append((seed, attempt, family, side))
         if fail(seed, attempt, family):
             return None, "occluder", "forced"
-        return real(ctx, seed, attempt, family, side)
+        return real(ctx, seed, attempt, family, side, target)
 
     return fake, calls
 
@@ -309,7 +314,7 @@ class TestSlotGeneration(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             out = Path(t) / "ARR"
             with contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(A.main(["--slots", "2,10", "--design", "--out", str(out)]), 0)
+                self.assertEqual(A.main(["--config", CFG_REL, "--slots", "2,10", "--design", "--out", str(out)]), 0)
             top = sorted(p.name for p in out.glob("*.json"))
             self.assertEqual(top, ["DES0.json", "DES1.json", "DES2.json", "DES3.json", "SD1002.json", "SD1010.json"])
             for name in top:
@@ -326,9 +331,183 @@ class TestSlotGeneration(unittest.TestCase):
             self.assertEqual((log["schema"], log["n_selected"]), (A.GENERATION_LOG_SCHEMA, 2))
 
 
+def _fake_world(fail):
+    """Fakes for try_place and _assemble so that generate_slot / generate_set can be driven through many failures in
+    milliseconds: fail(seed, attempt, family, side) -> bool decides which tries fail; every call is recorded."""
+    calls = []
+
+    def fake_try(ctx, seed, attempt, family, side, target=None):
+        calls.append({"seed": seed, "attempt": attempt, "family": family, "side": side, "target": target})
+        if fail(seed, attempt, family, side):
+            return None, "occluder", "forced"
+        return {"target": None, "occ": None, "dis": None, "parked": None}, None, "stub"
+
+    def fake_assemble(ctx, seed, target, occ, dis, parked, draws, slot=None):
+        return {"arrangement_id": A.arrangement_id(seed), "seed": seed, "target_id": "stub", "occluder_family": draws["family"],
+                "m16_side": draws["m16_side"], "slot": dict(slot), "objects": {"occluder": {"p3_coverage": 1.0}}}
+
+    return fake_try, fake_assemble, calls
+
+
+def _v2_cfg_all_classes(n_each=1):
+    """shelf_v2 with one slot per class (S8, M16-L, M16-R, IND28, white_box, ycb_box)."""
+    cfg = json.loads((REPO / V2_REL).read_text())
+    cfg["slots"]["dev"]["quota"] = {"S8": n_each, "M16": {"L": n_each, "R": n_each}, "IND28": n_each, "white_box": n_each, "ycb_box": n_each}
+    return cfg
+
+
+class TestSlotInvariants(unittest.TestCase):
+    """A slot never changes family, M16 side or target, and every family has its own reserve list and cursor. These tests drive
+    all six slot classes (the older ones exercised only S8 and white_box) through failures with fake placements."""
+
+    def _run(self, fail, cfg=None):
+        ctx = A.load_context(cfg or _v2_cfg_all_classes())
+        fake_try, fake_assemble, calls = _fake_world(fail)
+        with mock.patch.object(A, "try_place", fake_try), mock.patch.object(A, "_assemble", fake_assemble):
+            arrs, log = A.generate_set(ctx, "dev")
+        return ctx, arrs, log, calls
+
+    def _owner(self, ctx):
+        """seed -> slot, for the primary seeds and each family's reserve seeds (reserve seeds belong to the family)."""
+        slots = A.slot_list(ctx, "dev")
+        owner = {sl["primary_seed"]: sl for sl in slots}
+        return slots, owner
+
+    def test_the_m16_side_never_flips_whatever_fails(self):
+        ctx, arrs, log, calls = self._run(lambda seed, attempt, fam, side: seed < 2000)       # every primary seed fails on every attempt
+        slots, owner = self._owner(ctx)
+        m16 = [sl for sl in slots if sl["family"] == "M16"]
+        self.assertEqual(sorted(sl["m16_side"] for sl in m16), ["L", "R"])
+        reserve = ctx.config["slots"]["dev"]["reserve"]["M16"]
+        by_seed = {sl["primary_seed"]: sl["m16_side"] for sl in m16}
+        for sl in m16:
+            mine = [c for c in calls if c["seed"] == sl["primary_seed"]]
+            self.assertEqual([c["attempt"] for c in mine], list(range(ctx.config["slots"]["retry_max"] + 1)))
+            self.assertEqual({c["side"] for c in mine}, {sl["m16_side"]}, "the side changed during the retries")
+        for a in arrs:                                                                    # and the arrangement keeps it
+            sl = a["slot"]
+            self.assertEqual((a["m16_side"], a["occluder_family"]), (sl["m16_side"], sl["family"]))
+        reserve_calls = [c for c in calls if c["seed"] in reserve]
+        self.assertEqual(len(reserve_calls), 2)
+        self.assertEqual({(c["seed"], c["side"]) for c in reserve_calls},
+                         {(reserve[e["reserve_rank"]], e["m16_side"]) for e in log["slots"] if e["family"] == "M16"})
+
+    def test_every_family_has_its_own_reserve_list_and_cursor(self):
+        ctx, arrs, log, calls = self._run(lambda seed, attempt, fam, side: seed < 2000)
+        reserve = ctx.config["slots"]["dev"]["reserve"]
+        seen = {}
+        for e in log["slots"]:
+            fam = e["family"]
+            self.assertTrue(e["replaced"], fam)
+            self.assertIn(e["used_seed"], reserve[fam], f"{fam} was served a seed from another family's reserve list")
+            seen.setdefault(fam, []).append(e["reserve_rank"])
+            self.assertEqual(e["used_seed"], reserve[fam][e["reserve_rank"]])
+        # one cursor per family, consumed in slot order: S8, IND28, white_box, ycb_box start at 0; M16-L and M16-R share M16's
+        self.assertEqual({f: sorted(v) for f, v in seen.items()},
+                         {"S8": [0], "IND28": [0], "white_box": [0], "ycb_box": [0], "M16": [0, 1]})
+        self.assertEqual(log["reserve_used"], {"IND28": 1, "M16": 2, "S8": 1, "white_box": 1, "ycb_box": 1})
+        # no call ever tried a family on another family's seed
+        owner_of = {v: f for f, lst in reserve.items() for v in lst}
+        for c in calls:
+            if c["seed"] in owner_of:
+                self.assertEqual(owner_of[c["seed"]], c["family"])
+
+    def test_the_target_is_the_slots_at_every_attempt_and_reserve_seed(self):
+        ctx, arrs, log, calls = self._run(lambda seed, attempt, fam, side: seed < 2000 or attempt < 2)
+        slots, owner = self._owner(ctx)
+        reserve = {v: f for f, lst in ctx.config["slots"]["dev"]["reserve"].items() for v in lst}
+        want = {}
+        for sl in slots:
+            want[sl["primary_seed"]] = sl["target"]
+        for e in log["slots"]:
+            want[e["used_seed"]] = e["target"]
+        for c in calls:
+            self.assertIsNotNone(c["target"])
+            self.assertEqual(c["target"], want[c["seed"]], c)
+        for sl, e in zip(slots, log["slots"]):
+            self.assertEqual(e["target"], sl["target"])
+        self.assertEqual(len(calls), sum(1 for _ in calls))
+
+    def test_a_replacement_comes_from_the_slots_own_family_even_when_the_s8_list_is_free(self):
+        """Only white_box fails: its replacement must be a white_box reserve seed, and the S8 cursor must stay at 0."""
+        ctx, arrs, log, calls = self._run(lambda seed, attempt, fam, side: fam == "white_box" and seed < 2000)
+        wb = next(e for e in log["slots"] if e["family"] == "white_box")
+        self.assertEqual(wb["used_seed"], ctx.config["slots"]["dev"]["reserve"]["white_box"][0])
+        self.assertNotIn(wb["used_seed"], ctx.config["slots"]["dev"]["reserve"]["S8"])
+        self.assertEqual(log["reserve_used"], {"white_box": 1})
+        self.assertEqual(sum(e["replaced"] for e in log["slots"]), 1)
+
+
+class TestOutputFolderHygiene(unittest.TestCase):
+    def _run(self, *argv):
+        err, out = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+            rc = A.main(["--config", CFG_REL, *argv])
+        return rc, err.getvalue()
+
+    def test_a_second_run_into_a_non_empty_out_is_refused(self):
+        with tempfile.TemporaryDirectory() as t:
+            out = Path(t) / "ARR"
+            self.assertEqual(self._run("--slots", "2", "--out", str(out))[0], 0)
+            before = {p.relative_to(out): p.read_bytes() for p in out.rglob("*") if p.is_file()}
+            rc, err = self._run("--design", "--out", str(out))
+            self.assertEqual(rc, 2)
+            self.assertIn("not empty", err)
+            self.assertIn("--overwrite", err)
+            self.assertEqual({p.relative_to(out): p.read_bytes() for p in out.rglob("*") if p.is_file()}, before)     # untouched
+
+    def test_overwrite_removes_the_previous_arrangements_and_index_files(self):
+        with tempfile.TemporaryDirectory() as t:
+            out = Path(t) / "ARR"
+            self.assertEqual(self._run("--slots", "2", "--out", str(out))[0], 0)
+            (out / "notes.txt").write_text("mine")
+            (out / "other.json").write_text(json.dumps({"schema": "something-else"}))
+            self.assertTrue((out / "SD1002.json").is_file() and (out / "index" / "generation_log.json").is_file())
+            self.assertEqual(self._run("--design", "--overwrite", "--out", str(out))[0], 0)
+            self.assertEqual(sorted(p.name for p in out.glob("*.json")), ["DES0.json", "DES1.json", "DES2.json", "DES3.json", "other.json"])
+            self.assertFalse((out / "index" / "generation_log.json").exists())               # the old run's log is gone
+            rows = json.loads((out / "index" / "index.json").read_text())["arrangements"]
+            self.assertEqual([r["arrangement_id"] for r in rows], ["DES0", "DES1", "DES2", "DES3"])
+            self.assertEqual((out / "notes.txt").read_text(), "mine")                       # files it did not write are left alone
+
+    def test_an_empty_existing_folder_is_fine(self):
+        with tempfile.TemporaryDirectory() as t:
+            self.assertEqual(self._run("--design", "--out", t)[0], 0)
+
+    def test_clear_previous_outputs_only_touches_its_own_files(self):
+        with tempfile.TemporaryDirectory() as t:
+            out = Path(t)
+            (out / "index").mkdir()
+            for name in ("index.json", "slots.json", "generation_log.json", "keep.json"):
+                (out / "index" / name).write_text("{}")
+            (out / "SD1.json").write_text(json.dumps({"schema": A.ARRANGEMENT_SCHEMA}))
+            (out / "x.json").write_text("not json")
+            removed = A.clear_previous_outputs(out)
+            self.assertEqual(sorted(p.name for p in removed), ["SD1.json", "generation_log.json", "index.json", "slots.json"])
+            self.assertTrue((out / "index" / "keep.json").exists() and (out / "x.json").exists())
+
+
+class TestSlotRanges(unittest.TestCase):
+    def test_a_reversed_slot_range_is_refused_like_a_reversed_seed_range(self):
+        slots = A.slot_list(_ctx(), "dev")
+        for bad in ("5-2", "9-0", "1,5-2"):
+            with self.subTest(bad), self.assertRaisesRegex(ValueError, "bad slot range"):
+                A.parse_slot_indices(bad, slots)
+        with self.assertRaises(A.SeedError):
+            A.parse_seeds("5-2")
+        self.assertEqual(A.parse_slot_indices("2-2,4-5", slots), [2, 4, 5])
+        with tempfile.TemporaryDirectory() as t:
+            out = Path(t) / "ARR"
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(A.main(["--config", CFG_REL, "--slots", "5-2", "--out", str(out)]), 2)
+            self.assertIn("bad slot range", err.getvalue())
+            self.assertFalse(out.exists())                                                   # nothing written, not even empty files
+
+
 class TestHashProvenance(unittest.TestCase):
     def test_hash_ignores_config_spelling_and_python(self):
-        a = A.generate(1002, "S8", ctx=_ctx())                                         # absolute default path
+        a = A.generate(1002, "S8", ctx=A.load_context(str(V1)))                       # absolute path
         b = A.generate(1002, "S8", ctx=A.load_context(CFG_REL))                        # repo-relative, the CLI's spelling
         c = A.generate(1002, "S8", ctx=A.load_context(json.loads((REPO / CFG_REL).read_text())))   # in-memory dict
         self.assertEqual(a["arrangement_sha256"], b["arrangement_sha256"])
@@ -340,10 +519,29 @@ class TestHashProvenance(unittest.TestCase):
         d["unhashed"]["config_path"] = "/elsewhere/checkout/arrange_shelf_v1.json"
         self.assertEqual(A.arrangement_hash(d), a["arrangement_sha256"])
         self.assertEqual(A.arrangement_hash(a), a["arrangement_sha256"])
-        text = json.dumps(a["provenance"])
-        self.assertNotIn("python", text)
-        self.assertNotIn("config_path", text)
-        self.assertNotIn("arrange_shelf_v1.json", json.dumps({k: v for k, v in a.items() if k != "unhashed"}))
+
+    def test_hash_does_not_depend_on_the_interpreter_version_or_the_working_directory(self):
+        """Regenerate under another reported Python version and another cwd: the hash must not move. (The first version of
+        this test edited the 'unhashed' block by hand, which arrangement_hash drops by construction, so a hash that included
+        the interpreter version or the cwd still passed.)"""
+        a = A.generate(1002, "S8", ctx=_ctx())
+        old = os.getcwd()
+        with tempfile.TemporaryDirectory() as t, mock.patch("platform.python_version", return_value="9.9.9"):
+            try:
+                os.chdir(t)
+                e = A.generate(1002, "S8", ctx=A.load_context(CFG_REL))
+            finally:
+                os.chdir(old)
+            cwd_text = os.path.realpath(t)
+        self.assertEqual(e["unhashed"]["python"], "9.9.9")                             # recorded, outside the hash
+        self.assertEqual(e["arrangement_sha256"], a["arrangement_sha256"])
+        self.assertEqual(A.arrangement_hash(e), a["arrangement_sha256"])
+        hashed = json.dumps({k: v for k, v in a.items() if k not in A.UNHASHED_KEYS})
+        for needle in (platform.python_version(), sys.version.split()[0], sys.executable, os.path.realpath(old), cwd_text, "9.9.9"):
+            self.assertNotIn(needle, hashed)
+        self.assertNotIn("python", json.dumps(a["provenance"]))
+        self.assertNotIn("config_path", json.dumps(a["provenance"]))
+        self.assertNotIn("arrange_shelf_v1.json", hashed)
 
     def test_hash_changes_with_content(self):
         a = A.generate(1002, "S8", ctx=_ctx())
@@ -368,7 +566,7 @@ class TestHashProvenance(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             out = Path(t) / "ARR"
             with contextlib.redirect_stdout(io.StringIO()):
-                A.main(["--slots", "2", "--out", str(out)])
+                A.main(["--config", CFG_REL, "--slots", "2", "--out", str(out)])
             written = json.loads((out / "SD1002.json").read_text())
         slot_arr, _ = A.generate_slot(_ctx(), A.slot_list(_ctx(), "dev")[2], {})
         strip = lambda a: json.dumps({k: v for k, v in a.items() if k != "unhashed"}, sort_keys=True)     # noqa: E731
@@ -381,7 +579,7 @@ class TestHashProvenance(unittest.TestCase):
 class TestDeterminism(unittest.TestCase):
     def test_same_try_same_arrangement(self):
         a = _gen(KNOWN[0])
-        b = A.generate(1002, "S8", ctx=A.load_context())             # fresh context, same files
+        b = A.generate(1002, "S8", ctx=A.load_context(CFG_REL))             # fresh context, same files
         self.assertEqual(json.dumps(a, sort_keys=True), json.dumps(b, sort_keys=True))
 
     def test_attempts_and_seeds_differ(self):
@@ -395,8 +593,8 @@ class TestDeterminism(unittest.TestCase):
         a = _gen(KNOWN[0])
         p = a["provenance"]
         self.assertEqual(p["generator"]["sha256"], A.sha256_file(REPO / "sim" / "arrange.py"))
-        self.assertEqual(p["config"]["sha256"], A.sha256_json(json.loads(A.DEFAULT_CONFIG_PATH.read_text())))
-        self.assertEqual(a["unhashed"]["config_file_sha256"], A.sha256_file(A.DEFAULT_CONFIG_PATH))
+        self.assertEqual(p["config"]["sha256"], A.sha256_json(json.loads(V1.read_text())))
+        self.assertEqual(a["unhashed"]["config_file_sha256"], A.sha256_file(V1))
         self.assertEqual(p["positions"]["sha256"], A.sha256_file(POS))
         self.assertEqual((a["seed"], a["split"], a["slot"], a["draws"]["family"]), (1002, "dev", None, "S8"))
 
@@ -587,7 +785,7 @@ class TestRevisitNoise(unittest.TestCase):
 
     def test_deterministic_per_seed_and_stop(self):
         a, _ = A.revisit_cameras(self.ctx, self.ctx.rig, 1002)
-        b, _ = A.revisit_cameras(A.load_context(), A.load_context().rig, 1002)
+        b, _ = A.revisit_cameras(A.load_context(CFG_REL), A.load_context(CFG_REL).rig, 1002)
         self.assertEqual(json.dumps(a, sort_keys=True), json.dumps(b, sort_keys=True))
         c, _ = A.revisit_cameras(self.ctx, self.ctx.rig, 1003)
         self.assertNotEqual(a["stops"]["P3"]["delta"], c["stops"]["P3"]["delta"])
@@ -756,7 +954,7 @@ class TestDesignCases(unittest.TestCase):
         g = ctx.geometry
         want = {"DES0": ("pick_S8", "CCHCC", "S8", None), "DES1": ("pick_M16+3", "CCHHC", "M16", "R"),
                 "DES2": ("pick_M16-5", "CHHCC", "M16", "L"), "DES3": ("pick_IND28", "HHHHH", "IND28", None)}
-        self.assertEqual(A.n_design_cases(), 4)
+        self.assertEqual(A.n_design_cases(CFG_REL), 4)
         for i in range(4):
             a = A.design_arrangement(i, ctx=ctx)
             name, pat, fam, side = want[a["arrangement_id"]]
@@ -854,6 +1052,204 @@ class TestGeometryPrimitives(unittest.TestCase):
         self.assertEqual(sorted(map(tuple, np.round(sp, 9))), sorted(map(tuple, np.round(box.corners(), 9))))
         self.assertAlmostEqual(A.polygon_area(A.projected_hull(cam, sp)), A.polygon_area(A.projected_hull(cam, v)))
         self.assertTrue(np.allclose(A.project(cam, v), cam.project(v)))
+
+
+def _assignment_cfg(classes, quota, target_seed=7):
+    """A minimal config-like mapping for assign_targets / slot_list: only the keys they read."""
+    return {"slots": {"target_assignment": {"classes": classes},
+                      "dev": {"target_seed": target_seed, "permutation_seed": 1, "primary_seed_start": 1000, "quota": quota}}}
+
+
+class TestTargetAssignment(unittest.TestCase):
+    """slots.target_assignment: targets are assigned per slot from a seeded, balanced list (slots, not weights)."""
+
+    QUOTA = {"A": 9, "B": {"L": 9, "R": 9}, "C": 12}
+
+    def _slots(self, cfg):
+        order = A.Draw([1]).shuffle(A._quota_entries(self.QUOTA))
+        return [{"index": i, "family": f, "m16_side": s} for i, (f, s) in enumerate(order)]
+
+    def test_a_class_is_as_even_as_its_size_allows(self):
+        cfg = _assignment_cfg({"A": [4, 9, 14, 21, 6], "B-L": [21, 6], "B-R": [21, 6], "C": [4, 9, 14]}, self.QUOTA)
+        slots = self._slots(cfg)
+        got = A.assign_targets(cfg, "dev", slots)
+        self.assertEqual(sorted(got), list(range(len(slots))))
+        by = {}
+        for sl in slots:
+            by.setdefault(A.class_key(sl["family"], sl["m16_side"]), []).append(got[sl["index"]])
+        counts = {k: sorted(v.count(t) for t in set(v)) for k, v in by.items()}
+        self.assertEqual(counts["A"], [1, 2, 2, 2, 2])             # 9 over 5 models
+        self.assertEqual(counts["B-L"], [4, 5])                    # 9 over 2
+        self.assertEqual(counts["B-R"], [4, 5])
+        self.assertEqual(counts["C"], [4, 4, 4])                   # 12 over 3
+        for k, allowed in (("A", {4, 9, 14, 21, 6}), ("B-L", {21, 6}), ("B-R", {21, 6}), ("C", {4, 9, 14})):
+            self.assertLessEqual(set(by[k]), allowed)
+        # the extra slot of a class goes to the model with the lowest running total, so the totals over the classes that share
+        # models 21 and 6 stay within one of each other
+        tot = {t: by["A"].count(t) + by["B-L"].count(t) + by["B-R"].count(t) for t in (21, 6)}
+        self.assertLessEqual(abs(tot[21] - tot[6]), 1, tot)
+
+    def test_deterministic_and_a_function_of_the_seed(self):
+        cfg = _assignment_cfg({"A": [4, 9, 14, 21, 6], "B-L": [21, 6], "B-R": [21, 6], "C": [4, 9, 14]}, self.QUOTA)
+        slots = self._slots(cfg)
+        a = A.assign_targets(cfg, "dev", slots)
+        self.assertEqual(a, A.assign_targets(copy.deepcopy(cfg), "dev", slots))
+        other = _assignment_cfg(cfg["slots"]["target_assignment"]["classes"], self.QUOTA, target_seed=8)
+        self.assertNotEqual(a, A.assign_targets(other, "dev", slots))
+        for cfg2 in (other, _assignment_cfg({k: list(reversed(v)) for k, v in cfg["slots"]["target_assignment"]["classes"].items()},
+                                            self.QUOTA)):                     # another seed / list order: still balanced per class
+            got = A.assign_targets(cfg2, "dev", slots)
+            for key, n in (("A", 9), ("B-L", 9), ("B-R", 9), ("C", 12)):
+                vals = [got[sl["index"]] for sl in slots if A.class_key(sl["family"], sl["m16_side"]) == key]
+                counts = [vals.count(t) for t in set(vals)]
+                self.assertLessEqual(max(counts) - min(counts), 1, (key, counts))
+                self.assertEqual(len(vals), n)
+
+    def test_a_config_with_a_bad_class_list_is_refused(self):
+        cfg = json.loads((REPO / V2_REL).read_text())
+        for mutate in (lambda c: c["slots"]["target_assignment"]["classes"].pop("M16-L"),
+                       lambda c: c["slots"]["target_assignment"]["classes"].update({"S8": []}),
+                       lambda c: c["slots"]["target_assignment"]["classes"].update({"S8": [4, 4]}),
+                       lambda c: c["slots"]["target_assignment"]["classes"].update({"S8": [13]}),        # the bowl is not a target
+                       lambda c: c["slots"]["dev"].pop("target_seed")):
+            bad = copy.deepcopy(cfg)
+            mutate(bad)
+            with self.assertRaises(ValueError):
+                A.load_config(bad)
+
+    def test_target_is_given_if_and_only_if_the_config_assigns_it(self):
+        v2, v1 = A.load_context(V2_REL), _ctx()
+        with self.assertRaisesRegex(ValueError, "if and only if"):
+            A.try_place(v2, 1002, 0, "S8", None)
+        with self.assertRaisesRegex(ValueError, "if and only if"):
+            A.try_place(v1, 1002, 0, "S8", None, 4)
+        with self.assertRaisesRegex(ValueError, "not in target.objects"):
+            A.try_place(v2, 1002, 0, "S8", None, 13)
+        self.assertEqual([sl["target"] for sl in A.slot_list(v1, "dev")], [None] * 60)               # legacy: drawn per try
+
+
+class TestFeasibilityTools(unittest.TestCase):
+    def test_overrides_and_a_tiny_scan(self):
+        from sim import feasibility as F
+
+        cfg = json.loads((REPO / V2_REL).read_text())
+        ov = F.apply_overrides(cfg, {"clearances_m.ceiling": -1.0, "occluder.families.M16.height_m": 0.2})
+        self.assertEqual((ov["clearances_m"]["ceiling"], ov["occluder"]["families"]["M16"]["height_m"]), (-1.0, 0.2))
+        self.assertNotEqual(cfg["clearances_m"]["ceiling"], -1.0)                       # a copy
+        with self.assertRaises(KeyError):
+            F.apply_overrides(cfg, {"occluder.families.M16.no_such_key": 1})
+        r = F.board_search(cfg, 21, "R", [0.12, 0.15], 2)                               # foam brick, 2 placements: cheap
+        self.assertEqual((r["name"], r["side"], r["n_placements"]), ("foam_brick", "R", 2))
+        self.assertEqual(set(r["heights"]), {"0.12", "0.15"})
+        self.assertTrue(all(v["combos"] >= v["placements_feasible"] >= 0 for v in r["heights"].values()))
+
+
+V1_SHA256 = "784c6b122298063d4c743372736a3cf8107a911c688eecef9cf8527c38d4f4d4"      # shelf_dev_v1_check was made with this file
+
+
+def _flatten(d, prefix=""):
+    out = {}
+    if isinstance(d, dict):
+        for k, v in d.items():
+            out.update(_flatten(v, f"{prefix}{k}."))
+    else:
+        out[prefix[:-1]] = d
+    return out
+
+
+class TestShelfV2Config(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.v1 = json.loads(V1.read_text())
+        cls.v2 = json.loads((REPO / V2_REL).read_text())
+
+    def test_v1_is_untouched(self):
+        self.assertEqual(A.sha256_file(V1), V1_SHA256)
+
+    def test_only_the_intended_values_differ_from_v1(self):
+        a, b = _flatten(self.v1), _flatten(self.v2)
+        changed = {k for k in set(a) | set(b) if a.get(k) != b.get(k)}
+        allowed_prefix = ("slots.target_assignment.", "slots.dev.target_seed", "slots.test.target_seed")
+        allowed = {"name", "status", "target.objects_note", "slots.note", "occluder.families.M16.height_m",
+                   "occluder.families.M16.height_note", "occluder.families.M16.note", "occluder.families.M16.side_rule.adjacent_min",
+                   "occluder.families.M16.side_rule.adjacent_note"}
+        stray = sorted(k for k in changed if k not in allowed and not k.startswith(allowed_prefix))
+        self.assertEqual(stray, [])
+        self.assertEqual((self.v2["name"], self.v1["name"]), ("shelf_v2", "shelf_v1"))
+        self.assertIn("REVISED SIMULATION VARIANT", self.v2["status"])
+        self.assertIn("NO LONGER MATCHES THE PHYSICAL", self.v2["status"])
+        self.assertIn("NOT FROZEN", self.v2["status"])
+        # the slot list itself (quota, permutation seed, primary and reserve seeds) is v1's
+        for split in ("dev", "test"):
+            for k in ("quota", "permutation_seed", "primary_seed_start", "reserve"):
+                self.assertEqual(self.v2["slots"][split][k], self.v1["slots"][split][k])
+        self.assertEqual(A.slot_list(self.v1, "dev")[0]["family"], A.slot_list(self.v2, "dev")[0]["family"])
+        self.assertEqual([(x["family"], x["m16_side"]) for x in A.slot_list(self.v1, "dev")],
+                         [(x["family"], x["m16_side"]) for x in A.slot_list(self.v2, "dev")])
+
+    def test_m16_board_is_taller_and_fits_under_the_ceiling(self):
+        ctx = A.load_context(V2_REL)
+        m = self.v2["occluder"]["families"]["M16"]
+        phys = R.occluder_spec(ctx.geometry, m["geometry_occluder"])
+        self.assertEqual((phys.width, phys.thickness, phys.height), (0.16, 0.005, 0.12))        # the physical board
+        self.assertEqual(m["height_m"], 0.15)
+        self.assertGreater(m["height_m"], phys.height)
+        self.assertLessEqual(m["height_m"], ctx.comps["c3"]["z"][1] - ctx.config["clearances_m"]["ceiling"] + 1e-12)
+        tb = A.Body((0.05, 0.05, 0.05), (0.0, 0.2, 0.0))
+        b = A._board(ctx, A.Draw([3]), m, tb, "R")
+        self.assertEqual(b["body"].size, (0.16, 0.005, 0.15))                                  # width and thickness unchanged
+        self.assertTrue(A._occluder_ok(ctx, A.Body(b["body"].size, (0.0, 0.1, 0.0)), tb))     # the ceiling check admits it
+        taller = A.Body((0.16, 0.005, 0.1501), (0.0, 0.1, 0.0))
+        self.assertFalse(A._occluder_ok(ctx, taller, tb))                                      # ... but nothing taller
+        v1 = A.load_context(CFG_REL)
+        self.assertEqual(A._board(v1, A.Draw([3]), v1.config["occluder"]["families"]["M16"], tb, "R")["body"].size[2], 0.12)
+
+    def test_the_side_rule_needs_the_adjacent_stop_hidden(self):
+        rule = self.v2["occluder"]["families"]["M16"]["side_rule"]
+        self.assertEqual((rule["adjacent_min"], rule["opposite_near_max"]), (0.95, 0.10))
+        self.assertEqual(rule["adjacent_min"], self.v2["occluder"]["p3_coverage_min"])           # hidden = an H view
+        ok = A.side_rule_ok
+        clear = self.v2["occluder"]["clear_coverage_max"]
+        for side, good, partial in (("R", [0, 0.05, 1, 0.95, 0.3], [0, 0.05, 1, 0.94, 0.3]),
+                                    ("L", [0.3, 0.95, 1, 0.05, 0], [0.3, 0.94, 1, 0.05, 0])):
+            self.assertTrue(ok(good, 2, side, rule, clear), side)
+            self.assertFalse(ok(partial, 2, side, rule, clear), side)       # SD1000: P2 0.853 rendered CpHCC under shelf_v1's 0.5
+        # the mirror: the rule is the same number on both sides
+        self.assertTrue(ok([0, 0.05, 1, 0.95, 0], 2, "R", rule, clear) and ok([0, 0.95, 1, 0.05, 0], 2, "L", rule, clear))
+
+    def test_every_excluded_pair_has_a_reason_and_the_lists_are_exact(self):
+        ta = self.v2["slots"]["target_assignment"]
+        allowed = {str(v) for v in self.v2["target"]["objects"]}
+        for key in A.class_keys(self.v2["slots"]["dev"]["quota"]):
+            inc = {str(v) for v in ta["classes"][key]}
+            exc = set(ta["excluded"].get(key, {}))
+            self.assertEqual(inc | exc, allowed, key)                # every model is either assigned or excluded with a reason
+            self.assertEqual(inc & exc, set(), key)
+            for reason in ta["excluded"].get(key, {}).values():
+                self.assertGreater(len(reason), 20)
+        self.assertEqual(ta["classes"]["M16-L"], ta["classes"]["M16-R"])                         # L and R get the same models
+        self.assertEqual(set(self.v2["target"]["objects"]), {4, 9, 14, 21, 6})
+
+    def test_dev_and_test_slot_targets_are_balanced_per_class(self):
+        for split, want in (("dev", {"S8": 12, "M16-L": 9, "M16-R": 9, "IND28": 6, "white_box": 12, "ycb_box": 12}),
+                            ("test", {"S8": 20, "M16-L": 15, "M16-R": 15, "IND28": 10, "white_box": 20, "ycb_box": 20})):
+            slots = A.slot_list(self.v2, split)
+            self.assertEqual(slots, A.slot_list(json.loads(json.dumps(self.v2)), split))
+            by = _by_class(slots)
+            for key, lst in by.items():
+                self.assertEqual(len(lst), want[key])
+                allowed = set(self.v2["slots"]["target_assignment"]["classes"][key])
+                counts = [sum(sl["target"] == t for sl in lst) for t in allowed]
+                self.assertTrue(all(sl["target"] in allowed for sl in lst), key)
+                self.assertLessEqual(max(counts) - min(counts), 1, (split, key, counts))
+        # the two splits have different assignments (their own target_seed)
+        self.assertNotEqual([sl["target"] for sl in A.slot_list(self.v2, "dev")], [sl["target"] for sl in A.slot_list(self.v2, "test")][:60])
+
+    def test_the_target_never_depends_on_retries(self):
+        """The slot's target is in the slot list, fixed before any placement is tried."""
+        slots = A.slot_list(self.v2, "dev")
+        self.assertTrue(all(sl["target"] in self.v2["target"]["objects"] for sl in slots))
+        self.assertEqual(slots, A.slot_list(A.load_context(V2_REL), "dev"))
 
 
 if __name__ == "__main__":

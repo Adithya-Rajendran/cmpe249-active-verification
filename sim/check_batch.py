@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -25,6 +26,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from sim import isaac_batch as B
 from sim import rig as R
 
 REPO = R.REPO_ROOT
@@ -32,6 +34,7 @@ PHASES = ("reference", "visible", "occluded", "removed")
 CONDITIONS = ("visible", "occluded", "removed")
 LIGHTINGS = ("L1", "L2")
 N_TAGS = 4
+LEFTOVER = re.compile(r"\.(partial|old\d*)$")     # <ARR>.partial (interrupted render), <ARR>.old<pid> (crash while installing)
 
 
 def _tags_module():
@@ -88,6 +91,9 @@ def check_arrangement(folder: Path, tags) -> dict:
     arr = json.loads((folder / "arrangement.json").read_text())
     lab = json.loads((folder / "labels.json").read_text())
     render = json.loads((folder / "render.json").read_text())
+    if arr["arrangement_id"] != folder.name or lab.get("arrangement_id") != folder.name:
+        raise ValueError(f"{folder}: arrangement.json has id {arr['arrangement_id']!r} and labels.json {lab.get('arrangement_id')!r}; "
+                         "a folder must be named after its arrangement (the same check as sim/episodes.py load_rendered)")
     stops = lab["stops"]
     out: dict = {"arrangement_id": arr["arrangement_id"], "seed": arr["seed"], "family": arr["occluder_family"],
                  "m16_side": arr.get("m16_side"), "design_case": arr.get("design_case"), "target": arr["target_id"],
@@ -157,6 +163,10 @@ def check_arrangement(folder: Path, tags) -> dict:
                      "predeclared_indistinguishable": lab["predeclared_indistinguishable"],
                      "indistinguishable_by_masks": lab["indistinguishable_by_masks"],
                      "analytic_placed_coverage": arr["analytic"]["placed_coverage"]}
+    # label sanity, recomputed from the stored pixel counts (older renders have no label_sanity block): the visible-phase
+    # target pixels must be at least 0.9 x the target-alone pixels at the same revisit pose, at every stop
+    out["label_sanity"] = B.label_sanity(stops, lab["target_px"]["visible"], lab["alone_px"]["query"])
+    out["label_sanity_recorded"] = lab.get("label_sanity", {}).get("ok")
     return out
 
 
@@ -167,14 +177,30 @@ def side_of_pattern(pattern: str, start: int = 2) -> str | None:
     return "both" if left and right else ("L" if left else ("R" if right else None))
 
 
+def list_folders(root: Path) -> tuple[list[Path], list[str]]:
+    """(rendered arrangement folders, leftover folder names). A leftover is <ARR>.partial or <ARR>.old<pid>: crash debris
+    that sim/episodes.py refuses and that must not be counted here (an .old folder is a complete copy of its arrangement)."""
+    folders, leftovers = [], []
+    for p in sorted(Path(root).iterdir()):
+        if not p.is_dir():
+            continue
+        if LEFTOVER.search(p.name):
+            leftovers.append(p.name)
+        elif (p / "labels.json").is_file():
+            folders.append(p)
+    return folders, leftovers
+
+
 def check_set(root: Path) -> dict:
     tags = _tags_module()
-    folders = sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "labels.json").is_file())
+    folders, leftovers = list_folders(root)
     arrs = [check_arrangement(f, tags) for f in folders]
     caps = [c for a in arrs for c in a["captures"]]
     reg = [r for a in arrs for r in a["registration"]]
     summary = {
         "n_arrangements": len(arrs), "n_captures": len(caps), "n_query_views": len(reg),
+        "leftover_folders_skipped": leftovers,
+        "label_sanity_flagged": {a["arrangement_id"]: a["label_sanity"]["flagged_stops"] for a in arrs if not a["label_sanity"]["ok"]},
         "extra_tag_ids": [(a["arrangement_id"], c["phase"], c["stop"], c["lighting"], c["extra_ids"]) for a in arrs for c in a["captures"] if c["extra_ids"]],
         "tags_all_four": {"captures": sum(c["all_four"] for c in caps), "of": len(caps),
                           "nominal": [sum(c["all_four"] for c in caps if c["camera"] == "nominal"), sum(c["camera"] == "nominal" for c in caps)],
@@ -215,13 +241,20 @@ def main(argv=None) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(res, indent=1) + "\n")
     print(json.dumps(res["summary"], indent=1))
+    if res["summary"]["leftover_folders_skipped"]:
+        print(f"NOTE: skipped crash leftovers (not checked, and sim/episodes.py refuses them): {res['summary']['leftover_folders_skipped']}")
+    flagged = res["summary"]["label_sanity_flagged"]
+    for arr_id, stops in flagged.items():
+        print(f"WARNING LABEL SANITY {arr_id}: visible-phase target pixels are below {B.LABEL_SANITY_MIN} x the target-alone pixels "
+              f"at {stops}: the shelf or a distractor hides the target, which the generator rules prevent; its removed views get a "
+              "small region. Do not use this arrangement until it is understood.")
     for arr in res["arrangements"]:
         lb = arr["labels"]
         print(f"{arr['arrangement_id']:7s} {arr['family']:9s} {arr['m16_side'] or '-':1s} patterns ref/vis/occ "
               f"{lb['patterns']['reference']}/{lb['patterns']['visible']}/{lb['patterns']['occluded']} rendered side {arr['rendered_side']} "
               f"n_diag {lb['n_diagnostic']} render {arr['render_s']} s")
     print(f"wrote {out}")
-    return 0
+    return 1 if flagged else 0
 
 
 if __name__ == "__main__":
