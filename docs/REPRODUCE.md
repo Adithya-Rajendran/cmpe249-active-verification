@@ -270,21 +270,9 @@ $UV_PY tools/pipeline.py configs/pipeline/shelf_dev_v3.json --launch      # --fr
 $UV_PY tools/watch.py runs/shelf_dev_v3 --stale-minutes 20 --resume        # --from-start
 ```
 
-- **Run spec** (`configs/pipeline/shelf_dev_v3.json`). Before use, copy it and edit:
-  - `remote`: `host`, `host_key_alias`, `user`, `key`, `run_dir` of your GB10. The committed file holds the author's values.
-  - `render.launch_script`, `arrangements_dir`, `log`, `rc_file`, `expected` (64).
-  - `set_root`, `generation_log`: absolute paths on the shared data folder.
-- **The launch script lives on the GB10, not in the repo.** Write `run_v3.sh` in `remote.run_dir`, as a copy of the command in section 5.2, plus the log and the exit-code file:
-
-```bash
-#!/bin/bash
-cd ~/cmpe249-sim/run
-export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 OMNI_KIT_ACCEPT_EULA=YES
-~/.local/bin/uv run --no-project --python ~/cmpe249-sim/isaacsim-6.2/.venv/bin/python isaac_batch.py \
-  --arrangements arr_shelf_dev_v3/*.json --assets-dir ../assets/ycbv/models --tags-dir tags \
-  --out <SET_ROOT> > shelf_dev_v3.log 2>&1
-echo $? > v3.rc
-```
+- **GB10 connection.** Copy `configs/pipeline/remote.example.json` to `configs/pipeline/remote.local.json` (gitignored) and fill in `host`, `host_key_alias`, `user`, `key` and `run_dir`. Run specs refer to it by path.
+- **Run spec** (`configs/pipeline/shelf_dev_v3.json`): `render.launch_script` (the launch command and its arguments), `arrangements_dir`, `log`, `rc_file`, `expected` (64), and `set_root` / `generation_log` (absolute paths on the shared data folder).
+- **Launch script.** `sim/run_render.sh` is the committed launcher. Copy it to `remote.run_dir` next to `isaac_batch.py` and `isaac_rig.py`. It takes `ARR_DIR OUT_SET LOG RC_FILE [isaac_batch args]`, writes stdout and stderr to the log, and writes the exit code to the rc file when the render ends. (The first shelf_dev_v3 render was started with an equivalent GB10-only `run_v3.sh`.)
 
 - The driver attaches to a running render by `pgrep` on `isaac_batch.py --arrangements <arrangements_dir>/`, follows the log, and waits for `v3.rc`. Without `--launch` it fails if nothing is running.
 - It then runs `sim.episodes` and `sim.check_batch` locally with `local_python` from the spec.

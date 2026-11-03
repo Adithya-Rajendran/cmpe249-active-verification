@@ -192,6 +192,8 @@ def main() -> None:
     ap.add_argument("--run-dir", type=Path, help="default: runs/<run_id>")
     args = ap.parse_args()
     spec = json.loads(args.spec.read_text())
+    if isinstance(spec["remote"], str):  # host details live in an untracked file (configs/pipeline/remote.example.json)
+        spec["remote"] = json.loads((REPO / spec["remote"]).read_text())
     run = Run(spec, args.run_dir or REPO / "runs" / spec["run_id"])
     git = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True).stdout.strip()
     dirty = bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=REPO,

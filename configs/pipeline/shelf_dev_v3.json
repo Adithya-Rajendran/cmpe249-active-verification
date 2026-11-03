@@ -1,15 +1,9 @@
 {
   "run_id": "shelf_dev_v3",
-  "note": "Shelf dev set from configs/sim/arrange_shelf_v3.json: 60 random slots (dev seeds) + DES0-DES3, tag-free. Render on the GB10, episodes and checks on the Jetson. Run with tools/pipeline.py; watch with tools/watch.py.",
-  "remote": {
-    "host": "10.0.0.172",
-    "host_key_alias": "gx10-8a10.local",
-    "user": "ascent",
-    "key": "~/.ssh/jetson_nano_rsa",
-    "run_dir": "/home/ascent/cmpe249-sim/run"
-  },
+  "note": "Shelf dev set from configs/sim/arrange_shelf_v3.json: 60 random slots (dev seeds) + DES0-DES3, tag-free. Render on the GB10, episodes and checks on the Jetson. Run with tools/pipeline.py; watch with tools/watch.py. The GB10 connection comes from the untracked remote.local.json (copy remote.example.json).",
+  "remote": "configs/pipeline/remote.local.json",
   "render": {
-    "launch_script": "run_v3.sh",
+    "launch_script": "run_render.sh arr_shelf_dev_v3 /mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_dev_v3 shelf_dev_v3.log v3.rc",
     "arrangements_dir": "arr_shelf_dev_v3",
     "log": "shelf_dev_v3.log",
     "rc_file": "v3.rc",
@@ -17,8 +11,18 @@
   },
   "set_root": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_dev_v3",
   "generation_log": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_v3_geometry/dev60/index/generation_log.json",
-  "local_python": ["uv", "run", "--no-project", "--python", "3.13.5", "--with", "numpy==2.5.3",
-                   "--with", "opencv-python-headless==5.0.0.93", "python"],
+  "local_python": [
+    "uv",
+    "run",
+    "--no-project",
+    "--python",
+    "3.13.5",
+    "--with",
+    "numpy==2.5.3",
+    "--with",
+    "opencv-python-headless==5.0.0.93",
+    "python"
+  ],
   "poll_seconds": 60,
   "heartbeat_seconds": 600,
   "stall_minutes": 10,
