@@ -724,5 +724,21 @@ class SubsetAndBootstrapTest(unittest.TestCase):
         self.assertEqual((part["stratified"], part["singleton_strata"]), (False, ["z"]))
 
 
+class NoDiagnosticShareTest(unittest.TestCase):
+    def test_counts_episodes_with_no_diagnostic_stop_per_lighting(self) -> None:
+        # Review (checkpoint 2): this share had no test, so a wrong count survived every test_select* module. In
+        # write_sim_set only SD0003 (IND28, blocked_of(3) = every stop) has episodes with no diagnostic stop: its
+        # occluded and removed episodes, in each lighting. Visible episodes always have one.
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            write_sim_set(d)
+            shares = sel.no_diagnostic_shares(load(d))
+        n = 3 * len(SLOTS)
+        for light in ("L1", "L2"):
+            self.assertEqual((shares[light]["x"], shares[light]["n"]), (2, n), light)
+            self.assertAlmostEqual(shares[light]["share"], 2 / n)
+        self.assertEqual((shares[sel.POOLED]["x"], shares[sel.POOLED]["n"]), (4, 2 * n))
+
+
 if __name__ == "__main__":
     unittest.main()
