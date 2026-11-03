@@ -59,8 +59,8 @@ The planned main dataset is 180 episodes split by physical arrangement into 60 d
 
 | Available device | Planned use | Owner and maintainer |
 | --- | --- | --- |
-| ASUS Ascent GB10 | Local inference, image processing, analysis, simulation (Isaac Sim 6.2) | Adithya Rajendran |
-| Jetson Orin Nano 8 GB | Main development copy, tests, MuJoCo simulation; optional onboard perception | Adithya Rajendran |
+| ASUS Ascent GX10 (GB10) | Development, local inference, image processing, analysis, simulation (Isaac Sim 6.2) | Adithya Rajendran |
+| Jetson Orin Nano 8 GB | Main development copy, tests, MuJoCo cross-check; optional onboard perception | Adithya Rajendran |
 | Raspberry Pi 5 with AI HAT+ | Camera acquisition and optional motor control / supported inference | Adithya Rajendran |
 | Raspberry Pi camera | Reference and query capture | Adithya Rajendran |
 
