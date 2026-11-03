@@ -6,7 +6,11 @@
 **Selected track:** Track 4 - VLA / robotics  
 **Project format:** Research with a bounded system prototype  
 **Secondary alignment:** Track 6 - Safety and evaluation  
-**Status (2026-10-20):** Pilot stage. The capture tooling, the offline verification core and the evidence step v0 are built. Pilot 1 (one stop, one lighting, 4 targets, 12 queries) is captured. The evidence step gets 48/48 on it, but that is a development figure, because the method was adjusted on these photos ([notes](notes/2026-10-17-first-real-pilot.md)). A held-out pilot 2 is next, with the evidence code frozen. There are no study data or experimental results yet.
+**Status (2026-11-02):**
+- **Direction change.** With the instructor's agreement, the course study now runs **in simulation** (Isaac Sim 6.2 on the GB10; MuJoCo was used only to cross-check the geometry) instead of by physical capture; see the [amendment](docs/SIMULATION_STUDY.md). A real-robot study with the PIs is planned after the course. There are no study data or experimental results yet.
+- **Built:** the capture tooling (also drivable from a phone), the offline verification core, evidence step v0.2.1, and a simulated replica of the shelf rig ([notes](notes/2026-11-02-simulation.md)). The replica reproduces the 2026-10-10 camera and occluder design in two independent renderers.
+- **Real pilots:** two single-stop pilots. Frozen v0.2.1 got 51/52 per view on pilot 2, a held-out test of the code, and the one miss exposed a same-footprint occluder gap ([notes](notes/2026-10-20-pilot2.md)). These are now a real-world sanity check for the simulation.
+- **Public datasets:** on hand as development data; OCID is turned into 903 labelled episodes ([notes](notes/2026-10-23-public-data-ocid.md)).
 
 ## Abstract
 
@@ -24,7 +28,7 @@ Under a fixed observation and travel budget, does adaptive view selection with c
 | B - Literature and SOTA survey | [Fourteen papers: ten recent and four foundational](docs/LITERATURE_REVIEW.md) |
 | C - Canvas proposal | [PDF](docs/CMPE249_Project_Proposal.pdf), [editable Word document](docs/CMPE249_Project_Proposal.docx), and [Markdown source](docs/PROPOSAL.md) |
 | D - AI novelty and feasibility audit | [AI audit](docs/AI_AUDIT.md) |
-| Detailed evaluation design | [Experiment protocol](docs/EXPERIMENT_PLAN.md) |
+| Detailed evaluation design | [Experiment protocol](docs/EXPERIMENT_PLAN.md), amended for the [simulation study](docs/SIMULATION_STUDY.md) (2026-11-02) |
 | Citation metadata | [BibTeX references](references.bib) |
 
 ## Progress since the proposal
@@ -33,6 +37,17 @@ Under a fixed observation and travel budget, does adaptive view selection with c
 - [Citation audit](docs/CITATION_AUDIT.md)
 - [Lab notebook: dated entries with figures](notes/)
 - [First real pilot and evidence v0 (2026-10-17)](notes/2026-10-17-first-real-pilot.md)
+- [Pilot 2: frozen evidence v0.2.1 on a held-out arrangement (2026-10-20)](notes/2026-10-20-pilot2.md)
+- [Public datasets, the OCID loader and v0.2.1 on OCID (2026-10-23)](notes/2026-10-23-public-data-ocid.md)
+- [Simulation: MuJoCo and Isaac Sim replicas of the rig (2026-11-02)](notes/2026-11-02-simulation.md)
+
+| Code | What |
+| --- | --- |
+| [`capture/`](capture/README.md) | Locked Pi capture, the guided sequencer `run_arrangement.py`, its phone front end `phone_ui.py`, tag registration |
+| [`perception/`](perception/README.md) | Evidence step (frozen v0.2.1) and the perception smoke tests |
+| [`verify/`](verify/README.md) | Offline verification core: replay, policies, the shared stopping rule, threshold selection |
+| [`public_data/`](public_data/README.md) | Public datasets as development data (OCID loader, evidence runner, per-view scorer) |
+| [`sim/`](sim/README.md) | Simulator-agnostic rig description and the MuJoCo backend (camera positions, visibility labels) |
 
 ## Initial scope
 
@@ -44,8 +59,8 @@ The planned main dataset is 180 episodes split by physical arrangement into 60 d
 
 | Available device | Planned use | Owner and maintainer |
 | --- | --- | --- |
-| ASUS Ascent GB10 | Development, local inference, image processing, analysis | Adithya Rajendran |
-| Jetson Orin Nano 8 GB | Optional onboard perception | Adithya Rajendran |
+| ASUS Ascent GB10 | Local inference, image processing, analysis, simulation (Isaac Sim 6.2) | Adithya Rajendran |
+| Jetson Orin Nano 8 GB | Main development copy, tests, MuJoCo simulation; optional onboard perception | Adithya Rajendran |
 | Raspberry Pi 5 with AI HAT+ | Camera acquisition and optional motor control / supported inference | Adithya Rajendran |
 | Raspberry Pi camera | Reference and query capture | Adithya Rajendran |
 

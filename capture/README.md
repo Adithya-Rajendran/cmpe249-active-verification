@@ -156,6 +156,20 @@ It fits a homography (query -> ref) on all shared tag corners, records the RMS r
 It refuses only when fewer than 2 tags are shared (2 tags use a similarity fit, 3 or more a homography), the in-fit RMS is above 10 px, or (with 4 or more tags) the leave-one-tag-out error is above 30 px, which means a tag moved. While more than 2 tags remain, a tag whose own RMS is above 10 px (`OUTLIER_PX`) is dropped and the fit repeated; dropped IDs are reported. On now.jpg vs synthetic warps (20 px, 1 deg, 2 %, keystone, blur/noise/JPEG) the noise floor was RMS <= 0.28 px and leave-one-out <= 2.0 px, with crop error <= 0.15 px (`data/raw/2026-10-12_pilot-prep/tags/`). These are synthetic numbers only: re-check the thresholds on real repeat-stop pairs.
 The homography is exact only for the shelf front plane. Objects deeper in the shelf shift by a few px per cm of stop error (parallax), which is acceptable with per-stop references. Same results on OpenCV 4.10 (Pi) and 5.0 (GB10).
 
+### From a phone (`phone_ui.py`)
+
+The same `sitting` and `arrangement` runs, driven from a phone browser on the home Wi-Fi. It runs `run_arrangement.py` in-process and answers its prompts from the page (run_log responses say `source: "phone"`). The slot plan, every `pi_capture.py` call, the checks, retakes, resume and all logs are unchanged.
+
+```bash
+python3 ~/cmpe249/capture/phone_ui.py                 # real camera, port 8249, data root ~/cmpe249/data
+python3 ~/cmpe249/capture/phone_ui.py --practice      # fake camera (stills are copies of the golden), port 8249,
+                                                      # data root ~/cmpe249/practice/data; use --port 8250 to run both
+```
+
+It prints a link with an access token (`http://<pi>:8249/?t=...`); the token persists in `~/cmpe249/.phone_ui_token` (practice: `~/cmpe249/practice/.phone_ui_token`), so a bookmark keeps working. The page shows the current step, the buttons that step accepts, a lamp-settle countdown, progress, and the last still with its lock/light checks. Layout cards typed on the phone go to `~/cmpe249/cards/<session>/` and reach `run_arrangement` as `--card` (path and sha256 recorded); a resume reuses the arrangement's card unless it changed.
+
+Advisory only (never in the capture record): "changed since the previous phase" compares each still with the same stop and lighting one phase earlier, aligned through the shelf tags. On pilot 2 two stills 5 s apart in the same light differed in 0.00 % of the frame, a small cup's removal changed 0.04 %, and removing a target hidden behind its occluder 0.05 % (`data/raw/2026-10-20-pilot2/analysis/phone_ui_change_calibration.txt`), so "no change" is a prompt to look, not an error.
+
 ## Tests
 
 ```bash
