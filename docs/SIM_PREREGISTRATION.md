@@ -86,13 +86,15 @@
 - **Quotas are slots, not weights.**
   - **Slot list.** Before rendering, a fixed slot list per split and environment assigns every arrangement its occluder family, and its M16 side. The list comes from a seeded permutation of the quota table above.
   - **Retries and replacements.** If a seed's placement fails, the generator retries deterministically within the same family: seed, attempt 1, 2, …, up to a fixed maximum. After that it takes the next seed from that family's reserve list. **It never falls back to another family.**
-  - **M16 is placed asymmetrically.** The board is shifted to one side of the target's P3 sight line, giving one-sided patterns such as CCHHC / CHHCC, with left and right balanced across arrangements (dev 9 + 9, test 15 + 15).
+  - **Retry maximum: 20** attempts per seed, as proposed (generator config, 2026-11-03). Each family has its own reserve seed list; a replacement never changes the family, the M16 side or the target.
+  - **M16 is placed asymmetrically.** M16 is the physical board, 16 cm wide and 12 cm tall (`configs/sim/arrange_shelf_v3.json`; a taller simulation-only variant, v2, was tried and dropped on 2026-11-03). The board is shifted to one side of the target's P3 sight line, with left and right balanced across arrangements (dev 9 + 9, test 15 + 15). **Side rule (v3):** the P3 view is hidden, the adjacent same-side stop is covered ≥ 0.95, the nearest opposite-side stop is covered ≤ 0.10, and at least 2 stops are clear. The far same-side stop is unrestricted, so partial patterns such as pHHCC and CCHHp are accepted (student, 2026-11-03). Pure patterns are CHHCC (left) and CCHHC (right).
+  - **Targets are slots too** (student, 2026-11-03). Within each slot class (and each M16 side) the targets come from a seeded, balanced list, fixed per slot through every retry and replacement. A (target, family) pair is left out of a class's list only when **no valid placement was found in the tested generator search** (0 of 100 tries; not a proof that none exists). Under v3 that leaves: S8 without the tomato can; M16 (both sides) and the YCB box with the foam brick and tuna can only; IND28 and the white box with all five. The target composition per class is reported with every result (§9).
   - **Logging.** Retries and replacements are logged.
-
-  `[ ] confirm the retry maximum (proposed 20) / edit:`
 
 ## 3. Conditions, occluders and geometric labels
 
+- **Revisit frame check** (tag-free, 2026-11-03). A revisit pose draw is accepted only when compartment #3's outline and the target's projected hull both stay inside the frame (margin ≥ 0 px), at the nominal and the revisit pose; otherwise it is redrawn, deterministically, and the redraw is logged. Ranges: ±10 mm translation and ±0.5° rotation per axis.
+- **True alignment, evaluation only.** For every query view the simulator writes the exact query-to-reference homography at the shelf front plane and at the target's depth (`true_alignment.json`, `sim/alignment.py`). It scores the evidence step's image alignment and is never an input to evidence, calibration or a policy.
 - **Matched occluder rule.** Occluded and removed share one occluder layout at both lightings. In the reference and visible phases the occluder is parked: present, but blocking nothing.
 - **Objects.** YCB-Video models first, with the target from a fixed list that fits the space, then Google Scanned Objects. The object list is frozen with its licences. `[ ] confirm / edit:`
 - **Geometric diagnostic labels** (from the instance masks):
@@ -222,6 +224,7 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 ## 11. Exclusions, retries and failed renders
 
 - **Mechanical failures.** A render that fails mechanically (missing file, empty frame, no target in the reference mask) is re-rendered from the same seed, deterministically, and logged.
+- **Revisit redraws** (frame check, §3) are logged per stop; they change no family, side or target.
 - **Placement failures** are retried within the same family and then replaced from that family's reserve list (§2). This happens **before rendering**, never after evidence exists.
 - **No outcome-based exclusion.** Nothing is dropped for a wrong or UNKNOWN decision.
 - **Counts reported:** retries, replacements and exclusions, per split, environment and family.
@@ -232,11 +235,14 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 - **Code and render setup:**
   - the code commit and tag, and `uv.lock`;
   - the Isaac Sim version and install recipe;
-  - the renderer settings: mode, settle frames, subframes, tonemap.
+  - the renderer settings: mode, settle frames, subframes, tonemap, and `tags_enabled = false` (the render-settings hash);
+  - `sim/alignment.py` (evaluation only).
 - **Generator:**
   - its code and config hash, the object list with licences, and the quota table;
   - the **slot lists and test seed block, including the reserve lists**;
-  - the retry maximum and the intended subsets (IND28 family, design cases).
+  - the retry maximum and the intended subsets (IND28 family, design cases);
+  - the per-slot target lists and the excluded (target, family) pairs with their tested-search counts.
+  - Current generator config: `configs/sim/arrange_shelf_v3.json` (12 cm M16, v3 side rule, tag-free scenes). v1 and v2 and the check sets made with them are superseded records.
 - **Scene geometry:** `configs/rig_geometry.json`, the tabletop geometry, and the positions file per environment with per-stop pitch.
 - **Evidence and calibration:**
   - the evidence code (frozen v0.2.1, or a v0.3 developed on dev), with the detector, prompts and encoder;
