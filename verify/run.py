@@ -15,10 +15,15 @@ no-diagnostic-view share. Thresholds are still the placeholders. A manifest with
 (sim/episodes.py) is labelled SIMULATION everywhere; any other is a REAL PILOT. It writes config.json, logs.jsonl,
 ground_truth.json, results.json and table.md (scored on test, or on dev when the manifest has no test arrangement).
 
-Uncertainty (docs/SIM_PREREGISTRATION.md section 8): the paired arrangement-level cluster bootstrap is stratified
-by quota slot class (occluder family, M16 split by side) when every arrangement of the manifest carries its
-family; otherwise (the synthetic generator, legacy pilot manifests) it is unstratified and flagged as such.
-FRR is reported per episode and per arrangement (any false removal).
+Uncertainty (docs/SIM_PREREGISTRATION.md section 8): the paired arrangement-level cluster bootstrap and the
+percentile intervals of the single rates (FRR, removal recall, coverage of each policy row on test, per lighting)
+are stratified by quota slot class (occluder family, M16 split by side) when every arrangement of the manifest
+carries its family and every stratum holds at least two test arrangements; otherwise (the synthetic generator,
+legacy pilot manifests, singleton strata) they are unstratified and flagged as such. With no test arrangement no
+bootstrap runs, and the outputs say so. FRR is reported per episode and per arrangement (any false removal).
+
+Every output is removed from the output directory before a run starts, so a run that fails part-way never leaves
+an earlier run's results next to its own config (RUN_OUTPUTS, REAL_OUTPUTS).
 
 Stages are separate functions, in this order:
   1. generate_stage returns the specs and the (unsealed) evidence store. It writes nothing
@@ -47,8 +52,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from analysis.bootstrap import paired_diff
-from analysis.metrics import compute_all, seed_decisions
+from analysis.bootstrap import paired_diff, rate_intervals, resolve_strata
+from analysis.metrics import NO_DIAG_SOURCE_LABELS, compute_all, seed_decisions
 from verify.manifest import (
     UNSTRATIFIED_NOTE,
     episodes_from_arrangements,
@@ -96,7 +101,8 @@ from verify.schema import (
 from verify.stopping import StoppingRule
 from verify.synthetic import SyntheticParams, generate
 
-CONFIG_VERSION = "synthetic-v6"   # v6 (2026-11-03): simulation flag hashed; stratified-bootstrap flag; FRR per arr.
+CONFIG_VERSION = "synthetic-v7"   # v7 (2026-11-03): single-rate CIs; singleton strata fall back to unstratified
+# v6 (2026-11-03): simulation flag hashed; stratified-bootstrap flag; FRR per arr.
 # v5 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
 # v4 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
 MODEL_ID = "synthetic-no-model"
@@ -111,6 +117,7 @@ H1_PAIRS = tuple((x, f"{x}-fcm") for x in MULTI_VIEW)
 # "selection can matter" diagnostics (lit report sec. 4): G's path against these, per budget and cap
 DISAGREE_PAIRS = (("G", "F"), ("G", "R"), ("G", "G-lookahead"), ("G", "G-myopic"), ("G-myopic", "F"))
 BOOTSTRAP_METRICS = ("false_removal_rate", "removal_recall", "coverage")
+RATE_CI_METRICS = BOOTSTRAP_METRICS   # single rates with a percentile 95% interval (prereg section 8), test rows only
 SCOPES = (Split.TEST, Split.DEV)
 # Results are reported separately for L1 and L2 queries (DECISIONS 2026-11-02); "lighting" is the query's
 # lighting. A number pooled over lighting is a labelled secondary line only, never a headline.
@@ -308,17 +315,29 @@ def _cap_key(cap: float | None) -> tuple[int, float]:
     return (0, 0.0) if cap is None else (1, cap)
 
 
+NO_BOOTSTRAP_REASON = ("this run has no test arrangement, and the paired and single-rate bootstraps run on the test "
+                       "split only")
+NO_BOOTSTRAP_NOTE = f"no bootstrap ran: {NO_BOOTSTRAP_REASON}"
+STRATIFIED_NOTE = ("stratified by quota slot class (occluder family, M16 split by side; design cases apart): each "
+                   "replicate resamples arrangements within every stratum and keeps its count")
+
+
 def stratification_info(strata: Mapping[str, str] | None, arrangement_ids: Sequence[str]) -> dict[str, Any]:
-    """What the bootstrap was stratified by, over the given (test) arrangements: {"stratified", "strata": {stratum:
-    n_arrangements}, "note"}."""
+    """How the bootstrap ran over the given (test) arrangements: {"ran", "stratified", "strata": {stratum:
+    n_arrangements}, "singleton_strata", "note"}. With no arrangement no bootstrap runs ("ran" false; review: a dev-only
+    run said "stratified" with empty strata). With a stratum of fewer than two arrangements the bootstrap falls back
+    to unstratified (analysis.bootstrap.resolve_strata) and the note says "unstratified: singleton strata"."""
+    arrs = sorted(set(arrangement_ids))
+    if not arrs:
+        return {"ran": False, "stratified": False, "strata": {}, "singleton_strata": [], "note": NO_BOOTSTRAP_NOTE}
     if strata is None:
-        return {"stratified": False, "strata": {}, "note": UNSTRATIFIED_NOTE}
+        return {"ran": True, "stratified": False, "strata": {}, "singleton_strata": [], "note": UNSTRATIFIED_NOTE}
+    used, singles, note = resolve_strata(arrs, strata)
     counts: dict[str, int] = {}
-    for a in sorted(set(arrangement_ids)):
+    for a in arrs:
         counts[strata[a]] = counts.get(strata[a], 0) + 1
-    return {"stratified": True, "strata": dict(sorted(counts.items())),
-            "note": ("stratified by quota slot class (occluder family, M16 split by side; design cases apart): each "
-                     "replicate resamples arrangements within every stratum and keeps its count")}
+    return {"ran": True, "stratified": used is not None, "strata": dict(sorted(counts.items())),
+            "singleton_strata": list(singles), "note": note or STRATIFIED_NOTE}
 
 
 def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: int,
@@ -330,7 +349,14 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
     (DECISIONS 2026-11-02); a "pooled" row (both lightings) is kept only as a labelled secondary line.
     The bootstrap runs within each lighting; its resampling unit is still the arrangement (with its
     condition episodes at that lighting), and with strata ({arrangement_id: stratum}, verify.manifest.bootstrap_strata)
-    it resamples within each stratum, keeping the design's quota counts. No bootstrap is run on pooled data.
+    it resamples within each stratum, keeping the design's quota counts, unless a stratum is a singleton (then it
+    is unstratified and flagged). No bootstrap is run on pooled data.
+    Every L1 / L2 test metrics row also carries "rate_ci95": percentile 95% intervals of its FRR, removal recall and
+    coverage from the same arrangement-level cluster bootstrap (analysis.bootstrap.rate_intervals: the same draws as
+    the paired rows of that lighting). R enters with its seed-averaged decisions, as in its point estimate: the
+    bootstrap resamples arrangements, never seeds, so R's interval is for its expected rate over its own
+    randomisation (seeds add no samples; with 20 seeds averaged the seed noise is small next to the arrangement
+    spread), and R's episodes that share a random stream (one per arrangement and lighting) stay together.
     no_diagnostic (episode_id -> no diagnostic stop, from the view labels) feeds the geometric no-diagnostic-view
     share; None falls back to the predeclared indistinguishable flag (analysis.metrics).
     """
@@ -352,9 +378,11 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
                 if not sub:
                     continue
                 m = compute_all(sub, truth, no_diagnostic, seed_removed.get(key))
-                metrics.append({"scope": scope.value, "lighting": POOLED if light is None else light.value,
-                                "policy": key[0], "budget": key[1], "travel_cap_cm": key[2],
-                                "role": ROLE.get(key[0], ""), **m})
+                row = {"scope": scope.value, "lighting": POOLED if light is None else light.value,
+                       "policy": key[0], "budget": key[1], "travel_cap_cm": key[2], "role": ROLE.get(key[0], ""), **m}
+                if scope is Split.TEST and light is not None:   # single-rate intervals: test, per lighting only
+                    row["rate_ci95"] = _rate_ci(sub, truth, B, seed, strata)
+                metrics.append(row)
     boots: list[dict[str, Any]] = []
     test = {k: [r for r in v if r.split is Split.TEST] for k, v in groups.items()}
     pairs = [(a + v if a != "S" else a, b + v if b != "S" else b)
@@ -375,6 +403,19 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
     test_arrs = sorted({r.arrangement_id for v in test.values() for r in v})
     return {"metrics": metrics, "bootstrap": boots,
             "bootstrap_stratification": stratification_info(strata, test_arrs)}
+
+
+def _rate_ci(results: Sequence[EpisodeResult], truth: GroundTruth, B: int, seed: int,
+             strata: Mapping[str, str] | None) -> dict[str, Any]:
+    """{metric: {"estimate", "ci_lo", "ci_hi", "n_undefined"}, "B", "seed", "n_arrangements", "n_episodes",
+    "stratified", "singleton_strata", "stratification_note"} for one policy row (rate_intervals)."""
+    iv = rate_intervals(results, truth, RATE_CI_METRICS, B=B, seed=seed, strata=strata)
+    one = next(iter(iv.values()))
+    return {**{m: {"estimate": r.estimate, "ci_lo": r.ci_lo, "ci_hi": r.ci_hi, "n_undefined": r.n_undefined}
+               for m, r in iv.items()},
+            "B": B, "seed": seed, "n_arrangements": one.n_arrangements, "n_episodes": one.n_episodes,
+            "stratified": one.stratified, "singleton_strata": list(one.singleton_strata),
+            "stratification_note": one.stratification_note}
 
 
 def identical_runs(a: Sequence[EpisodeResult], b: Sequence[EpisodeResult]) -> bool:
@@ -519,10 +560,23 @@ def _arr_frr(o: dict) -> str:
     return f"{fmt(o['false_removal_rate_arrangement'])} ({'undef' if x is None else _cnt(x)}/{o['n_arr_with_present']})"
 
 
-def _cells(o: dict) -> list[str]:
-    return [fmt(o["false_removal_rate"]), _arr_frr(o), fmt(o["removal_recall"]), fmt(o["coverage"]),
-            fmt(o["resolved_accuracy"]), fmt(o["mean_views"], 2), fmt(o["mean_travel_cm"], 1),
-            f"{o['n_arrangements']}/{o['n_episodes']}"]
+def _with_ci(o: dict, metric: str, ci: dict | None) -> str:
+    """The rate, then its percentile 95% interval when the row has one (test rows, per lighting)."""
+    if not ci:
+        return fmt(o[metric])
+    r = ci[metric]
+    return f"{fmt(o[metric])} [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}]"
+
+
+def _cells(o: dict, ci: dict | None = None) -> list[str]:
+    return [_with_ci(o, "false_removal_rate", ci), _arr_frr(o), _with_ci(o, "removal_recall", ci),
+            _with_ci(o, "coverage", ci), fmt(o["resolved_accuracy"]), fmt(o["mean_views"], 2),
+            fmt(o["mean_travel_cm"], 1), f"{o['n_arrangements']}/{o['n_episodes']}"]
+
+
+def _row_cells(m: dict) -> list[str]:
+    """_cells of a metrics row's overall numbers, with its single-rate intervals when it has them."""
+    return _cells(m["overall"], m.get("rate_ci95"))
 
 
 def _md(cells: Sequence[str]) -> str:
@@ -586,12 +640,34 @@ NO_DIAG_CONTEXT = ("context for coverage, not a ceiling: a policy can resolve an
                    "one with diagnostic views can stay unknown")
 
 
+def _from_labels(o: dict) -> bool:
+    """True when the no-diagnostic-view count comes from the geometric view labels, False for the fallback (the
+    predeclared indistinguishable flag, no --view-labels)."""
+    return o.get("no_diagnostic_view_source") == NO_DIAG_SOURCE_LABELS
+
+
 def _no_diag_line(m: dict, lighting: str, scope: str) -> str:
+    """Worded by its source (review: without --view-labels the line still said "episodes have no geometrically
+    diagnostic stop", a geometric fact the run never measured, about the predeclared flag count)."""
     o = m["overall"]
-    return (f"- geometric no-diagnostic-view share ({scope}, {lighting} queries): "
+    if _from_labels(o):
+        return (f"- geometric no-diagnostic-view share ({scope}, {lighting} queries): "
+                f"{fmt(o['geometric_no_diagnostic_view_share'])} ({o['n_no_diagnostic_view']} of {o['n_episodes']} "
+                f"episodes have no geometrically diagnostic stop; {o['n_arrangements']} arrangements; source: "
+                f"{o['no_diagnostic_view_source']}). It is {NO_DIAG_CONTEXT}.")
+    return (f"- predeclared indistinguishable share (no view labels given) ({scope}, {lighting} queries): "
             f"{fmt(o['geometric_no_diagnostic_view_share'])} ({o['n_no_diagnostic_view']} of {o['n_episodes']} "
-            f"episodes have no geometrically diagnostic stop; {o['n_arrangements']} arrangements; source: "
-            f"{o['no_diagnostic_view_source']}). It is {NO_DIAG_CONTEXT}.")
+            f"episodes are occluded or removed episodes of arrangements flagged indistinguishable in the manifest; "
+            f"{o['n_arrangements']} arrangements; source: {o['no_diagnostic_view_source']}). No geometry was "
+            f"measured; it stands in for the geometric no-diagnostic-view share, which needs --view-labels. It is "
+            f"{NO_DIAG_CONTEXT}.")
+
+
+def _no_diag_column(metrics: Sequence[dict]) -> str:
+    """The per-condition table's context column, named by the source of its numbers."""
+    labelled = any(_from_labels(m["overall"]) for m in metrics)
+    return ("geometric no-diagnostic-view share (context; view labels)" if labelled else
+            "predeclared indistinguishable share (context; no view labels given)")
 
 
 CURVE_HEAD = ("| policy | travel cap | FRR | FRR per arrangement (x/n) | recall | coverage | resolved acc | mean views "
@@ -614,7 +690,7 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
         for p in ORDER:
             m = _find(metrics, scope, p, pb, cap, light)
             if m:
-                lines.append(_md([_label(p, cap), *_cells(m["overall"]), _note(p, cap)]))
+                lines.append(_md([_label(p, cap), *_row_cells(m), _note(p, cap)]))
         lines.append("")
     for cap in caps:
         lines += [f"{h} Budget curve, {lab(cap)}", "",
@@ -626,13 +702,13 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
             for b in cfg["budgets"]:
                 m = _find(metrics, scope, p, b, cap, light)
                 if m:
-                    lines.append(_md([p, str(b), *_cells(m["overall"])]))
+                    lines.append(_md([p, str(b), *_row_cells(m)]))
         lines.append("")
     for cap in caps:
         lines += [f"{h} Per condition, b = {pb}, {lab(cap)}", "",
                   "Decision fractions are averaged within episode (R) and summed over episodes.", "",
-                  ("| policy | condition | n_arr/n_ep | present | removed | unknown | coverage | no-diagnostic-view "
-                   "share (context) | mean views | mean travel cm |"),
+                  ("| policy | condition | n_arr/n_ep | present | removed | unknown | coverage | "
+                   f"{_no_diag_column(metrics)} | mean views | mean travel cm |"),
                   "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
         for p in ORDER:
             m = _find(metrics, scope, p, pb, cap, light)
@@ -655,28 +731,30 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
         for cap in caps:
             m = _find(metrics, scope, p, pb, cap, light)
             if m:
-                lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_cells(m["overall"])]))
-    strat = results.get("bootstrap_stratification") or {"stratified": False, "note": UNSTRATIFIED_NOTE}
-    how = ("resampled within quota slot strata, each stratum keeping its count" if strat["stratified"]
-           else "**UNSTRATIFIED**: " + strat["note"])
-    lines += ["", f"{h} Paired arrangement-level bootstrap, b = {pb} (test split)", "",
-              (f"Difference A - B on {light} queries only; percentile 95% CI over resampled arrangements (an "
-               f"arrangement's {light} episodes are kept together; {how})."),
-              ("A row marked *identical* means A and B made the same decisions with the same effort on every "
-               "episode: its [0, 0] CI is degenerate and is not evidence of equal performance."),
-              "", "| setting | A - B | metric | estimate | 95% CI | n_arr | n_ep | B | undefined draws | note |",
-              "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
-    for r in results["bootstrap"]:
-        if r["lighting"] != light:
-            continue
-        note = "identical: A == B on every episode" if r.get("identical_runs") else ""
-        lines.append(f"| {lab(r['travel_cap_cm'])} | {r['policy_a']} - {r['policy_b']} | {r['metric']} | "
-                     f"{fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | {r['n_arrangements']} | "
-                     f"{r['n_episodes']} | {r['B']} | {r['n_undefined']} | {note} |")
-    if scope != Split.TEST.value:
-        lines.append("| - | - | - | - | - | - | - | - | - | no test arrangement in this run: the bootstrap runs on "
-                     "the test split only |")
-    lines.append("")
+                lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_row_cells(m)]))
+    strat = _stratification(results)
+    lines += ["", f"{h} Paired arrangement-level bootstrap, b = {pb} (test split)", ""]
+    if not strat.get("ran", True):
+        lines += [f"**No bootstrap ran:** {NO_BOOTSTRAP_REASON}.", ""]
+    else:
+        how = ("resampled within quota slot strata, each stratum keeping its count" if strat["stratified"]
+               else "**UNSTRATIFIED**: " + strat["note"])
+        lines += [(f"Difference A - B on {light} queries only; percentile 95% CI over resampled arrangements (an "
+                   f"arrangement's {light} episodes are kept together; {how})."),
+                  ("A row marked *identical* means A and B made the same decisions with the same effort on every "
+                   "episode: its [0, 0] CI is degenerate and is not evidence of equal performance."),
+                  "", "| setting | A - B | metric | estimate | 95% CI | n_arr | n_ep | B | undefined draws | note |",
+                  "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+        for r in results["bootstrap"]:
+            if r["lighting"] != light:
+                continue
+            notes = (["identical: A == B on every episode"] if r.get("identical_runs") else []) + \
+                (["unstratified: singleton strata " + ", ".join(r["singleton_strata"])]
+                 if r.get("singleton_strata") else [])
+            lines.append(f"| {lab(r['travel_cap_cm'])} | {r['policy_a']} - {r['policy_b']} | {r['metric']} | "
+                         f"{fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | {r['n_arrangements']} | "
+                         f"{r['n_episodes']} | {r['B']} | {r['n_undefined']} | {'; '.join(notes)} |")
+        lines.append("")
     diag = results.get("diagnostics")
     if diag:
         lines += _diagnostic_lines(diag, cfg, lab, light, f"{h} Diagnostic:", scope)
@@ -695,7 +773,7 @@ def _pooled_lines(results: dict[str, Any], lab) -> list[str]:
         for cap in ((None,) if p in ("S", "FULL") else caps):
             m = _find(metrics, scope, p, pb, cap, POOLED)
             if m:
-                lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_cells(m["overall"])]))
+                lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_row_cells(m)]))
     lines.append("")
     diag = results.get("diagnostics")
     if diag:
@@ -728,12 +806,33 @@ def _table_intro(results: dict[str, Any], scope: str) -> list[str]:
             f"`{results['config_sha256']}`", data]
 
 
+def _stratification(results: dict[str, Any]) -> dict[str, Any]:
+    return results.get("bootstrap_stratification") or {"ran": True, "stratified": False, "strata": {},
+                                                        "singleton_strata": [], "note": UNSTRATIFIED_NOTE}
+
+
 def _strat_line(results: dict[str, Any]) -> str:
-    st = results.get("bootstrap_stratification") or {"stratified": False, "note": UNSTRATIFIED_NOTE}
+    st = _stratification(results)
+    parts = ", ".join(f"{k} {v}" for k, v in st["strata"].items())
+    if not st.get("ran", True):
+        return f"- **No bootstrap ran** (paired or single-rate): {NO_BOOTSTRAP_REASON}."
     if st["stratified"]:
-        parts = ", ".join(f"{k} {v}" for k, v in st["strata"].items())
         return f"- **Paired bootstrap stratified by quota slot class** ({parts} test arrangements): {st['note']}."
+    if st.get("singleton_strata"):
+        return f"- **Paired bootstrap UNSTRATIFIED** ({parts} test arrangements): {st['note']}."
     return f"- **Paired bootstrap UNSTRATIFIED**: {st['note']}."
+
+
+def _rate_ci_line(results: dict[str, Any]) -> str | None:
+    """The header note on the single-rate intervals in the tables, or None when no row has one."""
+    if not any(m.get("rate_ci95") for m in results["metrics"]):
+        return None
+    st = _stratification(results)
+    how = "stratified as the paired bootstrap" if st["stratified"] else "unstratified, as the paired bootstrap"
+    return ("- **Single-rate intervals.** On the test split each L1 / L2 row gives FRR, recall and coverage as "
+            "`rate [2.5%, 97.5%]`: the percentile 95% interval of the same arrangement-level cluster bootstrap as "
+            f"the paired rows ({how}; B = {results['config']['bootstrap_B']}). R's interval is over its "
+            "seed-averaged decisions: arrangements are resampled, seeds are not (results.json `rate_ci95`).")
 
 
 def render_table(results: dict[str, Any]) -> str:
@@ -757,7 +856,8 @@ def render_table(results: dict[str, Any]) -> str:
               "curve and paired bootstrap. A number pooled over lighting appears only in the secondary section "
               "at the end."),
              *([_generator_caveat(cfg.get("generator", {}))] if results.get("synthetic") else []),
-             *_cap_notes(cfg, Positions.from_dict(results["positions"])), _strat_line(results)]
+             *_cap_notes(cfg, Positions.from_dict(results["positions"])), _strat_line(results),
+             *(x for x in (_rate_ci_line(results),) if x)]
     for light in lights:
         ref = _find(metrics, scope, "S", pb, None, light)
         if ref:
@@ -824,10 +924,41 @@ def write_json(path: Path, obj: Any) -> None:
     path.write_text(json.dumps(to_jsonable(obj), indent=1, sort_keys=True) + "\n")
 
 
-def write_logs(path: Path, logs: Sequence[EpisodeLog]) -> None:
+def write_logs(path: Path, logs: Sequence[EpisodeLog], *, simulation_label: str | None = None) -> None:
+    """One log per line. simulation_label: a simulation run's label, added to every line with "simulation": true
+    (EpisodeLog.from_dict ignores both keys)."""
     with path.open("w") as f:
         for g in logs:
-            f.write(json.dumps(to_jsonable(g.to_dict()), sort_keys=True, separators=(",", ":")) + "\n")
+            d = g.to_dict()
+            if simulation_label:
+                d.update(label=simulation_label, simulation=True)
+            f.write(json.dumps(to_jsonable(d), sort_keys=True, separators=(",", ":")) + "\n")
+
+
+def save_truth(path: Path, truth: GroundTruth, *, simulation_label: str | None = None) -> None:
+    """GroundTruth.save, plus the label and "simulation": true for a simulation run (GroundTruth.load ignores them)."""
+    d = truth.to_dict()
+    if simulation_label:
+        d.update(label=simulation_label, simulation=True)
+    path.write_text(json.dumps(d, indent=2) + "\n")
+
+
+# Everything a run writes into its output directory, removed before it starts (review: a run that failed after the
+# policies ran, e.g. on --view-labels, left the previous run's results.json beside its own config.json).
+RUN_OUTPUTS = ("config.json", "logs.jsonl", "episodes.json", "evidence.jsonl", "ground_truth.json", "results.json",
+               "table.md")
+REAL_OUTPUTS = ("config.json", "logs.jsonl", "ground_truth.json", "results.json", "table.md")
+
+
+def clear_outputs(out: Path, names: Sequence[str], inputs: Sequence[str | None] = ()) -> None:
+    """Remove the run's own output files from out. ValueError, before anything is removed, if an input file is one
+    of them (an evidence file named evidence.jsonl in the output dir must never be deleted)."""
+    targets = {(out / n).resolve() for n in names}
+    clash = [p for p in inputs if p is not None and Path(p).resolve() in targets]
+    if clash:
+        raise ValueError(f"input file {clash[0]} is an output of this run in {out}; use another --out")
+    for n in names:
+        (out / n).unlink(missing_ok=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -846,8 +977,11 @@ def main(argv: list[str] | None = None) -> int:
     tag = args.tag or f"n{args.n_arr}-s{args.seed}"
     out = Path(args.out) if args.out else REPO_ROOT / "runs" / f"synthetic-{tag}"
     out.mkdir(parents=True, exist_ok=True)
-    for stale in ("ground_truth.json", "evidence.jsonl", "episodes.json"):  # never present while policies run
-        (out / stale).unlink(missing_ok=True)
+    try:   # every output, so no truth-bearing file exists while policies run and no stale result survives a failure
+        clear_outputs(out, RUN_OUTPUTS, (args.positions,))
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
 
     args.positions = args.positions or str(DEFAULT_POSITIONS_PATH)
     try:
@@ -884,7 +1018,9 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-REAL_CONFIG_VERSION = "real-v3"   # v3 (2026-11-03): simulation flag, view labels file and bootstrap strata hashed
+REAL_CONFIG_VERSION = "real-v4"   # v4 (2026-11-03): bootstrap_stratified is what the test bootstrap uses (singleton
+# strata fall back); single-rate CIs; SIMULATION-labelled logs and truth
+# v3 (2026-11-03): simulation flag, view labels file and bootstrap strata hashed
 # v2 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
 # v1 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
 REAL_LABEL = "REAL PILOT - placeholder thresholds, not frozen"
@@ -913,8 +1049,11 @@ def main_real(args: argparse.Namespace) -> int:
     label = SIM_LABEL if info.simulation else REAL_LABEL
     out = Path(args.out) if args.out else REPO_ROOT / "runs" / f"real-{args.tag or Path(args.evidence).stem}"
     out.mkdir(parents=True, exist_ok=True)
-    for stale in ("ground_truth.json", "table.md"):   # never present while policies run
-        (out / stale).unlink(missing_ok=True)
+    try:   # every output first: no truth while policies run, no earlier results after a failure (e.g. --view-labels)
+        clear_outputs(out, REAL_OUTPUTS, (args.manifest, args.evidence, args.view_labels, pos_path))
+    except ValueError as e:
+        print(f"bad real-data input: {e}", file=sys.stderr)
+        return 2
     try:
         positions = Positions.load(pos_path)
         store = EvidenceStore.from_jsonl(args.evidence, positions.n_stops)
@@ -926,6 +1065,9 @@ def main_real(args: argparse.Namespace) -> int:
         print(f"bad real-data input: {e}", file=sys.stderr)
         return 2
     strata = info.strata()
+    # the stratification the test bootstrap will use, from the manifest's splits and families (no truth): singleton
+    # strata fall back to unstratified, and with no test arrangement no bootstrap runs
+    planned = stratification_info(strata, [s.arrangement_id for s in specs if s.split is Split.TEST])
     th = Thresholds()
     config = {"config_version": REAL_CONFIG_VERSION, "model_id": args.model_id, "synthetic": False,
               "simulation": info.simulation,
@@ -935,7 +1077,7 @@ def main_real(args: argparse.Namespace) -> int:
               # only the hash before the run: the labels are read after it, for scoring context only
               "view_labels_file": None if args.view_labels is None else _rel(Path(args.view_labels)),
               "view_labels_sha256": None if args.view_labels is None else file_sha256(args.view_labels),
-              "bootstrap_stratified": strata is not None,
+              "bootstrap_stratified": planned["stratified"],
               "seed": args.seed, "budgets": list(args.budgets), "nominal_step_cm": positions.nominal_step_cm(),
               "travel_tol_cm": TRAVEL_TOL_CM, "cap_steps": _cap_steps_config(args.cap_steps),
               "travel_caps_cm": [None, *(cap_cm_from_steps(c, positions) for c in args.cap_steps)],
@@ -950,15 +1092,19 @@ def main_real(args: argparse.Namespace) -> int:
                          synthetic=False)
     logs = run_stage(specs, store, positions, th, args.budgets, config["travel_caps_cm"], config["r_seeds"], context)
     del store
-    write_logs(out / "logs.jsonl", logs)
+    sim_label = label if info.simulation else None   # every output of a simulation manifest is labelled SIMULATION
+    write_logs(out / "logs.jsonl", logs, simulation_label=sim_label)
     _, truth = episodes_from_arrangements(load_manifest_info(args.manifest).arrangements)
-    truth.save(out / "ground_truth.json")
+    save_truth(out / "ground_truth.json", truth, simulation_label=sim_label)
     no_diag = None
     if args.view_labels is not None:   # scoring context only, read after every policy has run
         try:
             if file_sha256(args.view_labels) != config["view_labels_sha256"]:
                 raise ValueError(f"{args.view_labels} changed during the run")
             labels = load_geometric_labels(args.view_labels, positions.n_stops)
+            if labels.simulation != info.simulation:   # as verify.select refuses it (sim_dev_data)
+                raise ValueError(f"the manifest says simulation={info.simulation} but {args.view_labels} says "
+                                 f"simulation={labels.simulation}")
             missing = sorted({s.episode_id for s in specs} - set(labels.episodes))
             if missing:
                 raise ValueError(f"no view labels for {len(missing)} episodes, e.g. {missing[:3]}")

@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import enum
+import hashlib
 import io
 import json
 import shutil
 import tempfile
+import types
 import unittest
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from unittest import mock
 
@@ -97,6 +100,49 @@ def write_sim_set(d: Path, slots=SLOTS, *, split: str = "dev", simulation: bool 
 
 def load(d: Path) -> sel.DevData:
     return sel.sim_dev_data(d / "manifest.json", d / "evidence.jsonl", d / "view_labels.json", d / "positions.json")
+
+
+def reachable_strings(root: object) -> list[str]:
+    """Every string reachable from root through attributes, slots, dataclass fields, containers, bound methods and
+    function closures (classes and modules are not entered: their globals are not data the object holds)."""
+    seen: set[int] = set()
+    stack, out = [root], []
+    while stack:
+        o = stack.pop()
+        if id(o) in seen:
+            continue
+        seen.add(id(o))
+        if isinstance(o, str):
+            out.append(o)
+        elif isinstance(o, (bytes, int, float, bool, type(None), type, types.ModuleType, np.ndarray)):
+            continue
+        elif isinstance(o, Mapping):
+            stack += [*o.keys(), *o.values()]
+        elif isinstance(o, (list, tuple, set, frozenset)):
+            stack += list(o)
+        elif isinstance(o, types.FunctionType):
+            stack += [c.cell_contents for c in (o.__closure__ or ())] + list(o.__defaults__ or ())
+        elif isinstance(o, types.MethodType):
+            stack += [o.__self__, o.__func__]
+        else:
+            if isinstance(o, enum.Enum):
+                stack.append(o.value)
+                continue
+            stack += list(getattr(o, "__dict__", {}).values())
+            for klass in type(o).__mro__:
+                for slot in getattr(klass, "__slots__", ()):
+                    name = f"_{klass.__name__.lstrip('_')}{slot}" if slot.startswith("__") else slot
+                    if hasattr(o, name):
+                        stack.append(getattr(o, name))
+    return out
+
+
+def signed(path: Path, doc: dict) -> Path:
+    """Write a candidate document and a matching .sha256 sidecar, as write_outputs does."""
+    text = json.dumps(doc, indent=1, sort_keys=True) + "\n"
+    path.write_text(text)
+    path.with_name(path.name + ".sha256").write_text(f"{hashlib.sha256(text.encode()).hexdigest()}  {path.name}\n")
+    return path
 
 
 def quiet() -> contextlib.ExitStack:
@@ -264,18 +310,28 @@ class SimCliTest(unittest.TestCase):
             self.assertEqual(self.doc["inputs"][name]["sha256"], file_sha256(d / f), name)
             self.assertIn(self.doc["inputs"][name]["sha256"], self.rep)
 
-    def test_stratified_bootstrap_in_the_dev_check(self) -> None:
+    def test_singleton_strata_fall_back_to_unstratified(self) -> None:
+        # Review (checkpoint 2): five of the six slot classes hold one arrangement here; a stratum of one always
+        # redraws itself and adds no variance, so the "stratified" CI was too narrow. It falls back to the
+        # unstratified bootstrap and every record, the warnings and the report say so.
         st = self.doc["bootstrap_stratification"]
-        self.assertTrue(st["stratified"])
+        self.assertFalse(st["stratified"])
         self.assertEqual(st["strata"], {"IND28": 1, "M16-L": 1, "M16-R": 1, "S8": 2, "white_box": 1, "ycb_box": 1})
+        self.assertEqual(st["singleton_strata"], ["IND28", "M16-L", "M16-R", "white_box", "ycb_box"])
+        self.assertTrue(st["note"].startswith("unstratified: singleton strata IND28, M16-L, M16-R, white_box, ycb_box"))
         boots = [r["bootstrap"] for r in self.doc["dev_check"]["rows"] + self.doc["held_out_check"]["rows"]
                  if r["bootstrap"]]
-        self.assertTrue(boots and all(b["stratified"] for b in boots))
-        self.assertIn("stratified by quota slot class", self.rep)
+        self.assertTrue(boots and all(not b["stratified"] and b["singleton_strata"] for b in boots))
+        self.assertIn(f"bootstrap: {st['note']}", self.doc["warnings"])
+        self.assertIn("**UNSTRATIFIED** (IND28 1, M16-L 1, M16-R 1, S8 2, white_box 1, ycb_box 1 dev arrangements): "
+                      "unstratified: singleton strata", self.rep)
+        self.assertIn("(unstratified: singleton strata)", self.rep)   # next to every interval
+        self.assertNotIn("stratified by quota slot class", self.rep)
 
     def test_freeze_gate_accepts_this_candidate_and_refuses_tampering(self) -> None:
         doc = sel.require_freeze_eligible(self.out / "frozen_candidate.json")
         self.assertIs(doc["eligible_for_freeze"], True)
+        self.assertEqual(sel.require_freeze_eligible(str(self.out / "frozen_candidate.json")), doc)
         with tempfile.TemporaryDirectory() as t:
             t = Path(t)
             for name in ("frozen_candidate.json", "frozen_candidate.json.sha256"):
@@ -287,13 +343,34 @@ class SimCliTest(unittest.TestCase):
             (t / "frozen_candidate.json.sha256").unlink()
             with self.assertRaises(sel.NotEligibleForFreeze):
                 sel.require_freeze_eligible(p)
-        for i, bad in enumerate(({**self.doc, "eligible_for_freeze": False}, {k: v for k, v in self.doc.items()
-                                                                 if k != "eligible_for_freeze"},
-                    {**self.doc, "eligible_for_freeze": "true"}, {**self.doc, "synthetic": True},
-                    {**self.doc, "procedure_revision": "select-v4"}, {**self.doc, "schema": "x"})):
-            with self.subTest(case=i), \
-                    self.assertRaises(sel.NotEligibleForFreeze):
-                sel.require_freeze_eligible(bad)
+            # every refusal on a correctly signed file, so the sidecar check is not what refuses it
+            for i, bad in enumerate(({**self.doc, "eligible_for_freeze": False},
+                                     {k: v for k, v in self.doc.items() if k != "eligible_for_freeze"},
+                                     {**self.doc, "eligible_for_freeze": "true"}, {**self.doc, "synthetic": True},
+                                     {k: v for k, v in self.doc.items() if k != "synthetic"},
+                                     {**self.doc, "procedure_revision": "select-v4"}, {**self.doc, "schema": "x"})):
+                with self.subTest(case=i), self.assertRaises(sel.NotEligibleForFreeze):
+                    sel.require_freeze_eligible(signed(t / f"bad{i}.json", bad))
+
+    def test_freeze_gate_refuses_documents_and_every_synthetic_mark(self) -> None:
+        # Review (rfe.py): a dict skipped the sha256 check (an edited tau_q was accepted), and a synthetic candidate
+        # whose flag was flipped to false and re-signed passed while its label still said SYNTHETIC.
+        for doc in (self.doc, {**self.doc, "thresholds": {**self.doc["thresholds"], "tau_q": 0.99}}):
+            with self.assertRaises(sel.NotEligibleForFreeze) as cm:
+                sel.require_freeze_eligible(doc)
+            self.assertIn("path", str(cm.exception))
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            for name, bad, why in (
+                    ("label", {**self.doc, "label": "SYNTHETIC - generated evidence, not study results"}, "label"),
+                    ("prov", {**self.doc, "synthetic_provenance": {"n_arr": 9}}, "synthetic_provenance"),
+                    ("both", {**self.doc, "label": "SYNTHETIC", "synthetic_provenance": {}}, "label")):
+                with self.subTest(case=name), self.assertRaises(sel.NotEligibleForFreeze) as cm:
+                    sel.require_freeze_eligible(signed(t / f"{name}.json", bad))
+                self.assertIn(why, str(cm.exception))
+            signed(t / "list.json", [])  # type: ignore[arg-type]
+            with self.assertRaises(sel.NotEligibleForFreeze):
+                sel.require_freeze_eligible(t / "list.json")
 
 
 class EligibilityExitTest(unittest.TestCase):
@@ -331,6 +408,9 @@ class EligibilityExitTest(unittest.TestCase):
             rc = sel.main([*args, *QUICK, "--out", str(d / "out")])
             doc = json.loads((d / "out" / "frozen_candidate.json").read_text())
             rep = (d / "out" / sel.REPORT_FILE).read_text()
+            with self.assertRaises(sel.NotEligibleForFreeze) as cm:
+                sel.require_freeze_eligible(d / "out" / "frozen_candidate.json")
+            refusal = str(cm.exception)
         self.assertEqual(rc, sel.EXIT_INELIGIBLE)
         self.assertIs(doc["eligible_for_freeze"], False)
         self.assertEqual([(r["fold"], r["constraint"]) for r in doc["ineligible_reasons"]], [("SD0002", "false-clear")])
@@ -338,8 +418,7 @@ class EligibilityExitTest(unittest.TestCase):
         self.assertFalse(doc["held_out_check"]["complete"])
         self.assertNotIn("SD0002", doc["held_out_check"]["arrangements_run"])
         self.assertIn("eligible_for_freeze: FALSE", rep)
-        with self.assertRaises(sel.NotEligibleForFreeze):
-            sel.require_freeze_eligible(doc)
+        self.assertIn("not eligible for freeze", refusal)
 
     def test_one_dev_arrangement_is_not_eligible(self) -> None:
         with tempfile.TemporaryDirectory() as d, quiet():
@@ -360,18 +439,72 @@ class EligibilityExitTest(unittest.TestCase):
 
 
 class DummyTrainable:
-    """A fold-trained policy (the hook ranker A will use) that records everything it was given."""
+    """A fold-trained policy (the hook ranker A will use) that records everything it was given. The class is its own
+    factory: held_out_check builds a fresh one per fold and trains it in the fold's own process, so it writes what it
+    saw to LOG (JSON lines), the only thing that outlives that process. ALL: every dev arrangement, to probe the
+    store for the ones it was not given."""
     name = "DUMMY"
-
-    def __init__(self) -> None:
-        self.seen: list[dict] = []
+    LOG: Path
+    ALL: tuple[str, ...] = ()
 
     def train(self, train: sel.DevData, thresholds: Thresholds) -> Callable[[], object]:
         store = train.store_factory()
-        self.seen.append({"arrangements": set(train.arrangements), "store": set(store.episode_ids()),
-                          "truth": set(train.truth.states), "labels": {l.episode_id for l in train.view_labels},
-                          "strata": set(train.strata or {}), "thresholds": thresholds, "store_obj": store})
+        reachable = []
+        for a in set(self.ALL) - set(train.arrangements):
+            try:
+                store.get(episode_id(a, "occluded", "L1"), 0)
+                reachable.append(a)
+            except KeyError:
+                pass
+        rec = {"arrangements": sorted(train.arrangements), "store": sorted(store.episode_ids()),
+               "truth": sorted(train.truth.states), "labels": sorted({l.episode_id for l in train.view_labels}),
+               "strata": sorted(train.strata or {}), "thresholds": thresholds.to_dict(), "reachable": reachable}
+        with open(self.LOG, "a") as f:
+            f.write(json.dumps(rec) + "\n")
         return pol.F   # a fresh F per episode: the policy itself is not the point here
+
+
+_HOARD_MODULE_MEMORY: set[str] = set()
+
+
+class Hoarder:
+    """Remembers every arrangement it was ever trained on, on the instance, on its class and in its module (a cached
+    feature table, a warm start, a memoised training set: ordinary patterns), and logs, per fold, what it already
+    remembered when training began."""
+    name = "HOARD"
+    LOG: Path
+    class_memory: set[str] = set()
+
+    def __init__(self) -> None:
+        self.memory: set[str] = set()
+
+    def train(self, train: sel.DevData, thresholds: Thresholds) -> Callable[[], object]:
+        memory = self.memory | Hoarder.class_memory | _HOARD_MODULE_MEMORY
+        with open(Hoarder.LOG, "a") as f:
+            f.write(json.dumps({"name": self.name, "train": sorted(train.arrangements), "memory": sorted(memory)})
+                    + "\n")
+        for m in (self.memory, Hoarder.class_memory, _HOARD_MODULE_MEMORY):
+            m.update(train.arrangements)
+        return pol.F
+
+
+class SharedHoarderFactory:
+    """A factory that hands out ONE Hoarder for every fold: only the per-fold process keeps its memory from leaking."""
+    name = "HOARD2"
+
+    def __init__(self) -> None:
+        self.inst = Hoarder()
+        self.inst.name = self.name
+
+    def __call__(self) -> Hoarder:
+        return self.inst
+
+
+class FailingTrainable:
+    name = "BROKEN"
+
+    def train(self, train: sel.DevData, thresholds: Thresholds) -> Callable[[], object]:
+        raise RuntimeError("training blew up on purpose")
 
 
 class HeldOutCheckTest(unittest.TestCase):
@@ -380,9 +513,11 @@ class HeldOutCheckTest(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         write_sim_set(Path(cls.tmp.name), l2_quality=0.45)
         cls.dev = load(Path(cls.tmp.name))
-        cls.dummy = DummyTrainable()
-        cls.res = sel.run_selection(cls.dev, FAST, CTX, trainables=(cls.dummy,))
+        DummyTrainable.LOG = Path(cls.tmp.name) / "dummy.jsonl"
+        DummyTrainable.ALL = cls.dev.arrangements
+        cls.res = sel.run_selection(cls.dev, FAST, CTX, trainables=(DummyTrainable,))
         cls.ho = cls.res["held_out_check"]
+        cls.seen = [json.loads(x) for x in DummyTrainable.LOG.read_text().splitlines()]
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -390,30 +525,63 @@ class HeldOutCheckTest(unittest.TestCase):
 
     def test_trainable_never_sees_the_held_out_arrangement(self) -> None:
         folds = [f for f in self.res["folds"] if f.thresholds is not None]
-        self.assertEqual(len(self.dummy.seen), len(folds))
-        for f, seen in zip(folds, self.dummy.seen):
+        self.assertEqual(len(self.seen), len(folds))
+        for f, seen in zip(folds, self.seen):
             with self.subTest(fold=f.held_out):
-                self.assertEqual(seen["arrangements"], set(self.dev.arrangements) - {f.held_out})
+                self.assertEqual(seen["arrangements"], sorted(set(self.dev.arrangements) - {f.held_out}))
                 self.assertEqual(seen["strata"], seen["arrangements"])
                 for key in ("store", "truth", "labels"):
                     self.assertFalse({e for e in seen[key] if e.startswith(f.held_out + "-")}, key)
-                self.assertEqual(seen["thresholds"], f.thresholds)   # the fold's own thresholds
-                with self.assertRaises(KeyError):   # the evidence is not reachable through what it was given
-                    seen["store_obj"].get(episode_id(f.held_out, "occluded", "L1"), 0)
+                self.assertEqual(seen["thresholds"], json.loads(json.dumps(f.thresholds.to_dict())))   # the fold's own
+                self.assertEqual(seen["reachable"], [])   # the evidence is not reachable through what it was given
+
+    def test_fold_state_never_carries_over(self) -> None:
+        # Review (leak.py): held_out_check trained ONE object in every fold, so what it kept from fold i (whose
+        # training set holds j) was still there in fold j. Now each fold builds a fresh trainable in a process of its
+        # own: a trainable that remembers on itself, its class or its module has, when fold j trains it, never seen
+        # j (here: never seen anything), even when its factory hands out one shared instance.
+        with tempfile.TemporaryDirectory() as t:
+            Hoarder.LOG = Path(t) / "hoard.jsonl"
+            ho = sel.held_out_check(self.dev, FAST, CTX, self.res["folds"], (Hoarder, SharedHoarderFactory()))
+            logs = [json.loads(x) for x in Hoarder.LOG.read_text().splitlines()]
+        folds = [f for f in self.res["folds"] if f.thresholds is not None]
+        self.assertEqual(len(logs), 2 * len(folds))
+        for rec in logs:
+            held = set(self.dev.arrangements) - set(rec["train"])
+            self.assertEqual(len(held), 1, rec)
+            with self.subTest(name=rec["name"], held_out=held):
+                self.assertFalse(held & set(rec["memory"]))
+                self.assertEqual(rec["memory"], [])
+        self.assertEqual((Hoarder.class_memory, _HOARD_MODULE_MEMORY), (set(), set()))   # the parent ran no training
+        self.assertEqual(ho["trainable_policies"], ["HOARD", "HOARD2"])
+        self.assertTrue({"HOARD", "HOARD-fcm", "HOARD2", "HOARD2-fcm"} <= {e["policy"] for e in ho["episodes"]})
+
+    def test_trainable_instances_are_refused_and_fold_errors_surface(self) -> None:
+        with self.assertRaises(TypeError):   # an instance would carry its state across folds
+            sel.held_out_check(self.dev, FAST, CTX, self.res["folds"], (DummyTrainable(),))
+        with self.assertRaises(TypeError):
+            sel.run_selection(self.dev, FAST, CTX, trainables=(Hoarder(),))
+        with self.assertRaises(RuntimeError) as cm:
+            sel.held_out_check(self.dev, FAST, CTX, self.res["folds"], (FailingTrainable,))
+        self.assertIn("training blew up on purpose", str(cm.exception))
 
     def test_every_policy_runs_with_its_folds_thresholds(self) -> None:
-        events: list[tuple[str, Thresholds, int]] = []
+        # the fold-trained policy runs in its fold's own process, so every run is recorded to a file
+        ev_file = Path(self.tmp.name) / "events.jsonl"
 
         def record(real: Callable) -> Callable:
             def f(policy, env, rule, **kw):
                 run = real(policy, env, rule, **kw)
-                events.append((run.policy, rule.thresholds, rule.k))
+                with open(ev_file, "a") as fh:
+                    fh.write(json.dumps([run.policy, rule.thresholds.to_dict(), rule.k]) + "\n")
                 return run
             return f
         fold_th = {f.held_out: f.thresholds for f in self.res["folds"]}
         with mock.patch.object(sel, "run_episode", record(pol.run_episode)), \
-                mock.patch.object(pol, "run_episode", record(pol.run_episode)):
-            ho = sel.held_out_check(self.dev, FAST, CTX, self.res["folds"], (DummyTrainable(),))
+                mock.patch.object(pol, "run_episode", record(pol.run_episode)), \
+                mock.patch.object(DummyTrainable, "LOG", Path(self.tmp.name) / "dummy2.jsonl"):
+            ho = sel.held_out_check(self.dev, FAST, CTX, self.res["folds"], (DummyTrainable,))
+        events = [(p, Thresholds(**t), k) for p, t, k in map(json.loads, ev_file.read_text().splitlines())]
         self.assertEqual(len(events), ho["n_runs"])
         self.assertEqual({p for p, _, _ in events}, set(sel.HELDOUT_POLICIES) | {"DUMMY", "DUMMY-fcm"})
         # every held-out episode's run used its own fold's thresholds (episodes are logged in run order)
@@ -484,8 +652,7 @@ class HeldOutCheckTest(unittest.TestCase):
 
     def test_bad_trainable_names_are_refused(self) -> None:
         for name in ("G", "FULL", "A-fcm", ""):
-            t = DummyTrainable()
-            t.name = name
+            t = type("Named", (DummyTrainable,), {"name": name})
             with self.subTest(name=name), self.assertRaises(ValueError):
                 sel.run_selection(self.dev, FAST, CTX, trainables=(t,))
 
@@ -502,21 +669,59 @@ class SubsetAndBootstrapTest(unittest.TestCase):
         self.assertFalse(store.sealed)
         self.assertEqual(set(sub.truth.states), {s.episode_id for s in sub.specs})
         self.assertEqual(sub.strata, {"SD0001": "M16-L", "SD0004": "white_box"})
+        self.assertEqual(sub.evidence_sha256, sub.store_factory.evidence_sha256())   # the subset's own evidence
         with self.assertRaises(ValueError):
             dev.subset(["NOPE"])
 
+    def test_training_subset_reaches_no_held_out_data(self) -> None:
+        # Review (leak2.py): train.store_factory._base() returned the full store, held-out evidence included, and
+        # train.inputs kept the evidence and labels file paths (json.load gave the held-out labels). Everything
+        # reachable from a training subset is walked: no held-out episode and no input file path may be in it.
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            write_sim_set(d)
+            dev = load(d)
+            files = [d / f for f in ("manifest.json", "evidence.jsonl", "view_labels.json")]
+            paths = {str(f) for f in files} | {str(f.resolve()) for f in files} | {sel._rel(f) for f in files}
+            self.assertTrue(any(x in s for s in reachable_strings(dev) for x in paths))   # the walk does find them
+            for held in dev.arrangements:
+                train = dev.subset([a for a in dev.arrangements if a != held])
+                with self.subTest(held_out=held):
+                    self.assertFalse(hasattr(train.store_factory, "_base"))
+                    self.assertFalse([k for k, v in train.inputs.items() if isinstance(v, Mapping) and "file" in v])
+                    self.assertEqual({k for k, v in train.inputs.items() if isinstance(v, Mapping)},
+                                     {"manifest", "evidence", "view_labels", "positions"})   # hashes kept
+                    strings = reachable_strings(train)
+                    self.assertFalse([s for s in strings if held in s])
+                    self.assertFalse([s for s in strings for x in paths if x in s])
+                    self.assertFalse([e for e in train.store_factory().episode_ids() if e.startswith(held)])
+
     def test_select_bootstrap_keeps_strata(self) -> None:
-        # each arrangement its own stratum: every replicate is the sample itself, so the CI is the point estimate
+        outs = [sel.Outcome(f"{a}-{i}", a, Lighting.L1, i < 2, float(a in "AC" and i == 0), 1.0, 0.0, 1.0)
+                for a in "ABCD" for i in range(3)]
+        bt = sel.cluster_bootstrap(outs, 300, 0, {"A": "x", "B": "x", "C": "y", "D": "y"})
+        self.assertTrue(bt["stratified"])
+        self.assertEqual(bt["singleton_strata"], [])
+        counts = sel._draw_counts(4, 300, 0, ("x", "x", "y", "y"))
+        frr = (counts @ np.array([1.0, 0, 1, 0])) / (counts @ np.full(4, 2.0))
+        self.assertEqual(bt["frr"]["ci95"], [float(x) for x in np.percentile(frr, [2.5, 97.5])])
+        counts = sel._draw_counts(3, 300, 0, ("x", "x", "y"))
+        self.assertTrue(np.all(counts[:, :2].sum(axis=1) == 2) and np.all(counts[:, 2] == 1))
+
+    def test_select_bootstrap_falls_back_on_singleton_strata(self) -> None:
+        # Review: each arrangement its own stratum made every replicate the sample itself, a zero-width CI at the
+        # point estimate, still called stratified. It now runs unstratified, flagged.
         outs = [sel.Outcome(f"{a}-{i}", a, Lighting.L1, i < 2, float(a == "A" and i == 0), 1.0, 0.0, 1.0)
                 for a in ("A", "B", "C") for i in range(3)]
         bt = sel.cluster_bootstrap(outs, 300, 0, {"A": "x", "B": "y", "C": "z"})
-        self.assertEqual(bt["frr"]["ci95"], [1 / 6, 1 / 6])
-        self.assertTrue(bt["stratified"])
         un = sel.cluster_bootstrap(outs, 300, 0)
-        self.assertFalse(un["stratified"])
-        self.assertLess(un["frr"]["ci95"][0], un["frr"]["ci95"][1])
-        counts = sel._draw_counts(3, 300, 0, ("x", "x", "y"))
-        self.assertTrue(np.all(counts[:, :2].sum(axis=1) == 2) and np.all(counts[:, 2] == 1))
+        self.assertFalse(bt["stratified"])
+        self.assertEqual(bt["singleton_strata"], ["x", "y", "z"])
+        self.assertTrue(bt["note"].startswith("unstratified: singleton strata x, y, z"))
+        self.assertEqual(bt["frr"], un["frr"])
+        self.assertLess(bt["frr"]["ci95"][0], bt["frr"]["ci95"][1])
+        part = sel.cluster_bootstrap(outs, 300, 0, {"A": "x", "B": "x", "C": "z"})   # one singleton is enough
+        self.assertEqual((part["stratified"], part["singleton_strata"]), (False, ["z"]))
 
 
 if __name__ == "__main__":

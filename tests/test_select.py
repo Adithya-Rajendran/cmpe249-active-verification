@@ -401,11 +401,25 @@ class JointSearchTest(unittest.TestCase):
         self.assertIn("here: the gate rejects ALL L2 removed diagnostic views (0/30 pass tau_q / tau_occ)", flags)
         self.assertIn("here: the gate rejects ALL L2 present diagnostic views (0/80 pass tau_q / tau_occ)", flags)
         self.assertFalse([f for f in flags if " L1 " in f])
+        self.assertIn("here: the gate rejects ALL L2 views (all) (0/150 pass tau_q / tau_occ)", flags)
         # and every feasible setting rejects every L2 view at the gate (the reason the diagnostic exists)
         for p in cal.choice.points:
             if p.feasible(s.alpha_clear):
                 self.assertFalse(StoppingRule(Thresholds(tau_q=p.tau_q, tau_occ=p.tau_occ)).passes_gate(
                     Observation(0, 0, 0.0, 0.3, 0.55, 0.05)))
+
+    def test_gate_pass_flags_cover_all_views_and_empty_populations(self) -> None:
+        # Review (checkpoint 2), section 7 lists three populations: removed diagnostic, present diagnostic and all
+        # views. An L2 all-views share of 3/120 = 0.025 was not flagged (only the diagnostic populations were), and a
+        # population with no view was skipped without a word.
+        gp = {"L1": {"removed_diagnostic": (10, 12), "present_diagnostic": (0, 0), "all": (90, 120)},
+              "L2": {"removed_diagnostic": (1, 12), "present_diagnostic": (20, 30), "all": (3, 120)},
+              "pooled": {"removed_diagnostic": (11, 24), "present_diagnostic": (20, 30), "all": (93, 240)}}
+        flags = sel.gate_pass_flags(gp, "here")
+        self.assertEqual(flags, [
+            "here: no views: there are no L1 present diagnostic views (n = 0), so their gate pass share is undefined "
+            "there",
+            "here: the gate passes nearly no L2 views (all) (3/120 = 0.025 <= 0.05)"])
 
     def test_known_tau_match_answers_under_one_gate(self) -> None:
         # select-v4's old Step 1b known answers still hold when the grid has one gate (the joint search reduces to it)
