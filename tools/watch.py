@@ -8,7 +8,7 @@ Follows runs/<run_id>/events.jsonl (written by tools/pipeline.py) and prints:
                 --stale-minutes (a hung driver writes nothing, so silence alone must not look like success)
 
 Each printed line is meant to wake an operator (e.g. as a Claude Code Monitor event). Usage:
-    python tools/watch.py runs/shelf_dev_v3 [--stale-minutes 20]
+    python tools/watch.py runs/shelf_dev_v3 [--stale-minutes 20] [--resume]
 """
 from __future__ import annotations
 
@@ -35,12 +35,18 @@ def main() -> None:
     ap.add_argument("run_dir", type=Path)
     ap.add_argument("--stale-minutes", type=float, default=20)
     ap.add_argument("--from-start", action="store_true", help="also report alerts already in the log")
+    ap.add_argument("--resume", action="store_true",
+                    help="continue after the last event a previous watch handled (RUN_DIR/watch.offset), so a "
+                         "re-armed watcher neither repeats nor misses events")
     args = ap.parse_args()
     events = args.run_dir / "events.jsonl"
     while not events.exists():
         time.sleep(2)
     f = events.open()
-    if not args.from_start:
+    offset_file = args.run_dir / "watch.offset"
+    if args.resume and offset_file.exists():
+        f.seek(int(offset_file.read_text()))
+    elif not args.from_start:
         f.seek(0, os.SEEK_END)
     last_event, stale_reported, buf = time.time(), False, ""
 
@@ -54,6 +60,7 @@ def main() -> None:
                 break  # partial line; the rest comes later
             line, buf = buf, ""
             got, last_event, stale_reported = True, time.time(), False
+            offset_file.write_text(str(f.tell()))  # before handle(), which may exit
             handle(json.loads(line))
         return got
 
