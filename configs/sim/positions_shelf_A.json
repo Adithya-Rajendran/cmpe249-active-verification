@@ -1,0 +1,179 @@
+{
+ "schema": "cmpe249.positions.v1",
+ "status": "SIM 2026-11-03: the simulated shelf's stops (option A with per-stop pitch). Not a physical tape record; configs/positions.json is unchanged.",
+ "note": "Option A of the 2026-10-10 far-camera design (positions_far_A_draft.json): same arc, lens positions, headings and height, roll 1.98 deg (P3 fit) at every stop. Each stop's tilt_deg (downward pitch) maximises the smallest in-frame margin over the #3 outline and the four tags' corners with the fitted k1 (frame_check per stop). There is deliberately no file-level tilt_deg: readers must use the per-stop values (sim/rig.py stop_tilt_deg).",
+ "radius_cm": 126.8,
+ "arc_centre_behind_front_cm": 10.89,
+ "arc_rotation_deg": -2.36,
+ "height_cm": 40.78,
+ "height_note": "Lens height above the TOP of #3's floor board, far pose fit (variants 40.4-41.2 cm). Not tape-measured.",
+ "tilt_note": "per stop (stops[i].tilt_deg); roll is not stored (sim/rig.py uses the P3 fitted 1.98 deg at every stop)",
+ "stops": [
+  {
+   "name": "P1",
+   "azimuth_deg": -45.0,
+   "tilt_deg": 7.74
+  },
+  {
+   "name": "P2",
+   "azimuth_deg": -22.5,
+   "tilt_deg": 7.37
+  },
+  {
+   "name": "P3",
+   "azimuth_deg": 0.0,
+   "tilt_deg": 6.14
+  },
+  {
+   "name": "P4",
+   "azimuth_deg": 22.5,
+   "tilt_deg": 6.01
+  },
+  {
+   "name": "P5",
+   "azimuth_deg": 45.0,
+   "tilt_deg": 6.74
+  }
+ ],
+ "start_stop": "P3",
+ "f_order": [
+  "P1",
+  "P2",
+  "P4",
+  "P5"
+ ],
+ "floor_coords_cm": {
+  "P1": {
+   "lateral_cm": -93.27,
+   "out_from_front_cm": 75.0,
+   "heading_deg_right": 47.36,
+   "dist_to_left_front_corner_cm": 91.21,
+   "dist_to_right_front_corner_cm": 154.13
+  },
+  "P2": {
+   "lateral_cm": -53.3,
+   "out_from_front_cm": 104.16,
+   "heading_deg_right": 24.86,
+   "dist_to_left_front_corner_cm": 104.84,
+   "dist_to_right_front_corner_cm": 140.76
+  },
+  "P3": {
+   "lateral_cm": -5.22,
+   "out_from_front_cm": 115.8,
+   "heading_deg_right": 2.36,
+   "dist_to_left_front_corner_cm": 121.31,
+   "dist_to_right_front_corner_cm": 124.82
+  },
+  "P4": {
+   "lateral_cm": 43.66,
+   "out_from_front_cm": 108.15,
+   "heading_deg_right": -20.14,
+   "dist_to_left_front_corner_cm": 137.58,
+   "dist_to_right_front_corner_cm": 108.18
+  },
+  "P5": {
+   "lateral_cm": 85.89,
+   "out_from_front_cm": 82.38,
+   "heading_deg_right": -42.64,
+   "dist_to_left_front_corner_cm": 151.6,
+   "dist_to_right_front_corner_cm": 93.64
+  }
+ },
+ "frame_check": {
+  "P1": {
+   "tilt_deg": 7.74,
+   "k1_min_margin_px": 14.1,
+   "k1_c3_margin_px": 72.7,
+   "k1_tag_margins_px": {
+    "0": 14.1,
+    "1": 338.0,
+    "2": 14.1,
+    "3": 134.3
+   },
+   "pinhole_min_margin_px": 19.8,
+   "k1_window_deg": [
+    7.34,
+    8.14
+   ],
+   "draft_tilt_deg": 6.83,
+   "draft_k1_min_margin_px": -17.9
+  },
+  "P2": {
+   "tilt_deg": 7.37,
+   "k1_min_margin_px": 71.5,
+   "k1_c3_margin_px": 133.4,
+   "k1_tag_margins_px": {
+    "0": 71.5,
+    "1": 276.2,
+    "2": 71.6,
+    "3": 115.9
+   },
+   "pinhole_min_margin_px": 77.4,
+   "k1_window_deg": [
+    5.31,
+    9.41
+   ],
+   "draft_tilt_deg": 6.83,
+   "draft_k1_min_margin_px": 53.0
+  },
+  "P3": {
+   "tilt_deg": 6.14,
+   "k1_min_margin_px": 116.8,
+   "k1_c3_margin_px": 180.2,
+   "k1_tag_margins_px": {
+    "0": 116.8,
+    "1": 169.4,
+    "2": 156.4,
+    "3": 116.9
+   },
+   "pinhole_min_margin_px": 122.4,
+   "k1_window_deg": [
+    2.74,
+    9.54
+   ],
+   "draft_tilt_deg": 6.83,
+   "draft_k1_min_margin_px": 93.6
+  },
+  "P4": {
+   "tilt_deg": 6.01,
+   "k1_min_margin_px": 77.8,
+   "k1_c3_margin_px": 145.9,
+   "k1_tag_margins_px": {
+    "0": 187.8,
+    "1": 77.8,
+    "2": 194.6,
+    "3": 78.1
+   },
+   "pinhole_min_margin_px": 84.2,
+   "k1_window_deg": [
+    3.78,
+    8.26
+   ],
+   "draft_tilt_deg": 6.83,
+   "draft_k1_min_margin_px": 50.0
+  },
+  "P5": {
+   "tilt_deg": 6.74,
+   "k1_min_margin_px": 17.1,
+   "k1_c3_margin_px": 80.5,
+   "k1_tag_margins_px": {
+    "0": 271.8,
+    "1": 17.1,
+    "2": 195.9,
+    "3": 17.4
+   },
+   "pinhole_min_margin_px": 23.5,
+   "k1_window_deg": [
+    6.26,
+    7.23
+   ],
+   "draft_tilt_deg": 6.83,
+   "draft_k1_min_margin_px": 14.3
+  }
+ },
+ "provenance": {
+  "arc": "data/raw/2026-10-10_far-camera/positions_far_A_draft.json (radius, centre, rotation, azimuths, height, start_stop, f_order, floor_coords_cm)",
+  "tilt_deg": "data/raw/2026-11-03_sim_pilot/make_positions_shelf_A.py (this file's frame_check block is its output)",
+  "geometry": "configs/rig_geometry.json (tags, #3 outline, f_px, k1, roll)"
+ }
+}

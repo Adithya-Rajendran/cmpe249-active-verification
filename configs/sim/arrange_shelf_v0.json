@@ -1,0 +1,650 @@
+{
+ "schema": "cmpe249.sim-arrange-config.v0",
+ "name": "shelf_v0",
+ "status": "DEV config, 2026-11-03. NOT FROZEN. docs/SIMULATION_STUDY.md: the generator code, object set, parameter ranges and renderer settings are frozen, with recorded hashes, before any test render.",
+ "environment": "shelf",
+ "geometry": "configs/rig_geometry.json",
+ "positions": "configs/sim/positions_shelf_A.json",
+ "seeds": {
+  "dev": [
+   0,
+   9999
+  ],
+  "test_reserved_min": 100000,
+  "note": "Dev seeds 0-9999 only. Seeds >= 100000 are reserved for test ([open] in docs/SIMULATION_STUDY.md) and are refused by sim/arrange.py and sim/isaac_batch.py; 10000-99999 are unassigned and refused too."
+ },
+ "ids": {
+  "dev_prefix": "SD",
+  "design_prefix": "DES",
+  "note": "SD + 4-digit dev seed (SD0003 = seed 3); DES0..DES3 = the design cases. Both match verify's ^[A-Z][A-Z0-9]{1,15}$."
+ },
+ "objects": {
+  "source": "YCB-Video BOP models, ycbv_models.zip models/ (mm, bounding box centred on the origin, +Z up in the resting pose). min_mm/size_mm copied by script from models/models_info.json (sha256 13978298d8c37f089a7e0c421ed8be867fa836818936f5499786175da2c4c4cb); names from ycbv_base.zip ycbv/dataset_info.md.",
+  "licence": "YCB-Video / YCB object models keep their own terms (dataset README on the share); renders used in a paper carry attribution (docs/SIMULATION_STUDY.md rule 5).",
+  "hulls": {
+   "path": "configs/sim/ycbv_hulls.json",
+   "sha256": "9d7004d0be6226a13ca219324eae9c21f35ef20ba6e25ccfa89e1c3725bb7e3c",
+   "note": "convex-hull support points per model (mm, BOP frame), from data/raw/2026-11-03_sim_pilot/make_ycbv_hulls.py; the generator refuses a hull file with another hash"
+  },
+  "items": {
+   "1": {
+    "ycb": "002_master_chef_can",
+    "name": "master_chef_can",
+    "ply": "obj_000001.ply",
+    "min_mm": [
+     -51.1445,
+     -51.223,
+     -70.072
+    ],
+    "size_mm": [
+     102.289,
+     102.446,
+     140.144
+    ]
+   },
+   "2": {
+    "ycb": "003_cracker_box",
+    "name": "cracker_box",
+    "ply": "obj_000002.ply",
+    "min_mm": [
+     -35.865,
+     -81.9885,
+     -106.743
+    ],
+    "size_mm": [
+     71.73,
+     163.977,
+     213.486
+    ]
+   },
+   "3": {
+    "ycb": "004_sugar_box",
+    "name": "sugar_box",
+    "ply": "obj_000003.ply",
+    "min_mm": [
+     -24.772,
+     -47.024,
+     -88.0075
+    ],
+    "size_mm": [
+     49.544,
+     94.048,
+     176.015
+    ]
+   },
+   "4": {
+    "ycb": "005_tomato_soup_can",
+    "name": "tomato_soup_can",
+    "ply": "obj_000004.ply",
+    "min_mm": [
+     -33.927,
+     -33.875,
+     -51.0185
+    ],
+    "size_mm": [
+     67.854,
+     67.75,
+     102.037
+    ]
+   },
+   "5": {
+    "ycb": "006_mustard_bottle",
+    "name": "mustard_bottle",
+    "ply": "obj_000005.ply",
+    "min_mm": [
+     -48.575,
+     -33.31,
+     -95.704
+    ],
+    "size_mm": [
+     97.15,
+     66.62,
+     191.408
+    ]
+   },
+   "6": {
+    "ycb": "007_tuna_fish_can",
+    "name": "tuna_fish_can",
+    "ply": "obj_000006.ply",
+    "min_mm": [
+     -42.755,
+     -42.807,
+     -16.7555
+    ],
+    "size_mm": [
+     85.51,
+     85.614,
+     33.511
+    ]
+   },
+   "7": {
+    "ycb": "008_pudding_box",
+    "name": "pudding_box",
+    "ply": "obj_000007.ply",
+    "min_mm": [
+     -68.924,
+     -64.3955,
+     -19.414
+    ],
+    "size_mm": [
+     137.848,
+     128.791,
+     38.828
+    ]
+   },
+   "8": {
+    "ycb": "009_gelatin_box",
+    "name": "gelatin_box",
+    "ply": "obj_000008.ply",
+    "min_mm": [
+     -44.6775,
+     -50.5545,
+     -15.06
+    ],
+    "size_mm": [
+     89.355,
+     101.109,
+     30.12
+    ]
+   },
+   "9": {
+    "ycb": "010_potted_meat_can",
+    "name": "potted_meat_can",
+    "ply": "obj_000009.ply",
+    "min_mm": [
+     -51.0615,
+     -30.161,
+     -41.8185
+    ],
+    "size_mm": [
+     102.123,
+     60.322,
+     83.637
+    ]
+   },
+   "10": {
+    "ycb": "011_banana",
+    "name": "banana",
+    "ply": "obj_000010.ply",
+    "min_mm": [
+     -54.444,
+     -89.206,
+     -18.335
+    ],
+    "size_mm": [
+     108.888,
+     178.412,
+     36.67
+    ]
+   },
+   "11": {
+    "ycb": "019_pitcher_base",
+    "name": "pitcher_base",
+    "ply": "obj_000011.ply",
+    "min_mm": [
+     -74.4985,
+     -72.3845,
+     -121.32
+    ],
+    "size_mm": [
+     148.997,
+     144.769,
+     242.64
+    ]
+   },
+   "12": {
+    "ycb": "021_bleach_cleanser",
+    "name": "bleach_cleanser",
+    "ply": "obj_000012.ply",
+    "min_mm": [
+     -51.203,
+     -33.856,
+     -125.32
+    ],
+    "size_mm": [
+     102.406,
+     67.712,
+     250.64
+    ]
+   },
+   "13": {
+    "ycb": "024_bowl",
+    "name": "bowl",
+    "ply": "obj_000013.ply",
+    "min_mm": [
+     -80.722,
+     -80.5565,
+     -27.485
+    ],
+    "size_mm": [
+     161.444,
+     161.113,
+     54.97
+    ]
+   },
+   "14": {
+    "ycb": "025_mug",
+    "name": "mug",
+    "ply": "obj_000014.ply",
+    "min_mm": [
+     -58.483,
+     -46.5375,
+     -40.692
+    ],
+    "size_mm": [
+     116.966,
+     93.075,
+     81.384
+    ]
+   },
+   "15": {
+    "ycb": "035_power_drill",
+    "name": "power_drill",
+    "ply": "obj_000015.ply",
+    "min_mm": [
+     -92.1205,
+     -93.717,
+     -28.6585
+    ],
+    "size_mm": [
+     184.241,
+     187.434,
+     57.317
+    ]
+   },
+   "16": {
+    "ycb": "036_wood_block",
+    "name": "wood_block",
+    "ply": "obj_000016.ply",
+    "min_mm": [
+     -51.9755,
+     -51.774,
+     -102.945
+    ],
+    "size_mm": [
+     103.951,
+     103.548,
+     205.89
+    ]
+   },
+   "17": {
+    "ycb": "037_scissors",
+    "name": "scissors",
+    "ply": "obj_000017.ply",
+    "min_mm": [
+     -48.04,
+     -100.772,
+     -7.858
+    ],
+    "size_mm": [
+     96.08,
+     201.544,
+     15.716
+    ]
+   },
+   "18": {
+    "ycb": "040_large_marker",
+    "name": "large_marker",
+    "ply": "obj_000018.ply",
+    "min_mm": [
+     -10.5195,
+     -60.4225,
+     -9.4385
+    ],
+    "size_mm": [
+     21.039,
+     120.845,
+     18.877
+    ]
+   },
+   "19": {
+    "ycb": "051_large_clamp",
+    "name": "large_clamp",
+    "ply": "obj_000019.ply",
+    "min_mm": [
+     -59.978,
+     -85.639,
+     -19.575
+    ],
+    "size_mm": [
+     119.956,
+     171.278,
+     39.15
+    ]
+   },
+   "20": {
+    "ycb": "052_extra_large_clamp",
+    "name": "extra_large_clamp",
+    "ply": "obj_000020.ply",
+    "min_mm": [
+     -104.897,
+     -82.18,
+     -18.1665
+    ],
+    "size_mm": [
+     209.794,
+     164.36,
+     36.333
+    ]
+   },
+   "21": {
+    "ycb": "061_foam_brick",
+    "name": "foam_brick",
+    "ply": "obj_000021.ply",
+    "min_mm": [
+     -26.315,
+     -38.921,
+     -25.5655
+    ],
+    "size_mm": [
+     52.63,
+     77.842,
+     51.131
+    ]
+   }
+  }
+ },
+ "rest_poses": {
+  "note": "3x3 rotation R (world = R @ model) applied before the yaw about z; the renderer and the generator both centre the rotated bounding box in x/y on base_xy and put its lowest point on base_z.",
+  "upright": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    0
+   ],
+   [
+    0,
+    0,
+    1
+   ]
+  ],
+  "side": [
+   [
+    0,
+    0,
+    1
+   ],
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    0
+   ]
+  ],
+  "edge": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    -1
+   ],
+   [
+    0,
+    1,
+    0
+   ]
+  ]
+ },
+ "clearances_m": {
+  "wall": 0.01,
+  "front": 0.01,
+  "back": 0.01,
+  "between_objects": 0.01,
+  "ceiling": 0.015,
+  "occluder_front": 0.005
+ },
+ "target": {
+  "objects": [
+   4,
+   9,
+   14,
+   21,
+   6
+  ],
+  "max_height_m": 0.105,
+  "max_height_note": "below the 12 cm design boards, so every family can hide the target at P3 when placed close",
+  "region_m": {
+   "x": [
+    -0.32,
+    0.32
+   ],
+   "y": [
+    0.08,
+    0.27
+   ]
+  },
+  "region_note": "base-centre sampling box; a draw is kept only if every stop sees the target whole (every point of its convex hull has a sight line through the #3 opening with opening_margin_m to spare and projects frame_margin_px inside the frame) and its front face is at least min_front_y_m behind the front plane (room for an occluder)",
+  "min_front_y_m": 0.05,
+  "opening_margin_m": 0.005,
+  "frame_margin_px": 40,
+  "tries": 2000,
+  "objects_note": "tomato_soup_can, potted_meat_can, mug, foam_brick, tuna_fish_can. The bowl (13, 16.1 cm wide) was dropped on 2026-11-03: in a 60-seed dev check (generation only) no occluder family could hide it at P3 and leave 2 clear stops inside #3's 30.5 cm depth, so every bowl draw fell back to another model. It remains a distractor."
+ },
+ "distractors": {
+  "count": [
+   2,
+   5
+  ],
+  "p_c3": 0.5,
+  "c3_objects": [
+   1,
+   4,
+   6,
+   7,
+   8,
+   9,
+   10,
+   13,
+   14,
+   15,
+   17,
+   18,
+   19,
+   20,
+   21
+  ],
+  "c4_objects": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18,
+   19,
+   20,
+   21
+  ],
+  "c3_note": "objects whose resting height fits #3 with the ceiling clearance (<= 15.0 cm)",
+  "tries_each": 200,
+  "rule": "distinct objects, not the target's or the occluder's model; footprints inside the compartment and clear of every other footprint (placed occluder included); in #3 a distractor may not occlude the target from any stop (projected convex hulls overlap only if the distractor is wholly behind the target)"
+ },
+ "occluder": {
+  "p3_coverage_min": 0.95,
+  "coverage_note": "share of the target's projected convex hull (YCB-V hull points, configs/sim/ycbv_hulls.json; the measured mug's mesh) at P3 covered by the occluder's projected hull (pinhole, as rendered); the rendered visible fraction is checked after rendering",
+  "min_clear_stops": 2,
+  "clear_coverage_max": 0.001,
+  "stop_rule_note": "families other than IND28 must leave at least min_clear_stops stops where the occluder's projected hull does not touch the target's (coverage <= clear_coverage_max), so another view resolves the occluded episode and a removed episode can reach the k = 2 clear-miss rule (the design picks leave 3-4 such stops); IND28 (predeclared_indistinguishable) must cover the target's hull at every stop (p3_coverage_min)",
+  "family_weights": {
+   "S8": 1.0,
+   "M16": 1.0,
+   "IND28": 0.5,
+   "white_box": 1.0,
+   "ycb_box": 1.0
+  },
+  "families": {
+   "S8": {
+    "kind": "board",
+    "geometry_occluder": "pick_S8",
+    "gap_m": [
+     0.01,
+     0.3
+    ],
+    "shift_m": [
+     -0.015,
+     0.015
+    ]
+   },
+   "M16": {
+    "kind": "board",
+    "geometry_occluder": "pick_M16+3",
+    "gap_m": [
+     0.01,
+     0.3
+    ],
+    "shift_m": [
+     -0.05,
+     0.05
+    ]
+   },
+   "IND28": {
+    "kind": "board",
+    "geometry_occluder": "pick_IND28",
+    "gap_m": [
+     0.01,
+     0.04
+    ],
+    "shift_m": [
+     -0.02,
+     0.02
+    ],
+    "predeclared_indistinguishable": true
+   },
+   "white_box": {
+    "kind": "white_box",
+    "material": "white_box",
+    "gap_m": [
+     0.005,
+     0.3
+    ],
+    "depth_m": [
+     0.03,
+     0.08
+    ],
+    "pad_m": [
+     0.005,
+     0.015
+    ],
+    "shift_m": [
+     -0.005,
+     0.005
+    ],
+    "note": "pilot-2 failure case: a plain white box (the shelf's colour) whose front face is the smallest rectangle hiding the target's bounding box from P3 (corners back-projected along their sight lines), padded by pad_m, so its P3 image footprint is about the target's; anywhere between the front lip and the target"
+   },
+   "ycb_box": {
+    "kind": "ycbv",
+    "choices": [
+     [
+      3,
+      "side"
+     ],
+     [
+      7,
+      "edge"
+     ],
+     [
+      8,
+      "edge"
+     ],
+     [
+      16,
+      "side"
+     ]
+    ],
+    "gap_m": [
+     0.005,
+     0.3
+    ],
+    "shift_m": [
+     -0.03,
+     0.03
+    ],
+    "note": "sugar box on its long side (17.6 x 5.0 x 9.4 cm), pudding box on edge (13.8 x 3.9 x 12.9), gelatin box on edge (8.9 x 3.0 x 10.1), wood block on its side (20.6 x 10.4 x 10.4); width x depth x height"
+   }
+  },
+  "tries_per_family": 100,
+  "parked": {
+   "compartments": [
+    "c4",
+    "c3"
+   ],
+   "tries": 600,
+   "target_window_context": 1.0,
+   "rule": "inside the compartment, footprint clear of every object, occluding no object from any stop (same projected test as distractors), and outside the target's context window at every stop (its projected box grown by target_window_context x its size on every side; perception/evidence.py Params.context = 1.0), so moving it does not change the target's background between phases"
+  },
+  "gap_note": "gap_m = target front face to occluder back face, drawn uniformly in the range clipped to the room in front of the target (occluder front face >= occluder_front behind the front plane); 0.30 = anywhere up to the front lip. IND28 and the white box stay close (they must cover every stop / the target's own footprint)",
+  "attempts_per_family": 6,
+  "draw_note": "per seed the target model (uniform) and the occluder family (family_weights) are drawn once; each (model, family) pair gets attempts_per_family target placements x tries_per_family occluder placements before the next family (then model) in the drawn order is used; the arrangement records the orders and ranks under 'draws'"
+ },
+ "materials": {
+  "white_box": {
+   "rgba": [
+    0.93,
+    0.93,
+    0.9,
+    1.0
+   ],
+   "note": "the shelf's render colour (sim/rig.py RGBA['shelf'])"
+  }
+ },
+ "design_cases": {
+  "note": "The four option-A design cases of data/raw/2026-10-10_far-camera/design_far.md with the measured mug (configs/rig_geometry.json profile + handle plate) at x 0, y (design z) 0.24, handle toward the camera, and the design occluders. No distractors: the design scene is shelf + mug + occluder. Fixed, predeclared dev arrangements.",
+  "mug_x": 0.0,
+  "mug_z": 0.24,
+  "handle": "toward",
+  "target_name": "study_mug",
+  "parked": {
+   "compartment": "c4",
+   "x": 0.2,
+   "y": 0.25,
+   "note": "back right of #4: outside the mug's context window at every stop for S8, M16 and IND28 (checked by design_arrangement)"
+  },
+  "cases": [
+   {
+    "seed": "design-0",
+    "arrangement_id": "DES0",
+    "occluder": "pick_S8"
+   },
+   {
+    "seed": "design-1",
+    "arrangement_id": "DES1",
+    "occluder": "pick_M16+3"
+   },
+   {
+    "seed": "design-2",
+    "arrangement_id": "DES2",
+    "occluder": "pick_M16-5"
+   },
+   {
+    "seed": "design-3",
+    "arrangement_id": "DES3",
+    "occluder": "pick_IND28",
+    "predeclared_indistinguishable": true
+   }
+  ]
+ }
+}

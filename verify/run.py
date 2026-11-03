@@ -25,8 +25,9 @@ Travel caps (D-cap) are an operating condition reported as curves, never tuned: 
 arc steps and cap_cm = steps x Positions.nominal_step_cm() (23.56 cm on the design geometry), with
 no added slack. The default grid is {1, 2, 3, 4, 6} steps plus uncapped.
 
-Scoring is on the TEST split only (dev is reserved for threshold selection, D10, which the
-synthetic placeholders skip). Dev metrics are kept in results.json with scope "dev".
+Scoring is on the TEST split only (dev is reserved for threshold calibration, verify/select.py
+procedure select-v4, which the synthetic placeholders skip). Dev metrics are kept in results.json with
+scope "dev".
 """
 from __future__ import annotations
 
@@ -67,6 +68,7 @@ from verify.schema import (
     EpisodeSpec,
     EvidenceStore,
     GroundTruth,
+    Lighting,
     Positions,
     ReplayError,
     RunContext,
@@ -81,16 +83,24 @@ from verify.schema import (
 from verify.stopping import StoppingRule
 from verify.synthetic import SyntheticParams, generate
 
-CONFIG_VERSION = "synthetic-v3"
+CONFIG_VERSION = "synthetic-v4"   # v4 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
 MODEL_ID = "synthetic-no-model"
-MULTI_VIEW = ("F", "R", "G", "G-myopic")
-BOOTSTRAP_PAIRS = (("G", "F"), ("G", "R"), ("G", "S"), ("F", "S"), ("R", "S"), ("G", "G-myopic"))
+# G is primary G (D-norm, lookahead off; DECISIONS 2026-10-12). G-lookahead is the same scorer with the
+# reachability lookahead, so G - G-lookahead isolates the lookahead. G-myopic is the legacy pre-D-G ablation.
+MULTI_VIEW = ("F", "R", "G", "G-lookahead", "G-myopic")
+G_LOOKAHEAD = {"G": False, "G-lookahead": True}   # recorded in the config (and its hash)
+BOOTSTRAP_PAIRS = (("G", "F"), ("G", "R"), ("G", "S"), ("F", "S"), ("R", "S"), ("G", "G-lookahead"),
+                   ("G", "G-myopic"))
 # H1 (prereg sec. 10): the same selector with the k-distinct rule vs the first-clear-miss rule (k = 1).
 H1_PAIRS = tuple((x, f"{x}-fcm") for x in MULTI_VIEW)
 # "selection can matter" diagnostics (lit report sec. 4): G's path against these, per budget and cap
-DISAGREE_PAIRS = (("G", "F"), ("G", "R"), ("G", "G-myopic"), ("G-myopic", "F"))
+DISAGREE_PAIRS = (("G", "F"), ("G", "R"), ("G", "G-lookahead"), ("G", "G-myopic"), ("G-myopic", "F"))
 BOOTSTRAP_METRICS = ("false_removal_rate", "removal_recall", "coverage")
 SCOPES = (Split.TEST, Split.DEV)
+# Results are reported separately for L1 and L2 queries (DECISIONS 2026-11-02); "lighting" is the query's
+# lighting. A number pooled over lighting is a labelled secondary line only, never a headline.
+REPORT_LIGHTINGS = tuple(x.value for x in Lighting)
+POOLED = "pooled"
 ROLE = {"S": "actual effort (1 view, budget-independent)",
         "FULL": "higher-effort reference (5 views, ignores budget)"}
 
@@ -176,6 +186,7 @@ def build_config(args: argparse.Namespace, positions: Positions, th: Thresholds,
             "nominal_step_cm": positions.nominal_step_cm(), "travel_tol_cm": TRAVEL_TOL_CM,
             "cap_steps": [None, *args.cap_steps],
             "travel_caps_cm": [None, *(cap_cm_from_steps(c, positions) for c in args.cap_steps)],
+            "g_lookahead": dict(G_LOOKAHEAD),
             "g_myopic": {"lam_deg": GMYOPIC_LAM_DEG, "travel_norm_cm": th.travel_norm_cm},
             "r_seeds": list(range(args.r_seeds)),
             "bootstrap_B": args.bootstrap_B, "primary_budget": args.primary_budget,
@@ -243,7 +254,9 @@ def run_stage(specs: Sequence[EpisodeSpec], store: EvidenceStore, positions: Pos
             for b in budgets:
                 budget = Budget(b, cap)
                 for r in (rule, fcm):
-                    for pol in (F(), G.from_thresholds(th), GMyopic.from_thresholds(th)):
+                    for pol in (F(), G.from_thresholds(th, lookahead=G_LOOKAHEAD["G"]),
+                                G.from_thresholds(th, lookahead=G_LOOKAHEAD["G-lookahead"]),
+                                GMyopic.from_thresholds(th)):
                         logs.append(EpisodeLog.from_run(spec, run_episode(pol, env(budget), r)))
                     seed_logs, _ = run_r_seeds(lambda bu=budget, e=env: e(bu), r, r_seeds, r_seed_salt(spec),
                                                spec=spec)
@@ -269,33 +282,44 @@ def _cap_key(cap: float | None) -> tuple[int, float]:
 
 def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: int,
                 B: int, seed: int) -> dict[str, Any]:
-    """Metrics per (scope, policy, budget, cap) and paired bootstraps at the primary budget."""
+    """Metrics per (scope, lighting, policy, budget, cap) and paired bootstraps at the primary budget, per lighting.
+
+    lighting is the query's lighting (the episode's). The "L1" and "L2" rows are the primary report
+    (DECISIONS 2026-11-02); a "pooled" row (both lightings) is kept only as a labelled secondary line.
+    The bootstrap runs within each lighting; its resampling unit is still the arrangement (with its
+    condition episodes at that lighting). No bootstrap is run on pooled data.
+    """
     groups = group_results(logs)
     caps = sorted({k[2] for k in groups}, key=_cap_key)
     metrics: list[dict[str, Any]] = []
     for scope in SCOPES:
         for key in sorted(groups, key=lambda k: (k[0], k[1], _cap_key(k[2]))):
             res = [r for r in groups[key] if r.split is scope]
-            if not res:
-                continue
-            m = compute_all(res, truth)
-            metrics.append({"scope": scope.value, "policy": key[0], "budget": key[1], "travel_cap_cm": key[2],
-                            "role": ROLE.get(key[0], ""), **m})
+            for light in (*Lighting, None):            # None = pooled over lighting (secondary)
+                sub = res if light is None else [r for r in res if r.lighting is light]
+                if not sub:
+                    continue
+                m = compute_all(sub, truth)
+                metrics.append({"scope": scope.value, "lighting": POOLED if light is None else light.value,
+                                "policy": key[0], "budget": key[1], "travel_cap_cm": key[2],
+                                "role": ROLE.get(key[0], ""), **m})
     boots: list[dict[str, Any]] = []
     test = {k: [r for r in v if r.split is Split.TEST] for k, v in groups.items()}
-    for cap in caps:
-        pairs = [(a + v if a != "S" else a, b + v if b != "S" else b)
-                 for v in ("", "-fcm") for a, b in BOOTSTRAP_PAIRS] + list(H1_PAIRS)
-        for a, b in pairs:
-            ka = _lookup(test, a, primary_budget, cap)
-            kb = _lookup(test, b, primary_budget, cap)
-            if ka is None or kb is None or not test[ka] or not test[kb]:
-                continue
-            same = identical_runs(test[ka], test[kb])
-            for metric in BOOTSTRAP_METRICS:
-                br = paired_diff(test[ka], test[kb], truth, metric, B=B, seed=seed)
-                boots.append({"scope": Split.TEST.value, "travel_cap_cm": cap, "budget": primary_budget,
-                              "identical_runs": same, **br.to_dict()})
+    pairs = [(a + v if a != "S" else a, b + v if b != "S" else b)
+             for v in ("", "-fcm") for a, b in BOOTSTRAP_PAIRS] + list(H1_PAIRS)
+    for light in Lighting:
+        sub = {k: [r for r in v if r.lighting is light] for k, v in test.items()}
+        for cap in caps:
+            for a, b in pairs:
+                ka = _lookup(sub, a, primary_budget, cap)
+                kb = _lookup(sub, b, primary_budget, cap)
+                if ka is None or kb is None or not sub[ka] or not sub[kb]:
+                    continue
+                same = identical_runs(sub[ka], sub[kb])
+                for metric in BOOTSTRAP_METRICS:
+                    br = paired_diff(sub[ka], sub[kb], truth, metric, B=B, seed=seed)
+                    boots.append({"scope": Split.TEST.value, "lighting": light.value, "travel_cap_cm": cap,
+                                  "budget": primary_budget, "identical_runs": same, **br.to_dict()})
     return {"metrics": metrics, "bootstrap": boots}
 
 
@@ -398,13 +422,16 @@ def fmt(x: float | None, nd: int = 3) -> str:
     return "undef" if x is None else f"{x:.{nd}f}"
 
 
-def _find(metrics: Sequence[dict], scope: str, policy: str, budget: int, cap: float | None) -> dict | None:
+def _find(metrics: Sequence[dict], scope: str, policy: str, budget: int, cap: float | None,
+          lighting: str) -> dict | None:
+    """The metrics row for one (scope, policy, budget, cap, lighting); lighting is "L1", "L2" or POOLED."""
     if policy == "S":
         budget, cap = 0, None
     elif policy == "FULL":
         budget, cap = 4, None
     for m in metrics:
-        if (m["scope"], m["policy"], m["budget"], m["travel_cap_cm"]) == (scope, policy, budget, cap):
+        if (m["scope"], m["policy"], m["budget"], m["travel_cap_cm"], m["lighting"]) == \
+                (scope, policy, budget, cap, lighting):
             return m
     return None
 
@@ -430,7 +457,8 @@ def _md(cells: Sequence[str]) -> str:
 
 HEAD = ("| policy | FRR | recall | coverage | resolved acc | mean views | mean travel cm | n_arr/n_ep | note |\n"
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
-ORDER = ("S", "F", "R", "G", "G-myopic", "F-fcm", "R-fcm", "G-fcm", "G-myopic-fcm", "FULL")
+ORDER = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "F-fcm", "R-fcm", "G-fcm", "G-lookahead-fcm",
+         "G-myopic-fcm", "FULL")
 FULL_OVER_CAP = "uncapped reference (exceeds cap)"
 
 
@@ -466,28 +494,120 @@ def _cap_notes(cfg: dict, pos: Positions) -> list[str]:
         out.append(f"- **Warning:** adjacent stops deviate from the nominal step by up to {dev:.3f} cm, so a cap "
                    "of N steps does not buy exactly N adjacent moves on this positions file.")
     if caps:
-        out.append("- G is cap-aware (reachability lookahead, D-G) with per-decision normalisation (D-norm); "
-                   f"G-myopic is the pre-D-G G kept as an ablation (no lookahead, lam "
-                   f"{cfg['g_myopic']['lam_deg']:g} deg per {cfg['g_myopic']['travel_norm_cm']:.2f} cm). "
-                   "F and R are naive by design.")
+        out.append("- G is the primary geometric selector: per-decision normalisation (D-norm), reachability "
+                   "lookahead off (DECISIONS 2026-10-12). G-lookahead is the same scorer and settings with the "
+                   "lookahead (D-G), so G - G-lookahead isolates the lookahead. G-myopic is the legacy pre-D-G G, "
+                   f"kept as an extra ablation (no lookahead, lam {cfg['g_myopic']['lam_deg']:g} deg per "
+                   f"{cfg['g_myopic']['travel_norm_cm']:.2f} cm): G - G-myopic changes the normalisation, not the "
+                   "lookahead. F and R are naive by design.")
     return out
 
 
-def _maxcov(m: dict) -> str:
+def _maxcov(m: dict, lighting: str) -> str:
     o = m["overall"]
-    return (f"- max achievable coverage (test): {fmt(o['max_achievable_coverage'])} "
+    return (f"- max achievable coverage (test, {lighting} queries): {fmt(o['max_achievable_coverage'])} "
             f"({o['n_indistinguishable']} of {o['n_episodes']} episodes are predeclared indistinguishable, "
             f"{o['n_arrangements']} arrangements)")
+
+
+CURVE_HEAD = ("| policy | travel cap | FRR | recall | coverage | resolved acc | mean views | mean travel cm "
+              "| n_arr/n_ep |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+
+
+def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
+    """Primary tables, budget curves, per-condition tables, cap curve and bootstrap for one query lighting."""
+    cfg, metrics = results["config"], results["metrics"]
+    pb, scope, caps = cfg["primary_budget"], Split.TEST.value, cfg["travel_caps_cm"]
+    h = f"## {light} queries -"
+    lines: list[str] = []
+    for cap in caps:
+        lines += [f"{h} Primary table: b = {pb} additional views, {lab(cap)}", "", HEAD]
+        for p in ORDER:
+            m = _find(metrics, scope, p, pb, cap, light)
+            if m:
+                lines.append(_md([_label(p, cap), *_cells(m["overall"]), _note(p, cap)]))
+        lines.append("")
+    for cap in caps:
+        lines += [f"{h} Budget curve, {lab(cap)}", "",
+                  "| policy | b | FRR | recall | coverage | resolved acc | mean views | mean travel cm | n_arr/n_ep |",
+                  "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+        for p in ORDER:
+            if p in ("S", "FULL"):
+                continue
+            for b in cfg["budgets"]:
+                m = _find(metrics, scope, p, b, cap, light)
+                if m:
+                    lines.append(_md([p, str(b), *_cells(m["overall"])]))
+        lines.append("")
+    for cap in caps:
+        lines += [f"{h} Per condition, b = {pb}, {lab(cap)}", "",
+                  "Decision fractions are averaged within episode (R) and summed over episodes.", "",
+                  ("| policy | condition | n_arr/n_ep | present | removed | unknown | coverage | max achievable cov | "
+                   "mean views | mean travel cm |"), "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+        for p in ORDER:
+            m = _find(metrics, scope, p, pb, cap, light)
+            if not m:
+                continue
+            for cond, o in m["by_condition"].items():
+                t = "removed" if cond == "removed" else "present"
+                c = o["confusion"][t]
+                lines.append(f"| {_label(p, cap)} | {cond} | {o['n_arrangements']}/{o['n_episodes']} | "
+                             f"{c['present']:.2f} | {c['removed']:.2f} | {c['unknown']:.2f} | {fmt(o['coverage'])} | "
+                             f"{fmt(o['max_achievable_coverage'])} | "
+                             f"{fmt(o['mean_views'], 2)} | {fmt(o['mean_travel_cm'], 1)} |")
+        lines.append("")
+    lines += [f"{h} Cap curve, b = {pb} (test split)", "",
+              "Each policy across the cap grid at the primary budget. Caps are an operating condition, not tuned.", "",
+              CURVE_HEAD]
+    for p in ORDER:
+        if p in ("S", "FULL"):
+            continue
+        for cap in caps:
+            m = _find(metrics, scope, p, pb, cap, light)
+            if m:
+                lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_cells(m["overall"])]))
+    lines += ["", f"{h} Paired arrangement-level bootstrap, b = {pb} (test split)", "",
+              (f"Difference A - B on {light} queries only; percentile 95% CI over resampled arrangements (an "
+               f"arrangement's {light} episodes are kept together)."),
+              ("A row marked *identical* means A and B made the same decisions with the same effort on every "
+               "episode: its [0, 0] CI is degenerate and is not evidence of equal performance."),
+              "", "| setting | A - B | metric | estimate | 95% CI | n_arr | n_ep | B | undefined draws | note |",
+              "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+    for r in results["bootstrap"]:
+        if r["lighting"] != light:
+            continue
+        note = "identical: A == B on every episode" if r.get("identical_runs") else ""
+        lines.append(f"| {lab(r['travel_cap_cm'])} | {r['policy_a']} - {r['policy_b']} | {r['metric']} | "
+                     f"{fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | {r['n_arrangements']} | "
+                     f"{r['n_episodes']} | {r['B']} | {r['n_undefined']} | {note} |")
+    lines.append("")
+    return lines
+
+
+def _pooled_lines(results: dict[str, Any], lab) -> list[str]:
+    """The only pooled-over-lighting numbers in table.md: one labelled secondary table at the end."""
+    cfg, metrics = results["config"], results["metrics"]
+    pb, scope, caps = cfg["primary_budget"], Split.TEST.value, cfg["travel_caps_cm"]
+    lines = [f"## Secondary, not a headline: pooled over L1 and L2 queries, b = {pb} (test split)", "",
+             ("Both lightings together, for reference only. The results are the per-lighting sections above; "
+              "no bootstrap is run on pooled data."), "", CURVE_HEAD]
+    for p in ORDER:
+        for cap in ((None,) if p in ("S", "FULL") else caps):
+            m = _find(metrics, scope, p, pb, cap, POOLED)
+            if m:
+                lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_cells(m["overall"])]))
+    lines.append("")
+    return lines
 
 
 def render_table(results: dict[str, Any]) -> str:
     cfg, metrics = results["config"], results["metrics"]
     pb, scope = cfg["primary_budget"], Split.TEST.value
-    caps = cfg["travel_caps_cm"]
     step = cfg.get("nominal_step_cm")
 
     def lab(cap: float | None) -> str:
         return _cap_label(cap, step)
+    lights = [x for x in REPORT_LIGHTINGS if any(m["lighting"] == x for m in metrics)]
     lines = [f"# {SYNTHETIC_LABEL}", "",
              ("**SYNTHETIC - not study results.** Evidence comes from `verify.synthetic` with invented "
               "parameters and placeholder thresholds; these numbers only exercise the pipeline."), "",
@@ -499,100 +619,47 @@ def render_table(results: dict[str, Any]) -> str:
               f"lam {cfg['thresholds']['lam']}; R averaged over {len(cfg['r_seeds'])} seeds within each episode"),
              ("- FRR = false removal rate; `-fcm` = first-clear-miss rule (k = 1); S is plotted at its actual "
               "effort; FULL is a higher-effort reference, not a budget-matched competitor"),
+             ("- **Reported separately for L1 and L2 queries** (the lighting of the query view; DECISIONS "
+              "2026-11-02): each lighting has its own primary tables, budget curves, per-condition tables, cap "
+              "curve and paired bootstrap. A number pooled over lighting appears only in the secondary section "
+              "at the end."),
              _generator_caveat(cfg.get("generator", {})), *_cap_notes(cfg, Positions.from_dict(results["positions"]))]
-    ref = _find(metrics, scope, "S", pb, None)
-    if ref:
-        lines.append(_maxcov(ref))
+    for light in lights:
+        ref = _find(metrics, scope, "S", pb, None, light)
+        if ref:
+            lines.append(_maxcov(ref, light))
     lines.append("")
-    for cap in caps:
-        lines += [f"## Primary table: b = {pb} additional views, {lab(cap)}", "", HEAD]
-        for p in ORDER:
-            m = _find(metrics, scope, p, pb, cap)
-            if m:
-                lines.append(_md([_label(p, cap), *_cells(m["overall"]), _note(p, cap)]))
-        lines.append("")
-    for cap in caps:
-        lines += [f"## Budget curve, {lab(cap)}", "",
-                  "| policy | b | FRR | recall | coverage | resolved acc | mean views | mean travel cm | n_arr/n_ep |",
-                  "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
-        for p in ORDER:
-            if p in ("S", "FULL"):
-                continue
-            for b in cfg["budgets"]:
-                m = _find(metrics, scope, p, b, cap)
-                if m:
-                    lines.append(_md([p, str(b), *_cells(m["overall"])]))
-        lines.append("")
-    for cap in caps:
-        lines += [f"## Per condition, b = {pb}, {lab(cap)}", "",
-                  "Decision fractions are averaged within episode (R) and summed over episodes.", "",
-                  ("| policy | condition | n_arr/n_ep | present | removed | unknown | coverage | max achievable cov | "
-                   "mean views | mean travel cm |"), "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
-        for p in ORDER:
-            m = _find(metrics, scope, p, pb, cap)
-            if not m:
-                continue
-            for cond, o in m["by_condition"].items():
-                t = "removed" if cond == "removed" else "present"
-                c = o["confusion"][t]
-                lines.append(f"| {_label(p, cap)} | {cond} | {o['n_arrangements']}/{o['n_episodes']} | "
-                             f"{c['present']:.2f} | {c['removed']:.2f} | {c['unknown']:.2f} | {fmt(o['coverage'])} | "
-                             f"{fmt(o['max_achievable_coverage'])} | "
-                             f"{fmt(o['mean_views'], 2)} | {fmt(o['mean_travel_cm'], 1)} |")
-        lines.append("")
-    lines += [f"## Cap curve, b = {pb} (test split)", "",
-              "Each policy across the cap grid at the primary budget. Caps are an operating condition, not tuned.", "",
-              "| policy | travel cap | FRR | recall | coverage | resolved acc | mean views | mean travel cm | n_arr/n_ep |",
-              "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
-    for p in ORDER:
-        if p in ("S", "FULL"):
-            continue
-        for cap in caps:
-            m = _find(metrics, scope, p, pb, cap)
-            if m:
-                lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_cells(m["overall"])]))
-    lines.append("")
+    for light in lights:
+        lines += _lighting_lines(results, light, lab)
     diag = results.get("diagnostics")
     if diag:
         lines += _diagnostic_lines(diag, cfg, lab)
-    lines += [f"## Per lighting, b = {pb}, no travel cap", "",
-              ("| policy | lighting | FRR | recall | coverage | resolved acc | mean views | mean travel cm | "
-               "n_arr/n_ep |"), "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
-    for p in ORDER:
-        m = _find(metrics, scope, p, pb, None)
-        if m:
-            for light, o in m["by_lighting"].items():
-                lines.append(_md([p, light, *_cells(o)]))
-    lines += ["", f"## Paired arrangement-level bootstrap, b = {pb} (test split)", "",
-              "Difference A - B; percentile 95% CI over resampled arrangements (all 6 episodes kept together).",
-              ("A row marked *identical* means A and B made the same decisions with the same effort on every "
-               "episode: its [0, 0] CI is degenerate and is not evidence of equal performance."),
-              "", "| setting | A - B | metric | estimate | 95% CI | n_arr | n_ep | B | undefined draws | note |",
-              "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
-    for r in results["bootstrap"]:
-        note = "identical: A == B on every episode" if r.get("identical_runs") else ""
-        lines.append(f"| {lab(r['travel_cap_cm'])} | {r['policy_a']} - {r['policy_b']} | {r['metric']} | "
-                     f"{fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | {r['n_arrangements']} | "
-                     f"{r['n_episodes']} | {r['B']} | {r['n_undefined']} | {note} |")
-    lines += ["", f"_{SYNTHETIC_LABEL}._", ""]
+    lines += _pooled_lines(results, lab)
+    lines += [f"_{SYNTHETIC_LABEL}._", ""]
     return "\n".join(lines)
+
+
+USED_COLS = ("F", "G", "G-lookahead", "G-myopic", "R")
 
 
 def _diagnostic_lines(diag: dict, cfg: dict, lab) -> list[str]:
     caps, budgets = cfg["travel_caps_cm"], cfg["budgets"]
     used = {(u["policy"], u["budget"], u["travel_cap_cm"]): u["n_view_sets"]
             for u in diag["used_view_sets"] if u["scope"] == "test"}
-    lines = ["## Diagnostic: distinct view sets per budget and cap", "",
+    lines = ["## Diagnostic: distinct view sets per budget and cap (test split, L1 and L2 queries together)", "",
              ("Can selection matter at all? *Reachable* is geometry only: the most views reachable from the start "
               "within b moves and the cap, and how many distinct view sets of that size exist. *Used* counts the "
-              "distinct view sets each policy actually ended with on the test episodes (early stopping included)."),
-             "", "| travel cap | b | max views | reachable sets at max | used: F | used: G | used: G-myopic | used: R |",
-             "| --- | --- | --- | --- | --- | --- | --- | --- |"]
+              "distinct view sets each policy actually ended with on the test episodes (early stopping included). "
+              "The two diagnostics describe paths, not outcomes, and use the episodes of both lightings."),
+             "", "| travel cap | b | max views | reachable sets at max | "
+             + " | ".join(f"used: {p}" for p in USED_COLS) + " |",
+             "| --- | --- | --- | --- | " + " | ".join("---" for _ in USED_COLS) + " |"]
     for r in diag["reachable_view_sets"]:
         cap, b = r["travel_cap_cm"], r["budget"]
         lines.append(_md([lab(cap).replace("travel cap ", ""), str(b), str(r["max_views"]), str(r["n_max_view_sets"]),
-                          *(str(used.get((p, b, cap), "-")) for p in ("F", "G", "G-myopic", "R"))]))
-    lines += ["", "## Diagnostic: path and decision disagreement (test split, k-rule policies)", "",
+                          *(str(used.get((p, b, cap), "-")) for p in USED_COLS)]))
+    lines += ["", ("## Diagnostic: path and decision disagreement (test split, k-rule policies, L1 and L2 queries "
+                   "together)"), "",
               ("Fraction of test episodes where A's requested path (or final decision) differs from B's. Pairs with "
                "R average over R's seeds within each episode. 0 means the two policies are indistinguishable at "
                "that setting, so any paired difference there is degenerate. Counts are in results.json."), "",
@@ -678,12 +745,12 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-REAL_CONFIG_VERSION = "real-v0"
+REAL_CONFIG_VERSION = "real-v1"   # v1 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
 REAL_LABEL = "REAL PILOT - placeholder thresholds, not frozen"
 
 
 def main_real(args: argparse.Namespace) -> int:
-    """Run S/FULL/F/R/G/G-myopic on real evidence: same run and score stages as --synthetic."""
+    """Run S/FULL/F/R/G/G-lookahead/G-myopic on real evidence: same run and score stages as --synthetic."""
     if args.primary_budget not in args.budgets or args.r_seeds < 1 or args.bootstrap_B < 1:
         print("need --primary-budget in --budgets, --r-seeds >= 1, --bootstrap-B >= 1", file=sys.stderr)
         return 2
@@ -710,6 +777,7 @@ def main_real(args: argparse.Namespace) -> int:
               "seed": args.seed, "budgets": list(args.budgets), "nominal_step_cm": positions.nominal_step_cm(),
               "travel_tol_cm": TRAVEL_TOL_CM, "cap_steps": [None, *args.cap_steps],
               "travel_caps_cm": [None, *(cap_cm_from_steps(c, positions) for c in args.cap_steps)],
+              "g_lookahead": dict(G_LOOKAHEAD),
               "g_myopic": {"lam_deg": GMYOPIC_LAM_DEG, "travel_norm_cm": th.travel_norm_cm},
               "r_seeds": list(range(args.r_seeds)), "bootstrap_B": args.bootstrap_B,
               "primary_budget": args.primary_budget, "thresholds": th.to_dict(), "positions": positions.to_dict(),

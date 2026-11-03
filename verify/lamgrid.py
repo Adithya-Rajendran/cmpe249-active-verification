@@ -14,10 +14,14 @@ A state is (current stop, reference set, pool):
 - current stop: the last stop of any simple path from the start stop (the start itself if no move yet);
 - reference set: any non-empty subset of the visited stops (G uses the visited stops flagged occluded,
   else all visited ones, and any subset can be flagged);
-- pool: what G.select scores, i.e. the feasible candidates if any, else the affordable ones, for every
-  remaining travel allowance, remaining view count and number of clear misses still needed.
+- pool: what G.select scores. For primary G (lookahead=False, the default here as in G) that is the
+  affordable candidates, for every remaining travel allowance. For the G-lookahead ablation
+  (lookahead=True) it is the feasible candidates if any, else the affordable ones, for every remaining
+  travel allowance, remaining view count and number of clear misses still needed.
 This is a slight superset of the states G reaches (it ignores which paths G itself would take), so a
-breakpoint listed here may be one that no real episode hits. It never misses a breakpoint.
+breakpoint listed here may be one that no real episode hits. It never misses a breakpoint. Both
+variants share the scorer; on the design geometry and on the measured 5-stop arc their state sets,
+and so their breakpoints, are identical.
 """
 from __future__ import annotations
 
@@ -48,7 +52,7 @@ def _remaining_allowances(cur: int, unvisited: Sequence[int], positions: Positio
     return [*sorted(vals), None]
 
 
-def _pools(path: tuple[int, ...], positions: Positions) -> set[tuple[int, ...]]:
+def _pools(path: tuple[int, ...], positions: Positions, lookahead: bool) -> set[tuple[int, ...]]:
     cur, visited = path[-1], frozenset(path)
     unvisited = [s for s in range(positions.n_stops) if s not in visited]
     out: set[tuple[int, ...]] = set()
@@ -57,6 +61,9 @@ def _pools(path: tuple[int, ...], positions: Positions) -> set[tuple[int, ...]]:
         afford = tuple(c for c in unvisited
                        if left is None or positions.travel_cm(cur, c) <= left + TRAVEL_TOL_CM)
         if len(afford) < 2:
+            continue
+        if not lookahead:                         # primary G scores every affordable candidate
+            out.add(afford)
             continue
         for views_left in range(1, n):            # views left before the move
             for more in range(0, n):              # clear-miss stops still needed after c
@@ -70,12 +77,15 @@ def _pools(path: tuple[int, ...], positions: Positions) -> set[tuple[int, ...]]:
     return out
 
 
-def g_states(positions: Positions) -> list[State]:
-    """Every (current stop, reference set, pool) decision state of G on this geometry (sorted, unique)."""
+def g_states(positions: Positions, *, lookahead: bool = False) -> list[State]:
+    """Every (current stop, reference set, pool) decision state of G on this geometry (sorted, unique).
+
+    lookahead=False: primary G. lookahead=True: the G-lookahead ablation (feasibility-filtered pools).
+    """
     states: set[State] = set()
     for path in _paths_from(positions.start_index, positions):
         visited = tuple(sorted(path))
-        pools = _pools(path, positions)
+        pools = _pools(path, positions, lookahead)
         if not pools:
             continue
         for r in range(1, len(visited) + 1):
@@ -98,9 +108,10 @@ class Breakpoint:
     resolves_to: str          # "above" / "below" / "neither": which side the exact value behaves like
 
 
-def g_lam_breakpoints(positions: Positions, *, lam_max: float = 4.0, delta: float = 1e-7) -> list[Breakpoint]:
+def g_lam_breakpoints(positions: Positions, *, lam_max: float = 4.0, delta: float = 1e-7,
+                      lookahead: bool = False) -> list[Breakpoint]:
     """Exact lam values in (0, lam_max] at which G's choice changes in at least one state."""
-    states = g_states(positions)
+    states = g_states(positions, lookahead=lookahead)
     g = G(0.0, 0.0)
     cands: set[float] = set()
     for cur, ref, pool in states:
@@ -139,11 +150,13 @@ class LamGridCheck:
                 "on_breakpoint": list(self.on_breakpoint), "warnings": list(self.warnings)}
 
 
-def check_lam_grid(grid: Sequence[float], positions: Positions, *, tol: float = 1e-6) -> LamGridCheck:
-    """Which grid values are behaviourally identical for G, and which sit on a breakpoint."""
+def check_lam_grid(grid: Sequence[float], positions: Positions, *, tol: float = 1e-6,
+                   lookahead: bool = False) -> LamGridCheck:
+    """Which grid values are behaviourally identical for G (primary unless lookahead=True), and which
+    sit on a breakpoint."""
     lam_max = max(4.0, max(grid, default=0.0) + 1.0)
-    bps = tuple(g_lam_breakpoints(positions, lam_max=lam_max))
-    states = g_states(positions)
+    bps = tuple(g_lam_breakpoints(positions, lam_max=lam_max, lookahead=lookahead))
+    states = g_states(positions, lookahead=lookahead)
     by_choice: dict[tuple[int, ...], list[float]] = {}
     for lam in grid:
         by_choice.setdefault(g_choices(lam, states, positions), []).append(float(lam))

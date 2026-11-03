@@ -1,15 +1,20 @@
-"""View-selection policies (S, F, R, G, G-myopic, FULL) and the episode driver (see verify/README.md section 3).
+"""View-selection policies (S, F, R, G, G-lookahead, G-myopic, FULL) and the episode driver (verify/README.md sec. 3).
 
 A policy only ever sees the Observations of stops it requested, the affordable candidate
 stops, the Positions and the current stop. It never sees the ReplayEnv, the evidence store,
 the EpisodeSpec or the ground truth. The decision always comes from the StoppingRule object
 the caller passes to run_episode, so every multi-view policy shares one rule.
 
-Cap-aware G (D-G). A policy may define begin_episode(limits: EpisodeLimits); run_episode then
+Primary G (DECISIONS 2026-10-12, approved for the code 2026-11-02) is the normalised selector
+(D-norm) with the reachability lookahead OFF. The lookahead (D-G) is kept as the ablation
+"G-lookahead" on the same scorer, so G vs G-lookahead isolates the lookahead. G-myopic is the
+legacy pre-D-G selector (different normalisation, no lookahead), a separate ablation.
+
+Lookahead hook. A policy may define begin_episode(limits: EpisodeLimits); run_episode then
 calls it once per episode with the env's public budget (additional views, travel cap), the
 rule's k and the rule's own per-view clear-miss predicate. None of this is evidence or truth.
-Only G uses it, as part of its *selection* (reachability lookahead); F and R stay naive and
-choose from the affordable set exactly as specified, and the decision is still rule.decide.
+Only G defines it, and only G-lookahead reads it, as part of its *selection*; primary G, F and
+R choose from the affordable set as specified, and the decision is still rule.decide.
 
 This module must stay free of introspection and I/O (gc, sys, inspect, open, closures, mangled
 names); tests/test_policy_lint.py enforces that statically.
@@ -109,7 +114,8 @@ class EpisodeLimits:
     """Public per-episode limits handed to policies that define begin_episode (only G does).
 
     additional_views and travel_cap_cm come from the env's Budget; k and is_clear_miss come from
-    the shared StoppingRule, so G's lookahead counts clear misses exactly as the rule does.
+    the shared StoppingRule, so G-lookahead counts clear misses exactly as the rule does. Primary
+    G (lookahead off) receives them too but never reads them.
     """
     __slots__ = ("additional_views", "travel_cap_cm", "k", "is_clear_miss")
 
@@ -174,38 +180,46 @@ def reference_stops(observations: Sequence[Observation], tau_occ: float) -> tupl
     return flagged or tuple(sorted({o.stop for o in observations}))
 
 
-class G:
-    """Geometric parallax with reachability feasibility (D-G) and per-decision normalisation (D-norm).
+G_NAME = "G"                      # primary G: D-norm scorer, lookahead off (DECISIONS 2026-10-12)
+G_LOOKAHEAD_NAME = "G-lookahead"  # ablation: the same scorer with the reachability lookahead (D-G)
 
+
+class G:
+    """Geometric parallax with per-decision normalisation (D-norm); reachability lookahead (D-G) optional.
+
+    lookahead=False (the default) is primary G, name "G". lookahead=True is the ablation
+    "G-lookahead": the same scorer, settings and tie-break, plus step 2's feasibility filter.
     1. ref = visited stops flagged occluded (obstruction > tau_occ), else all visited stops.
-    2. Feasible set: candidate c is feasible if, after moving to c, REMOVED is still reachable:
-       needed = k - #distinct clear-miss stops so far; c may supply one; the other needed - 1 must be
-       reachable as distinct unvisited stops within the remaining travel cap AND remaining view budget
-       (can_visit_more, exact). If no candidate is feasible (or lookahead is off) G falls back to all
+    2. Pool. Primary G: every affordable candidate. G-lookahead: the feasible candidates, where c
+       is feasible if, after moving to c, REMOVED is still reachable: needed = k - #distinct
+       clear-miss stops so far; c may supply one; the other needed - 1 must be reachable as
+       distinct unvisited stops within the remaining travel cap AND remaining view budget
+       (can_visit_more, exact). If no candidate is feasible G-lookahead falls back to all
        affordable candidates; it can still find PRESENT.
     3. Over that pool: score(c) = sep(c) / max_sep - lam * travel(c) / max_travel, sep(c) = min angle
        from c to ref, both maxima over the pool, 0/0 = 0; lam is dimensionless.
     4. Argmax; scores within EPS tie -> shorter travel -> lower stop index.
 
-    The lookahead is G's own selection intelligence, not a shared rule: F and R are unchanged.
+    The lookahead is G-lookahead's own selection intelligence, not a shared rule: F and R are unchanged.
     """
     max_additional_views: int | None = None
     early_stop = True
 
-    def __init__(self, lam: float, tau_occ: float, *, lookahead: bool = True) -> None:
+    def __init__(self, lam: float, tau_occ: float, *, lookahead: bool = False) -> None:
         lam = float(lam)
         if not (np.isfinite(lam) and lam >= 0):   # NaN/inf would silently tie every score (review F3)
             raise ValueError(f"lam must be finite and >= 0, got {lam!r}")
         self.lam = lam
         self.tau_occ = float(tau_occ)
         self.lookahead = bool(lookahead)
-        self.name = "G" if self.lookahead else "G-nolook"
+        self.name = G_LOOKAHEAD_NAME if self.lookahead else G_NAME
         self.limits: EpisodeLimits | None = None
         self.last_pool: tuple[int, ...] = ()   # inspection only: the pool of the last select
         self.last_fallback = False             # True if the last select found no feasible candidate
 
     @classmethod
-    def from_thresholds(cls, th: Thresholds, *, lookahead: bool = True) -> G:
+    def from_thresholds(cls, th: Thresholds, *, lookahead: bool = False) -> G:
+        """Primary G by default; lookahead=True gives the G-lookahead ablation with the same settings."""
         return cls(th.lam, th.tau_occ, lookahead=lookahead)
 
     def begin_episode(self, limits: EpisodeLimits) -> None:
@@ -253,9 +267,11 @@ class G:
 
 
 class GMyopic:
-    """Ablation: the pre-D-G G, unchanged. No lookahead; fixed travel normaliser; lam in degrees.
+    """Legacy ablation: the pre-D-G G, unchanged. No lookahead; fixed travel normaliser; lam in degrees.
 
     score(c) = min angle(c, ref) - lam_deg * travel(c) / travel_norm_cm over all affordable candidates.
+    It differs from primary G in the normalisation, not the lookahead (neither has one), so G vs
+    G-myopic is not the lookahead contrast; G vs G-lookahead is.
     """
     name = "G-myopic"
     max_additional_views: int | None = None
@@ -350,7 +366,7 @@ def run_episode(policy: Policy, env: ReplayEnv, rule: StoppingRule, *, seed: int
                           f"got {env.budget}")
     if isinstance(policy, S) and rule.k != 1:
         raise ReplayError(f"S decides with k = 1 semantics (removed on one clear miss); got k = {rule.k}")
-    if hasattr(policy, "begin_episode"):   # G's lookahead: public budget + the rule's k and predicate
+    if hasattr(policy, "begin_episode"):   # G: public budget + the rule's k and predicate (G-lookahead reads them)
         policy.begin_episode(EpisodeLimits.of(env.budget, rule))
     obs: list[Observation] = [env.reset()]
     while True:
