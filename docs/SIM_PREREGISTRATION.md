@@ -19,7 +19,12 @@
 
 - **Simulator:** Isaac Sim 6.2 on the GB10 is the single simulator; MuJoCo is a geometry cross-check only.
 - **Environments:** shelf (the measured rig replica), then tabletop. **No third environment.** Claims concern **new arrangements within these two environments**, not generalisation to unseen environment types.
-- **Cameras:** the option-A arc with per-stop pitch, so all four tags and #3 stay in frame. Extra cameras are allowed. The stop set per environment is fixed in FREEZE.md.
+- **Cameras:** the option-A arc with per-stop pitch, so compartment #3 stays in frame. Extra cameras are allowed. The stop set per environment is fixed in FREEZE.md.
+- **No fiducials** (2026-11-03). The corner ArUco tags are removed from every simulated scene, dev and test, because a home robot's shelf has none.
+  - Evidence must align each query view onto its reference from the images alone (evidence v0.3), with no masks, labels or poses.
+  - Frozen v0.2.1, the baseline, then runs unaligned.
+  - The simulator's exact camera poses give a ground-truth query-to-reference alignment per view. It is used only to score the alignment, never as an input.
+  - The v1/v2 check sets, rendered with tags, are kept as records.
 - **References:** queries at L1 and L2 are compared with the **L1 reference** at their stop.
 - **Reporting:** every result is reported **separately for L1 and L2**. A pooled number appears only as a labelled secondary line.
 - **Policy G:** primary G has the lookahead **off**; G-lookahead and G-myopic are ablations.
