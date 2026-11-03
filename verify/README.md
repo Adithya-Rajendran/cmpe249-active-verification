@@ -809,7 +809,8 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   - Config versions `synthetic-v7` and `real-v4`.
 - `--synthetic` is the main mode. Real data (v0): `--manifest MANIFEST.json --evidence
   <evidence.jsonl from perception/evidence.py>` runs the same run / score / diagnostics stages with
-  placeholder thresholds (truth re-read from the manifest only after the run; no table.md).
+  placeholder thresholds (truth re-read from the manifest only after the run). It writes table.md too,
+  scored on dev when the manifest has no test arrangement.
   MANIFEST.json is a placeholder: build the manifest with `verify.manifest` (`save_manifest`); there
   is no `configs/arrangements.json` yet. Until the far-spot stops are taped, `configs/positions.json`
   is the old close-spot arc, so travel/cap numbers from a real run are not meaningful (pilot 1 is a

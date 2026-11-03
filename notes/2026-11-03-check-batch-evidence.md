@@ -39,7 +39,7 @@ Which views pass the gate, from `runs/2026-11-03-cp2-smoke/gate_breakdown.txt` (
   - white box 1 / 1;
   - S8 0 / 2;
   - YCB box 0 / 2.
-- **Match on those hidden views** ranges from 0.33 to 0.57. Most would be clear misses, and two clear misses make a false REMOVED.
+- **Match on those hidden views** ranges from 0.15 to 0.57 (0.15 for the white-box view SD1010-L2 P3, 0.33–0.57 for the rest). Most would be clear misses, and two clear misses make a false REMOVED.
 - **Likely cause.** This is an inference; no cue ablation has been run.
   - Evidence v0.2.1's obstruction cue is max(detector cue, DINOv2 novelty against the whole reference window).
   - A plain white board in front of a white shelf is neither a detected object nor novel against the white walls in the window.

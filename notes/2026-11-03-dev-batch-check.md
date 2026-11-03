@@ -29,7 +29,7 @@ Source: `ROOT/check/check.json` `summary.revisit_delta`, from the 50 stop draws 
 | Delta | Min | Max | Range |
 |---|---|---|---|
 | dx, dy, dz (mm) | -9.99 (dz) | +9.94 (dy) | +-10 |
-| dyaw, dpitch, droll (deg) | -0.499 (dpitch) | +0.496 (dyaw) | +-0.5 |
+| dyaw, dpitch, droll (deg) | -0.500 (dpitch) | +0.496 (dyaw) | +-0.5 |
 
 - **Redraws:** 6 of the 50 stops needed a redraw, 14 draws were rejected in all: 10 at P1 and 4 at P5, none at P2 to P4. P1 and P5 are the stops with the narrow pitch windows.
 - **Frame margin:** every used pose has a minimum margin of at least 0.79 px (analytic, fitted k1; SD1001 P1). Margins at the narrow stops are 0.79 to 17.1 px at P1 and 2.7 to 20.5 px at P5 (per arrangement in `check.json`).
