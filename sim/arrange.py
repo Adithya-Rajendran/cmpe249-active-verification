@@ -38,7 +38,8 @@ centre displaced toward +x, L = toward -x, by a magnitude drawn from the config'
 toward that side of the arc: R hides P3 and P4 (pattern CCHHC), L hides P2 and P3 (CHHCC). The slot gives the side; a draw
 is accepted only if side_rule_ok (config occluder.families.M16.side_rule) holds on the analytic hull coverage: the start
 stop hidden, the adjacent stop on the board's side covered >= adjacent_min (shelf_v2: 0.95, hidden; shelf_v1: 0.5), the
-nearest opposite stop covered <= opposite_near_max and every further opposite stop clear. DES1 (pick_M16+3) is side R, DES2
+nearest opposite stop covered <= opposite_near_max, every further opposite stop clear and (shelf_v2) the stops beyond the adjacent
+one on the board's side covered <= same_far_max. DES1 (pick_M16+3) is side R, DES2
 (pick_M16-5) side L. shelf_v2's M16 board is a revised simulation variant, 15 cm tall (`height_m`; the physical pick_M16 boards
 are 12 cm); the design cases keep the physical boards.
 
@@ -819,15 +820,19 @@ def side_rule_ok(covs: Sequence[float], start: int, side: str, rule: Mapping, cl
     """One-sidedness of a sided board, on the analytic hull coverage per stop (arc order, `start` = the start stop).
     The board's side runs toward higher stop indices for R and lower for L. Accepted if the adjacent stop on that side is
     covered >= rule['adjacent_min'], the nearest stop on the other side is covered <= rule['opposite_near_max'], and every
-    further stop on the other side is clear (<= clear_max). Needs a stop on each side of the start stop."""
+    further stop on the other side is clear (<= clear_max). If the rule has 'same_far_max' (shelf_v2), the stops beyond the
+    adjacent one on the board's side are covered at most that much too (they render as C views, so the pattern is exactly CCHHC
+    / CHHCC); shelf_v1 leaves them free. Needs a stop on each side of the start stop."""
     step = int(side_sign(side))
     n = len(covs)
     same = [covs[i] for i in range(start + step, n if step > 0 else -1, step)]
     opp = [covs[i] for i in range(start - step, -1 if step > 0 else n, -step)]
     if not same or not opp:
         return False
+    far_max = rule.get("same_far_max")             # optional (shelf_v2): the stops beyond the adjacent one on the board's side
     return bool(same[0] >= float(rule["adjacent_min"]) and opp[0] <= float(rule["opposite_near_max"])
-                and all(v <= clear_max for v in opp[1:]))
+                and all(v <= clear_max for v in opp[1:])
+                and (far_max is None or all(v <= float(far_max) for v in same[1:])))
 
 
 def place_distractors(ctx: Context, d: Draw, target: dict, occ: dict) -> list[dict] | None:

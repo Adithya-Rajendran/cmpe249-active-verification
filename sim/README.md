@@ -220,6 +220,8 @@ toward +x by `side_shift_m` (a magnitude of 1-6 cm), **L** = toward -x. The cove
 arc: R hides P3 and P4 (CCHHC), L hides P2 and P3 (CHHCC). The slot gives the side. A draw is accepted only if, on the
 analytic hull coverage: P3 is hidden (>= 0.95), the adjacent stop on the board's side is covered >= `adjacent_min` (shelf_v2: 0.95,
 hidden, so L and R both render the intended pattern; shelf_v1: 0.5, which rendered a partial `p` there on 4 of 9 M16-L boards),
+the stops beyond that one on the board's side are covered <= `same_far_max` (shelf_v2: 0.10, so they render C; shelf_v1 left them free,
+and with `adjacent_min` alone the first shelf_v2 dev 60 had 5 of 18 boards covering them by 0.03-0.25),
 the nearest stop on the other side is covered <= `opposite_near_max` (0.10, so it renders as a C view), every further stop on the other side is clear
 (hulls do not touch), and (as for every resolvable family) at least 2 stops are clear. `pick_M16+3` (DES1) is R and
 `pick_M16-5` (DES2) is L. **Revised simulation variant (shelf_v2):** the M16 board is 15 cm tall (`height_m`; width 16 cm and
@@ -228,9 +230,10 @@ boards. The height is the tallest the ceiling clearance admits (0.165 - 0.015 = 
 feasible: the side rule and the 2-clear-stop rule limit the targets, not the height. A 16 cm board that hides the target at P3
 and the next stop but leaves the near opposite stop and one more stop clear needs a large gap, and the target must stand
 deep enough for that gap, but deep targets are not seen whole from the outer stops. `python -m sim.feasibility scan` found
-no placement for the tomato soup can at any height up to 0.25 m (ceiling removed), and for the potted meat can and the mug
-only on side L at 0.13 m / 0.14 m and above (2 combinations in 60 placements). M16 slots therefore take the foam brick and the
-tuna can (feasible from 0.10 m, saturated by 0.12 m). The rendered patterns are reported after rendering; the generator
+no placement for the tomato soup can or the potted meat can at any height up to 0.25 m (ceiling removed), and for the mug
+only on side L from 0.14 m (2 combinations in 60 placements); in 100 real generator tries none of the three placed on either
+side. M16 slots therefore take the foam brick (feasible from 0.11 m, saturated by 0.13 m) and the tuna can (from 0.10 m,
+saturated by 0.11 m). The rendered patterns are reported after rendering; the generator
 test only checks the analytic rule.
 
 ### Revisit noise (query captures only)

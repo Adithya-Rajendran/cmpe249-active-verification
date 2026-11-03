@@ -1172,7 +1172,8 @@ class TestShelfV2Config(unittest.TestCase):
         allowed_prefix = ("slots.target_assignment.", "slots.dev.target_seed", "slots.test.target_seed")
         allowed = {"name", "status", "target.objects_note", "slots.note", "occluder.families.M16.height_m",
                    "occluder.families.M16.height_note", "occluder.families.M16.note", "occluder.families.M16.side_rule.adjacent_min",
-                   "occluder.families.M16.side_rule.adjacent_note"}
+                   "occluder.families.M16.side_rule.adjacent_note", "occluder.families.M16.side_rule.same_far_max",
+                   "occluder.families.M16.side_rule.same_far_note"}
         stray = sorted(k for k in changed if k not in allowed and not k.startswith(allowed_prefix))
         self.assertEqual(stray, [])
         self.assertEqual((self.v2["name"], self.v1["name"]), ("shelf_v2", "shelf_v1"))
@@ -1210,12 +1211,18 @@ class TestShelfV2Config(unittest.TestCase):
         self.assertEqual(rule["adjacent_min"], self.v2["occluder"]["p3_coverage_min"])           # hidden = an H view
         ok = A.side_rule_ok
         clear = self.v2["occluder"]["clear_coverage_max"]
-        for side, good, partial in (("R", [0, 0.05, 1, 0.95, 0.3], [0, 0.05, 1, 0.94, 0.3]),
-                                    ("L", [0.3, 0.95, 1, 0.05, 0], [0.3, 0.94, 1, 0.05, 0])):
+        for side, good, partial in (("R", [0, 0.05, 1, 0.95, 0.1], [0, 0.05, 1, 0.94, 0.1]),
+                                    ("L", [0.1, 0.95, 1, 0.05, 0], [0.1, 0.94, 1, 0.05, 0])):
             self.assertTrue(ok(good, 2, side, rule, clear), side)
             self.assertFalse(ok(partial, 2, side, rule, clear), side)       # SD1000: P2 0.853 rendered CpHCC under shelf_v1's 0.5
         # the mirror: the rule is the same number on both sides
         self.assertTrue(ok([0, 0.05, 1, 0.95, 0], 2, "R", rule, clear) and ok([0, 0.95, 1, 0.05, 0], 2, "L", rule, clear))
+        # the stops beyond the adjacent one on the board's side must render as C too (SD1000 rendered pHHCC with P1 at 0.234)
+        self.assertEqual(rule["same_far_max"], 0.10)
+        self.assertFalse(ok([0.234, 1, 1, 0, 0], 2, "L", rule, clear))
+        self.assertFalse(ok([0, 0, 1, 1, 0.14], 2, "R", rule, clear))
+        self.assertTrue(ok([0.10, 1, 1, 0, 0], 2, "L", rule, clear) and ok([0, 0, 1, 1, 0.10], 2, "R", rule, clear))
+        self.assertTrue(ok([0.234, 1, 1, 0, 0], 2, "L", {k: v for k, v in rule.items() if k != "same_far_max"}, clear))    # v1 left it free
 
     def test_every_excluded_pair_has_a_reason_and_the_lists_are_exact(self):
         ta = self.v2["slots"]["target_assignment"]
