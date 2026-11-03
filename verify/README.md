@@ -663,9 +663,16 @@ def compute_all(results, truth) -> dict: ...   # {"overall": ..., "by_condition"
     unknown); it replaced the old ceiling-named key on 2026-11-03.
   - FRR per arrangement (`compute` only, unique episodes): `n_arr_with_present`, `arrangement_false_removal`,
     `false_removal_rate_arrangement` (share of arrangements with a present episode that have any false removal) and
-    `arrangement_frr_binomial`. With seed-averaged decisions (R) an arrangement contributes
-    1 - prod(1 - frac_removed) over its present episodes, the probability of any false removal with independently
-    seeded episodes.
+    `arrangement_frr_binomial` (true for deterministic policies, whose counts are 0/1 per arrangement). A seeded policy
+    (R) is computed **per base seed** and averaged over the seeds: under seed s the arrangement counts 1 if any of its
+    present episodes in that row was falsely removed under s. R's salt (`r_seed_salt`) is condition-free, so the
+    visible and occluded episodes of one arrangement and lighting share R's random stream and are not independent;
+    a product over seed-averaged fractions would be wrong (perfectly correlated episodes removed in half the seeds
+    give 0.5, not 0.75). The per-seed decisions come from the logs (`seed_decisions(logs)`, passed as
+    `seed_removed`; `compute_all` takes them from bare EpisodeLogs itself, and `verify.run.score_stage` passes them
+    per run setting). Seeded results without them give `None` (undefined), never an estimate from the averages. The
+    pooled row pairs seed s of the L1 and the L2 stream, which use different salts. (Corrected 2026-11-03; the first
+    checkpoint-2 commit used the product formula.)
   - `mean_views`, `mean_additional_views`, `mean_travel_cm` (means of the per-episode means)
   - `confusion`: `{"present": {"present": x, "removed": x, "unknown": x}, "removed": {...}}`
     (float counts)

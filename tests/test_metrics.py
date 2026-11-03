@@ -3,7 +3,14 @@ from __future__ import annotations
 
 import unittest
 
-from analysis.metrics import METRICS, NO_DIAG_SOURCE_FLAG, NO_DIAG_SOURCE_LABELS, compute, compute_all
+from analysis.metrics import (
+    METRICS,
+    NO_DIAG_SOURCE_FLAG,
+    NO_DIAG_SOURCE_LABELS,
+    compute,
+    compute_all,
+    seed_decisions,
+)
 from verify.schema import (
     SYNTHETIC_LABEL,
     Condition,
@@ -13,6 +20,7 @@ from verify.schema import (
     GroundTruth,
     Lighting,
     Split,
+    as_results,
     episode_id,
     truth_from_condition,
 )
@@ -289,15 +297,63 @@ class TestArrangementFRR(unittest.TestCase):
         self.assertIsNone(rem["false_removal_rate_arrangement"])
         self.assertFalse(rem["defined"]["false_removal_rate_arrangement"])
 
-    def test_fractional_r_is_the_probability_of_any(self) -> None:
-        # one arrangement, two present episodes removed in 1/4 and 1/2 of R's seeds: 1 - (3/4)(1/2) = 5/8
-        r = [res("A01", "visible", "L1", {R: 0.25, P: 0.75}), res("A01", "occluded", "L1", {R: 0.5, U: 0.5}),
-             res("A01", "removed", "L1", {R: 1.0})]
-        o = compute(r, truth_for(r))
-        self.assertAlmostEqual(o["arrangement_false_removal"], 5 / 8)
-        self.assertAlmostEqual(o["false_removal_rate_arrangement"], 5 / 8)
+    @staticmethod
+    def r_logs(removed: dict[str, set[int]], n_seeds: int = 4) -> list[EpisodeLog]:
+        """R logs of one arrangement at L1: episode condition -> the seeds under which it decided REMOVED (else
+        PRESENT for a present episode, UNKNOWN for the removed one)."""
+        out = []
+        for cond, rem in removed.items():
+            for s in range(n_seeds):
+                other = U if cond == "removed" else P
+                out.append(log("A01", cond, "L1", R if s in rem else other, seed=s))
+        return out
+
+    def test_r_correlated_seeds_give_the_per_seed_answer(self) -> None:
+        # visible and occluded (both present) falsely removed under the SAME half of R's seeds (common random numbers):
+        # any false removal in the arrangement happens under seeds 0 and 1 only -> 0.5 (the product formula said 0.75)
+        logs = self.r_logs({"visible": {0, 1}, "occluded": {0, 1}, "removed": {0}})
+        o = compute_all(logs, truth_for(as_results(logs)))["overall"]
+        self.assertAlmostEqual(o["false_removal_rate"], 0.5)
+        self.assertAlmostEqual(o["arrangement_false_removal"], 0.5)
+        self.assertAlmostEqual(o["false_removal_rate_arrangement"], 0.5)
         self.assertFalse(o["arrangement_frr_binomial"])
-        self.assertAlmostEqual(o["false_removal_rate"], 0.75 / 2)
+
+    def test_r_disjoint_seeds_give_one(self) -> None:
+        logs = self.r_logs({"visible": {0, 1}, "occluded": {2, 3}, "removed": set()})
+        o = compute_all(logs, truth_for(as_results(logs)))["overall"]
+        self.assertAlmostEqual(o["false_removal_rate"], 0.5)
+        self.assertAlmostEqual(o["false_removal_rate_arrangement"], 1.0)
+
+    def test_r_partial_overlap_and_explicit_seed_map(self) -> None:
+        # seeds {0, 1} and {1, 2}: any under 0, 1, 2 of 4 -> 0.75; the same through compute(..., seed_removed=)
+        logs = self.r_logs({"visible": {0, 1}, "occluded": {1, 2}, "removed": set()})
+        res = as_results(logs)
+        sm = seed_decisions(logs)
+        o = compute(res, truth_for(res), seed_removed=sm)
+        self.assertAlmostEqual(o["false_removal_rate_arrangement"], 0.75)
+        by = compute(res, truth_for(res), "condition", seed_removed=sm)
+        self.assertAlmostEqual(by["visible"]["false_removal_rate_arrangement"], 0.5)   # one episode: its own fraction
+        self.assertIsNone(by["removed"]["false_removal_rate_arrangement"])               # no present episode
+
+    def test_r_without_seed_decisions_is_undefined_not_estimated(self) -> None:
+        res = as_results(self.r_logs({"visible": {0, 1}, "occluded": {0, 1}, "removed": set()}))
+        o = compute(res, truth_for(res))
+        self.assertIsNone(o["arrangement_false_removal"])
+        self.assertIsNone(o["false_removal_rate_arrangement"])
+        self.assertFalse(o["defined"]["false_removal_rate_arrangement"])
+        self.assertIn("arrangement_frr_note", o)
+
+    def test_r_seed_map_must_match_the_results(self) -> None:
+        logs = self.r_logs({"visible": {0, 1}, "occluded": {0, 1}, "removed": set()})
+        res = as_results(logs)
+        sm = seed_decisions(logs)
+        sm[episode_id("A01", "visible", "L1")][0] = False   # disagrees with the averaged fraction
+        with self.assertRaises(ValueError):
+            compute(res, truth_for(res), seed_removed=sm)
+        sm = seed_decisions(logs)
+        del sm[episode_id("A01", "occluded", "L1")][3]        # different seed sets within one arrangement
+        with self.assertRaises(ValueError):
+            compute(res, truth_for(res), seed_removed=sm)
 
 
 if __name__ == "__main__":

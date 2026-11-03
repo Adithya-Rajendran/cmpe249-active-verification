@@ -48,7 +48,7 @@ from pathlib import Path
 from typing import Any
 
 from analysis.bootstrap import paired_diff
-from analysis.metrics import compute_all
+from analysis.metrics import compute_all, seed_decisions
 from verify.manifest import (
     UNSTRATIFIED_NOTE,
     episodes_from_arrangements,
@@ -335,6 +335,13 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
     share; None falls back to the predeclared indistinguishable flag (analysis.metrics).
     """
     groups = group_results(logs)
+    # R's per-seed decisions, for its per-arrangement FRR (computed per base seed: R's condition-free salt makes the
+    # episodes of one arrangement and lighting share a random stream, so they are not independent)
+    seed_logs: dict[RunKey, list[EpisodeLog]] = {}
+    for g in logs:
+        if g.seed is not None:
+            seed_logs.setdefault((g.policy, g.budget_additional_views, g.travel_cap_cm), []).append(g)
+    seed_removed = {k: seed_decisions(v) for k, v in seed_logs.items()}
     caps = sorted({k[2] for k in groups}, key=_cap_key)
     metrics: list[dict[str, Any]] = []
     for scope in SCOPES:
@@ -344,7 +351,7 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
                 sub = res if light is None else [r for r in res if r.lighting is light]
                 if not sub:
                     continue
-                m = compute_all(sub, truth, no_diagnostic)
+                m = compute_all(sub, truth, no_diagnostic, seed_removed.get(key))
                 metrics.append({"scope": scope.value, "lighting": POOLED if light is None else light.value,
                                 "policy": key[0], "budget": key[1], "travel_cap_cm": key[2],
                                 "role": ROLE.get(key[0], ""), **m})
@@ -506,8 +513,10 @@ def _cnt(x: float | int) -> str:
 
 
 def _arr_frr(o: dict) -> str:
-    """FRR per arrangement (any false removal), with its counts; R's value is a probability (analysis.metrics)."""
-    return f"{fmt(o['false_removal_rate_arrangement'])} ({_cnt(o['arrangement_false_removal'])}/{o['n_arr_with_present']})"
+    """FRR per arrangement (any false removal), with its counts; R's is computed per base seed and averaged over the
+    seeds (analysis.metrics)."""
+    x = o["arrangement_false_removal"]
+    return f"{fmt(o['false_removal_rate_arrangement'])} ({'undef' if x is None else _cnt(x)}/{o['n_arr_with_present']})"
 
 
 def _cells(o: dict) -> list[str]:
@@ -740,7 +749,7 @@ def render_table(results: dict[str, Any]) -> str:
               f"tau_occ {cfg['thresholds']['tau_occ']}, k {cfg['thresholds']['k']}, "
               f"lam {cfg['thresholds']['lam']}; R averaged over {len(cfg['r_seeds'])} seeds within each episode"),
              ("- FRR = false removal rate per episode; FRR per arrangement = share of arrangements with a present "
-              "episode that have any false removal (for R, the probability with independently seeded episodes); "
+              "episode that have any false removal (for R, computed per base seed and averaged over the seeds); "
               "`-fcm` = first-clear-miss rule (k = 1); S is plotted at its actual effort; FULL is a higher-effort "
               "reference, not a budget-matched competitor"),
              ("- **Reported separately for L1 and L2 queries** (the lighting of the query view; DECISIONS "

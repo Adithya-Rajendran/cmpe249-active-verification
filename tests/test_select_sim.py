@@ -48,11 +48,14 @@ def blocked_of(i: int) -> set[int]:
 
 
 def write_sim_set(d: Path, slots=SLOTS, *, split: str = "dev", simulation: bool = True, labels_simulation=None,
-                  extra: str | None = None, family: bool = True, l2_quality: float = 0.85) -> list[str]:
+                  extra: str | None = None, family: bool = True, l2_quality: float = 0.85,
+                  camouflaged: bool = False) -> list[str]:
     """A tiny sim set as sim/episodes.py lays it out: manifest.json (+ quota keys and the simulation flag),
     evidence.jsonl (EvidenceStore format), view_labels.json (cmpe249.sim-view-labels-set.v0) and the positions.
     The occluder blocks blocked_of(i) in the occluded and removed episodes; those views are non-diagnostic. extra adds
-    one more arrangement to the evidence and labels files only (as a combined jobs file would)."""
+    one more arrangement to the evidence and labels files only (as a combined jobs file would). camouflaged: the
+    occluder hides the present target WITHOUT an obstruction cue (obstruction 0.05), so those occluded views are clear
+    misses and multi-view policies make false removals."""
     d.mkdir(parents=True, exist_ok=True)
     arrs = []
     for i, (a, fam, side) in enumerate(slots):
@@ -76,7 +79,8 @@ def write_sim_set(d: Path, slots=SLOTS, *, split: str = "dev", simulation: bool 
                 for st in range(5):
                     hidden = cond is not Condition.VISIBLE and st in blocked
                     m = 0.05 if cond is Condition.REMOVED else (0.1 if hidden else 0.9)
-                    store.put(eid, EvidenceRecord(st, m, q, 0.9 if hidden else 0.05))
+                    o = 0.05 if hidden and camouflaged and cond is Condition.OCCLUDED else (0.9 if hidden else 0.05)
+                    store.put(eid, EvidenceRecord(st, m, q, o))
                     stops.append({"stop": st, "name": f"P{st + 1}", "visible_fraction": None,
                                   "diagnostic": not hidden})
                 eps[eid] = {"arrangement_id": a, "condition": cond.value, "lighting": light.value,

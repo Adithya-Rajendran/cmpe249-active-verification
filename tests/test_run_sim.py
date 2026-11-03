@@ -122,6 +122,38 @@ class SimRunTest(unittest.TestCase):
             self.assertEqual(o["n_arr_with_present"], len({a for a, _, _ in SLOTS}))
         self.assertIn("FRR per arrangement (x/n)", self.table)
 
+    def test_r_frr_per_arrangement_is_per_seed_from_the_logs(self) -> None:
+        # By hand from logs.jsonl: per base seed, an arrangement counts 1 if any present episode of the row (its
+        # lighting, or both for pooled) was removed under that seed; mean over seeds, summed over arrangements.
+        with tempfile.TemporaryDirectory() as d:
+            rc, out = run_set(Path(d), "camo", split="test", camouflaged=True)
+            logs = [json.loads(x) for x in (out / "logs.jsonl").read_text().splitlines()]
+            truth = json.loads((out / "ground_truth.json").read_text())["states"]
+            res = json.loads((out / "results.json").read_text())
+        self.assertEqual(rc, 0)
+        nonzero = []
+        for pol in ("R", "R-fcm"):
+            for light in ("L1", "L2", "pooled"):
+                rows = [g for g in logs if g["policy"] == pol and g["budget_additional_views"] == 3
+                        and (light == "pooled" or g["lighting"] == light) and truth[g["episode_id"]] == "present"]
+                seeds = sorted({g["seed"] for g in rows})
+                want = 0.0
+                for a in sorted({g["arrangement_id"] for g in rows}):
+                    want += sum(any(g["decision"] == "removed" for g in rows
+                                    if g["arrangement_id"] == a and g["seed"] == sd) for sd in seeds) / len(seeds)
+                m = next(m for m in res["metrics"] if (m["scope"], m["policy"], m["budget"], m["lighting"]) ==
+                         ("test", pol, 3, light))["overall"]
+                nonzero.append(want)
+                with self.subTest(policy=pol, lighting=light):
+                    self.assertAlmostEqual(m["arrangement_false_removal"], want, places=12)
+                    self.assertFalse(m["arrangement_frr_binomial"])
+        self.assertTrue(any(0 < w < 7 for w in nonzero), nonzero)   # not vacuous: R does falsely remove here
+        # deterministic policies keep 0/1 counts
+        g = next(m for m in res["metrics"] if (m["scope"], m["policy"], m["budget"], m["lighting"]) ==
+                 ("test", "G", 3, "L1"))["overall"]
+        self.assertTrue(g["arrangement_frr_binomial"])
+        self.assertIsInstance(g["arrangement_false_removal"], int)
+
     def test_dev_only_manifest_is_scored_on_dev(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             rc, out = run_set(Path(d), "dev")

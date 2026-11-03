@@ -16,9 +16,15 @@ never a maximum coverage: a policy can resolve an episode with no diagnostic vie
 with diagnostic views can stay unknown. (It replaces max_achievable_coverage = 1 - that share, 2026-11-03.)
 
 FRR per arrangement (section 8), from compute() only (unique episodes): the share of arrangements with a present
-episode that have any false removal. With seed-averaged decisions (R) an arrangement contributes
-1 - prod(1 - frac_removed) over its present episodes: R's seeds are salted per episode, so this is the probability
-of any false removal in the arrangement with independently randomised episodes.
+episode that have any false removal. A deterministic policy contributes 0 or 1 per arrangement. A seeded policy (R)
+is computed PER BASE SEED and then averaged over the seeds: under seed s the arrangement counts 1 if any of its
+present episodes in the row was falsely removed under s. R's salt is condition-free (verify.policies.r_seed_salt:
+arrangement and lighting), so the visible and occluded episodes of one arrangement and lighting share R's random
+stream (common random numbers) and are NOT independent; a product over seed-averaged fractions would be wrong (two
+perfectly correlated episodes removed in half the seeds give 0.5, not 0.75). The per-seed decisions come from the
+logs (seed_removed: episode_id -> {seed: removed}); without them a seeded policy's per-arrangement FRR is None
+(undefined), never estimated from the averages. A pooled row uses the same per-seed computation over both
+lightings, whose streams use different salts.
 """
 from __future__ import annotations
 
@@ -136,33 +142,59 @@ def metrics_on(results: Sequence[EpisodeResult], truth: GroundTruth,
     return out
 
 
-def arrangement_frr(results: Sequence[EpisodeResult], truth: GroundTruth) -> dict[str, Any]:
+def _seeded(r: EpisodeResult) -> bool:
+    """True for a seeded policy's result (R: base seeds), False for a deterministic one (seeds == (None,))."""
+    return any(x is not None for x in r.seeds)
+
+
+def arrangement_frr(results: Sequence[EpisodeResult], truth: GroundTruth,
+                    seed_removed: Mapping[str, Mapping[int, bool]] | None = None) -> dict[str, Any]:
     """FRR per arrangement on UNIQUE episodes: {n_arr_with_present, arrangement_false_removal,
-    false_removal_rate_arrangement, arrangement_frr_binomial}. An arrangement with a present episode contributes
-    1 - prod(1 - frac_removed) over its present episodes (0/1 for a deterministic policy: any false removal)."""
-    keep: dict[str, float] = {}
+    false_removal_rate_arrangement, arrangement_frr_binomial}.
+
+    Deterministic results: an arrangement with a present episode counts 1 if any of them was removed (0/1 counts).
+    Seeded results (R): per base seed s, the arrangement counts 1 if any present episode was removed under s
+    (seed_removed[episode_id][s]); the per-arrangement value is the mean over the seeds, and every present episode of
+    the arrangement must have the same seed set (ValueError otherwise). Without seed_removed, seeded results give
+    None (undefined)."""
+    by_arr: dict[str, list[EpisodeResult]] = {}
     for r in results:
         if truth[r.episode_id] is TruthState.PRESENT:
-            keep[r.arrangement_id] = keep.get(r.arrangement_id, 1.0) * (1.0 - r.frac(Decision.REMOVED))
-    any_fr = {a: 1.0 - v for a, v in keep.items()}
-    binomial = all(r.frac(Decision.REMOVED) in (0.0, 1.0) for r in results)
-    total = sum(any_fr.values())
-    if binomial:
-        total = round(total)
-    return {"n_arr_with_present": len(any_fr), "arrangement_false_removal": total,
-            "false_removal_rate_arrangement": ratio(total, len(any_fr)), "arrangement_frr_binomial": binomial}
+            by_arr.setdefault(r.arrangement_id, []).append(r)
+    seeded = any(_seeded(r) for r in results)
+    out: dict[str, Any] = {"n_arr_with_present": len(by_arr), "arrangement_frr_binomial": not seeded}
+    if not seeded:
+        total = sum(any(r.frac(Decision.REMOVED) > 0 for r in rs) for rs in by_arr.values())
+        return {**out, "arrangement_false_removal": total,
+                "false_removal_rate_arrangement": ratio(total, len(by_arr))}
+    if seed_removed is None:
+        return {**out, "arrangement_false_removal": None, "false_removal_rate_arrangement": None,
+                "arrangement_frr_note": "seeded policy without per-seed decisions: per-arrangement FRR undefined"}
+    total = 0.0
+    for arr, rs in sorted(by_arr.items()):
+        seeds = [set(seed_removed[r.episode_id]) for r in rs]
+        if any(x != seeds[0] for x in seeds) or not seeds[0]:
+            raise ValueError(f"arrangement {arr}: present episodes have different (or no) R seeds")
+        for r in rs:   # the per-seed decisions must be the ones the averaged result came from
+            frac = sum(seed_removed[r.episode_id].values()) / len(seed_removed[r.episode_id])
+            if abs(frac - r.frac(Decision.REMOVED)) > FRAC_TOL:
+                raise ValueError(f"per-seed decisions of {r.episode_id} do not match its removed fraction")
+        total += sum(any(seed_removed[r.episode_id][s] for r in rs) for s in seeds[0]) / len(seeds[0])
+    return {**out, "arrangement_false_removal": total, "false_removal_rate_arrangement": ratio(total, len(by_arr))}
 
 
 def _with_arrangement_frr(res: Sequence[EpisodeResult], truth: GroundTruth,
-                          no_diagnostic: Mapping[str, bool] | None) -> dict[str, Any]:
+                          no_diagnostic: Mapping[str, bool] | None,
+                          seed_removed: Mapping[str, Mapping[int, bool]] | None = None) -> dict[str, Any]:
     out = metrics_on(res, truth, no_diagnostic)
-    out.update(arrangement_frr(res, truth))
+    out.update(arrangement_frr(res, truth, seed_removed))
     out["defined"]["false_removal_rate_arrangement"] = out["false_removal_rate_arrangement"] is not None
     return out
 
 
 def compute(results: Iterable[EpisodeLog | EpisodeResult], truth: GroundTruth,
-            group_by: str | None = None, no_diagnostic: Mapping[str, bool] | None = None) -> dict:
+            group_by: str | None = None, no_diagnostic: Mapping[str, bool] | None = None,
+            seed_removed: Mapping[str, Mapping[int, bool]] | None = None) -> dict:
     """Metrics for one policy x budget; with group_by, {group value: metrics} in enum order. Unique episodes only,
     so the per-arrangement FRR is added here (arrangement_frr)."""
     res = as_results(results)
@@ -171,7 +203,7 @@ def compute(results: Iterable[EpisodeLog | EpisodeResult], truth: GroundTruth,
     if len(set(ids)) != len(ids):
         raise ValueError("duplicate episode_id in results (one result per episode expected)")
     if group_by is None:
-        return _with_arrangement_frr(res, truth, no_diagnostic)
+        return _with_arrangement_frr(res, truth, no_diagnostic, seed_removed)
     if group_by not in GROUP_KEYS:
         raise ValueError(f"group_by must be None or one of {sorted(GROUP_KEYS)}, got {group_by!r}")
     check_truth(res, truth)
@@ -179,14 +211,31 @@ def compute(results: Iterable[EpisodeLog | EpisodeResult], truth: GroundTruth,
     for g in GROUP_KEYS[group_by]:
         sub = [r for r in res if getattr(r, group_by) == g]
         if sub:
-            out[g.value] = _with_arrangement_frr(sub, truth, no_diagnostic)
+            out[g.value] = _with_arrangement_frr(sub, truth, no_diagnostic, seed_removed)
+    return out
+
+
+def seed_decisions(logs: Iterable[EpisodeLog]) -> dict[str, dict[int, bool]]:
+    """episode_id -> {base seed: removed} from seeded logs (one policy x budget x cap); deterministic logs are
+    skipped. Feed it to compute / compute_all as seed_removed."""
+    out: dict[str, dict[int, bool]] = {}
+    for g in logs:
+        if g.seed is not None:
+            if g.seed in out.setdefault(g.episode_id, {}):
+                raise ValueError(f"two logs of {g.episode_id} with seed {g.seed}")
+            out[g.episode_id][g.seed] = g.decision is Decision.REMOVED
     return out
 
 
 def compute_all(results: Iterable[EpisodeLog | EpisodeResult], truth: GroundTruth,
-                no_diagnostic: Mapping[str, bool] | None = None) -> dict:
-    """{"overall", "by_condition", "by_lighting"} for one policy x budget."""
-    res = as_results(results)
-    return {"overall": compute(res, truth, no_diagnostic=no_diagnostic),
-            "by_condition": compute(res, truth, "condition", no_diagnostic),
-            "by_lighting": compute(res, truth, "lighting", no_diagnostic)}
+                no_diagnostic: Mapping[str, bool] | None = None,
+                seed_removed: Mapping[str, Mapping[int, bool]] | None = None) -> dict:
+    """{"overall", "by_condition", "by_lighting"} for one policy x budget. Bare EpisodeLogs also give the per-seed
+    decisions for a seeded policy's per-arrangement FRR (unless seed_removed is passed)."""
+    items = list(results)
+    if seed_removed is None and any(isinstance(x, EpisodeLog) for x in items):
+        seed_removed = seed_decisions(x for x in items if isinstance(x, EpisodeLog)) or None
+    res = as_results(items)
+    return {"overall": compute(res, truth, no_diagnostic=no_diagnostic, seed_removed=seed_removed),
+            "by_condition": compute(res, truth, "condition", no_diagnostic, seed_removed),
+            "by_lighting": compute(res, truth, "lighting", no_diagnostic, seed_removed)}
