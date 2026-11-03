@@ -31,7 +31,7 @@
 - **Counts:**
   - Per environment: **60 dev + 100 test random arrangements**, with DES0–DES3 as separate dev checks outside the 60.
   - This is a practical allocation, **not a power guarantee**.
-  - **Render time.** The first planning estimate was about 5.4 h for the 320 random arrangements, at about 61 s each (`runs/2026-11-02-sim-prereg-review/planning_checks.json`). That was measured before the ghost fix, which renders every capture with fresh render products. With the fix, the same 10 shelf dev arrangements took 120.9–126.4 s each, median 124.4 s (`data/raw/2026-11-03_sim_pilot/set_checks.json`). That gives about 11 h of rendering for 320.
+  - **Render time.** The first planning estimate was about 5.4 h for the 320 random arrangements, at about 61 s each (`runs/2026-11-02-sim-prereg-review/planning_checks.json`). That was measured before the ghost fix, which renders every capture with fresh render products. With the fix, the same 10 shelf dev arrangements took 120.9–126.4 s each, median 124.4 s (`data/raw/2026-11-03_sim_pilot/set_checks.json`). That gives about 11 h of rendering for 320. With revisit noise (checkpoint 2), the 10-arrangement check batch took 124.5–130.6 s per arrangement, median 128.6 s, and 1300 s in all including boot and shader compile (`shelf_dev_v1_check/render_report_20261103T000139.json` on the share). That is about 2.2 h for 60 and about 11.6 h for 320.
   - Neither figure includes inference, retries or any tabletop differences. Complete dev throughput is measured before the counts are frozen.
 - **Occluder quotas** (fixed before rendering, §2):
 
@@ -92,7 +92,7 @@
 - **Objects.** YCB-Video models first, with the target from a fixed list that fits the space, then Google Scanned Objects. The object list is frozen with its licences. `[ ] confirm / edit:`
 - **Geometric diagnostic labels** (from the instance masks):
   - a view of a present target is *geometrically diagnostic* when its visible fraction is ≥ 0.90;
-  - a removed-episode view is diagnostic when the occluder covers < 10 % of the target's reference-mask region.
+  - a removed-episode view is diagnostic when the occluder covers < 10 % of the target's region at that view's camera pose. Queries use revisit poses, so the region is the visible-phase target mask at the same revisit pose, not the nominal reference mask (2026-11-03). On the check batch this differs for one view: SD1000 P4, 0.088 against 0.225 with the reference mask.
   - **These are geometric labels, not recognisability.** A target with some visible pixels below 0.90 is labelled non-diagnostic even if a detector might still recognise it. SD0001 is such a case: occluded visible fraction 0.022 at P1 and 0.005 at P5 (`data/raw/2026-11-03_sim_pilot/set_checks.txt`).
 
   `[ ] confirm the cut-offs / edit:`
