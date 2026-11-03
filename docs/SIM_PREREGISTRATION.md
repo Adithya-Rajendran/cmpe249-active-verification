@@ -24,7 +24,7 @@
 - **Reporting:** every result is reported **separately for L1 and L2**. A pooled number appears only as a labelled secondary line.
 - **Policy G:** primary G has the lookahead **off**; G-lookahead and G-myopic are ablations.
 - **Thresholds:**
-  - τ_match, τ_q and τ_occ are calibrated **per view** on dev, with no policy run (select-v4, §7).
+  - τ_match, τ_q and τ_occ are calibrated **per view** on dev, **jointly** over the full grid, with no policy run (select-v4, §7; joint search since 2026-11-03).
   - k = 2 and λ = 0 are fixed, with k = 3 and the other λ classes as sensitivity runs.
   - FRR ≤ 10 % is a dev check, not an objective.
 - **Primary operating point:** **uncapped travel, b = 3 additional views.** This is described as *view-budgeted verification*, with travel reported alongside accuracy and coverage. The finite-cap curves are secondary. b = 1 and b = 2 are secondary and are **not** promoted on the basis of dev results; the old D14 trigger is withdrawn.
@@ -141,13 +141,23 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 
 ## 7. Threshold calibration (`verify/select.py`, select-v4; dev only)
 
-- **Calibration.** τ_q, τ_occ and τ_match are calibrated per view on dev views of both lightings, Neyman-Pearson style:
-  - the false clear-miss rate is capped at α_clear = 0.10 on **geometrically diagnostic** views of present-target episodes (for τ_match), and the false-clear rate on **non-diagnostic** views of occluded-present episodes (for the τ_q / τ_occ gate);
-  - then correct clear misses on diagnostic removed views are maximised;
-  - ties go to the conservative setting.
+- **Calibration.** τ_q, τ_occ and τ_match are calibrated together per view, on dev views of both lightings, Neyman-Pearson style. **One joint search** runs over the full predeclared grid τ_q × τ_occ × τ_match. A setting is feasible only if it meets **both** limits:
+  - the false clear-miss rate on **geometrically diagnostic** views of present-target episodes is ≤ α_clear = 0.10;
+  - the false-clear rate (views passing the τ_q / τ_occ gate) on **non-diagnostic** views of occluded-present episodes is ≤ α_clear.
 
-  **No policy is run before the thresholds are fixed.**
-- **Infeasible α.** If no grid setting meets α_clear for some threshold, calibration **fails loudly**: no usable candidate, and a report of which constraint failed and the best achievable rate. Nothing is relaxed automatically. Any change (grid, α, or evidence v0.3) is a dated addendum made on dev before the freeze.
+  Among feasible settings, correct clear misses on diagnostic removed views are maximised. The tie-break order is complete:
+  1. lower false clear-miss rate;
+  2. lower false-clear rate;
+  3. lower τ_match;
+  4. higher τ_q;
+  5. lower τ_occ.
+
+  The choice therefore never depends on the order in which the grid is searched. The same joint search runs inside every CV training fold. **No policy is run before the thresholds are fixed.**
+- **Infeasible α.** If no grid setting meets both limits, calibration **fails loudly**: there is no usable candidate. The report says which limit binds and gives the best achievable rates. Nothing is relaxed automatically. Any change (grid, α, or evidence v0.3) is a dated addendum made on dev before the freeze.
+- **Procedure revision (2026-11-03, before any dev render from the revised generator and before the freeze).**
+  - **What changed.** The first select-v4 implementation was sequential: it fixed the most permissive gate that met its limit, then searched τ_match only under that gate. The PR #4 review showed this can declare infeasibility while other grid settings meet both limits. In a hand-built example, 315 of 693 settings were feasible, but the sequential search failed (`runs/2026-11-03-pr4-review/select1/`; independently reproduced in `runs/2026-11-02-joint-calibration-review/`). That figure comes from constructed scores, not rendered Isaac data.
+  - **What stays.** The joint search keeps the grid, both α limits, their label populations and the objective. The intent of this section is unchanged; the implemented method changed.
+- **Feasibility is not lighting robustness.** In that example, every feasible setting rejects all L2 views at the quality gate. The calibration report therefore gives gate pass rates per lighting at the chosen setting and in every fold, and flags any lighting the gate rejects wholesale. Held-out recall and coverage per lighting, from the held-out policy check, stay the evidence for robustness.
 - **Fixed settings:** k = 2, λ = 0. The sensitivity runs are reported, never selected.
 - **Dev check.** Every policy's FRR / recall / coverage is reported on dev per lighting. A policy above 10 % is reported as such, and the thresholds are not retuned.
 - **Honest dev estimates** come from grouped (by arrangement) CV:
