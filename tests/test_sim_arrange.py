@@ -426,7 +426,6 @@ class TestSlotInvariants(unittest.TestCase):
             self.assertEqual(c["target"], want[c["seed"]], c)
         for sl, e in zip(slots, log["slots"]):
             self.assertEqual(e["target"], sl["target"])
-        self.assertEqual(len(calls), sum(1 for _ in calls))
 
     def test_a_replacement_comes_from_the_slots_own_family_even_when_the_s8_list_is_free(self):
         """Only white_box fails: its replacement must be a white_box reserve seed, and the S8 cursor must stay at 0."""

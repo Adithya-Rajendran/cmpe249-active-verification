@@ -9,8 +9,9 @@ never an input to the evidence step or to a policy (like view_labels.json and tr
 Convention (also written into true_alignment.json):
   - Pixels are continuous coordinates, origin at the top-left corner of the image, u to the right, v down; pixel i covers
     [i, i + 1) (the convention of the annotation boxes and of sim/rig.py). Cameras are the rendered pinhole cameras (no k1).
-  - H maps a homogeneous QUERY pixel (u, v, 1) to the REFERENCE pixel: x_ref ~ H x_query (cv2.warpPerspective(query, H, ...) puts
-    the query into reference coordinates). H is normalised to H[2, 2] = 1. H_inv maps reference to query.
+  - H maps a homogeneous QUERY pixel (u, v, 1) to the REFERENCE pixel: x_ref ~ H x_query. cv2.warpPerspective(query, H, ...) puts
+    the query into reference coordinates up to cv2's pixel-centre convention (strictly T(-0.5) H T(0.5); under 0.02 px on
+    the v3 revisit poses). H is normalised to H[2, 2] = 1. H_inv maps reference to query.
   - H is exact for the points of one world plane y = y0 (y = the depth behind the shelf's front plane, +y into the shelf).
     Two planes are given: the shelf front plane y = 0 (where the tags used to be) and the vertical plane through the target's
     centre depth (y = the target pose's base y).
@@ -102,7 +103,8 @@ def arrangement_alignment(arr: Mapping, labels: Mapping | None, lighting: str = 
 
 CONVENTION = {
     "H": "3x3 row-major; maps a homogeneous QUERY pixel (u, v, 1) to the REFERENCE pixel (x_ref ~ H x_query), H[2][2] = 1; "
-         "cv2.warpPerspective(query, H, (W, H)) is the query in reference coordinates",
+         "cv2.warpPerspective(query, H, (W, H)) is the query in reference coordinates, up to cv2's pixel-centre "
+         "convention (strictly T(-0.5) H T(0.5); under 0.02 px on the v3 revisit poses)",
     "pixels": "continuous coordinates, origin at the top-left corner of the image, u right, v down, pixel i covers [i, i + 1) "
               "(the convention of the annotation boxes)",
     "cameras": "the rendered pinhole cameras: reference = scene.cameras (nominal pose), query = scene.revisit_cameras (revisit pose); no lens distortion",

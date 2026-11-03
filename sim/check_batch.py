@@ -170,8 +170,10 @@ def check_arrangement(folder: Path, tags) -> dict:
     # true alignment from the known camera poses (sim/alignment.py): the displacement of the reference box's corners between the
     # reference and the query view with no alignment, under the true homography of the front plane and of the target's plane
     ta = AL.arrangement_alignment(arr, lab)
-    out["true_alignment"] = {s: {"pose_delta": v["pose_delta"], "front_plane_max_corner_px": v["box_corner_displacement_px"]["front_plane"]["max_px"],
-                                 "target_plane_max_corner_px": v["box_corner_displacement_px"]["target_plane"]["max_px"]}
+    # a stop without an L1 reference box has no corner displacement; report None instead of crashing on a bad render
+    disp = lambda v, plane: v["box_corner_displacement_px"][plane]["max_px"] if "box_corner_displacement_px" in v else None
+    out["true_alignment"] = {s: {"pose_delta": v["pose_delta"], "front_plane_max_corner_px": disp(v, "front_plane"),
+                                 "target_plane_max_corner_px": disp(v, "target_plane")}
                              for s, v in ta["stops"].items()}
     # for scenes with tags: the true front-plane H against the tag-based one on a grid of the frame's central 60 %
     if not out["tag_free"]:
