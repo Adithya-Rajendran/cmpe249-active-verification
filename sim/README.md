@@ -1,5 +1,7 @@
 # sim/: simulated shelf rig
 
+End-to-end commands, hosts, data layout and known gaps: [`docs/REPRODUCE.md`](../docs/REPRODUCE.md).
+
 ## What it is for
 
 - **Camera-position design.** Check drafted arc stops and occluder placements on a 3-D model before taping stops or
@@ -30,7 +32,7 @@ look" from a MuJoCo render; use the Isaac Sim backend for appearance.
 | `configs/sim/positions_shelf_A.json` | The simulated shelf's stops: option A with a per-stop pitch (`stops[i].tilt_deg`) that maximises the smallest in-frame margin over #3 and all four tags with k1. Written by `data/raw/2026-11-03_sim_pilot/make_positions_shelf_A.py`; `sim/rig.py` reads per-stop tilts. |
 | `configs/sim/arrange_shelf_v3.json`, `configs/sim/ycbv_hulls.json` | Generator config (objects, ranges, occluder families, quota slots with retry maximum, reserve seed lists and the per-slot target assignment, revisit-noise ranges, the `scene` block, seed ranges, design cases) and the YCB-V convex-hull points it uses (hash pinned in the config). DEV, not frozen. **shelf_v3 is the default.** Against shelf_v2 it has: the physical M16 board again (0.12 m, matching the physical 10-10 board), no limit on the far same-side stop (`same_far_max` removed; the adjacent same-side stop must still be hidden), and **no corner ArUco tags** (`scene.tags` false). `arrange_shelf_v2.json` (15 cm M16 variant; made `shelf_dev_v2_check`), `arrange_shelf_v1.json` (target drawn per try; made `shelf_dev_v1_check`) and `arrange_shelf_v0.json` are left untouched as records and keep their tags; pass `--config` to use them. |
 | `sim/alignment.py` | The true query-to-reference homographies of the shelf front plane and of the target's depth plane, from the known camera poses (numpy only). Evaluation-only ground truth, written by `sim/episodes.py` as `true_alignment.json`; never an evidence or policy input. |
-| `sim/feasibility.py` | Geometry checks behind shelf_v2 (slow, on request): `scan` = does any M16 placement exist per target, side and board height; `matrix` = real generator tries per (target model, slot class). Its outputs decide the config's `slots.target_assignment` lists and the M16 height. |
+| `sim/feasibility.py` | Geometry checks behind shelf_v2 and v3 (slow, on request): `scan` = does any M16 placement exist per target, side and board height; `matrix` = real generator tries per (target model, slot class). Its outputs decide the config's `slots.target_assignment` lists and the M16 height. |
 | `sim/arrange.py` | Seeded generator (numpy only): `slot_list` (the quota slots), `generate` / `generate_slot` / `generate_set` (a try `(seed, attempt)`, a slot with retries and reserve seeds, a set with its log), asymmetric M16, `revisit_cameras` (one bounded camera perturbation per stop for the query captures), the four phases, design cases DES0-3. Dev seeds 0-9999 only; seeds >= 100000 (test) are refused. |
 | `sim/isaac_batch.py` | Batch Isaac renderer (GB10, Isaac env): one process, a new stage per arrangement, phases x stops x L1/L2 RGB (references at the nominal cameras, queries at the revisit cameras), instance masks, visible fractions, diagnostic labels from the revisit renders. Writes each arrangement into `<ARR>.partial` and renames it into place when complete. |
 | `sim/episodes.py` | Rendered set -> evidence annotations, jobs (`jobs_refL1.json` primary, `jobs_same.json` secondary), verify manifest (`"simulation": true`, plus `occluder_family`, `m16_side`, `design_case` per arrangement), truth, view labels, contact sheets. Random slots and the design cases are separate groups with separate manifests and jobs. Refuses incomplete, mixed and wrong-positions sets. |
@@ -164,12 +166,12 @@ L2. The reference is rendered at the nominal stop poses; the three query phases 
 # Jetson: arrangements from the slot list (dev seeds 0-9999 only; the test split is refused) + the design cases
 uv run --no-project --python 3.13.5 --with numpy==2.5.3 python -m sim.arrange --split dev --slots all --design --out ARR
 #   --slots all | first-per-class | 0-5,9      ARR/<ID>.json = arrangements only; ARR/index/ = index, slots, generation_log
-#   --config C   (default shelf_v2)   --overwrite   (a non-empty ARR is refused without it; with it the previous
+#   --config C   (default configs/sim/arrange_shelf_v3.json)   --overwrite   (a non-empty ARR is refused without it; with it the previous
 #   arrangement and index files are removed first, anything else is left alone)
 # GB10: copy sim/isaac_batch.py next to isaac_rig.py in ~/cmpe249-sim/run/, then
 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 OMNI_KIT_ACCEPT_EULA=YES ~/.local/bin/uv run --no-project \
   --python ~/cmpe249-sim/isaacsim-6.2/.venv/bin/python isaac_batch.py --arrangements ARR/*.json \
-  --assets-dir ../assets/ycbv/models --tags-dir tags --out OUT [--skip-existing]
+  --assets-dir ../assets/ycbv/models --tags-dir tags --out OUT [--skip-existing]   # --tags-dir is read only by tagged scenes (v1/v2)
 # Jetson, on the set's final location (paths in jobs and annotations are absolute)
 uv run --no-project --python 3.13.5 --with numpy==2.5.3 --with opencv-python-headless==5.0.0.93 \
   python -m sim.episodes --root SET --contact-sheets [--generation-log ARR/index/generation_log.json]
@@ -190,7 +192,7 @@ uv run --no-project --python 3.13.5 --with numpy==2.5.3 --with opencv-python-hea
 
 ### Quota slots
 
-The occluder family is not drawn. `slot_list(ctx, split)` expands the quota table of `configs/sim/arrange_shelf_v2.json` (the same table and seeds as v1)
+The occluder family is not drawn. `slot_list(ctx, split)` expands the quota table of the config (`configs/sim/arrange_shelf_v3.json` by default; v2 has the same table and seeds as v1)
 (shelf dev 60: S8 12, M16 18 = 9 L + 9 R, IND28 6, white box 12, YCB box 12; test 100: 20 / 30 = 15 + 15 / 10 / 20 / 20),
 shuffles it with a seeded Fisher-Yates permutation and gives slot *i* the primary seed `primary_seed_start + i`. The list
 depends only on the config content, not on dict order. The test list can be inspected, but no test arrangement is generated
@@ -198,7 +200,7 @@ depends only on the config content, not on dict order. The test list can be insp
 
 - **Tries.** A try is `(seed, attempt)`: attempt 0 is the plain seed, attempts 1..`retry_max` (20, in the config) are the
   deterministic retries.
-- **Targets are slots too (shelf_v2).** `slot_list` gives every slot its target model. Within each class (S8, M16-L, M16-R,
+- **Targets are slots too (shelf_v2 and v3).** `slot_list` gives every slot its target model. Within each class (S8, M16-L, M16-R,
   IND28, white box, YCB box; the two M16 sides are separate) the targets come from a seeded balanced list over the models the
   class can place (`slots.target_assignment.classes`): n slots over k models give each n // k, and n % k models one more,
   those with the lowest running total over the classes already done, so totals are as even as the class sizes allow. A failed

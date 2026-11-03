@@ -6,9 +6,10 @@
 **Selected track:** Track 4 - VLA / robotics  
 **Project format:** Research with a bounded system prototype  
 **Secondary alignment:** Track 6 - Safety and evaluation  
-**Status (2026-11-02):**
-- **Direction change.** With the instructor's agreement, the course study now runs **in simulation** (Isaac Sim 6.2 on the GB10; MuJoCo was used only to cross-check the geometry) instead of by physical capture; see the [amendment](docs/SIMULATION_STUDY.md). A real-robot study with the PIs is planned after the course. There are no study data or experimental results yet.
-- **Built:** the capture tooling (also drivable from a phone), the offline verification core, evidence step v0.2.1, and a simulated replica of the shelf rig ([notes](notes/2026-11-02-simulation.md)). The replica reproduces the 2026-10-10 camera and occluder design in two independent renderers.
+**Status (2026-11-03):**
+- **Reproduce:** [docs/REPRODUCE.md](docs/REPRODUCE.md) is the single entry point: hosts, software, data layout, the pipeline commands, checks, and what is not yet reproducible.
+- **Direction change.** With the instructor's agreement, the course study now runs **in simulation** (Isaac Sim 6.2 on the GB10; MuJoCo was used only to cross-check the geometry) instead of by physical capture; see the [amendment](docs/SIMULATION_STUDY.md). A real-robot study with the PIs is planned after the course. There are no experimental results yet. A 64-arrangement shelf dev set (`shelf_dev_v3`) was rendering on 2026-11-03.
+- **Built:** the capture tooling (also drivable from a phone), the offline verification core (replay, policies, threshold selection select-v4, paired bootstrap), evidence step v0.2.1, and a simulated replica of the shelf rig ([notes](notes/2026-11-02-simulation.md)). The replica reproduces the 2026-10-10 camera and occluder design in two independent renderers. On top of it sit a seeded arrangement generator, a batch Isaac Sim renderer, episode and set checks, and a run driver ([`sim/`](sim/README.md), [`tools/`](tools/pipeline.py)). Evidence v0.3 (tag-free registration) is on a branch, and ranker A is not built.
 - **Real pilots:** two single-stop pilots. Frozen v0.2.1 got 51/52 per view on pilot 2, a held-out test of the code, and the one miss exposed a same-footprint occluder gap ([notes](notes/2026-10-20-pilot2.md)). These are now a real-world sanity check for the simulation.
 - **Public datasets:** on hand as development data; OCID is turned into 903 labelled episodes ([notes](notes/2026-10-23-public-data-ocid.md)).
 
@@ -33,6 +34,7 @@ Under a fixed observation and travel budget, does adaptive view selection with c
 
 ## Progress since the proposal
 
+- [Reproduce the study: hosts, software, data, commands, checks, known gaps](docs/REPRODUCE.md)
 - [Novelty check for the week-2 gate](docs/NOVELTY_CHECK.md)
 - [Citation audit](docs/CITATION_AUDIT.md)
 - [Lab notebook: dated entries with figures](notes/)
@@ -40,6 +42,7 @@ Under a fixed observation and travel budget, does adaptive view selection with c
 - [Pilot 2: frozen evidence v0.2.1 on a held-out arrangement (2026-10-20)](notes/2026-10-20-pilot2.md)
 - [Public datasets, the OCID loader and v0.2.1 on OCID (2026-10-23)](notes/2026-10-23-public-data-ocid.md)
 - [Simulation: MuJoCo and Isaac Sim replicas of the rig (2026-11-02)](notes/2026-11-02-simulation.md)
+- Simulation dev loop (2026-11-03): [small dev batch check](notes/2026-11-03-dev-batch-check.md), [check batch through evidence v0.2.1 and select-v4](notes/2026-11-03-check-batch-evidence.md), [M16, shelf_v2/v3 and the render check](notes/2026-11-03-m16-and-render-check.md)
 
 | Code | What |
 | --- | --- |
@@ -47,13 +50,14 @@ Under a fixed observation and travel budget, does adaptive view selection with c
 | [`perception/`](perception/README.md) | Evidence step (frozen v0.2.1) and the perception smoke tests |
 | [`verify/`](verify/README.md) | Offline verification core: replay, policies, the shared stopping rule, threshold selection |
 | [`public_data/`](public_data/README.md) | Public datasets as development data (OCID loader, evidence runner, per-view scorer) |
-| [`sim/`](sim/README.md) | Simulator-agnostic rig description and the MuJoCo backend (camera positions, visibility labels) |
+| [`sim/`](sim/README.md) | Rig description, arrangement generator (`sim.arrange`), Isaac Sim batch renderer (GB10), episode builder and set checks; MuJoCo geometry cross-check |
+| [`tools/`](tools/pipeline.py) | Run driver (render, episodes, check; JSONL events) and an alert-only watcher |
 
 ## Initial scope
 
 One tabletop or shelf; 6 to 10 objects; five camera positions; recorded-view replay first. Outputs are present, removed from the monitored area, or unknown. The same pretrained perception front end (a small YOLO-World checkpoint plus reference-crop matching; SAM 2 optional) serves every policy. Policies: S, a passive single-view visibility rule; F and R, fixed and random orders; G, a geometric parallax selector; A, the proposed regularized logistic view ranker. All multi-view policies share one sequential stopping rule, so only the view choice differs.
 
-The planned main dataset is 180 episodes split by physical arrangement into 60 development and 120 test episodes. View selection cannot access unvisited query images. Models, thresholds, splits, and movement budgets are frozen before final testing.
+The proposal's planned main dataset was 180 episodes split by physical arrangement into 60 development and 120 test episodes. For the simulation study this became 60 development and 100 test random arrangements per environment (6 episodes each), plus the design cases ([amendment](docs/SIMULATION_STUDY.md), [pre-registration draft](docs/SIM_PREREGISTRATION.md)). View selection cannot access unvisited query images. Models, thresholds, splits, and movement budgets are frozen before final testing.
 
 ## Devices and maintainer
 
