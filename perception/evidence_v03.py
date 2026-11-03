@@ -71,7 +71,8 @@ Known limits (check batch, 2026-11-03; see the dev note):
 Usage (repo root), the same CLI shape as perception/evidence.py:
   uv run --no-sync python -m perception.evidence_v03 --jobs JOBS.json --out evidence.jsonl \\
       [--diag diagnostics.jsonl] [--device cuda] [--align image|tag|identity]
-The diagnostics add `obstruction_v021` and `v03_parts` (background_obstruction, box_changed, ring_changed,
+`--out-v021-aligned PATH` also writes the 'v0.2.1 + image alignment' ablation from the same pass (match and
+quality as above, v0.2.1's obstruction alone; see v021_aligned_store). The diagnostics add `obstruction_v021` and `v03_parts` (background_obstruction, box_changed, ring_changed,
 gain) to every v0.2.1 diagnostic field. ring_changed (share of the context ring, outside the search box, that
 changed under the robust gain) is the ring-change cue that was tried and NOT adopted: an occluder standing
 beside a removed target changes the ring too.
@@ -337,12 +338,30 @@ def run_jobs(jobs: Sequence[dict], encoder: e021.PatchEncoder, detector: e021.De
     return store, diags
 
 
+V021_ALIGNED_SOURCE = f"perception.evidence_v03 {EVIDENCE_VERSION}: v0.2.1 cues on v0.3 image alignment"
+
+
+def v021_aligned_store(diags: Sequence[dict[str, Any]]) -> EvidenceStore:
+    """The 'v0.2.1 + image alignment' ablation, taken from the same pass as v0.3: each view's match_score and
+    quality (v0.2.1's, on v0.3's registration) with v0.2.1's own obstruction (`obstruction_v021`) in place of
+    max(v0.2.1, background cue). Same views, same registration, same refusals; only the background cue is
+    missing. This is NOT unchanged v0.2.1 (perception/evidence.py with its tag registration), which on
+    tag-free scenes refuses every view."""
+    store = EvidenceStore(synthetic=False, source=V021_ALIGNED_SOURCE)
+    for d in diags:
+        store.put(d["episode_id"], EvidenceRecord(int(d["stop"]), d["match_score"], d["quality"],
+                                                  d["obstruction_v021"]))
+    return store
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="perception.evidence_v03", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--jobs", required=True)
     ap.add_argument("--out", required=True, help="evidence.jsonl (EvidenceStore format)")
     ap.add_argument("--diag", default=None, help="per-view diagnostics jsonl (v0.2.1 parts plus v03_parts)")
+    ap.add_argument("--out-v021-aligned", default=None,
+                    help="also write the 'v0.2.1 + image alignment' ablation (v021_aligned_store) from this pass")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--align", choices=sorted(ALIGNERS), default="image",
                     help="image (default): ECC on the images; tag: capture/tags.py; identity: no registration")
@@ -354,6 +373,8 @@ def main(argv: list[str] | None = None) -> int:
     store, diags = run_jobs(doc["jobs"], e021.DinoV2Patches(args.device), e021.YoloWorld(args.device),
                             align=ALIGNERS[args.align])
     store.to_jsonl(args.out)
+    if args.out_v021_aligned:
+        v021_aligned_store(diags).to_jsonl(args.out_v021_aligned)
     if args.diag:
         with open(args.diag, "w") as f:
             for d in diags:

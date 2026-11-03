@@ -307,6 +307,24 @@ class TestRecordAndJobs(unittest.TestCase):
             self.assertEqual(diags[0]["evidence_version"], v03.EVIDENCE_VERSION)
             self.assertIn("v03_parts", diags[1])
 
+    def test_v021_aligned_store_swaps_only_the_obstruction(self) -> None:
+        ref = with_target(background())
+        board = with_board(with_target(background(1)), (95, 50, 205, 150))
+        diags = []
+        for eid, q in (("A-removed-L1", background(1)), ("A-occluded-L1", board)):
+            rec, d = v03.evidence_for(ref, BOX, q, 2, MeanColour(), no_detections, align=e021.identity_align)
+            diags.append({"episode_id": eid, "stop": 2, **d, "match_score": rec.match_score,
+                          "quality": rec.quality, "obstruction": rec.obstruction})
+        store = v03.v021_aligned_store(diags)
+        self.assertIn("v0.2.1 cues", store.source)
+        for d in diags:
+            r = store.get(d["episode_id"], 2)
+            self.assertEqual((r.match_score, r.quality, r.obstruction),
+                             (d["match_score"], d["quality"], d["obstruction_v021"]))
+        # the plain board: v0.3 sees it, v0.2.1's cue alone does not (the case the ablation isolates)
+        self.assertGreater(diags[1]["obstruction"], 0.9)
+        self.assertLess(store.get("A-occluded-L1", 2).obstruction, 0.5)
+
     def test_bad_jobs_schema_exits_2(self) -> None:
         with tempfile.TemporaryDirectory() as t:
             p = Path(t) / "jobs.json"

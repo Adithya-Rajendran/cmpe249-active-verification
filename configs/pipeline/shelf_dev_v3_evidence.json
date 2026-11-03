@@ -1,0 +1,44 @@
+{
+ "run_id": "shelf_dev_v3_evidence",
+ "note": "Evidence variants on the 60 random dev arrangements plus DES0-3, then select-v4 per variant (random arrangements only). Run with --from-stage evidence.",
+ "remote": "configs/pipeline/remote.local.json",
+ "set_root": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_dev_v3",
+ "local_python": ["uv", "run", "--no-project", "--python", "3.13.5", "--with", "numpy==2.5.3", "--with", "opencv-python-headless==5.0.0.93", "python"],
+ "poll_seconds": 30,
+ "heartbeat_seconds": 600,
+ "evidence": {
+  "uv": "/home/ascent/.local/bin/uv",
+  "project": "/home/ascent/Projects/SJSU/Fall26/CMPE249/cmpe249-active-verification",
+  "checkpoints": "/home/ascent/Projects/SJSU/Fall26/CMPE249/cmpe249-active-verification/checkpoints",
+  "code_dir": "/home/ascent/cmpe249-sim/code",
+  "out_dir": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_dev_v3/evidence",
+  "jobs": ["jobs_refL1.json", "jobs_design_refL1.json"],
+  "step_alert_minutes": 40,
+  "variants": {
+   "v021_frozen": {
+    "args": ["-m", "perception.evidence", "--jobs", "{jobs}", "--out", "{out}/v021_frozen_{part}.jsonl", "--diag", "{out}/v021_frozen_{part}.diag.jsonl"],
+    "outputs": ["{out}/v021_frozen_{part}.jsonl", "{out}/v021_frozen_{part}.diag.jsonl"]
+   },
+   "v03_image": {
+    "args": ["-m", "perception.evidence_v03", "--align", "image", "--jobs", "{jobs}", "--out", "{out}/v03_image_{part}.jsonl", "--out-v021-aligned", "{out}/v021_image_{part}.jsonl", "--diag", "{out}/v03_image_{part}.diag.jsonl"],
+    "outputs": ["{out}/v03_image_{part}.jsonl", "{out}/v021_image_{part}.jsonl", "{out}/v03_image_{part}.diag.jsonl"]
+   }
+  }
+ },
+ "select": {
+  "positions": "positions_shelf_A.json",
+  "variants": {
+   "v021_frozen": "{out}/v021_frozen_refL1.jsonl",
+   "v021_image": "{out}/v021_image_refL1.jsonl",
+   "v03_image": "{out}/v03_image_refL1.jsonl"
+  }
+ },
+ "summary": {
+  "illustrative": {"tau_q": 0.6, "tau_occ": 0.3},
+  "variants": {
+   "v021_frozen": {"diag": "{out}/v021_frozen_{part}.diag.jsonl", "obstruction": "obstruction"},
+   "v021_image": {"diag": "{out}/v03_image_{part}.diag.jsonl", "obstruction": "obstruction_v021"},
+   "v03_image": {"diag": "{out}/v03_image_{part}.diag.jsonl", "obstruction": "obstruction"}
+  }
+ }
+}
