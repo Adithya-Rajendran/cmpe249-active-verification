@@ -22,8 +22,14 @@ split) expands the config's quota table (shelf dev: S8 12, M16 18 = 9 L + 9 R, I
 30 / 10 / 20 / 20), permutes it with a seeded shuffle and gives slot i the primary seed primary_seed_start + i. Placement
 failure retries deterministically within the SAME family: try (seed, attempt) for attempt 0..retry_max (attempt 0 is the
 plain seed; 1..retry_max are the retries, retry_max = 20 in the config); after that the next unused seed of the family's
-reserve list is tried the same way. A slot NEVER falls back to another family or M16 side (the old family_weights fallback
-turned SD0001 of shelf_dev_v0 into IND28). Every failed try and replacement is logged in the arrangement's 'slot' record
+reserve list is tried the same way. A slot NEVER falls back to another family, M16 side or target model (the old family_weights
+fallback turned SD0001 of shelf_dev_v0 into IND28).
+
+Target models (shelf_v2 and v3, slots.target_assignment). The target is a property of the slot, like its family and M16 side: within
+each slot class the targets come from a seeded, balanced list over the models that class can place (assign_targets), and a
+failed try retries the SAME (family, side, target) and then the family's reserve seeds. shelf_v1 drew the target per try and
+redrew it on every retry, which made the target a function of the family (M16 only ever got the two shortest models). Pairs
+that no valid placement was found for in the tested generator search are left out of the class's list with the reason in the config (`excluded`; zero in N tries is not a proof), not hidden. Every failed try and replacement is logged in the arrangement's 'slot' record
 and in the set-level generation log (generate_set).
 
 M16 is asymmetric. SIDE: seen from the cameras (the rig frame, +x = image right at the start stop P3), the board's side is
@@ -31,14 +37,22 @@ the sign of its lateral displacement from the sight line P3 -> target centre, me
 centre displaced toward +x, L = toward -x, by a magnitude drawn from the config's side_shift_m. The covered stops then lie
 toward that side of the arc: R hides P3 and P4 (pattern CCHHC), L hides P2 and P3 (CHHCC). The slot gives the side; a draw
 is accepted only if side_rule_ok (config occluder.families.M16.side_rule) holds on the analytic hull coverage: the start
-stop hidden, the adjacent stop on the board's side covered >= adjacent_min, the nearest opposite stop covered <=
-opposite_near_max and every further opposite stop clear. DES1 (pick_M16+3) is side R, DES2 (pick_M16-5) side L.
+stop hidden, the adjacent stop on the board's side covered >= adjacent_min (shelf_v2 / v3: 0.95, hidden; shelf_v1: 0.5), the
+nearest opposite stop covered <= opposite_near_max and every further opposite stop clear. shelf_v2 also limited the stops beyond
+the adjacent one on the board's side (same_far_max); shelf_v3 does not, so a pHHCC (L) or CCHHp (R) board is accepted and is still
+one-sided. DES1 (pick_M16+3) is side R, DES2 (pick_M16-5) side L. M16's `height_m` is the physical 12 cm in shelf_v1 and v3
+(shelf_v2 used a 15 cm simulation variant); the design cases always keep the physical boards.
+
+Tag-free scenes (shelf_v3, config scene.tags false; decision 2026-11-03: no fiducials on a home robot's shelf): the scene spec has
+no tag quads and no tag cards (scene.tags_enabled false), and the frame check of the revisit draws (frame_check) is the #3 outline
+and the target's projected hull instead of the four tags. shelf_v1 / v2 keep their tags. The true query-to-reference homographies
+come from the known camera poses (sim/alignment.py).
 
 Revisit noise (query captures only). Every arrangement records one bounded uniform draw per stop (revisit_cameras): the
 camera moves by +-translation_m on each world axis and by +-rotation_deg about its own yaw (heading), pitch and roll axes,
 seeded from the arrangement seed and the stop, and the same pose serves the visible / occluded / removed phases, both
-lightings and every policy. A draw that would put the #3 outline or a tag outside the frame (sim/rig.py frame_margins,
-fitted k1, min margin >= min_margin_px, the nominal check) is redrawn with attempt + 1; rejected draws are logged. The
+lightings and every policy. A draw that would put the #3 outline or a tag (tag-free scenes: the target's hull) outside the frame
+(frame_check, fitted k1, min margin >= min_margin_px, the nominal check) is redrawn with attempt + 1; rejected draws are logged. The
 renderer reads scene.revisit_cameras; references use scene.cameras (nominal).
 
 Geometry is decided by projecting shapes through the pinhole cameras of the positions file (as rendered), so the
@@ -58,8 +72,9 @@ and the Python version), so it depends only on (seed, attempt, family, side, con
 sha256 the provenance records, numpy's version). Random draws use only Generator.random() (PCG64 doubles), so the stream
 does not depend on numpy's distribution algorithms.
 
-    python -m sim.arrange --split dev --slots all|first-per-class|0-5,9 [--design] --out DIR
+    python -m sim.arrange --split dev --slots all|first-per-class|0-5,9 [--design] [--config C] [--overwrite] --out DIR
         # DIR/<ARR>.json; DIR/index/{index,slots,generation_log}.json (a subfolder, so DIR/*.json is only arrangements)
+        # a non-empty DIR is refused unless --overwrite (which removes the previous arrangement and index files first)
 """
 from __future__ import annotations
 
@@ -79,7 +94,7 @@ import numpy as np
 
 from sim import rig as R
 
-GENERATOR_VERSION = "0.2.0"
+GENERATOR_VERSION = "0.3.0"
 ARRANGEMENT_SCHEMA = "cmpe249.sim-arrangement.v1"
 CONFIG_SCHEMA = "cmpe249.sim-arrange-config.v1"
 INDEX_SCHEMA = "cmpe249.sim-arrangement-index.v0"
@@ -92,7 +107,7 @@ SIDES = ("L", "R")
 UNHASHED_KEYS = ("arrangement_sha256", "unhashed")
 DEV_SEED_RANGE = (0, 9999)
 TEST_SEED_MIN = 100000           # reserved for test ([open]); never generated, rendered, scored or viewed before the freeze
-DEFAULT_CONFIG_PATH = R.REPO_ROOT / "configs" / "sim" / "arrange_shelf_v1.json"
+DEFAULT_CONFIG_PATH = R.REPO_ROOT / "configs" / "sim" / "arrange_shelf_v3.json"     # shelf_v1 (draw-per-try) and shelf_v2 stay loadable via --config
 THIS_FILE = Path(__file__).resolve()
 RIG_FILE = Path(R.__file__).resolve()
 
@@ -443,6 +458,12 @@ def compartments(geometry: Mapping) -> dict:
             "c4": {"x": (-c4["half_width"], c4["half_width"]), "y": (0.0, c4["depth"]), "z": (c4["z_min"], c4["z_max"])}}
 
 
+def tags_enabled(config: Mapping) -> bool:
+    """Whether the scenes carry the four corner ArUco tags (and their cards). shelf_v1 / shelf_v2 have no `scene` block and
+    keep them; shelf_v3 sets scene.tags false (decision 2026-11-03: no fiducials on a home robot's shelf)."""
+    return bool(config.get("scene", {}).get("tags", True))
+
+
 def load_config(config: str | Path | Mapping = DEFAULT_CONFIG_PATH) -> tuple[dict, str | None, str]:
     """(config dict, path or None, sha256). The sha256 is of the config's canonical JSON (sorted keys, so it ignores
     formatting and key order, for a file and an in-memory dict alike); the file's own byte hash goes to the unhashed
@@ -460,6 +481,8 @@ def load_config(config: str | Path | Mapping = DEFAULT_CONFIG_PATH) -> tuple[dic
         raise ValueError(f"config seed ranges {cfg['seeds']} disagree with the generator's dev {DEV_SEED_RANGE} / test "
                          f">= {TEST_SEED_MIN}; changing them is a protocol decision")
     check_slot_config(cfg)
+    if "scene" in cfg and not isinstance(cfg["scene"].get("tags"), bool):
+        raise ValueError("config scene.tags must be a boolean when the scene block is present")
     return cfg, path, sha
 
 
@@ -509,12 +532,25 @@ def _quota_entries(quota: Mapping) -> list[tuple[str, str | None]]:
     return out
 
 
+def class_key(family: str, side: str | None) -> str:
+    """'S8', 'M16-L', 'M16-R', ...: the name of a slot class."""
+    return family if side is None else f"{family}-{side}"
+
+
+def class_keys(quota: Mapping) -> list[str]:
+    """The slot classes of a quota table, in sorted order (family, then side)."""
+    return [class_key(f, s) for f, s in sorted(set(_quota_entries(quota)), key=lambda e: (e[0], e[1] or ""))]
+
+
 def check_slot_config(cfg: Mapping) -> None:
     """Quota families known, M16 (and only M16) has sides, primary and reserve seeds disjoint and inside the split's seed
-    range (dev: 0-9999; test: >= test_reserved_min), reserve lists per family, retry_max a non-negative int."""
+    range (dev: 0-9999; test: >= test_reserved_min), reserve lists per family, retry_max a non-negative int. If the config
+    assigns targets per slot (slots.target_assignment), every slot class needs a non-empty list of distinct configured
+    target models and every split an integer target_seed."""
     sl = cfg["slots"]
     if int(sl["retry_max"]) < 0:
         raise ValueError("slots.retry_max must be >= 0")
+    ta = sl.get("target_assignment")
     seen: dict[int, str] = {}
     for split in ("dev", "test"):
         blk = sl[split]
@@ -524,6 +560,15 @@ def check_slot_config(cfg: Mapping) -> None:
         for fam, q in quota.items():
             if isinstance(q, Mapping) != (fam == "M16") or (isinstance(q, Mapping) and set(q) != set(SIDES)):
                 raise ValueError(f"slots.{split}.quota.{fam}: only M16 has sides, and it needs exactly {SIDES}")
+        if ta is not None:
+            ts = blk.get("target_seed")
+            if isinstance(ts, bool) or not isinstance(ts, int):
+                raise ValueError(f"slots.{split}.target_seed must be an integer when slots.target_assignment is set")
+            allowed = {int(v) for v in cfg["target"]["objects"]}
+            for key in class_keys(quota):
+                ids = [int(v) for v in ta["classes"].get(key, [])]
+                if not ids or len(set(ids)) != len(ids) or not set(ids) <= allowed:
+                    raise ValueError(f"slots.target_assignment.classes[{key!r}] must be a non-empty list of distinct target.objects")
         entries = _quota_entries(quota)
         seeds = [(int(blk["primary_seed_start"]) + i, f"{split} primary") for i in range(len(entries))]
         seeds += [(int(v), f"{split} reserve {fam}") for fam in sorted(blk["reserve"]) for v in blk["reserve"][fam]]
@@ -536,17 +581,52 @@ def check_slot_config(cfg: Mapping) -> None:
             seen[v] = what
 
 
+def assign_targets(cfg: Mapping, split: str, slots: Sequence[Mapping]) -> dict[int, int]:
+    """Per-slot target assignment (slots.target_assignment): slot index -> target model id.
+    Within each slot class (S8, M16-L, M16-R, IND28, white_box, ycb_box; the two M16 sides are separate classes) the
+    targets come from a seeded, balanced list: a class of n slots over its k allowed models gives every model n // k slots
+    and n % k models one more. Classes are processed in sorted key order; the models that get the extra slots are the ones
+    with the lowest running total over the classes already done (ties by the class's seeded shuffle), so the totals over the
+    whole list are as even as the class sizes allow as well. The class's list is then shuffled (Fisher-Yates driven by
+    Draw([target_seed, class number])) and handed to the class's slots in index order. A function of the config content
+    only; a failed placement never changes it."""
+    ta = cfg["slots"]["target_assignment"]
+    seed = int(cfg["slots"][split]["target_seed"])
+    keys = sorted({class_key(sl["family"], sl["m16_side"]) for sl in slots})
+    totals: dict[int, int] = {}
+    out: dict[int, int] = {}
+    for ci, key in enumerate(keys):
+        idx = [int(sl["index"]) for sl in slots if class_key(sl["family"], sl["m16_side"]) == key]
+        d = Draw([seed, ci])
+        order = d.shuffle([int(v) for v in ta["classes"][key]])
+        base, extra = divmod(len(idx), len(order))
+        ranked = sorted(range(len(order)), key=lambda j: (totals.get(order[j], 0), j))
+        counts = {order[j]: base + (1 if rank < extra else 0) for rank, j in enumerate(ranked)}
+        lst = d.shuffle([t for t in order for _ in range(counts[t])])
+        for i, t in zip(idx, lst):
+            out[i] = t
+            totals[t] = totals.get(t, 0) + 1
+    return out
+
+
 def slot_list(ctx: Context | Mapping, split: str = "dev") -> list[dict]:
-    """The fixed slot list of a split: one dict per slot, {'index', 'split', 'family', 'm16_side', 'primary_seed'}. A
-    seeded permutation of the quota table (Fisher-Yates driven by Draw([permutation_seed])); a function of the config
-    content only. split 'test' works (to inspect counts) but no test arrangement is generated."""
+    """The fixed slot list of a split: one dict per slot, {'index', 'split', 'family', 'm16_side', 'primary_seed',
+    'target'}. A seeded permutation of the quota table (Fisher-Yates driven by Draw([permutation_seed])); a function of
+    the config content only. 'target' is the slot's target model id from assign_targets, or None when the config has no
+    slots.target_assignment (shelf_v1: the target is then drawn per try). split 'test' works (to inspect counts and
+    targets) but no test arrangement is generated."""
     cfg = ctx.config if isinstance(ctx, Context) else ctx
     if split not in ("dev", "test"):
         raise ValueError(f"split must be dev or test, got {split!r}")
     blk = cfg["slots"][split]
     order = Draw([int(blk["permutation_seed"])]).shuffle(_quota_entries(blk["quota"]))
-    return [{"index": i, "split": split, "family": fam, "m16_side": side, "primary_seed": int(blk["primary_seed_start"]) + i}
-            for i, (fam, side) in enumerate(order)]
+    slots = [{"index": i, "split": split, "family": fam, "m16_side": side, "primary_seed": int(blk["primary_seed_start"]) + i,
+              "target": None} for i, (fam, side) in enumerate(order)]
+    if cfg["slots"].get("target_assignment") is not None:
+        targets = assign_targets(cfg, split, slots)
+        for sl in slots:
+            sl["target"] = targets[sl["index"]]
+    return slots
 
 
 def first_slot_per_class(slots: Sequence[Mapping]) -> list[int]:
@@ -645,6 +725,7 @@ def side_sign(side: str | None) -> float:
 
 def _board(ctx: Context, d: Draw, spec: Mapping, target: Body, side: str | None = None) -> dict | None:
     o = R.occluder_spec(ctx.geometry, spec["geometry_occluder"])
+    height = float(spec.get("height_m", o.height))           # a family may override the geometry file's height (M16 in shelf_v2)
     gap = _gap(ctx, d, spec, target, o.thickness)
     if gap is None:
         return None
@@ -654,7 +735,7 @@ def _board(ctx: Context, d: Draw, spec: Mapping, target: Body, side: str | None 
     y_front = y_back - o.thickness
     yc = (y_front + y_back) / 2
     x = sightline_x(ctx.start_cam, target.centre(), yc) + shift
-    body = Body((o.width, o.thickness, o.height), (x, yc, 0.0), 0.0)
+    body = Body((o.width, o.thickness, height), (x, yc, 0.0), 0.0)
     return {"kind": "box", "material": "occluder", "geometry_occluder": o.name, "body": body,
             "gap_m": gap, "shift_m": shift}
 
@@ -752,15 +833,19 @@ def side_rule_ok(covs: Sequence[float], start: int, side: str, rule: Mapping, cl
     """One-sidedness of a sided board, on the analytic hull coverage per stop (arc order, `start` = the start stop).
     The board's side runs toward higher stop indices for R and lower for L. Accepted if the adjacent stop on that side is
     covered >= rule['adjacent_min'], the nearest stop on the other side is covered <= rule['opposite_near_max'], and every
-    further stop on the other side is clear (<= clear_max). Needs a stop on each side of the start stop."""
+    further stop on the other side is clear (<= clear_max). If the rule has 'same_far_max' (shelf_v2), the stops beyond the
+    adjacent one on the board's side are covered at most that much too (they render as C views, so the pattern is exactly CCHHC
+    / CHHCC); shelf_v1 leaves them free. Needs a stop on each side of the start stop."""
     step = int(side_sign(side))
     n = len(covs)
     same = [covs[i] for i in range(start + step, n if step > 0 else -1, step)]
     opp = [covs[i] for i in range(start - step, -1 if step > 0 else n, -step)]
     if not same or not opp:
         return False
+    far_max = rule.get("same_far_max")             # optional (shelf_v2): the stops beyond the adjacent one on the board's side
     return bool(same[0] >= float(rule["adjacent_min"]) and opp[0] <= float(rule["opposite_near_max"])
-                and all(v <= clear_max for v in opp[1:]))
+                and all(v <= clear_max for v in opp[1:])
+                and (far_max is None or all(v <= float(far_max) for v in same[1:])))
 
 
 def place_distractors(ctx: Context, d: Draw, target: dict, occ: dict) -> list[dict] | None:
@@ -914,33 +999,58 @@ def revisit_draw(rc: Mapping, entropy: Sequence[int], stop_index: int, attempt: 
     return {k: round(v, 9) for k, v in delta.items()}
 
 
-def revisit_cameras(ctx: Context, rig: R.Rig, seed: int | str) -> tuple[dict, list[R.Camera]]:
-    """(record, cameras): one revisit pose per stop. The first draw whose pose keeps the #3 outline and all four tags in
-    the frame (sim/rig.py frame_margins, fitted k1, min margin >= min_margin_px: the nominal check) is used; each rejected
-    draw is logged with its margin. RuntimeError if max_redraws draws are all rejected."""
+def frame_check(ctx: Context, rig: R.Rig, cam: R.Camera, target_pts: np.ndarray | None, distort: bool) -> dict:
+    """In-frame margins (px, negative = outside) of one camera. With tags (shelf_v1 / v2): the #3 outline and the four tags'
+    corners (sim/rig.py frame_margins). Tag-free scenes (shelf_v3, scene.tags false): the #3 outline (the front opening) and the
+    target's projected convex hull (its hull points, the same set the generator tests visibility with), both with the fitted
+    k1 when `distort`. 'min' is the smallest margin."""
+    if tags_enabled(ctx.config):
+        return R.frame_margins(rig, cam, distort=distort)
+    if target_pts is None:
+        raise ValueError("a tag-free frame check needs the target's points")
+    out = {"c3": cam.frame_margin(rig.c3_outline(), distort), "target": cam.frame_margin(target_pts, distort)}
+    out["min"] = min(out["c3"], out["target"])
+    return out
+
+
+def _margin_rec(m: Mapping) -> dict:
+    rec = {"c3": round(float(m["c3"]), 3)}
+    if "tags" in m:
+        rec["tags"] = {str(k): round(float(v), 3) for k, v in m["tags"].items()}
+    else:
+        rec["target"] = round(float(m["target"]), 3)
+    rec["min"] = round(float(m["min"]), 3)
+    return rec
+
+
+def revisit_cameras(ctx: Context, rig: R.Rig, seed: int | str, target_pts: np.ndarray | None = None) -> tuple[dict, list[R.Camera]]:
+    """(record, cameras): one revisit pose per stop. The first draw whose pose passes the frame check (frame_check: the #3
+    outline and all four tags, or, tag-free, the #3 outline and the target's hull; fitted k1, min margin >= min_margin_px) is
+    used; each rejected draw is logged with its margin. RuntimeError if max_redraws draws are all rejected. The nominal pose must
+    pass too in a tag-free scene (RuntimeError otherwise)."""
     rc = ctx.config["revisit"]
     entropy = revisit_entropy(seed)
     distort, floor = bool(rc["distort"]), float(rc["min_margin_px"])
+    tag_free = not tags_enabled(ctx.config)
     stops, cams = {}, []
     for i, cam in enumerate(rig.cameras):
+        nm = frame_check(ctx, rig, cam, target_pts, distort)
+        if tag_free and nm["min"] < floor:
+            raise RuntimeError(f"{seed}: the nominal pose of {cam.name} fails the frame check (margin {nm['min']:.2f} px: {_margin_rec(nm)})")
         rejected = []
         for attempt in range(int(rc["max_redraws"]) + 1):
             delta = revisit_draw(rc, entropy, i, attempt)
             pc = perturb_camera(cam, delta)
-            m = R.frame_margins(rig, pc, distort=distort)
+            m = frame_check(ctx, rig, pc, target_pts, distort)
             if m["min"] >= floor:
                 break
             rejected.append({"attempt": attempt, "delta": delta, "min_margin_px": round(float(m["min"]), 3)})
         else:
             raise RuntimeError(f"{seed}: no revisit pose for {cam.name} inside the frame in {rc['max_redraws'] + 1} draws")
-        nm = R.frame_margins(rig, cam, distort=distort)
         stops[cam.name] = {
             "attempt": attempt, "n_rejected": len(rejected), "rejected": rejected, "delta": delta,
             "nominal": _cam_pose(cam), "pose": _cam_pose(pc),
-            "margin_px": {"c3": round(float(m["c3"]), 3), "tags": {str(k): round(float(v), 3) for k, v in m["tags"].items()},
-                          "min": round(float(m["min"]), 3)},
-            "nominal_margin_px": {"c3": round(float(nm["c3"]), 3), "tags": {str(k): round(float(v), 3) for k, v in nm["tags"].items()},
-                                  "min": round(float(nm["min"]), 3)}}
+            "margin_px": _margin_rec(m), "nominal_margin_px": _margin_rec(nm)}
         cams.append(pc)
     rec = {"schema": REVISIT_SCHEMA,
            "applies_to": "query captures only (phases visible, occluded, removed; L1 and L2); the reference captures use the nominal cameras",
@@ -949,12 +1059,18 @@ def revisit_cameras(ctx: Context, rig: R.Rig, seed: int | str) -> tuple[dict, li
            "stream": "Draw([*entropy, stream_salt, stop_index, attempt]); six uniform draws: dx, dy, dz (world axes, m), dyaw (heading), "
                      "dpitch (pitch_down), droll (deg)",
            "entropy": entropy, "stream_salt": int(rc["stream_salt"]), "stops": stops}
+    if tag_free:
+        rec["frame_check"] = "tag-free scene: the #3 outline (front opening) and the target's projected hull inside the frame"
     return rec, cams
 
 
 def _scene(ctx: Context, rig: R.Rig, keep_mug: bool, revisit_cams: Sequence[R.Camera]) -> dict:
     spec = R.export_scene_spec(rig)
     spec["boxes"] = [b for b in spec["boxes"] if b["role"] != "occluder"]
+    if not tags_enabled(ctx.config):                     # tag-free scene: no tag quads, no tag cards
+        spec["boxes"] = [b for b in spec["boxes"] if b["role"] not in ("tag_card", "tag_marker")]
+        spec["tags"] = []
+        spec["tags_enabled"] = False
     if not keep_mug:
         spec["meshes"], spec["mug"] = [], None
     spec["occluder"] = None
@@ -977,7 +1093,8 @@ def _finish(ctx: Context, arr: dict, rig: R.Rig, keep_mug: bool) -> dict:
     arr["stops"] = [c.name for c in ctx.cams]
     arr["start_stop"] = ctx.positions.get("start_stop", "P3")
     arr["provenance"] = ctx.provenance
-    arr["revisit"], rcams = revisit_cameras(ctx, rig, arr["seed"])
+    tp = body_of(arr["objects"]["target"], ctx=ctx).shape_points()
+    arr["revisit"], rcams = revisit_cameras(ctx, rig, arr["seed"], tp)
     arr["scene"] = _scene(ctx, rig, keep_mug, rcams)
     arr["unhashed"] = dict(ctx.unhashed)
     arr["arrangement_sha256"] = arrangement_hash(arr)
@@ -998,15 +1115,28 @@ class ReserveExhausted(RuntimeError):
     """A slot used up its retries and every seed of its family's reserve list."""
 
 
-def try_place(ctx: Context, seed: int, attempt: int, family: str, side: str | None) -> tuple[dict | None, str | None, str]:
+def try_place(ctx: Context, seed: int, attempt: int, family: str, side: str | None,
+              target: int | None = None) -> tuple[dict | None, str | None, str]:
     """One try for slot class (family, side) at (seed, attempt): attempt 0 is the plain seed, attempts 1..retry_max the
-    retries (entropy [seed, attempt]). Returns (parts, None, target_name) or (None, reason, target_name). The target
-    model is drawn first, uniformly. No other family is ever tried."""
+    retries (entropy [seed, attempt]). Returns (parts, None, target_name) or (None, reason, target_name). No other family
+    is ever tried.
+    The target model is the slot's (`target`, slots.target_assignment): the same model at every attempt and for the
+    reserve seeds, and no random draw is spent on it. Without an assignment in the config (shelf_v1) `target` must be
+    None and the model is drawn first, uniformly, for every (seed, attempt) as before."""
     seed = check_dev_seed(seed)
     if family not in ctx.config["occluder"]["families"]:
         raise ValueError(f"unknown occluder family {family!r}")
+    assigned = ctx.config["slots"].get("target_assignment") is not None
+    if assigned != (target is not None):
+        raise ValueError("a target model is given if and only if the config assigns targets per slot "
+                         f"(slots.target_assignment {'set' if assigned else 'absent'}, target={target!r})")
     d = Draw([seed] if attempt == 0 else [seed, int(attempt)])
-    obj = int(d.choice(ctx.config["target"]["objects"]))
+    if assigned:
+        obj = int(target)
+        if obj not in {int(v) for v in ctx.config["target"]["objects"]}:
+            raise ValueError(f"target model {obj} is not in target.objects")
+    else:
+        obj = int(d.choice(ctx.config["target"]["objects"]))
     name = ctx.item(obj)["name"]
     target = place_target(ctx, d, obj)
     if target is None:
@@ -1024,22 +1154,26 @@ def try_place(ctx: Context, seed: int, attempt: int, family: str, side: str | No
 
 
 def generate(seed: int, family: str, m16_side: str | None = None, attempt: int = 0,
-             config: str | Path | Mapping = DEFAULT_CONFIG_PATH, ctx: Context | None = None, slot: Mapping | None = None) -> dict:
+             config: str | Path | Mapping = DEFAULT_CONFIG_PATH, ctx: Context | None = None, slot: Mapping | None = None,
+             target: int | None = None) -> dict:
     """The arrangement of one try (seed, attempt) of family `family` (and M16 side), deterministic in (seed, attempt, family,
-    side, config, code, inputs). PlacementFailure if the try fails. Slot runs go through generate_slot."""
+    side, target, config, code, inputs). `target` (a model id) is required when the config assigns targets per slot and
+    refused otherwise. PlacementFailure if the try fails. Slot runs go through generate_slot."""
     ctx = ctx or load_context(config)
-    parts, reason, _ = try_place(ctx, seed, attempt, family, m16_side)
+    parts, reason, _ = try_place(ctx, seed, attempt, family, m16_side, target)
     if parts is None:
         raise PlacementFailure(int(seed), int(attempt), reason)
     return _assemble(ctx, int(seed), parts["target"], parts["occ"], parts["dis"], parts["parked"],
-                     {"seed": int(seed), "attempt": int(attempt), "family": family, "m16_side": m16_side}, slot)
+                     {"seed": int(seed), "attempt": int(attempt), "family": family, "m16_side": m16_side,
+                      "target": None if target is None else int(target)}, slot)
 
 
 def generate_slot(ctx: Context, slot: Mapping, reserve_used: dict[str, int]) -> tuple[dict, dict]:
     """The arrangement of one slot, with retries within its family and then reserve seeds of that family. Never another
-    family or side. reserve_used[family] counts the reserve seeds consumed so far (updated). Returns (arrangement, log
+    family, side or target model (slot['target']). reserve_used[family] counts the reserve seeds consumed so far (updated). Returns (arrangement, log
     entry); the log entry lists every failed try and replacement."""
     split, fam, side = slot["split"], slot["family"], slot["m16_side"]
+    target = slot.get("target")
     retry_max = int(ctx.config["slots"]["retry_max"])
     reserve = [int(v) for v in ctx.config["slots"][split]["reserve"][fam]]
     seed, rank = int(slot["primary_seed"]), None
@@ -1047,14 +1181,14 @@ def generate_slot(ctx: Context, slot: Mapping, reserve_used: dict[str, int]) -> 
     replacements: list[dict] = []
     while True:
         for attempt in range(retry_max + 1):
-            parts, reason, tname = try_place(ctx, seed, attempt, fam, side)
+            parts, reason, tname = try_place(ctx, seed, attempt, fam, side, target)
             if parts is not None:
-                rec = {"index": slot["index"], "split": split, "family": fam, "m16_side": side,
+                rec = {"index": slot["index"], "split": split, "family": fam, "m16_side": side, "target": target,
                        "primary_seed": int(slot["primary_seed"]), "used_seed": seed, "used_attempt": attempt, "reserve_rank": rank,
                        "retry_max": retry_max, "failed_tries": failed, "replacements": replacements}
                 arr = _assemble(ctx, seed, parts["target"], parts["occ"], parts["dis"], parts["parked"],
-                                {"seed": seed, "attempt": attempt, "family": fam, "m16_side": side}, rec)
-                return arr, {**rec, "arrangement_id": arr["arrangement_id"], "n_failed_tries": len(failed),
+                                {"seed": seed, "attempt": attempt, "family": fam, "m16_side": side, "target": target}, rec)
+                return arr, {**rec, "arrangement_id": arr["arrangement_id"], "target_name": arr["target_id"], "n_failed_tries": len(failed),
                              "replaced": rank is not None, "p3_coverage": arr["objects"]["occluder"]["p3_coverage"]}
             failed.append({"seed": seed, "attempt": attempt, "reason": reason, "target": tname})
         k = reserve_used.get(fam, 0)
@@ -1090,20 +1224,25 @@ def generate_set(ctx: Context, split: str = "dev", indices: Sequence[int] | None
         if entry["selected"]:
             arrs.append(arr)
     sel = [e for e in entries if e["selected"]]
-    counts = {}
+    counts, by_target = {}, {}
     for e in sel:
-        c = counts.setdefault(e["family"] + ("" if e["m16_side"] is None else "-" + e["m16_side"]),
-                              {"slots": 0, "with_retries": 0, "replaced": 0, "failed_tries": 0})
+        key = class_key(e["family"], e["m16_side"])
+        c = counts.setdefault(key, {"slots": 0, "with_retries": 0, "replaced": 0, "failed_tries": 0})
         c["slots"] += 1
         c["with_retries"] += int(e["n_failed_tries"] > 0)
         c["replaced"] += int(e["replaced"])
         c["failed_tries"] += e["n_failed_tries"]
+        b = by_target.setdefault(key, {}).setdefault(e["target_name"], {"slots": 0, "with_retries": 0, "replaced": 0, "failed_tries": 0})
+        b["slots"] += 1
+        b["with_retries"] += int(e["n_failed_tries"] > 0)
+        b["replaced"] += int(e["replaced"])
+        b["failed_tries"] += e["n_failed_tries"]
     log = {"schema": GENERATION_LOG_SCHEMA, "split": split, "config": ctx.provenance["config"],
            "generator_sha256": ctx.provenance["generator"]["sha256"], "retry_max": int(ctx.config["slots"]["retry_max"]),
            "n_slots_in_list": len(slots), "n_selected": len(sel),
            "note": "entries cover the selected slots plus earlier slots of the same family that were resolved only to advance the "
                    "family's reserve list (selected = false)",
-           "counts_by_class": counts, "reserve_used": dict(sorted(reserve_used.items())),
+           "counts_by_class": counts, "counts_by_class_and_target": by_target, "reserve_used": dict(sorted(reserve_used.items())),
            "slots": entries,
            "retries": [{"slot": e["index"], "family": e["family"], "m16_side": e["m16_side"], **t}
                        for e in entries for t in e["failed_tries"]],
@@ -1194,13 +1333,39 @@ def parse_slot_indices(text: str, slots: Sequence[Mapping]) -> list[int]:
     for part in (p.strip() for p in t.split(",") if p.strip()):
         if "-" in part[1:]:
             a, b = part.split("-", 1)
-            out.update(range(int(a), int(b) + 1))
+            lo, hi = int(a), int(b)
+            if hi < lo:
+                raise ValueError(f"bad slot range {part!r}: the end is below the start")
+            out.update(range(lo, hi + 1))
         else:
             out.add(int(part))
     bad = sorted(i for i in out if not 0 <= i < len(slots))
     if bad:
         raise ValueError(f"slot indices {bad} are outside 0..{len(slots) - 1}")
     return sorted(out)
+
+
+INDEX_FILES = ("index.json", "slots.json", "generation_log.json")
+
+
+def clear_previous_outputs(out: Path) -> list[Path]:
+    """Remove what an earlier run of this CLI left in `out`: DIR/*.json whose schema is the arrangement schema and
+    DIR/index/{index,slots,generation_log}.json. Other files are not touched. Returns the removed paths."""
+    removed = []
+    for p in sorted(Path(out).glob("*.json")):
+        try:
+            schema = json.loads(p.read_text()).get("schema")
+        except (ValueError, AttributeError):
+            continue
+        if schema == ARRANGEMENT_SCHEMA:
+            p.unlink()
+            removed.append(p)
+    for name in INDEX_FILES:
+        p = Path(out) / "index" / name
+        if p.is_file():
+            p.unlink()
+            removed.append(p)
+    return removed
 
 
 def _index_row(arr: Mapping, p: Path) -> dict:
@@ -1219,6 +1384,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--slots", default="", help="'all', 'first-per-class', or slot indices like '0-5,9' (none: no slot arrangements)")
     ap.add_argument("--design", action="store_true", help="also write the design cases DES0.. (outside the slots)")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--overwrite", action="store_true",
+                    help="allow a non-empty --out: the previous arrangement files (DIR/*.json with the arrangement schema) and "
+                         "index files (DIR/index/{index,slots,generation_log}.json) are removed before the new ones are written; "
+                         "anything else in DIR is left alone. Without it a non-empty --out is refused")
     a = ap.parse_args(argv)
     ctx = load_context(a.config)
     slots = slot_list(ctx, a.split)
@@ -1230,13 +1399,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"refused: {e}", file=sys.stderr)
         return 2
     out = Path(a.out)
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "index").mkdir(exist_ok=True)
+    if out.exists() and (not out.is_dir() or any(out.iterdir())) and not a.overwrite:
+        print(f"refused: {out} is not empty; a second run would leave the earlier arrangement and index files next to the new "
+              "ones (pass --overwrite to replace them)", file=sys.stderr)
+        return 2
     arrs = [design_arrangement(i, ctx=ctx) for i in range(len(ctx.config["design_cases"]["cases"]))] if a.design else []
     log = None
     if indices:
         slot_arrs, log = generate_set(ctx, a.split, indices)
         arrs += slot_arrs
+    out.mkdir(parents=True, exist_ok=True)
+    removed = clear_previous_outputs(out) if a.overwrite else []
+    if removed:
+        print(f"--overwrite: removed {len(removed)} previous arrangement/index file(s) from {out}")
+    (out / "index").mkdir(exist_ok=True)
     rows = []
     for arr in arrs:
         p = out / f"{arr['arrangement_id']}.json"
