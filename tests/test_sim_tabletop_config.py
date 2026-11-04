@@ -8,6 +8,7 @@ stop and the four kept ycb_box choices. numpy only (the module imports sim/arran
 """
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,9 @@ REPO = Path(__file__).resolve().parents[1]
 SCAN = REPO / "data" / "raw" / "2026-11-04_tabletop_scan"
 DECISION = SCAN / "decision.json"
 AMENDMENT = SCAN / "amendment_2026-11-04.json"
+MATRIX = SCAN / "matrix.json"
+CONFIG = REPO / "configs" / "sim" / "arrange_tabletop_v1.json"
+SLOW = os.environ.get("CMPE249_GOLDEN_SLOW") == "1"
 
 
 def _tool():
@@ -100,6 +104,67 @@ class TestHeightSource(unittest.TestCase):
     def test_the_kept_ycb_choices_and_parking_rule_must_match(self):
         self._refused(lambda am: am["amendment"].update(ycb_box_choices=[[2, "upright"]]))
         self._refused(lambda am: am["amendment"].update(parking_min_stops_in_frame=5))
+
+
+class TestStudyConfig(unittest.TestCase):
+    """configs/sim/arrange_tabletop_v1.json as written by make_tabletop_config.py final --amendment."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cfg = json.loads(CONFIG.read_text())
+
+    def test_status_is_dev_and_cites_the_amendment(self):
+        st = self.cfg["status"]
+        self.assertTrue(st.startswith("DEV config"))
+        self.assertIn("NOT FROZEN", st)
+        self.assertNotIn("frozen config", st.lower())
+        self.assertIn("POST-HOC DEVELOPMENT AMENDMENT", st)
+        self.assertIn("amendment_2026-11-04.json", st)
+        self.assertIn("no height satisfies (a) and (b)", st)
+        self.assertEqual(self.cfg["height_amendment"]["sha256"], _tool()._sha256(AMENDMENT))
+
+    def test_boards(self):
+        fam = self.cfg["occluder"]["families"]
+        self.assertEqual([fam[f]["height_m"] for f in ("S8", "M16", "IND28")], [0.18] * 3)
+        self.assertEqual((fam["IND28"]["width_m"], fam["IND28"]["thickness_m"]), (0.36, 0.005))
+        self.assertIn("TABLETOP VARIANT", fam["IND28"]["variant"])
+        self.assertEqual(fam["ycb_box"]["choices"], [[2, "upright"], [3, "upright"], [16, "upright"], [7, "edge"]])
+        self.assertEqual(self.cfg["occluder"]["parked"]["min_stops_in_frame"], 1)
+
+    def test_target_lists_are_the_class_matrix_rule(self):
+        mx = json.loads(MATRIX.read_text())
+        self.assertEqual((mx["tries_per_cell"], mx["probe_seeds"]), (100, [7200, 7299]))
+        ta = self.cfg["slots"]["target_assignment"]
+        want, excl = {}, {}
+        for r in mx["rows"]:
+            (want if r["ok"] >= 1 else excl).setdefault(r["class"], set()).add(int(r["target"]))
+        self.assertEqual({k: set(v) for k, v in ta["classes"].items()}, want)
+        self.assertEqual({k: {int(t) for t in v} for k, v in ta["excluded"].items()}, excl)
+
+    def test_everything_else_is_the_base_config(self):
+        base = json.loads((SCAN / "base_config.json").read_text())
+        c = json.loads(CONFIG.read_text())
+        for k in ("seeds", "ids", "objects", "rest_poses", "clearances_m", "target", "distractors", "revisit", "materials", "scene"):
+            self.assertEqual(c[k], base[k], k)
+        self.assertEqual({k: v for k, v in c["slots"].items() if k != "target_assignment"},
+                         {k: v for k, v in base["slots"].items() if k != "target_assignment"})
+
+    def test_it_loads_and_the_design_cases_build(self):
+        from sim import arrange as A
+        ctx = A.load_context("configs/sim/arrange_tabletop_v1.json")
+        ids = [A.design_arrangement(i, ctx=ctx)["arrangement_id"] for i in range(4)]
+        self.assertEqual(ids, ["TDES0", "TDES1", "TDES2", "TDES3"])
+        tdes3 = self.cfg["design_cases"]["cases"][3]
+        self.assertEqual((tdes3["gap_m"], tdes3["shift_m"], tdes3["margin_px"]), (0.005, -0.02, 3.435))
+
+    @unittest.skipUnless(SLOW, "the IND28 margin scan takes a few seconds: set CMPE249_GOLDEN_SLOW=1")
+    def test_the_ind28_design_case_is_the_margin_scan_result(self):
+        from sim import arrange as A
+        ctx = A.load_context("configs/sim/arrange_tabletop_v1.json")
+        case = self.cfg["design_cases"]["cases"][3]
+        best = A.design_margin_scan(ctx, "IND28", "HHHHH")
+        self.assertEqual((best["gap_m"], best["shift_m"], best["margin_px"], best["stop_margins_px"]),
+                         (case["gap_m"], case["shift_m"], case["margin_px"], case["stop_margins_px"]))
 
 
 if __name__ == "__main__":
