@@ -42,16 +42,21 @@ With identical alignment, the background cue alone is what removes the fully hid
 | Per-view false-clear rate | 12/176 (0.068, upper 95 % 0.108) | 9/176 (0.051, upper 0.088) |
 | Correct clear misses on removed diagnostic views | 115/124 | 112/124 |
 
-| Policy | L1 FRR | L1 removal recall | L1 coverage | L2 FRR | L2 removal recall | L2 coverage |
-|---|---|---|---|---|---|---|
-| S | 0/120 | 0/60 | 0.333 | 0/120 | 0/60 | 0.333 |
-| F | 0/120 | 24/60 | 0.767 | 0/120 | 24/60 | 0.772 |
-| R | 0/120 | 34.15/60 | 0.823 | 0/120 | 33/60 | 0.821 |
-| G | 0/120 | 45/60 | 0.883 | 0/120 | 43/60 | 0.878 |
-| FULL | 0/120 | 46/60 | 0.889 | 0/120 | 44/60 | 0.883 |
+"False present" means a removed target answered "present". That is a wrong answer, but FRR, recall and coverage do not show it.
+
+| Policy | L1 FRR | L1 recall | L1 false present | L1 coverage | L2 FRR | L2 recall | L2 false present | L2 coverage |
+|---|---|---|---|---|---|---|---|---|
+| S | 0/120 | 0/60 | 0/60 | 0.333 | 0/120 | 0/60 | 0/60 | 0.333 |
+| F | 0/120 | 24/60 | 0/60 | 0.767 | 0/120 | 24/60 | 1/60 | 0.772 |
+| R | 0/120 | 34.15/60 | 0/60 | 0.823 | 0/120 | 33/60 | 0.75/60 | 0.821 |
+| G | 0/120 | 45/60 | 0/60 | 0.883 | 0/120 | 43/60 | 1/60 | 0.878 |
+| FULL | 0/120 | 46/60 | 0/60 | 0.889 | 0/120 | 44/60 | 1/60 | 0.883 |
 
 - The `-fcm` rows in the summary use the first-clear-miss rule (k = 1). They are a reported sensitivity, not the primary rule.
-- The **frozen v0.2.1** candidate is eligible only because nothing passes the gate. Its held-out removal recall is 0/60 in both lightings, and its coverage (about 0.79) comes from present decisions only. That eligibility is degenerate, not useful performance.
+- The **frozen v0.2.1** candidate is eligible only because nothing passes the gate, and it is worse than useless:
+  - held-out removal recall is 0/60 in both lightings;
+  - its coverage of about 0.79 includes **wrong "present" answers on removed targets**: F 29/60 (L1) and 28/60 (L2), G 27/60 in each lighting, FULL 29/60 and 28/60. They come from strong matches at τ_match 0.4.
+  - Its select-v4 eligibility is degenerate. Report it only as a record of the tag dependence.
 
 **DES cases** (v0.3 thresholds):
 - no hidden stop and no DES3 stop passes the gate;

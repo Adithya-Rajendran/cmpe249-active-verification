@@ -5,8 +5,8 @@ For every evidence variant in the spec's `summary` section it reports, from file
     - the gate (quality >= tau_q and obstruction <= tau_occ) pass rate per lighting and view class, at the
       variant's own select-v4 thresholds (when calibration produced a candidate) and at the fixed illustrative
       setting of the spec (the same for every variant);
-    - select-v4's outcome and, from selection_details.json, the held-out policy FRR, removal recall and
-      coverage per lighting (uncapped, primary k and lam);
+    - select-v4's outcome and, from selection_details.json, the held-out policy FRR, removal recall,
+      false present (a removed target answered 'present') and coverage per lighting (uncapped, primary k and lam);
     - the DES design cases separately (they are never part of calibration).
 View classes come from view_labels*.json (renderer masks; evaluation only): present = a visible-condition stop;
 occluded C / p / H = an occluded-condition stop with visible fraction >= 0.9 / between / <= 0.05; removed diag /
@@ -69,7 +69,8 @@ def gate_table(views: list[dict], th: dict) -> dict:
 
 def held_out(details: dict, truth: dict) -> dict:
     """policy -> lighting -> FRR, recall, coverage (uncapped episodes of the primary setting)."""
-    acc: dict = defaultdict(lambda: defaultdict(lambda: {"frr": [0.0, 0], "recall": [0.0, 0], "coverage": [0.0, 0]}))
+    acc: dict = defaultdict(lambda: defaultdict(lambda: {"frr": [0.0, 0], "recall": [0.0, 0], "false_present": [0.0, 0],
+                                                         "coverage": [0.0, 0]}))
     for e in details["held_out_episodes"]:
         if e.get("cap_steps") is not None:
             continue
@@ -78,6 +79,9 @@ def held_out(details: dict, truth: dict) -> dict:
         key = "frr" if truth[e["episode_id"]] == "present" else "recall"
         a[key][0] += f["removed"]
         a[key][1] += 1
+        if key == "recall":   # a removed target answered "present": wrong, yet counted as covered
+            a["false_present"][0] += f["present"]
+            a["false_present"][1] += 1
         a["coverage"][0] += 1.0 - f["unknown"]
         a["coverage"][1] += 1
     return {p: {L: {k: [round(x, 4), n] for k, (x, n) in d.items()} for L, d in by.items()} for p, by in acc.items()}
@@ -134,11 +138,12 @@ def main() -> int:
             md.append("")
         if r["held_out"]:
             md += ["Held-out policies (leave-one-arrangement-out thresholds; uncapped; FRR on present episodes, "
-                   "recall on removed, coverage on all):", "",
-                   "| policy | L1 FRR | L1 recall | L1 coverage | L2 FRR | L2 recall | L2 coverage |",
-                   "|---|---|---|---|---|---|---|"]
+                   "recall and false present on removed, coverage on all):", "",
+                   "| policy | L1 FRR | L1 recall | L1 false present | L1 coverage | L2 FRR | L2 recall | "
+                   "L2 false present | L2 coverage |", "|---" * 9 + "|"]
             for pol, by in r["held_out"].items():
-                cells = [frac(*by[L][k]) if L in by else "n/a" for L in LIGHTINGS for k in ("frr", "recall", "coverage")]
+                cells = [frac(*by[L][k]) if L in by else "n/a" for L in LIGHTINGS
+                         for k in ("frr", "recall", "false_present", "coverage")]
                 md.append(f"| {pol} | " + " | ".join(cells) + " |")
             md.append("")
         if chosen:
