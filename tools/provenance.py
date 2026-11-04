@@ -36,10 +36,15 @@ def load(run_dir: Path) -> dict:
 def output(prov: dict, template: str, **fmt: str) -> Path:
     """The evidence file `template` names ({out} = the job's output dir), after checking it is one of the job's
     recorded outputs and still has the recorded sha256."""
-    path = template.format(out=prov["out"], **fmt)
+    try:
+        path = template.format(out=prov["out"], **fmt)
+    except KeyError as e:
+        raise SystemExit(f"{template}: unknown placeholder {e}")
     rec = prov["outputs"].get(path)
     if rec is None:
         raise SystemExit(f"{path} is not an output of evidence job {prov.get('key')}")
+    if not Path(path).exists():
+        raise SystemExit(f"{path} was recorded by evidence job {prov.get('key')} but is gone")
     if sha256(Path(path)) != rec["sha256"]:
         raise SystemExit(f"{path} changed since evidence job {prov.get('key')} recorded it (sha256 differs)")
     return Path(path)

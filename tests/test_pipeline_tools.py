@@ -153,6 +153,27 @@ class TestEvidenceJobs(unittest.TestCase):
         with self.assertRaises(SystemExit):                         # downstream readers refuse it too
             provenance.output(a, "{out}/v_refL1.jsonl")
 
+    def test_deleting_the_output_dir_relaunches_a_finished_job(self) -> None:
+        a = self.run_job("A", "run_a")
+        Path(a["outputs"].popitem()[0]).unlink()
+        Path(a["out"], "provenance.json").unlink()
+        Path(a["out"]).rmdir()
+        again = self.run_job("A", "run_a_again")
+        self.assertIn("relaunching", (self.t / "run_a_again" / "events.jsonl").read_text())
+        self.assertEqual(again["key"], a["key"])
+        self.assertNotEqual(again["finished"], None)
+
+    def test_moving_out_dir_is_a_new_job(self) -> None:
+        a = self.run_job("A", "run_a")
+        spec = job_spec(self.t, "A")
+        spec["evidence"]["out_dir"] = str(self.t / "evidence2")
+        run = pipeline.Run(spec, self.t / "run_moved")
+        with contextlib.redirect_stdout(io.StringIO()):
+            pipeline.stage_evidence(run)
+        moved = json.loads((run.dir / "evidence_provenance.json").read_text())
+        self.assertNotEqual(moved["key"], a["key"])
+        self.assertTrue(moved["out"].startswith(str(self.t / "evidence2")))
+
 
 class TestProvenance(unittest.TestCase):
     def test_only_recorded_outputs_with_their_sha256(self) -> None:

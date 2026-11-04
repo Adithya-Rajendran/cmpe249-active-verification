@@ -262,10 +262,10 @@ def evidence_steps(spec: dict, out: str) -> list[dict]:
     return steps
 
 
-def steps_key(steps: list[dict]) -> str:
+def steps_key(steps: list[dict], out_dir: str = "") -> str:
     """Hash of the step commands and the content of every jobs file they read: part of the GB10 job's key, so a
     changed spec or changed jobs never attaches to outputs made by different commands."""
-    h = hashlib.sha256(json.dumps(steps, sort_keys=True).encode())
+    h = hashlib.sha256(json.dumps([steps, out_dir], sort_keys=True).encode())
     for jobs in sorted({a for st in steps for a in st["args"] if a.endswith(".json") and "jobs_" in a}):
         h.update(sha256(Path(jobs)).encode())
     return h.hexdigest()[:10]
@@ -292,7 +292,8 @@ def stage_evidence(run: Run, retry: bool = False) -> None:
     rd = run.spec["remote"]["run_dir"]
     # The job is keyed on the run, the shipped code and the steps (with "{out}" unresolved); its code dir and its
     # output dir are named by the whole key, so two jobs never share, delete or overwrite each other's files.
-    key = f"{code_commit[:12]}_{steps_key(evidence_steps(run.spec, '{out}'))}"
+    # out_dir is hashed in too: it is the parent of the job's output dir, so moving it is a new job
+    key = f"{code_commit[:12]}_{steps_key(evidence_steps(run.spec, '{out}'), ev['out_dir'])}"
     tag = f"evidence_{run.run_id}_{key}"
     out = f"{ev['out_dir']}/{tag}"
     steps = evidence_steps(run.spec, out)
@@ -319,6 +320,11 @@ def stage_evidence(run: Run, retry: bool = False) -> None:
         run.fail("evidence", "GB10 unreachable over ssh 5 times in a row", error=str(err))
 
     state = probe_retrying()
+    if state["rc"] == "0" and not state["running"] and not Path(out).exists():
+        # a finished job whose output dir was deleted (the way to recompute it): run it again
+        remote.run(f"rm -f {rc_file} {pid_file}")
+        run.emit("evidence", "info", "the finished job's output dir is gone: relaunching", out=out)
+        state = {"running": False, "rc": ""}
     finished_before = state["rc"] == "0" and not state["running"]
     if state["rc"] not in ("", "0") and not state["running"] and retry:
         remote.run(f"rm -f {rc_file} {pid_file}")
@@ -409,9 +415,9 @@ def stage_evidence(run: Run, retry: bool = False) -> None:
     saved = json.loads(saved_path.read_text()) if saved_path.exists() else None
     if saved is not None:
         changed = sorted(o for o in outputs if saved["outputs"].get(o, {}).get("sha256") != outputs[o]["sha256"])
-        if saved["key"] != key or changed:
+        if changed:
             run.fail("evidence", f"{len(changed)} outputs of {tag} differ from the sha256 saved when it finished; "
-                     f"delete {out} to recompute", changed=changed[:10], saved_key=saved["key"])
+                     f"delete {out} to recompute (the driver then relaunches the job)", changed=changed[:10])
         run.emit("evidence", "info", "reused outputs match the saved sha256", saved=str(saved_path))
     elif finished_before:
         run.emit("evidence", "info", "the job had finished but saved no provenance (the driver stopped before "
@@ -425,13 +431,17 @@ def stage_evidence(run: Run, retry: bool = False) -> None:
                 "packages": json.loads(env_out[-1]) if len(env_out) > 1 else None}
     prov = {"git": head, "code_commit": code_commit, "key": key, "code_dir": code, "out": out,
             "frozen_evidence_sha256": frozen, "set_root": run.spec["set_root"], "steps": steps, "outputs": outputs,
-            "remote_log": log, "gb10_env": gb10_env, "finished": saved["finished"] if saved else now(),
+            "remote_log": log, "gb10_env": saved["gb10_env"] if saved else gb10_env,
+            "finished": saved["finished"] if saved else now(),
             "checked": now()}
     text = json.dumps(prov, indent=1, sort_keys=True)
     (run.dir / "evidence_provenance.json").write_text(text)
     if saved is None:   # the first record stays: a later attach is checked against it, never rewrites it
         # written by the GB10 user, who owns out_dir on the shared volume
-        remote.run(f"cat > {saved_path}", stdin=text)
+        res = remote.run(f"cat > {saved_path}", stdin=text)
+        if res.returncode != 0:
+            run.fail("evidence", f"could not save {saved_path}; a later attach could not check the outputs",
+                     stderr=str(res.stderr)[-500:])
     run.emit("evidence", "info", "evidence finished", outputs=len(outputs))
 
 

@@ -76,9 +76,12 @@ def main() -> int:
     spec = json.loads(args.spec.read_text())
     sm, root = spec["summary"], Path(spec["set_root"])
     prov = provenance.load(args.run_dir)
-    image_prov = provenance.load(Path(__file__).resolve().parents[1] / sm["image_run"])
+    repo = Path(__file__).resolve().parents[1]
+    image_prov = provenance.load(repo / sm["image_run"])
+    if Path(image_prov["set_root"]) != root:
+        raise SystemExit(f"{sm['image_run']} scored {image_prov['set_root']}, not {root}")
     labels = json.loads((root / "view_labels.json").read_text())["episodes"]
-    cand = json.loads(Path(sm["v03_candidate"]).read_text())["thresholds"]
+    cand = json.loads((repo / sm["v03_candidate"]).read_text())["thresholds"]
     settings = {"v0.3 select-v4": {k: cand[k] for k in ("tau_q", "tau_occ", "tau_match")},
                 "illustrative": sm["illustrative"]}
     image_diag = provenance.output(image_prov, sm["image_diag"])
