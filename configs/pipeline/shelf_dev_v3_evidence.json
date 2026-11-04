@@ -3,7 +3,7 @@
  "note": "Evidence variants on the 60 random dev arrangements plus DES0-3, then select-v4 per variant (random arrangements only). Run with --from-stage evidence.",
  "remote": "configs/pipeline/remote.local.json",
  "set_root": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_dev_v3",
- "local_python": ["uv", "run", "--no-project", "--python", "3.13.5", "--with", "numpy==2.5.3", "--with", "opencv-python-headless==5.0.0.93", "python"],
+ "local_python": ["uv", "run", "--offline", "--no-project", "--python", "3.13.5", "--with", "numpy==2.5.3", "--with", "opencv-python-headless==5.0.0.93", "python"],
  "poll_seconds": 30,
  "heartbeat_seconds": 600,
  "evidence": {
