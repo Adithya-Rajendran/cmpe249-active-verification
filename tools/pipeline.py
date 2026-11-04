@@ -19,7 +19,8 @@ Stages:
               arrangement for stall_minutes, the render process gone without an rc file, a non-zero rc, or fewer
               arrangements than expected.
     episodes  python -m sim.episodes --root SET --contact-sheets --generation-log GENLOG
-    check     python -m sim.check_batch --root SET
+    check     python -m sim.check_batch --root SET. Any non-zero exit is a terminal failure: 1 label sanity, and for
+              tabletop sets 4 table clipping FAIL or 8 table clipping INCOMPLETE (OR-ed; sim/check_batch.py docstring).
     evidence  ship `git archive` of the last commit that changed the GB10's code (evidence.code_paths, default
               perception/ verify/ capture/ pyproject.toml uv.lock; the tracked tree must be clean and
               perception/evidence.py the frozen v0.2.1) to the GB10, and run the spec's evidence steps there one

@@ -8,7 +8,10 @@ Pinned here (the shelf's outputs are pinned by tests/test_shelf_goldens.py, whic
     "tabletop:<family>"), set.json and the README say tabletop, true_alignment.json has the table and target planes;
   - check_batch takes its plane keys from the alignment (table_plane / target_plane) and reports the clipped-table-pixel
     share per capture and stop: table pixels = camera rays meeting the table top AND class 0 at the same pose; grey >=
-    perception/evidence.py's clip_hi (251); the pre-set criterion < 1 % per stop.
+    perception/evidence.py's clip_hi (251); the pre-set criterion (DECISIONS 2026-11-04): EVERY capture strictly below
+    1 %, no averaging; a capture without table pixels, a missing capture or an unmeasured tabletop arrangement is
+    "incomplete", never "pass" ("fail" wins); fail and incomplete exit non-zero (4 / 8, OR-ed with label sanity's 1),
+    including the researcher's two reproductions (review 2026-11-04-tabletop-prerender-review).
 """
 from __future__ import annotations
 
@@ -19,6 +22,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import cv2
 import numpy as np
@@ -214,7 +218,15 @@ class TestTabletopSetEndToEnd(unittest.TestCase):
                     self.assertEqual(caps[(ph, cam["name"], L)]["n_table_px"], want)
                     self.assertEqual(caps[(ph, cam["name"], L)]["share"], 0.0)       # fake grey 101-211 < 251
         tc = self.check["summary"]["table_clipping"]
-        self.assertEqual((tc["pass"], tc["max_share"], tc["captures_at_or_over_limit"]), (True, 0.0, []))
+        self.assertEqual((tc["status"], tc["pass"], tc["max_share"], tc["captures_at_or_over_limit"]), ("pass", True, 0.0, []))
+        self.assertEqual((tc["captures_without_table_px"], tc["captures_missing"], tc["arrangements_without_measurement"]),
+                         ([], [], []))
+        self.assertEqual(tc["n_captures"], 4 * 5 * 2)
+
+    def test_cli_exits_0_on_a_clean_set(self):
+        with tempfile.TemporaryDirectory() as t, contextlib.redirect_stdout(io.StringIO()) as so:
+            self.assertEqual(CB.main(["--root", str(self.root), "--out", str(Path(t) / "check.json")]), 0)
+        self.assertIn("in every one of 40 captures: PASS", so.getvalue())
 
     def test_clipped_table_pixels_fail_the_criterion_at_their_stop(self):
         with tempfile.TemporaryDirectory() as t:
@@ -232,13 +244,21 @@ class TestTabletopSetEndToEnd(unittest.TestCase):
             img[ys[:3], xs[:3]] = 255                             # 3 table pixels blown out, all else untouched
             img[cls > 0] = 255                                    # object pixels do not count, however bright
             cv2.imwrite(str(d / "rgb" / "reference_P2_L1.png"), img)
-            res = CB.check_set(root)
+            with contextlib.redirect_stdout(io.StringIO()) as so:
+                rc = CB.main(["--root", str(root), "--out", str(Path(t) / "check.json")])
+            res = json.loads((Path(t) / "check.json").read_text())
         tc = res["summary"]["table_clipping"]
         n = int(table.sum())
+        self.assertGreaterEqual(3 / n, CB.TABLE_CLIP_LIMIT)
         self.assertAlmostEqual(tc["max_share_per_stop"]["P2"], 3 / n)
         self.assertEqual({s: v for s, v in tc["max_share_per_stop"].items() if s != "P2"}, {s: 0.0 for s in STOPS if s != "P2"})
-        self.assertEqual([x[:4] for x in tc["captures_at_or_over_limit"]], [("TD5000", "reference", "P2", "L1")])
-        self.assertFalse(tc["pass"])
+        self.assertEqual([x[:4] for x in tc["captures_at_or_over_limit"]], [["TD5000", "reference", "P2", "L1"]])
+        self.assertEqual((tc["status"], tc["pass"]), ("fail", False))
+        # the end-to-end CLI: clean label sanity, one failing capture -> non-zero exit (the driver's check stage fails)
+        self.assertEqual(res["summary"]["label_sanity_flagged"], {})
+        self.assertEqual(rc, CB.EXIT_CLIPPING_FAIL)
+        self.assertIn("criterion < 1% in every one of 40 captures: FAIL", so.getvalue())
+        self.assertIn("exit status 4", so.getvalue())
 
     def test_cli_defaults_to_the_tabletop_positions(self):
         with tempfile.TemporaryDirectory() as t:
@@ -251,6 +271,111 @@ class TestTabletopSetEndToEnd(unittest.TestCase):
                 self.assertEqual(E.main(["--root", str(root)]), 0)
             self.assertTrue((root / "positions_tabletop_A.json").is_file())
             self.assertFalse((root / "positions_shelf_A.json").exists())
+
+
+def _clip_arr(arr_id="A", stops=("P1",), share=0.0, n=100, drop=(), override=None):
+    """A check_arrangement-shaped tabletop entry with every phase x stop x lighting capture at `share` of n table pixels
+    (override: {(phase, stop, lighting): (n_table_px, share)}; drop: captures left out)."""
+    caps, per_stop = [], {}
+    for ph in CB.PHASES:
+        for s in stops:
+            for L in CB.LIGHTINGS:
+                if (ph, s, L) in drop:
+                    continue
+                nn, sh = (override or {}).get((ph, s, L), (n, share))
+                caps.append({"phase": ph, "stop": s, "lighting": L, "n_table_px": nn,
+                             "n_clipped": 0 if sh is None else round(sh * nn), "share": sh})
+                if sh is not None:
+                    per_stop[s] = max(per_stop.get(s, 0.0), sh)
+    return {"arrangement_id": arr_id, "environment": "tabletop",
+            "table_clipping": {"captures": caps, "max_share_per_stop": {s: per_stop.get(s) for s in stops}}}
+
+
+class TestClippingCriterion(unittest.TestCase):
+    """table_clipping_summary and the CLI exit status on hand-built results (no render)."""
+
+    def test_reproduction_a_capture_without_table_pixels_is_incomplete_not_pass(self):
+        # the researcher's input verbatim (audit.json clipping_missing_population_reproduction): it used to give pass true
+        arrs = [{"arrangement_id": "SYNTHETIC", "table_clipping": {
+            "captures": [{"phase": "reference", "stop": "P1", "lighting": "L1", "n_table_px": 100, "n_clipped": 0, "share": 0.0},
+                         {"phase": "removed", "stop": "P1", "lighting": "L2", "n_table_px": 0, "n_clipped": 0, "share": None}],
+            "max_share_per_stop": {"P1": 0.0}}}]
+        tc = CB.table_clipping_summary(arrs)
+        self.assertEqual((tc["status"], tc["pass"]), ("incomplete", False))
+        self.assertEqual(tc["captures_without_table_px"], [("SYNTHETIC", "removed", "P1", "L2")])
+        self.assertEqual(tc["n_captures_without_table_px"], 1)
+
+    def test_one_empty_capture_in_a_complete_set_is_incomplete(self):
+        tc = CB.table_clipping_summary([_clip_arr("A", ("P1", "P2")),
+                                        _clip_arr("B", ("P1", "P2"), override={("visible", "P2", "L1"): (0, None)})])
+        self.assertEqual((tc["status"], tc["pass"], tc["captures_missing"]), ("incomplete", False, []))
+        self.assertEqual(tc["captures_without_table_px"], [("B", "visible", "P2", "L1")])
+        self.assertEqual(CB.table_clipping_summary([_clip_arr("A", ("P1", "P2"))])["status"], "pass")
+
+    def test_strictly_below_the_limit_and_no_averaging(self):
+        self.assertEqual(CB.table_clipping_summary([_clip_arr(share=0.0099)])["status"], "pass")
+        at = CB.table_clipping_summary([_clip_arr(share=0.01)])
+        self.assertEqual((at["status"], at["pass"], len(at["captures_at_or_over_limit"])), ("fail", False, 8))
+        # one capture at the limit among 7 clean ones fails, whatever the mean
+        one = CB.table_clipping_summary([_clip_arr(override={("removed", "P1", "L2"): (100, 0.01)})])
+        self.assertEqual(one["status"], "fail")
+        self.assertEqual(one["captures_at_or_over_limit"], [("A", "removed", "P1", "L2", 0.01)])
+        self.assertLess(one["summary_share"]["mean"], CB.TABLE_CLIP_LIMIT)
+
+    def test_fail_wins_over_incomplete(self):
+        tc = CB.table_clipping_summary([_clip_arr(override={("removed", "P1", "L2"): (100, 0.5),
+                                                            ("visible", "P1", "L1"): (0, None)})])
+        self.assertEqual(tc["status"], "fail")
+        self.assertEqual(len(tc["captures_without_table_px"]), 1)
+
+    def test_missing_captures_and_unmeasured_arrangements_are_incomplete(self):
+        tc = CB.table_clipping_summary([_clip_arr(drop={("occluded", "P1", "L2")})])
+        self.assertEqual((tc["status"], tc["captures_missing"]), ("incomplete", [("A", "occluded", "P1", "L2")]))
+        tc = CB.table_clipping_summary([_clip_arr("A"), {"arrangement_id": "B", "environment": "tabletop"}])
+        self.assertEqual((tc["status"], tc["arrangements_without_measurement"]), ("incomplete", ["B"]))
+        empty = {"arrangement_id": "C", "environment": "tabletop",
+                 "table_clipping": {"captures": [], "max_share_per_stop": {"P1": None}}}
+        tc = CB.table_clipping_summary([_clip_arr("A"), empty])
+        self.assertEqual((tc["status"], tc["arrangements_without_measurement"]), ("incomplete", ["C"]))
+
+    def test_the_note_states_the_criterion_and_the_lighting_rule(self):
+        note = CB.table_clipping_summary([_clip_arr()])["note"]
+        for s in ("EVERY capture", "strictly below 1%", "incomplete", "at most one documented", "L1/L2",
+                  "before any evidence result"):
+            self.assertIn(s, note)
+
+    def _main(self, summary_extra: dict, flagged: dict | None = None) -> tuple[int, str]:
+        """CB.main on a stand-in check_set result (the researcher's method: no render, no dataset files)."""
+        res = {"root": "X", "arrangements": [], "summary": {
+            "tag_checks": "SKIPPED", "true_alignment_corner_displacement_px": {"n_views": 0},
+            "leftover_folders_skipped": [], "label_sanity_flagged": flagged or {}, **summary_extra}}
+        with tempfile.TemporaryDirectory() as t, mock.patch.object(CB, "check_set", return_value=res), \
+                contextlib.redirect_stdout(io.StringIO()) as so:
+            rc = CB.main(["--root", t, "--out", str(Path(t) / "check.json")])
+        return rc, so.getvalue()
+
+    def test_reproduction_cli_exits_non_zero_on_a_clipping_failure_with_clean_label_sanity(self):
+        # audit.json clipping_exit_status_reproduction: it used to exit 0
+        rc, out = self._main({"table_clipping": CB.table_clipping_summary([_clip_arr(share=0.2)])})
+        self.assertEqual(rc, CB.EXIT_CLIPPING_FAIL)
+        self.assertNotEqual(rc, 0)
+        self.assertIn("TABLE CLIPPING NOT PASSED", out)
+
+    def test_cli_exit_status_bits(self):
+        inc = {"table_clipping": CB.table_clipping_summary([_clip_arr(override={("visible", "P1", "L1"): (0, None)})])}
+        fail = {"table_clipping": CB.table_clipping_summary([_clip_arr(share=0.2)])}
+        ok = {"table_clipping": CB.table_clipping_summary([_clip_arr()])}
+        bad = {"A": ["P1"]}
+        self.assertEqual(self._main(inc)[0], CB.EXIT_CLIPPING_INCOMPLETE)
+        self.assertIn("WARNING TABLE CLIPPING INCOMPLETE A visible P1 L1", self._main(inc)[1])
+        self.assertEqual(self._main(ok)[0], 0)
+        self.assertEqual(self._main(fail, bad)[0], 5)
+        self.assertEqual(self._main(inc, bad)[0], 9)
+        # a shelf summary has no clipping block: the old statuses and no exit-status line
+        self.assertEqual(self._main({})[0], 0)
+        rc, out = self._main({}, bad)
+        self.assertEqual(rc, 1)
+        self.assertNotIn("exit status", out)
 
 
 class TestMixedSetsAreRefused(unittest.TestCase):

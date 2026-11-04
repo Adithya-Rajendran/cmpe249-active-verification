@@ -22,8 +22,17 @@ is at or above perception/evidence.py's Params.clip_hi (251, read from the froze
 the pixels whose camera ray meets the table top (the scene spec's table_top mesh, the pinhole camera of that capture:
 nominal for the reference, revisit for the queries) AND that are class 0 in the class map at the same pose (no target,
 occluder or distractor in front). The class maps alone cannot separate the table: it is class 0 with the room and the
-dome. Pre-set criterion: < 1 % clipped table pixels at every stop (TABLE_CLIP_LIMIT); a breach is printed, and the
-light is adjusted once before any evidence result.
+dome. Pre-set criterion (DECISIONS 2026-11-04, tabletop pre-render choices): EVERY capture (arrangement, stop, phase,
+lighting) has a clipped table-pixel share strictly below 1 % (TABLE_CLIP_LIMIT); nothing is averaged, and one capture at
+or over the limit fails the set. A capture with no table pixels (share undefined), a tabletop arrangement without the
+measurement, or one missing any of its phase x stop x lighting captures makes the check INCOMPLETE, never a pass. Status:
+"pass", "fail" (wins over incomplete) or "incomplete". If it fails, at most ONE documented, consistent tabletop-lighting
+adjustment is allowed, keeping the L1/L2 relationship, before any evidence result is inspected; then the check batch is
+rerendered and rechecked.
+
+Exit status: 0 all checks passed (or a shelf set, which has no clipping check); bit 1 = label sanity flagged an
+arrangement (as before); bit 4 = table clipping FAIL; bit 8 = table clipping INCOMPLETE (4 and 8 never together). So 0, 1,
+4, 5, 8 or 9; anything non-zero is a failed check stage for tools/pipeline.py. A crash exits 1 and a usage error 2.
 """
 from __future__ import annotations
 
@@ -50,7 +59,18 @@ LIGHTINGS = ("L1", "L2")
 N_TAGS = 4
 LEFTOVER = re.compile(r"\.(partial|old\d*)$")     # <ARR>.partial (interrupted render), <ARR>.old<pid> (crash while installing)
 CLIP_HI = EvidenceParams().clip_hi                 # 251: the evidence step's exposure clip (perception/evidence.py)
-TABLE_CLIP_LIMIT = 0.01                            # pre-set: < 1 % of the table pixels clipped, at every stop
+TABLE_CLIP_LIMIT = 0.01                            # pre-set: < 1 % of the table pixels clipped, in every capture
+EXIT_LABEL_SANITY = 1                              # exit status bits (module docstring)
+EXIT_CLIPPING_FAIL = 4
+EXIT_CLIPPING_INCOMPLETE = 8
+CLIPPING_NOTE = (f"share of table pixels with grey >= clip_hi {CLIP_HI} (perception/evidence.py Params.clip_hi) per "
+                 "capture; table pixels = rays meeting the table top and class 0 at the same pose (check_batch module "
+                 f"docstring). Pre-set criterion: EVERY capture (arrangement, stop, phase, lighting) strictly below "
+                 f"{TABLE_CLIP_LIMIT:.0%}, no averaging: one capture at or over the limit fails. A capture with no table "
+                 "pixels, or a tabletop arrangement missing a capture or the measurement, makes the check incomplete, "
+                 "never a pass; fail or incomplete exits non-zero. If it fails: at most one documented, consistent "
+                 "tabletop-lighting adjustment, keeping the L1/L2 relationship, before any evidence result is "
+                 "inspected; then rerender the check batch and recheck.")
 
 
 def _tags_module():
@@ -282,24 +302,46 @@ def check_arrangement(folder: Path, tags) -> dict:
 
 
 def table_clipping_summary(arrs: list[dict]) -> dict:
-    """Set-level clipped-table-pixel check over the tabletop arrangements: the largest share per stop, the captures at or
-    over the limit, and whether every stop of every arrangement is under it (None without any table pixel)."""
-    tab = [a for a in arrs if "table_clipping" in a]
-    caps = [(a["arrangement_id"], c) for a in tab for c in a["table_clipping"]["captures"]]
-    stops = list(tab[0]["table_clipping"]["max_share_per_stop"]) if tab else []
-    per_stop = {s: max((v for a in tab if (v := a["table_clipping"]["max_share_per_stop"].get(s)) is not None), default=None)
-                for s in stops}
+    """Set-level clipped-table-pixel check over the tabletop arrangements, capture by capture: status "pass" only if
+    every expected capture (each arrangement x phase x stop x lighting) was measured on table pixels and its share is
+    strictly below TABLE_CLIP_LIMIT; "fail" if any capture is at or over it; else "incomplete" (a capture with no table
+    pixels, a missing capture, or a tabletop arrangement without the measurement). The per-stop maxima and the
+    distribution are descriptive only."""
+    tab = [a for a in arrs if "table_clipping" in a or a.get("environment") == E.TABLETOP]
+    caps = [(a["arrangement_id"], c) for a in tab for c in (a.get("table_clipping") or {}).get("captures", [])]
+    meas = [a for a in tab if (a.get("table_clipping") or {}).get("captures")]
+    stops = list(meas[0]["table_clipping"]["max_share_per_stop"]) if meas else []
+    per_stop = {s: max((v for a in meas if (v := a["table_clipping"]["max_share_per_stop"].get(s)) is not None),
+                       default=None) for s in stops}
     over = [(i, c["phase"], c["stop"], c["lighting"], c["share"]) for i, c in caps
             if c["share"] is not None and c["share"] >= TABLE_CLIP_LIMIT]
+    empty = [(i, c["phase"], c["stop"], c["lighting"]) for i, c in caps if c["share"] is None]
+    unmeasured = [a["arrangement_id"] for a in tab if a not in meas]
+    missing = []
+    for a in meas:
+        got = {(c["phase"], c["stop"], c["lighting"]) for c in a["table_clipping"]["captures"]}
+        missing += [(a["arrangement_id"], ph, s, L) for ph in PHASES for s in a["table_clipping"]["max_share_per_stop"]
+                    for L in LIGHTINGS if (ph, s, L) not in got]
+    incomplete = bool(empty or unmeasured or missing or not tab)
+    status = "fail" if over else ("incomplete" if incomplete else "pass")
     known = [v for v in per_stop.values() if v is not None]
-    return {"note": f"share of table pixels with grey >= clip_hi {CLIP_HI} (perception/evidence.py Params.clip_hi) per "
-                    "capture; table pixels = rays meeting the table top and class 0 at the same pose (check_batch module "
-                    f"docstring). Pre-set criterion: < {TABLE_CLIP_LIMIT:.0%} at every stop.",
-            "clip_hi": CLIP_HI, "limit": TABLE_CLIP_LIMIT, "n_arrangements": len(tab), "n_captures": len(caps),
-            "n_captures_without_table_px": sum(c["n_table_px"] == 0 for _, c in caps),
+    return {"note": CLIPPING_NOTE, "clip_hi": CLIP_HI, "limit": TABLE_CLIP_LIMIT, "n_arrangements": len(tab),
+            "n_captures": len(caps), "n_captures_without_table_px": len(empty),
             "max_share_per_stop": per_stop, "max_share": max(known) if known else None,
             "summary_share": summarize([c["share"] for _, c in caps]),
-            "captures_at_or_over_limit": over, "pass": None if not known else not over}
+            "captures_at_or_over_limit": over, "captures_without_table_px": empty, "captures_missing": missing,
+            "arrangements_without_measurement": unmeasured, "status": status, "pass": status == "pass"}
+
+
+def exit_status(summary: dict) -> int:
+    """The CLI's exit status from a check_set summary (module docstring): label-sanity bit, then the clipping bits."""
+    rc = EXIT_LABEL_SANITY if summary["label_sanity_flagged"] else 0
+    status = (summary.get("table_clipping") or {}).get("status")
+    if status == "fail":
+        rc |= EXIT_CLIPPING_FAIL
+    elif status == "incomplete":
+        rc |= EXIT_CLIPPING_INCOMPLETE
+    return rc
 
 
 def side_of_pattern(pattern: str, start: int = 2) -> str | None:
@@ -376,7 +418,7 @@ def check_set(root: Path) -> dict:
     }
     for k in ("dx_m", "dy_m", "dz_m", "dyaw_deg", "dpitch_deg", "droll_deg"):
         summary.setdefault("revisit_delta", {})[k] = summarize([v["delta"][k] for a in arrs for v in a["revisit"].values()])
-    if any("table_clipping" in a for a in arrs):    # tabletop sets only: the shelf summary keeps its keys
+    if any("table_clipping" in a or a.get("environment") == E.TABLETOP for a in arrs):   # tabletop only: shelf keeps its keys
         summary["environment"] = E.TABLETOP
         summary["table_clipping"] = table_clipping_summary(arrs)
     for a in arrs:
@@ -402,9 +444,18 @@ def main(argv=None) -> int:
     if tc is not None:
         print(f"TABLE CLIPPING (grey >= {tc['clip_hi']}): largest share per stop "
               + ", ".join(f"{s} {'-' if v is None else format(v, '.4f')}" for s, v in tc["max_share_per_stop"].items())
-              + f"; criterion < {tc['limit']:.0%}: " + {True: "PASS", False: "FAIL", None: "no table pixels"}[tc["pass"]])
+              + f"; criterion < {tc['limit']:.0%} in every one of {tc['n_captures']} captures: {tc['status'].upper()}")
         for i, ph, s, L, v in tc["captures_at_or_over_limit"]:
             print(f"WARNING TABLE CLIPPING {i} {ph} {s} {L}: {v:.4f} of the table pixels at or above {tc['clip_hi']}")
+        for i, ph, s, L in tc["captures_without_table_px"]:
+            print(f"WARNING TABLE CLIPPING INCOMPLETE {i} {ph} {s} {L}: no table pixels, the share is undefined")
+        for i, ph, s, L in tc["captures_missing"]:
+            print(f"WARNING TABLE CLIPPING INCOMPLETE {i} {ph} {s} {L}: capture not measured")
+        for i in tc["arrangements_without_measurement"]:
+            print(f"WARNING TABLE CLIPPING INCOMPLETE {i}: tabletop arrangement without a clipping measurement")
+        if tc["status"] != "pass":
+            print("TABLE CLIPPING NOT PASSED: no evidence run on this set. At most one documented, consistent "
+                  "tabletop-lighting adjustment (keeping L1/L2) before any evidence result; then rerender and recheck.")
     if res["summary"]["leftover_folders_skipped"]:
         print(f"NOTE: skipped crash leftovers (not checked, and sim/episodes.py refuses them): {res['summary']['leftover_folders_skipped']}")
     flagged = res["summary"]["label_sanity_flagged"]
@@ -418,7 +469,10 @@ def main(argv=None) -> int:
               f"{lb['patterns']['reference']}/{lb['patterns']['visible']}/{lb['patterns']['occluded']} rendered side {arr['rendered_side']} "
               f"n_diag {lb['n_diagnostic']} render {arr['render_s']} s")
     print(f"wrote {out}")
-    return 1 if flagged else 0
+    rc = exit_status(res["summary"])
+    if rc and tc is not None:                       # a shelf set prints what it printed before
+        print(f"exit status {rc} (bits: 1 label sanity, 4 table clipping fail, 8 table clipping incomplete)")
+    return rc
 
 
 if __name__ == "__main__":

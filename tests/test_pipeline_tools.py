@@ -1,6 +1,7 @@
 """tools/pipeline.py helpers, tools/evidence_summary.py and tools/quality_resampling.py (stdlib tools, no GB10)."""
 from __future__ import annotations
 
+import argparse
 import contextlib
 import io
 import json
@@ -173,6 +174,58 @@ class TestEvidenceJobs(unittest.TestCase):
         moved = json.loads((run.dir / "evidence_provenance.json").read_text())
         self.assertNotEqual(moved["key"], a["key"])
         self.assertTrue(moved["out"].startswith(str(self.t / "evidence2")))
+
+
+CHECK_STAND_IN = """import json, sys
+sys.path.insert(0, {repo!r})
+from unittest import mock
+from sim import check_batch as CB
+status = {status!r}
+arr = {{"arrangement_id": "TD5000", "environment": "tabletop", "table_clipping": {{
+    "captures": [{{"phase": ph, "stop": "P1", "lighting": L, "n_table_px": 100, "n_clipped": 0,
+                  "share": 0.5 if status == "fail" else 0.0}} for ph in CB.PHASES for L in CB.LIGHTINGS],
+    "max_share_per_stop": {{"P1": 0.5 if status == "fail" else 0.0}}}}}}
+res = {{"root": "X", "arrangements": [], "summary": {{
+    "tag_checks": "SKIPPED", "true_alignment_corner_displacement_px": {{"n_views": 0}}, "leftover_folders_skipped": [],
+    "label_sanity_flagged": {{}}, "table_clipping": CB.table_clipping_summary([arr])}}}}
+argv = sys.argv[sys.argv.index("sim.check_batch") + 1:]
+with mock.patch.object(CB, "check_set", return_value=res):
+    sys.exit(CB.main([*argv, "--out", {out!r}]))
+"""
+
+
+class TestCheckStage(unittest.TestCase):
+    """The check stage runs sim/check_batch.py's real CLI (check_set stood in): a table-clipping failure with clean
+    label sanity exits 4, which the driver treats as a failed stage (terminal alert, driver exit 1)."""
+
+    def run_check(self, status: str) -> tuple[int | None, list[dict]]:
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            (t / "stand_in.py").write_text(CHECK_STAND_IN.format(repo=str(pipeline.REPO), status=status,
+                                                                 out=str(t / "check.json")))
+            spec = {"run_id": "check-test", "set_root": str(t / "set"), "local_python": [sys.executable, str(t / "stand_in.py")]}
+            run = pipeline.Run(spec, t / "run")
+            args = argparse.Namespace(from_stage="check", to_stage="check", launch=False, retry=False, spec=t / "spec.json")
+            code = None
+            with contextlib.redirect_stdout(io.StringIO()):
+                try:
+                    pipeline.run_stages(run, spec, args)
+                except SystemExit as e:
+                    code = e.code
+            return code, [json.loads(x) for x in (run.dir / "events.jsonl").read_text().splitlines()]
+
+    def test_clipping_failure_fails_the_stage(self) -> None:
+        code, ev = self.run_check("fail")
+        self.assertEqual(code, 1)
+        self.assertEqual((ev[-1]["stage"], ev[-1]["level"], ev[-1]["data"]["terminal"], ev[-1]["data"]["rc"]),
+                         ("check", "alert", True, 4))
+        self.assertIn("check exited with rc 4", ev[-1]["msg"])
+
+    def test_clipping_pass_finishes_the_run(self) -> None:
+        code, ev = self.run_check("pass")
+        self.assertIsNone(code)
+        self.assertEqual([(e["stage"], e["level"]) for e in ev[-2:]], [("check", "info"), ("driver", "done")])
+        self.assertEqual(ev[-2]["data"]["rc"], 0)
 
 
 class TestProvenance(unittest.TestCase):

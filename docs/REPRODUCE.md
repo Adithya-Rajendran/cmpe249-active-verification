@@ -195,6 +195,7 @@ $UV_RUN -m sim.check_batch --root $SET            # writes $SET/check/check.json
 ```
 
 - Exit 0 if no arrangement is flagged. Exit 1 if one is flagged.
+- Tabletop sets only: the table-clipping check adds 4 (fail) or 8 (incomplete) to that status; see `sim/README.md`.
 - Runtime: 16 s for the 12 arrangements of `shelf_dev_v3_check`.
 - Checks (tag checks are skipped, and say so, for tag-free sets):
   - frame margins of every capture, revisit pose deltas (+-10 mm, +-0.5 deg), visible fractions and patterns;
