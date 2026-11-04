@@ -536,6 +536,67 @@ class TestEvidenceSummary(unittest.TestCase):
         self.assertFalse(es.gate({"quality": 1.0, "obstruction": 0.36}, th))
 
 
+class TestEvidenceSummaryFixedThresholds(unittest.TestCase):
+    """main() on a set without design cases, at thresholds fixed elsewhere (the tabletop transfer diagnostic)."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        t = self.t = Path(self.tmp.name)
+        (t / "set").mkdir()
+        (t / "out").mkdir()
+        eps = {"A-visible-L1": {"arrangement_id": "A", "lighting": "L1", "condition": "visible", "truth": "present",
+                                "stops": [{"stop": 0, "visible_fraction": 1.0}]},
+               "A-occluded-L2": {"arrangement_id": "A", "lighting": "L2", "condition": "occluded", "truth": "present",
+                                 "stops": [{"stop": 0, "visible_fraction": 0.0}]}}
+        (t / "set" / "view_labels.json").write_text(json.dumps({"episodes": eps}))
+        diag = t / "out" / "v_refL1.diag.jsonl"
+        diag.write_text("\n".join(json.dumps({"episode_id": e, "stop": 0, "quality": q, "obstruction": o,
+                                               "obstruction_v021": o, "match_score": 0.9, "align_ok": ok})
+                                    for e, q, o, ok in (("A-visible-L1", 0.5, 0.1, True),
+                                                        ("A-occluded-L2", 0.5, 0.9, False))) + "\n")
+        (t / "run").mkdir()
+        (t / "run" / "evidence_provenance.json").write_text(json.dumps(
+            {"out": str(t / "out"), "outputs": {str(diag): {"sha256": provenance.sha256(diag)}}}))
+        self.cand = t / "cand.json"
+        self.cand.write_text("{}")
+        self.fixed = {"tau_q": 0.3, "tau_occ": 0.35, "tau_match": 0.65, "source": str(self.cand),
+                      "sha256": provenance.sha256(self.cand)}
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def main(self, fixed: dict) -> int:
+        spec = {"set_root": str(self.t / "set"), "summary": {
+            "design": False, "illustrative": {"tau_q": 0.6, "tau_occ": 0.3}, "fixed_thresholds": fixed,
+            "variants": {"v03_image": {"diag": "{out}/v_{part}.diag.jsonl", "obstruction": "obstruction"},
+                         "v021_image": {"diag": "{out}/v_{part}.diag.jsonl", "obstruction": "obstruction_v021"}}}}
+        (self.t / "spec.json").write_text(json.dumps(spec))
+        with patch.object(sys, "argv", ["es", "--spec", str(self.t / "spec.json"), "--run-dir", str(self.t / "run")]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            return es.main()
+
+    def test_fixed_thresholds_and_no_design_cases(self) -> None:
+        self.assertEqual(self.main({"v03_image": self.fixed, "v021_image": None}), 0)
+        rep = json.loads((self.t / "run" / "summary.json").read_text())["variants"]
+        v03, v021 = rep["v03_image"], rep["v021_image"]
+        self.assertEqual(v03["chosen"], {"tau_q": 0.3, "tau_occ": 0.35, "tau_match": 0.65})
+        self.assertIn("not calibrated on this set", v03["outcome"])
+        self.assertEqual(v03["gate_chosen"]["L1|present"], [1, 1])
+        self.assertEqual(v03["gate_chosen"]["L2|occluded H"], [0, 1])
+        self.assertEqual(v03["align_refused"], {"L1": [0, 1], "L2": [1, 1]})
+        self.assertIsNone(v03["held_out"])
+        self.assertIsNone(v021["chosen"])
+        self.assertIsNone(v021["gate_chosen"])
+        self.assertIn("illustrative setting only", v021["outcome"])
+        self.assertNotIn("DES cases", (self.t / "run" / "summary.md").read_text())
+
+    def test_a_changed_threshold_source_is_refused(self) -> None:
+        self.cand.write_text('{"edited": true}')
+        with self.assertRaises(SystemExit) as cm:
+            self.main({"v03_image": self.fixed, "v021_image": None})
+        self.assertIn("not the recorded", str(cm.exception))
+
+
 class TestQualityResampling(unittest.TestCase):
     def test_decisions_and_flips(self) -> None:
         th = {"tau_q": 0.3, "tau_occ": 0.35, "tau_match": 0.65}
