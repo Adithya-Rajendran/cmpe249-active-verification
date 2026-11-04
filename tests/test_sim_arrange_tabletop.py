@@ -20,6 +20,7 @@ import math
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -471,6 +472,82 @@ def _results(plan, table):
             k = table.get(("ycb_box", tuple(c["choice"]), c["target"]), 0)
         rows.append({**{x: v for x, v in c.items() if x != "overrides"}, "successes": k, "tries": plan["tries_per_cell"]})
     return {"plan": {"sha256": "x"}, "n_cells": len(rows), "rows": rows}
+
+
+class TestTargetsFixedThroughRetries(unittest.TestCase):
+    """The tabletop slots keep their balanced target (and family / M16 side) through every retry and reserve seed: generate_slot
+    and try_place are shared with the shelf, and these tests drive the tabletop config's own 60-slot dev list."""
+
+    def _fake_run(self, fail):
+        ctx = _ctx()
+        calls = []
+
+        def fake_try(c, seed, attempt, family, side, target=None):
+            calls.append({"seed": seed, "attempt": attempt, "family": family, "side": side, "target": target})
+            if fail(seed, attempt):
+                return None, "occluder", "forced"
+            return {"target": None, "occ": None, "dis": None, "parked": None}, None, "stub"
+
+        def fake_assemble(c, seed, target, occ, dis, parked, draws, slot=None):
+            return {"arrangement_id": A.arrangement_id(seed, "TD"), "seed": seed, "target_id": "stub", "occluder_family": draws["family"],
+                    "m16_side": draws["m16_side"], "draws": dict(draws), "slot": dict(slot), "objects": {"occluder": {"p3_coverage": 1.0}}}
+
+        with mock.patch.object(A, "try_place", fake_try), mock.patch.object(A, "_assemble", fake_assemble):
+            arrs, log = A.generate_set(ctx, "dev")
+        return ctx, arrs, log, calls
+
+    def test_every_call_tries_the_slots_own_target(self):
+        # every 3rd primary seed fails on every attempt (-> a reserve seed), the others fail their first 4 attempts
+        ctx, arrs, log, calls = self._fake_run(lambda seed, attempt: (seed < 6000 and seed % 3 == 0) or attempt < 4)
+        slots = A.slot_list(ctx, "dev")
+        self.assertEqual(len(slots), 60)
+        by_index = {sl["index"]: sl for sl in slots}
+        self.assertGreater(sum(log["reserve_used"].values()), 0)
+        seed_owner = {}
+        for e in log["slots"]:
+            sl = by_index[e["index"]]
+            self.assertEqual((e["family"], e["m16_side"], e["target"]), (sl["family"], sl["m16_side"], sl["target"]))
+            seed_owner[sl["primary_seed"]] = sl
+            for r in e["replacements"]:
+                seed_owner[r["to_seed"]] = sl
+        for c in calls:
+            sl = seed_owner[c["seed"]]
+            self.assertEqual((c["family"], c["side"], c["target"]), (sl["family"], sl["m16_side"], sl["target"]), c)
+        for a in arrs:
+            sl = by_index[a["slot"]["index"]]
+            self.assertEqual(a["draws"]["target"], sl["target"])
+        # the per-class target counts are the balanced assignment's, whatever failed
+        want, got = {}, {}
+        for sl in slots:
+            k = A.class_key(sl["family"], sl["m16_side"])
+            want.setdefault(k, {}).setdefault(sl["target"], 0)
+            want[k][sl["target"]] += 1
+        for a in arrs:
+            k = A.class_key(a["occluder_family"], a["m16_side"])
+            got.setdefault(k, {}).setdefault(a["draws"]["target"], 0)
+            got[k][a["draws"]["target"]] += 1
+        self.assertEqual(got, want)
+
+    def test_a_real_reserve_placement_keeps_the_target(self):
+        """The real tabletop try_place on a reserve seed after the primary seed's every attempt is forced to fail."""
+        ctx = _ctx()
+        slots = A.slot_list(ctx, "dev")
+        sl = next(s for s in slots if s["family"] == "S8")
+        real = A.try_place
+
+        def wrapped(c, seed, attempt, family, side, target=None):
+            if seed == sl["primary_seed"]:
+                return None, "occluder", "forced"
+            return real(c, seed, attempt, family, side, target)
+
+        with mock.patch.object(A, "try_place", wrapped):
+            arr, e = A.generate_slot(ctx, sl, {})
+        self.assertTrue(e["replaced"])
+        self.assertEqual(e["used_seed"], ctx.config["slots"]["dev"]["reserve"]["S8"][0])
+        self.assertEqual(len(e["failed_tries"]), ctx.config["slots"]["retry_max"] + 1)
+        self.assertEqual(arr["objects"]["target"]["obj_id"], sl["target"])
+        self.assertEqual((arr["occluder_family"], arr["slot"]["target"], arr["draws"]["target"]), ("S8", sl["target"], sl["target"]))
+        self.assertEqual(arr["arrangement_id"], f"TD{e['used_seed']:04d}")
 
 
 class TestHeightScanRule(unittest.TestCase):
