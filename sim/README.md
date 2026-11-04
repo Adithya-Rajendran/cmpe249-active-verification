@@ -1,4 +1,4 @@
-# sim/: simulated shelf rig
+# sim/: simulated shelf rig (and the tabletop environment, in progress)
 
 End-to-end commands, hosts, data layout and known gaps: [`docs/REPRODUCE.md`](../docs/REPRODUCE.md).
 
@@ -40,6 +40,12 @@ look" from a MuJoCo render; use the Isaac Sim backend for appearance.
 | `sim/true_align_evidence.py` | Evaluation only: evidence v0.3 on the true homography (`true_alignment*.json`, `--plane target|front`) instead of image registration, to separate registration error from cue error. Never a calibration or policy input. Driven by `configs/pipeline/shelf_dev_v3_truealign.json`; compared by `tools/quality_resampling.py`. Tests: `tests/test_true_align_evidence.py`. |
 | `tests/test_sim_alignment.py` | The plane homography on synthetic cameras (points of a plane projected through both cameras map through H), `true_alignment.json` through `episodes`, and `check_batch` on a tag-free set. |
 | `tests/test_sim_arrange.py`, `tests/test_sim_batch.py`, `tests/fake_isaac.py` | Generator: slots, M16 side, revisit draws, hash provenance, placements, design cases, the positions file. Renderer and episodes: labels at the query poses, atomic writing and `--skip-existing`, manifest formats, refusals; `fake_isaac.py` stubs Isaac / omni / PIL so `render_arrangement` and `main` run end to end in the tests (numpy and cv2 only). |
+| `configs/sim/tabletop_geometry.json` | The TABLETOP environment (DEV, 2026-11-04; [Tabletop environment](#tabletop-environment-dev-2026-11-04)): table 1.20 x 0.80 m, top 0.75 m, 3 cm slab on legs, workspace centre 0.30 m from the near edge; room (floor, back wall 1 m behind the far edge, side walls, baseboards, no ceiling); materials incl. the fixed wood texture's sha256, scale, orientation and roughness; lighting = the shelf presets relative to the workspace centre; workspace outline; camera intrinsics (= the shelf's). |
+| `sim/tabletop.py` | Tabletop scene (numpy only, reuses `sim/rig.py` boxes and cameras): slab mesh with UVs, legs, room, workspace outline, `export_scene_spec` (schema `cmpe249.sim-scene.v1` plus optional tabletop fields), the per-stop pitch rule and the revisit frame check; CLI `python -m sim.tabletop positions | scene | texture`. |
+| `sim/wood_texture.py` | The seeded procedural light-oak texture (numpy + zlib; deterministic; pixel sha256 pinned in the geometry). `python -m sim.wood_texture --out PATH.png`. |
+| `configs/sim/positions_tabletop_A.json` | The tabletop stops: 45 cm arc, lens 38 cm above the table, azimuths -60..60 deg, roll 0, per-stop pitch, frame check nominal and with the revisit offsets. Written by `python -m sim.tabletop positions`. |
+| `tests/test_sim_tabletop.py` | Tabletop geometry, slab mesh and UVs, texture pixels, lighting = shelf presets, frame rays meet the room, scene export, positions (windows >= 2 deg, symmetry, revisit corners), `roll_deg` (shelf cameras unchanged). |
+| `tests/test_shelf_goldens.py`, `tests/shelf_golden.py`, `tests/golden/` | Shelf goldens ([Shelf goldens](#shelf-goldens-tabletop-wave-step-0)): canonical hashes of every shelf output at 51cf0a3, before the tabletop edits; `tests/golden/make_shelf_goldens.py` wrote `shelf_goldens.json`. |
 
 ## Coordinate frame
 
@@ -117,6 +123,13 @@ Keys:
 - `labels`: the object grouping for segmentation.
 - `materials`: render-default colours.
 - `provenance`: the geometry and positions files, and each block's sources.
+
+Optional keys only the tabletop export (`sim/tabletop.py export_scene_spec`) emits; the shelf export never does:
+`environment` ("tabletop"), `tags_enabled` false, mesh `normals` / `uv` (vertex interpolation), material `texture` (file
+name, pixel and file sha256, physical size, orientation, wrap) / `metallic`, `lighting` (presets with rect-light positions,
+forward directions toward `aim`, sizes, intensities, on / off, dome intensity) and `workspace` (radius, outline points).
+Current renderers ignore them (the scene then renders untextured, with the shelf's lights); wave 7 of the tabletop plan
+reads them.
 
 MuJoCo draws the tag markers 0.6 mm and the cards 0.3 mm in front of the front plane to avoid z-fighting.
 `tests/test_sim_mujoco.py` checks that every exported box and camera matches the compiled MJCF.
@@ -319,6 +332,54 @@ provenance records, and numpy's version.
     turning temporal AA off did not change it (`data/raw/2026-11-03_sim_pilot/ghost_test*.py`).
   - `isaac_batch.py` therefore creates new render products for every (phase, lighting) capture, with 100 updates
     before each. Toggling visibility on one set of render products is not safe for removed / occluded views.
+
+## Tabletop environment (DEV, 2026-11-04)
+
+The second simulated environment (decision 2026-11-04; design: progress/drafts/2026-11-04-tabletop-design.md, not in the
+repo). Built so far: the scene, the texture and the positions (code-plan steps 1-2). The generator, renderer, alignment and
+episodes do not know the tabletop yet (steps 3-9).
+
+- **Frame:** metres, origin at the workspace centre on the table top, x right as seen from P3, y away from P3, z up.
+  `sim/rig.py arc_stops` works unchanged (arc centre at the origin).
+- **Table:** 1.20 x 0.80 m, top 0.75 m above the floor, 3 cm slab on four 5 cm legs; the near edge is 0.30 m in front of
+  the workspace centre (y = -0.30), the far edge at y = 0.50. **Room:** floor (the shelf's render floor colour), matte
+  off-white back wall 1 m behind the far edge (y = 1.50), side walls at x = +-2.0 m (a choice made here so no frame sees past
+  the floor; every frame ray is checked to meet the room), white baseboards, no ceiling.
+- **Finish (fixed before any evidence):** one procedural light-oak texture, `sim/wood_texture.py` seed 20261104, 2400 x 1600 px
+  covering the whole top once (0.5 mm per px, no repeat), grain along +x, roughness 0.5, metallic 0, sRGB; pinned by
+  `materials.table_top.texture.pixels_sha256` in the geometry. The PNG is not committed: write it with
+  `python -m sim.tabletop texture --out PATH.png` and check its pixel sha256.
+- **Lighting:** the shelf presets' numbers (two 0.4 m rect lights at (+-0.6, -1.0, 1.4) + dome 300; L2 = key_right off) in
+  the tabletop frame, aimed at (0, 0, 0.05); carried in the scene spec.
+- **Cameras:** `configs/sim/positions_tabletop_A.json` (radius 45 cm, lens 38 cm above the table, azimuths -60..60 deg,
+  start P3, F order P1 P2 P4 P5, `roll_deg: 0`). `sim/rig.py cameras_from_positions` reads an optional file-level
+  `roll_deg` (precedence: the `roll_deg` argument, then the file, then the P3 fitted roll; the shelf file has none, so the
+  shelf keeps 1.98 deg). Per stop, the pitch maximises the smallest k1 margin of the workspace outline (24 points on the
+  0.20 m circle at z = 0 and z = 0.12); accepted only if every stop's window is >= 2 deg; margins are also verified at the 64
+  corners of the revisit box (+-10 mm, +-0.5 deg) and over a seeded sample (the `frame_check` block of the file).
+
+```
+uv run --no-project --python 3.13.5 --with numpy==2.5.3 python -m sim.tabletop positions      # rewrites the positions file
+uv run --no-project --python 3.13.5 --with numpy==2.5.3 python -m sim.tabletop scene --scene-out scene.json
+```
+
+## Shelf goldens (tabletop wave, step 0)
+
+`tests/golden/shelf_goldens.json` holds canonical hashes of every shelf output, made at origin/main 51cf0a3 before any
+tabletop edit; only code-hash fields are masked (`tests/shelf_golden.py`). `tests/test_shelf_goldens.py` checks:
+
+- the generator: `slot_list` dev and test; ten dev slots (the first of each class + slots 3, 4, 8, 12) and the four design
+  cases regenerated (all 60 slots with `CMPE249_GOLDEN_FULL=1`, ~2 min), each with its `arrangement_sha256` recomputed from
+  the stored code hashes; with the share: the 64 dev60 arrangement files and the index files;
+- with the share (read only): `sim/episodes.py` rebuilt on a JSON-only scratch copy of `shelf_dev_v3` (every output file and
+  annotation), `sim/check_batch.py` per arrangement for DES0 / SD1000 / SD1008 (the full run, ~85 s, with
+  `CMPE249_GOLDEN_SLOW=1`);
+- without Isaac: `sim/isaac_batch.py main()` against `tests/fake_isaac.py` for SD1000 (annotator call log, PNG metadata,
+  render settings, labels) and every pxr / omni call of the real `build_stage` for SD1000 and DES0 (recorded by stand-in
+  objects: lights, aim, materials, boxes, meshes, cameras).
+
+Not pinned: rendered pixels (no Isaac on the Jetson), contact sheets, and the share's set-level `render_report_*.json` / per
+arrangement `render.json` (they hold timings).
 
 ## Visible fraction
 

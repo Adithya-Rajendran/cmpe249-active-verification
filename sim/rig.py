@@ -22,7 +22,8 @@ pixel i covers [i, i + 1). Stops come from a positions file (schema cmpe249.posi
 radius R about a centre on the #3 centre line, rotated by arc_rotation_deg, each stop yawed to face the centre, one
 downward tilt for all stops, or a per-stop stops[i].tilt_deg where the file gives one (configs/sim/positions_shelf_A.json,
 2026-11-03). Roll is not in the drafts; by default every stop gets the roll fitted at P3, as
-arc_far.py assumed. The fitted radial k1 is applied only on request (frame checks); renderers draw a pinhole.
+arc_far.py assumed, unless the file gives a roll_deg (configs/sim/positions_tabletop_A.json: 0). The fitted radial k1 is
+applied only on request (frame checks); renderers draw a pinhole.
 
 Visibility: visible fraction = target pixels in the full scene / target pixels with everything else hidden, computed
 from integer label masks (one id per object, -1 = background). Classes follow geom_measured.py: H <= 0.05, C >= 0.90,
@@ -437,8 +438,16 @@ def arc_stops(positions: Mapping) -> list[dict]:
 
 
 def cameras_from_positions(positions: Mapping, geometry: Mapping, roll_deg: float | None = None) -> list[Camera]:
+    """Cameras of a positions file. Roll: the `roll_deg` argument if given, else the file's optional `roll_deg` (one value
+    for every stop; configs/sim/positions_tabletop_A.json), else the fitted P3 roll of the geometry (the shelf files have no
+    roll_deg)."""
     cam = geometry["camera"]
-    roll = cam["p3_fit"]["roll_deg"] if roll_deg is None else roll_deg
+    if roll_deg is not None:
+        roll = roll_deg
+    elif positions.get("roll_deg") is not None:
+        roll = float(positions["roll_deg"])
+    else:
+        roll = cam["p3_fit"]["roll_deg"]
     z = positions["height_cm"] / 100
     return [Camera(s["name"], (s["x"], s["y"], z), s["heading_deg"], s["tilt_deg"], roll, cam["f_px"],
                    cam["width_px"], cam["height_px"], cam["k1"]) for s in arc_stops(positions)]
