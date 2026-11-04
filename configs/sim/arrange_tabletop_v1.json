@@ -1,7 +1,7 @@
 {
  "schema": "cmpe249.sim-arrange-config.v1",
  "name": "tabletop_v1",
- "status": "DEV config, 2026-11-04 (tabletop environment; researcher's decisions of 2026-11-04, progress/drafts/2026-11-04-tabletop-design.md). NOT FROZEN. H_T and the IND28 width are a POST-HOC DEVELOPMENT AMENDMENT by the researcher (data/raw/2026-11-04_tabletop_scan/amendment_2026-11-04.json, sha256 43bf4087f0542b720bc33506ddbbcd1bfcdab00072810b82d9941dbdfd5b1cc8); the board-height scan itself found 'no height satisfies (a) and (b)' (decision.json, unchanged). The ycb_box choices are the scan's; the per-class target lists are the class matrix at the amended configuration on fresh probe seeds (matrix.json).",
+ "status": "DEV config, 2026-11-04 (tabletop environment; researcher's decisions of 2026-11-04, progress/drafts/2026-11-04-tabletop-design.md). NOT FROZEN. H_T and the IND28 width are a POST-HOC DEVELOPMENT AMENDMENT by the researcher (data/raw/2026-11-04_tabletop_scan/amendment_2026-11-04.json, sha256 fdf6870eb3d6f498447aa75ca7da79694ef95d0933d0f361bf15811cad2b24ac); the board-height scan itself found 'no height satisfies (a) and (b)' (decision.json, unchanged). The ycb_box choices are the scan's; the per-class target lists are the class matrix at the amended configuration on fresh probe seeds (matrix.json).",
  "environment": "tabletop",
  "geometry": "configs/sim/tabletop_geometry.json",
  "positions": "configs/sim/positions_tabletop_A.json",
@@ -494,7 +494,7 @@
      0.015
     ],
     "note": "8 cm x H_T board, 0.5 cm thick (the physical S8's width and thickness); symmetric shift about the start-stop sight line (shelf values)",
-    "height_note": "H_T = 0.18 m: POST-HOC DEVELOPMENT AMENDMENT by the researcher after inspecting the scan (data/raw/2026-11-04_tabletop_scan/amendment_2026-11-04.json, sha256 43bf4087f0542b720bc33506ddbbcd1bfcdab00072810b82d9941dbdfd5b1cc8). The scan's own outcome stands: 'no height satisfies (a) and (b)' (data/raw/2026-11-04_tabletop_scan/decision.json; plan scan_plan.json sha256 84fe4030df31d9c32546d2386a443bc77c7572b53fc22a7aa4e5e7c2d343f13b)."
+    "height_note": "H_T = 0.18 m: POST-HOC DEVELOPMENT AMENDMENT by the researcher after inspecting the scan (data/raw/2026-11-04_tabletop_scan/amendment_2026-11-04.json, sha256 fdf6870eb3d6f498447aa75ca7da79694ef95d0933d0f361bf15811cad2b24ac). The scan's own outcome stands: 'no height satisfies (a) and (b)' (data/raw/2026-11-04_tabletop_scan/decision.json; plan scan_plan.json sha256 84fe4030df31d9c32546d2386a443bc77c7572b53fc22a7aa4e5e7c2d343f13b)."
    },
    "M16": {
     "kind": "board",
@@ -517,7 +517,7 @@
      "far_same_stop_note": "2026-11-03: the stops BEYOND the adjacent one on the board's side (P1 for L, P5 for R) are not limited: partial cover there is accepted, so a pHHCC (L) or CCHHp (R) board is still one-sided. shelf_v2 limited them to 0.10 (same_far_max)."
     },
     "note": "16 cm x H_T board; the shelf_v3 side rule and ranges (SIDE R = displaced toward +x, hides P3 and P4: CCHHC; L hides P2 and P3: CHHCC)",
-    "height_note": "H_T = 0.18 m: POST-HOC DEVELOPMENT AMENDMENT by the researcher after inspecting the scan (data/raw/2026-11-04_tabletop_scan/amendment_2026-11-04.json, sha256 43bf4087f0542b720bc33506ddbbcd1bfcdab00072810b82d9941dbdfd5b1cc8). The scan's own outcome stands: 'no height satisfies (a) and (b)' (data/raw/2026-11-04_tabletop_scan/decision.json; plan scan_plan.json sha256 84fe4030df31d9c32546d2386a443bc77c7572b53fc22a7aa4e5e7c2d343f13b)."
+    "height_note": "H_T = 0.18 m: POST-HOC DEVELOPMENT AMENDMENT by the researcher after inspecting the scan (data/raw/2026-11-04_tabletop_scan/amendment_2026-11-04.json, sha256 fdf6870eb3d6f498447aa75ca7da79694ef95d0933d0f361bf15811cad2b24ac). The scan's own outcome stands: 'no height satisfies (a) and (b)' (data/raw/2026-11-04_tabletop_scan/decision.json; plan scan_plan.json sha256 84fe4030df31d9c32546d2386a443bc77c7572b53fc22a7aa4e5e7c2d343f13b)."
    },
    "IND28": {
     "kind": "board",
@@ -534,7 +534,7 @@
     ],
     "predeclared_indistinguishable": true,
     "note": "28 cm x H_T board (a wider tabletop variant only if the scan's rule picks one); must cover the target at every stop",
-    "height_note": "H_T = 0.18 m: POST-HOC DEVELOPMENT AMENDMENT by the researcher after inspecting the scan (data/raw/2026-11-04_tabletop_scan/amendment_2026-11-04.json, sha256 43bf4087f0542b720bc33506ddbbcd1bfcdab00072810b82d9941dbdfd5b1cc8). The scan's own outcome stands: 'no height satisfies (a) and (b)' (data/raw/2026-11-04_tabletop_scan/decision.json; plan scan_plan.json sha256 84fe4030df31d9c32546d2386a443bc77c7572b53fc22a7aa4e5e7c2d343f13b).",
+    "height_note": "H_T = 0.18 m: POST-HOC DEVELOPMENT AMENDMENT by the researcher after inspecting the scan (data/raw/2026-11-04_tabletop_scan/amendment_2026-11-04.json, sha256 fdf6870eb3d6f498447aa75ca7da79694ef95d0933d0f361bf15811cad2b24ac). The scan's own outcome stands: 'no height satisfies (a) and (b)' (data/raw/2026-11-04_tabletop_scan/decision.json; plan scan_plan.json sha256 84fe4030df31d9c32546d2386a443bc77c7572b53fc22a7aa4e5e7c2d343f13b).",
     "variant": "TABLETOP VARIANT: 0.36 m wide x 0.18 m tall x 0.005 m thick (the physical IND28 is 0.28 m wide); chosen for the design-case geometry by the researcher's post-hoc development amendment (not by the scan's rule)"
    },
    "white_box": {
@@ -1015,7 +1015,7 @@
  },
  "height_amendment": {
   "file": "data/raw/2026-11-04_tabletop_scan/amendment_2026-11-04.json",
-  "sha256": "43bf4087f0542b720bc33506ddbbcd1bfcdab00072810b82d9941dbdfd5b1cc8",
+  "sha256": "fdf6870eb3d6f498447aa75ca7da79694ef95d0933d0f361bf15811cad2b24ac",
   "kind": "POST-HOC DEVELOPMENT AMENDMENT",
   "made_by": "the researcher"
  }

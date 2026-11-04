@@ -26,8 +26,18 @@ used; full footprint on the table, clearance at every stop, shadow screen and ar
 - Each cell was compared with a maximum selected from the same scan.
 - This decision rests on observed support and geometry; the original statistical output is retained.
 
-**Evidence:** the researcher's review `runs/2026-11-03-tabletop-scan-review/{audit,ind_design_margin,ind_design_revisit}.json`
-(not committed; sha256 in the JSON).
+**Evidence: post-hoc development geometry checks** (the researcher's review after inspecting the scan; copied unchanged,
+sha256 in the JSON):
+- [posthoc_review/audit.json](posthoc_review/audit.json): per-seed width comparison at 0.18 m, the original rule restated, the recommendation.
+- [posthoc_review/ind_design_margin.json](posthoc_review/ind_design_margin.json): design-mug nominal margin at 0.18 m, widths 0.28 and 0.36 m.
+- [posthoc_review/ind_design_revisit.json](posthoc_review/ind_design_revisit.json): TDES3 coverage at the fixed revisit draws and the 64 revisit-box corners.
+
+Limitations, kept as stated in the files: analytic convex-hull pinhole projections only, no rendered masks or pixels; sampled
+revisit corners are not a bound over the continuous range (minimum 93.5 % at TDES3 P5); rendered mask labels remain
+authoritative, so the rendered-mask check stays before the full batch.
+
+Version 1 of this amendment (commit ef8d168, sha256 43bf4087…) pointed to the files in the gitignored `runs/` folder; version 2
+changes only this evidence section.
 
 **Fixed before the fresh seeds:** committed before the class matrix runs on the pre-planned probe seeds 7200-7299
 (`scan_plan.json` `after_the_scan.class_matrix`, unchanged rule: >= 1 success in 100 tries = in the class's target list).

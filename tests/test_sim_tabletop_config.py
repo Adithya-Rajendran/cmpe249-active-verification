@@ -51,7 +51,12 @@ class TestAmendmentRecord(unittest.TestCase):
         self.assertEqual((new["H_T_m"], new["ind28_width_m"], new["parking_min_stops_in_frame"]), (0.18, 0.36, 1))
         self.assertEqual(new["ycb_box_choices"], [[2, "upright"], [3, "upright"], [16, "upright"], [7, "edge"]])
         self.assertEqual(len(am["statistics_disclosure"]), 4)
-        self.assertEqual(set(am["evidence"]["files"]), {"audit.json", "ind_design_margin.json", "ind_design_revisit.json"})
+        ev = am["evidence"]
+        self.assertEqual(ev["label"], "POST-HOC DEVELOPMENT GEOMETRY CHECKS")
+        self.assertEqual(set(ev["files"]), {f"posthoc_review/{f}" for f in ("audit.json", "ind_design_margin.json",
+                                                                            "ind_design_revisit.json")})
+        for rel, sha in ev["files"].items():   # the copied review files are in the repo, byte-identical to the recorded hashes
+            self.assertEqual(_tool()._sha256(SCAN / rel), sha, rel)
 
 
 class TestHeightSource(unittest.TestCase):

@@ -39,14 +39,36 @@
   "This amendment therefore rests on the observed support (which identities are admitted) and on the design-case geometry, not on that test. The original statistical output is retained unchanged in decision.json."
  ],
  "evidence": {
-  "note": "the researcher's post-hoc review (geometry only, no rendering, no policy result or test scene inspected); made at commit 1782efa; files in the main checkout's runs/ folder (not committed)",
-  "dir": "runs/2026-11-03-tabletop-scan-review/",
+  "label": "POST-HOC DEVELOPMENT GEOMETRY CHECKS",
+  "note": "the researcher's post-hoc review after inspecting the scan: analytic geometry only (convex-hull pinhole projections), no rendering, no policy result or test scene inspected; made at commit 1782efa. Copied unchanged (byte-identical, sha256 below) from the main checkout's gitignored runs/2026-11-03-tabletop-scan-review/ into posthoc_review/.",
+  "limitations": [
+   "Analytic convex-hull pinhole checks only; exact rendered masks and pixels are not computed.",
+   "Sampled revisit-box corners are not a proof of a bound over the continuous revisit range (sampled minimum 93.5 % at TDES3 P5).",
+   "The design margin check uses nominal projections; the revisit check uses the fixed TDES3 revisit draws.",
+   "Rendered mask labels remain authoritative: the rendered-mask check stays before the full batch.",
+   "audit.json's recommendation uses descriptive per-seed results, not the scan's inferential gate.",
+   "Absolute paths inside the files (source_scan, python) are kept as written; they describe the researcher's machine when the checks ran."
+  ],
+  "dir": "posthoc_review/",
   "files": {
-   "audit.json": "70c832649f725d19e4ccf22b6c1535dfcbe530b369aba828d171f064330f20ad",
-   "ind_design_margin.json": "de6a36a0ac4ac4259ab5d2ab3330ef89d03c80b95e11dc6148ad63c1af0e8162",
-   "ind_design_revisit.json": "799c0471f494142bce5b9b7d43cf3a4c314b90e78550bec11cc88c88afd18c3b"
-  }
+   "posthoc_review/audit.json": "70c832649f725d19e4ccf22b6c1535dfcbe530b369aba828d171f064330f20ad",
+   "posthoc_review/ind_design_margin.json": "de6a36a0ac4ac4259ab5d2ab3330ef89d03c80b95e11dc6148ad63c1af0e8162",
+   "posthoc_review/ind_design_revisit.json": "799c0471f494142bce5b9b7d43cf3a4c314b90e78550bec11cc88c88afd18c3b"
+  },
+  "original_location": "runs/2026-11-03-tabletop-scan-review/ (main checkout, gitignored)"
  },
+ "amendment_history": [
+  {
+   "version": 1,
+   "commit": "ef8d168",
+   "sha256": "43bf4087f0542b720bc33506ddbbcd1bfcdab00072810b82d9941dbdfd5b1cc8",
+   "note": "committed before the class matrix ran (matrix_started_utc.txt); evidence referenced by path in the gitignored runs/ folder"
+  },
+  {
+   "version": 2,
+   "note": "only the evidence block changed: the three review files were copied into posthoc_review/ (sha256 verified equal to version 1's), with relative links, the label and the limitations. H_T, the IND28 width, the parking rule, the reasons and the statistics disclosure are unchanged; decision.json, scan_plan.json and the other scan outputs are unchanged."
+  }
+ ],
  "next": {
   "fixed_before": "This file is committed BEFORE the class matrix is run on the pre-planned fresh dev probe seeds 7200-7299 (scan_plan.json class_matrix_probe_seeds), so the configuration is fixed before those seeds are seen. No re-scan of the height grid.",
   "class_matrix": "scan_plan.json after_the_scan.class_matrix, unchanged, at this amendment's configuration: 100 real generator tries per (slot class, target) on probe seeds 7200-7299 (try_place, attempt 0), base_config.json with the overrides occluder.families.{S8,M16,IND28}.height_m = 0.18, occluder.families.IND28.width_m = 0.36, occluder.families.ycb_box.choices = the four above; a class's target list = the targets with >= 1 success; the others are excluded with the reason 'no valid placement found in 100 tries' (0 of N, as on the shelf). Run by run_matrix.sh -> matrix.json.",

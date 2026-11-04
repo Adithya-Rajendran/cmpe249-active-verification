@@ -1,0 +1,143 @@
+{
+  "source_commit": "1782efa",
+  "source_scan": "/home/jetson/Projects/SJSU/Fall26/CMPE249/wt/tabletop/data/raw/2026-11-04_tabletop_scan",
+  "cells": 175,
+  "attempts_per_cell": 100,
+  "same_seed_range": [
+    7000,
+    7099
+  ],
+  "original_decision": "no height satisfies (a) and (b)",
+  "original_decision_picks_height": null,
+  "plan_and_base_hash_checks": "match",
+  "original_rule_detail": {
+    "alpha": 0.05,
+    "m16_must_admit": [
+      21,
+      6
+    ],
+    "admitted": "a target is ADMITTED in a cell if at least 1 of its tries_per_cell tries succeeds (same wording as the shelf exclusions: 0 of N tries = not admitted)",
+    "a": "height h meets (a) if foam brick (21) and tuna can (6) are both admitted in M16-L and in M16-R at h",
+    "best_support": "BEST SUPPORT of family F (S8 over the 5 heights; IND28 over the 5 heights x 3 widths) = (identities) the set B_F of targets admitted in at least one cell of F's grid, and (rates) for each target t in B_F its largest success count over F's grid, k*_F(t)",
+    "b": "height h meets (b) if S8 retains its best support at h AND IND28 retains its best support at h for at least one width W. F retains its best support at h (width W) if for EVERY target t in B_F: t is admitted at h (W) and its success count k there is not significantly lower than k*_F(t): one-sided Fisher exact test of k/N vs k*_F(t)/N, p >= alpha (sim/feasibility.py fisher_one_sided_lower). Equal identities with a significantly lower rate fail",
+    "choice": "H_T = the smallest scanned height meeting (a) and (b); all five heights are scanned whatever the outcome",
+    "ind28_width": "the IND28 width at H_T = the narrowest width W meeting (b) at H_T; W > 0.28 m is recorded as a tabletop variant with its exact dimensions (W x H_T x 0.005 m)",
+    "none": "if no height meets (a) and (b) the outcome is reported as 'no height satisfies' and no height is picked",
+    "ycb_box": "a ycb_box choice is kept if it admits at least one of the five targets; the class matrix then decides the ycb_box target list",
+    "implementation": "sim/feasibility.py decide_height (unit-tested on synthetic results in tests/test_sim_arrange_tabletop.py before the run)"
+  },
+  "width_comparison_h018": [
+    {
+      "target": "tomato_soup_can",
+      "width_028_successes": 69,
+      "width_036_successes": 42,
+      "only_028": 28,
+      "only_036": 1,
+      "both": 41,
+      "neither": 30
+    },
+    {
+      "target": "potted_meat_can",
+      "width_028_successes": 51,
+      "width_036_successes": 34,
+      "only_028": 21,
+      "only_036": 4,
+      "both": 30,
+      "neither": 45
+    },
+    {
+      "target": "mug",
+      "width_028_successes": 24,
+      "width_036_successes": 30,
+      "only_028": 9,
+      "only_036": 15,
+      "both": 15,
+      "neither": 61
+    },
+    {
+      "target": "foam_brick",
+      "width_028_successes": 77,
+      "width_036_successes": 90,
+      "only_028": 6,
+      "only_036": 19,
+      "both": 71,
+      "neither": 4
+    },
+    {
+      "target": "tuna_fish_can",
+      "width_028_successes": 58,
+      "width_036_successes": 87,
+      "only_028": 1,
+      "only_036": 30,
+      "both": 57,
+      "neither": 12
+    }
+  ],
+  "height_018": {
+    "S8_None_None": {
+      "tomato_soup_can": 100,
+      "potted_meat_can": 100,
+      "mug": 100,
+      "foam_brick": 100,
+      "tuna_fish_can": 100
+    },
+    "M16_L_None": {
+      "tomato_soup_can": 50,
+      "potted_meat_can": 24,
+      "mug": 13,
+      "foam_brick": 100,
+      "tuna_fish_can": 100
+    },
+    "M16_R_None": {
+      "tomato_soup_can": 46,
+      "potted_meat_can": 32,
+      "mug": 16,
+      "foam_brick": 100,
+      "tuna_fish_can": 100
+    },
+    "IND28_None_0.28": {
+      "tomato_soup_can": 69,
+      "potted_meat_can": 51,
+      "mug": 24,
+      "foam_brick": 77,
+      "tuna_fish_can": 58
+    },
+    "IND28_None_0.36": {
+      "tomato_soup_can": 42,
+      "potted_meat_can": 34,
+      "mug": 30,
+      "foam_brick": 90,
+      "tuna_fish_can": 87
+    }
+  },
+  "width_036_h018_is_at_least_as_successful_as_every_other_height_per_target": true,
+  "scope": "Post-hoc review of development geometry, no policy result or test scene inspected. Per-seed success lists checked; no inferential p-values used for the recommendation.",
+  "width_totals_h018": {
+    "0.28": 279,
+    "0.36": 283
+  },
+  "parking_used_in_original_scan": 1,
+  "smoke_disclosure": "Before this plan was written the generator code was smoke-tested on dev seeds 9900-9911 and 9950-9961 (not used here) at a board height of 0.20 m (and 0.15 / 0.25 m in a 2-try pipeline check) for timing and for the parking rule: with the parked occluder's base centre required in frame at all 5 stops, 5 of 12 S8 parks succeeded (3 stops: 8 of 12; 1 stop: 12 of 12), so the base config requires >= 1 stop (on the seen table). No smoke result is used by the decision.",
+  "recommendation": {
+    "height_m": 0.18,
+    "IND28_width_m": 0.36,
+    "parking_min_stops": 1,
+    "status": "Recommendation only; preserve original no-height outcome and record post-hoc development revision. Validate fixed choice with preplanned fresh class-matrix seeds."
+  },
+  "design_check": {
+    "nominal_margin_px_by_width": {
+      "0.28": -48.762,
+      "0.36": 3.435
+    },
+    "chosen_h018_w036_actual_revisit_min_coverage": 0.9981421349507336,
+    "chosen_h018_w036_min_coverage_among_sampled_corners": 0.9345310829788318,
+    "fixed_fixture_parking_rejection": null,
+    "evidence": [
+      "ind_design_margin.json",
+      "ind_design_revisit.json"
+    ],
+    "limitations": "Analytic convex-hull pinhole check only; exact rendered masks and pixels are not computed. Sampled corners are not a proof of a bound across the continuous pose range. Preserve fixed revisit draws and report actual rendered labels."
+  },
+  "statistics_caveat": "The committed Fisher comparisons treat shared-seed outcomes as independent and test each cell against a sample-selected best. Failure to reject lower success does not establish equivalence. Recommendations use recorded geometry and descriptive per-seed results, not this inferential gate.",
+  "fresh_check": "Use the already planned independent dev probe seeds 7200-7299 for the selected configuration class matrix; do not change target slots during retries."
+}
