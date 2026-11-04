@@ -58,6 +58,14 @@ that view's camera pose); a removed view is diagnostic when its expected region 
 revisit pose (target present, occluder parked), not the nominal reference mask. The occlusionRatio annotator returns -1
 on 6.2 and is not used.
 
+Tabletop scenes (sim/tabletop.py, scene spec 'environment': 'tabletop'; the shelf's calls and settings are unchanged): the
+spec's own `lighting` block replaces the shelf presets and the shelf's hard-coded light aim (lights at the spec positions,
+pointing along the spec's forward / toward its aim); a spec material may carry a `texture` (file + sha256, verified before
+Isaac starts and again before use; --textures-dir) with its wrap, colour space, roughness and metallic from the spec, and the
+table top is a static spec mesh with normals and UVs (one texture over the whole top, UVs checked to lie in [0, 1]). Room parts
+(floor, walls including the side walls, baseboards) are ordinary spec boxes. render_settings() record the spec's presets, aim,
+materials and the textures' verified sha256, so a changed texture or light re-renders. Details: sim/isaac_rig.py.
+
 Dev seeds only: an arrangement whose integer seed is outside 0-9999 (test seeds start at 100000) or whose split is
 not 'dev' is refused before Isaac starts.
 """
@@ -310,12 +318,34 @@ def sha256_json(obj) -> str:
     return hashlib.sha256(json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def check_render_inputs(items: Sequence[tuple[Mapping, bytes]], lightings: Sequence[str], textures_dir: str | Path) -> None:
+    """Refuse, before Isaac starts, a scene whose spec cannot be rendered as asked: a malformed `lighting` block, a requested
+    lighting that is not one of the scene's presets, or a texture that is missing, has no sha256 in the spec or does not match
+    it (ir.TextureError, raised as RefusedArrangement)."""
+    for arr, _ in items:
+        spec = arr["scene"]
+        try:
+            presets = ir.lighting_presets(spec)
+            missing = [L for L in lightings if L not in presets]
+            if missing:
+                raise RefusedArrangement(f"{arr.get('arrangement_id')}: lighting {missing} is not a preset of this scene "
+                                         f"({sorted(presets)})")
+            ir.verified_textures(spec, textures_dir)
+        except (ir.TextureError, ValueError, KeyError) as e:
+            if isinstance(e, RefusedArrangement):
+                raise
+            raise RefusedArrangement(f"{arr.get('arrangement_id')}: {e}") from e
+
+
 def render_settings(arr: Mapping, *, renderer: str, rt_subframes: int, settle: int, capture_updates: int, lightings: Sequence[str],
-                    assets_dir: str | Path, tags_dir: str | Path, isaacsim: str | None) -> dict:
+                    assets_dir: str | Path, tags_dir: str | Path, isaacsim: str | None,
+                    textures_dir: str | Path = "textures") -> dict:
     """Everything outside the arrangement file and the two code files that changes the pixels of a render: resolution (the
     arrangement's cameras), renderer, rt_subframes, settle and capture updates, the target-alone update count, the lighting
     set and its presets, materials, focal length, the Isaac Sim version, the sha256 of models_info.json (the assets) and of the
-    tag images the scene uses. Stored in render.json; its hash is in labels.hashes.render_settings_sha256 and --skip-existing
+    tag images the scene uses. A scene spec with its own lighting or textures (the tabletop) adds its presets and aim (replacing
+    the shelf's), every spec material and the textures' verified sha256 (ir.spec_render_settings); the shelf's settings have none
+    of these keys. Stored in render.json; its hash is in labels.hashes.render_settings_sha256 and --skip-existing
     compares it."""
     cams = arr["scene"]["cameras"]
     models_info = Path(assets_dir) / "models_info.json"
@@ -323,12 +353,14 @@ def render_settings(arr: Mapping, *, renderer: str, rt_subframes: int, settle: i
     for t in (arr["scene"].get("tags", []) if arr["scene"].get("tags_enabled", True) else []):
         f = Path(tags_dir) / f"aruco_4x4_50_id{t['id']}.png"
         tag_hashes[f.name] = sha256_file(f) if f.is_file() else None
-    return {"resolution": [[c["width"], c["height"]] for c in cams], "renderer": renderer, "rt_subframes": int(rt_subframes),
-            "settle_updates": int(settle), "capture_updates": int(capture_updates), "alone_updates": ALONE_UPDATES,
-            "lightings": list(lightings), "lighting_presets": {k: ir.LIGHTING[k] for k in lightings}, "materials": ir.MATERIALS,
-            "focal_mm": ir.FOCAL_MM, "isaacsim": isaacsim,
-            "models_info_sha256": sha256_file(models_info) if models_info.is_file() else None, "tag_image_sha256": tag_hashes,
-            "tags_enabled": bool(arr["scene"].get("tags_enabled", True))}
+    out = {"resolution": [[c["width"], c["height"]] for c in cams], "renderer": renderer, "rt_subframes": int(rt_subframes),
+           "settle_updates": int(settle), "capture_updates": int(capture_updates), "alone_updates": ALONE_UPDATES,
+           "lightings": list(lightings), "lighting_presets": {k: ir.LIGHTING[k] for k in lightings}, "materials": ir.MATERIALS,
+           "focal_mm": ir.FOCAL_MM, "isaacsim": isaacsim,
+           "models_info_sha256": sha256_file(models_info) if models_info.is_file() else None, "tag_image_sha256": tag_hashes,
+           "tags_enabled": bool(arr["scene"].get("tags_enabled", True))}
+    out.update(ir.spec_render_settings(arr["scene"], textures_dir, lightings))     # {} for the shelf
+    return out
 
 
 def needs_render(folder: Path, arr_bytes: bytes, expect: Mapping | None = None) -> tuple[bool, str]:
@@ -410,12 +442,14 @@ def _cube(stage, path: str, local: np.ndarray, mat) -> None:
     ir._bind(cube.GetPrim(), mat)
 
 
-def build_stage(arr: dict, assets_dir: Path, tags_dir: Path, ply_cache: dict) -> dict:
-    """A new stage for one arrangement. Static parts (shelf, tag cards, tags, lights, cameras) come from the
-    arrangement's scene spec; objects go under /World/Objects with their pose on an Xform, so phases only toggle
-    visibility and the occluder's pose. Returns prim paths and the occluder's two pose matrices."""
+def build_stage(arr: dict, assets_dir: Path, tags_dir: Path, ply_cache: dict, textures_dir: str | Path = "textures") -> dict:
+    """A new stage for one arrangement. Static parts (shelf or tabletop scene: boxes, static meshes, tag cards, tags, lights,
+    cameras) come from the arrangement's scene spec and sit under /World/Shelf (the container hidden for the target-alone pass,
+    whatever the environment); objects go under /World/Objects with their pose on an Xform, so phases only toggle
+    visibility and the occluder's pose. Returns prim paths and the occluder's two pose matrices. The spec's own lighting
+    and textures (tabletop) are used when present (sim/isaac_rig.py); built then also has "lighting_presets"."""
     import omni.usd
-    from pxr import Gf, UsdGeom, UsdLux
+    from pxr import Gf, UsdGeom
 
     ctx = omni.usd.get_context()
     ctx.new_stage()
@@ -424,10 +458,7 @@ def build_stage(arr: dict, assets_dir: Path, tags_dir: Path, ply_cache: dict) ->
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
     UsdGeom.Xform.Define(stage, "/World")
     spec = arr["scene"]
-    mats = {k: ir._material(stage, k, rgb, r) for k, (rgb, r) in ir.MATERIALS.items()}
-    for k, m in (spec.get("materials") or {}).items():
-        rgba = m.get("rgba", [0.6, 0.6, 0.6, 1.0])
-        mats[k] = ir._material(stage, f"spec_{ir._safe(k)}", rgba[:3], m.get("roughness", 0.6))
+    mats = ir.make_materials(stage, spec, textures_dir)
     out = {"cameras": {}, "cameras_revisit": {}, "lights": {}, "shelf": "/World/Shelf", "objects": "/World/Objects", "distractors": []}
 
     UsdGeom.Xform.Define(stage, "/World/Shelf")
@@ -440,6 +471,9 @@ def build_stage(arr: dict, assets_dir: Path, tags_dir: Path, ply_cache: dict) ->
         m = ir.box_matrix(b["center"], b["half"], b.get("quat_wxyz", (1.0, 0.0, 0.0, 0.0)))
         UsdGeom.Xformable(cube.GetPrim()).AddTransformOp().Set(Gf.Matrix4d(*m.reshape(-1).tolist()))
         ir._bind(cube.GetPrim(), mats.get(b.get("material", "grey"), mats["grey"]))
+    for m in spec.get("meshes", []):                  # static spec meshes (the tabletop's top); the mug meshes (role target) are objects
+        if ir.is_static_mesh(m):
+            ir.static_mesh(stage, f"/World/Shelf/{ir._safe(m['role'])}_{ir._safe(m['name'])}", spec, m, mats)
     for t in (spec.get("tags", []) if spec.get("tags_enabled", True) else []):      # tag-free scenes (shelf_v3) build no tag quads
         c = ir.tag_quad(t["corners"])
         png = Path(tags_dir) / f"aruco_4x4_50_id{t['id']}.png"
@@ -493,14 +527,7 @@ def build_stage(arr: dict, assets_dir: Path, tags_dir: Path, ply_cache: dict) ->
         ycbv_mesh(p, dr, f"distractor_{i}")
         out["distractors"].append(p)
 
-    UsdLux.DomeLight.Define(stage, "/World/Lights/dome")
-    for name, pos, size, _, _ in ir.LIGHTING["L1"][1]:
-        lt = UsdLux.RectLight.Define(stage, f"/World/Lights/{name}")
-        lt.GetWidthAttr().Set(size)
-        lt.GetHeightAttr().Set(size)
-        m = ir.camera_matrix(pos, np.array([0.0, 0.15, 0.1]) - np.asarray(pos), (0, 0, 1))
-        UsdGeom.Xformable(lt.GetPrim()).AddTransformOp().Set(Gf.Matrix4d(*m.reshape(-1).tolist()))
-        out["lights"][name] = lt.GetPrim().GetPath().pathString
+    ir.build_lights(stage, spec, out, "L1")           # the shelf's lights, or the spec's (positions, aim, presets)
     ir.set_lighting(stage, out, "L1")
     # two camera sets: nominal (the references) and revisit (the query phases: visible, occluded, removed)
     for key, root, cams in (("cameras", "Cameras", spec["cameras"]), ("cameras_revisit", "CamerasRevisit", spec["revisit_cameras"])):
@@ -527,7 +554,7 @@ def _visible(stage, path: str, on: bool) -> None:
 
 def render_arrangement(app, arr: dict, arr_bytes: bytes, out_dir: Path, assets_dir: Path, tags_dir: Path,
                        lightings: Sequence[str], rt_subframes: int, settle: int, capture_updates: int, ply_cache: dict,
-                       pool, settings: Mapping | None = None) -> dict:
+                       pool, settings: Mapping | None = None, textures_dir: str | Path = "textures") -> dict:
     """Render one arrangement into `out_dir` (main() passes a fresh OUT/<ARR>.partial and installs it when this returns)."""
     import omni.replicator.core as rep
     import omni.usd
@@ -539,7 +566,7 @@ def render_arrangement(app, arr: dict, arr_bytes: bytes, out_dir: Path, assets_d
     (out_dir / "rgb").mkdir(parents=True, exist_ok=True)
     (out_dir / "masks").mkdir(parents=True, exist_ok=True)
     (out_dir / "arrangement.json").write_bytes(arr_bytes)
-    built = build_stage(arr, assets_dir, tags_dir, ply_cache)
+    built = build_stage(arr, assets_dir, tags_dir, ply_cache, textures_dir)
     stage = omni.usd.get_context().get_stage()
     spec = arr["scene"]
     stops = [c["name"] for c in spec["cameras"]]
@@ -699,6 +726,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--assets-dir", required=True, help="YCB-Video BOP models/ (obj_0000NN.ply + .png)")
     ap.add_argument("--tags-dir", default="tags", help="aruco_4x4_50_id<N>.png files (read only for scenes with tags; "
                                                       "shelf_v3 scenes are tag-free)")
+    ap.add_argument("--textures-dir", default="textures",
+                    help="where spec textures live (the texture's `file`, or <name>.png); each is sha256-verified against the spec "
+                         "before Isaac starts (tabletop scenes)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--lighting", nargs="+", default=["L1", "L2"], choices=sorted(ir.LIGHTING))
     ap.add_argument("--renderer", default="RaytracedLighting", choices=["RaytracedLighting", "PathTracing"])
@@ -720,6 +750,7 @@ def main(argv: list[str] | None = None) -> int:
     ids = [arr["arrangement_id"] for arr, _ in items]
     if len(set(ids)) != len(ids):
         raise SystemExit(f"duplicate arrangement ids: {ids}")
+    check_render_inputs(items, a.lighting, a.textures_dir)      # lighting block, presets, texture files and sha256s: before Isaac starts
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     cam0 = items[0][0]["scene"]["cameras"][0]
@@ -740,6 +771,10 @@ def main(argv: list[str] | None = None) -> int:
               "isaac_batch_sha256": sha256_file(THIS_FILE), "isaac_rig_sha256": sha256_file(ir.__file__),
               "assets_dir": str(a.assets_dir), "models_info_sha256": sha256_file(Path(a.assets_dir) / "models_info.json")
               if (Path(a.assets_dir) / "models_info.json").exists() else None, "arrangements": {}}
+    if any(ir.is_spec_scene(arr["scene"]) for arr, _ in items):         # tabletop: the shelf's render.json header is unchanged
+        report["textures_dir"] = str(a.textures_dir)
+        report["lighting_presets_note"] = ("the header's presets / materials are the defaults (shelf); a scene spec with a "
+                                           "'lighting' block or textures has its own, recorded in settings (per arrangement)")
     ply_cache: dict = {}
     try:
         ir._tonemap()
@@ -748,7 +783,7 @@ def main(argv: list[str] | None = None) -> int:
                 d = out / arr["arrangement_id"]
                 settings = render_settings(arr, renderer=a.renderer, rt_subframes=a.rt_subframes, settle=a.settle,
                                            capture_updates=a.capture_updates, lightings=a.lighting, assets_dir=a.assets_dir,
-                                           tags_dir=a.tags_dir, isaacsim=report["isaacsim"])
+                                           tags_dir=a.tags_dir, isaacsim=report["isaacsim"], textures_dir=a.textures_dir)
                 expect = {"isaac_batch_sha256": report["isaac_batch_sha256"], "isaac_rig_sha256": report["isaac_rig_sha256"],
                           "lightings": list(a.lighting), "render_settings_sha256": sha256_json(settings)}
                 redo, why = needs_render(d, b, expect)
@@ -763,7 +798,7 @@ def main(argv: list[str] | None = None) -> int:
 
                     shutil.rmtree(tmp)
                 r = render_arrangement(app, arr, b, tmp, Path(a.assets_dir), Path(a.tags_dir), a.lighting, a.rt_subframes,
-                                       a.settle, a.capture_updates, ply_cache, pool, settings)
+                                       a.settle, a.capture_updates, ply_cache, pool, settings, a.textures_dir)
                 rec = {k: v for k, v in report.items() if k != "arrangements"}
                 rec.update(arrangement_id=arr["arrangement_id"], timings=r["timings"], settings=settings,
                            settings_sha256=sha256_json(settings))
