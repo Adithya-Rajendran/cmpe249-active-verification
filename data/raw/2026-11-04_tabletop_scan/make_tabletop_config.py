@@ -5,9 +5,13 @@
            scan plan, before the scan). Board heights are placeholders (null): the scan sets every board family's height_m
            to the scanned height (and IND28's width_m to the scanned width). slots.target_assignment lists every target for
            every class (provisional; the scan and the class matrix decide).
-    python data/raw/2026-11-04_tabletop_scan/make_tabletop_config.py final --decision D.json --matrix M.json --design G.json
+    python data/raw/2026-11-04_tabletop_scan/make_tabletop_config.py final --decision D.json --matrix M.json [--amendment A.json]
         -> configs/sim/arrange_tabletop_v1.json: the base config with the scan's H_T (and IND28 width, ycb_box choices), the
-           class matrix's target_assignment / excluded, and the design cases' gap / shift from the margin scan.
+           class matrix's target_assignment / excluded, and the design cases' gap / shift from the margin scan
+           (design_block). When the scan picked no height (decision H_T_m null) the ONLY other accepted source of H_T and
+           the IND28 width is a post-hoc development amendment file (--amendment, schema AMENDMENT_SCHEMA) that names this
+           decision file by sha256 and repeats its outcome verbatim; anything else without a height is refused. The
+           class matrix must have been run on base_config.json with exactly those overrides (checked by config sha256).
 
 Everything not decided by the scan is copied from configs/sim/arrange_shelf_v3.json (objects, rest poses, rules, retry
 maximum, revisit ranges) or set here from the design proposal / DECISIONS 2026-11-04 (comments next to each value).
@@ -26,6 +30,7 @@ FINAL_OUT = REPO / "configs" / "sim" / "arrange_tabletop_v1.json"
 TARGETS = [4, 9, 14, 21, 6]
 CLASSES = ["IND28", "M16-L", "M16-R", "S8", "white_box", "ycb_box"]
 NAMES = {4: "tomato_soup_can", 9: "potted_meat_can", 14: "mug", 21: "foam_brick", 6: "tuna_fish_can"}
+AMENDMENT_SCHEMA = "cmpe249.tabletop-height-scan-amendment.v1"
 
 
 def _reserve(start: int, n: int) -> list[int]:
@@ -229,37 +234,97 @@ def design_block(c: dict) -> dict:
     return dc
 
 
-def final(a) -> int:
-    """configs/sim/arrange_tabletop_v1.json from the scan decision and the class matrix."""
-    dec = json.loads(Path(a.decision).read_text())
-    mx = json.loads(Path(a.matrix).read_text())
-    if dec["H_T_m"] is None:
-        raise SystemExit(f"refused: the scan's outcome is '{dec['outcome']}', no H_T to write")
-    H, W = float(dec["H_T_m"]), float(dec["ind28_width_m"])
+def _sha256(path) -> str:
+    import hashlib
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def height_source(decision_path, amendment_path=None) -> dict:
+    """H_T, the IND28 width, the kept ycb_box choices and the provenance text, from the scan decision or, when the scan
+    picked no height, from a post-hoc development amendment that names that decision. SystemExit('refused: ...') otherwise."""
+    dec = json.loads(Path(decision_path).read_text())
     kept = [[int(k.split(":")[0]), k.split(":")[1]] for k, v in dec["ycb_box"].items() if v["kept"]]
+    if amendment_path is None:
+        if dec["H_T_m"] is None:
+            raise SystemExit(f"refused: the scan's outcome is '{dec['outcome']}', no H_T to write (and no --amendment given)")
+        H, W = float(dec["H_T_m"]), float(dec["ind28_width_m"])
+        return {"H": H, "W": W, "kept": kept, "amendment": None,
+                "height_note": (f"H_T = {H:g} m: {dec['outcome']} (data/raw/2026-11-04_tabletop_scan/decision.json; plan "
+                                f"scan_plan.json sha256 {dec['plan_sha256']})"),
+                "variant_why": "the narrowest scanned width meeting the scan's rule (b) at H_T",
+                "status_source": ("H_T, the IND28 width, the ycb_box choices and the per-class target lists are the results of "
+                                  "data/raw/2026-11-04_tabletop_scan/ (scan_plan.json committed before the scan; results.json, "
+                                  "decision.json, matrix.json).")}
+    if dec["H_T_m"] is not None:
+        raise SystemExit("refused: the scan picked a height itself; an amendment applies only to a no-height outcome")
+    am = json.loads(Path(amendment_path).read_text())
+    if am.get("schema") != AMENDMENT_SCHEMA:
+        raise SystemExit(f"refused: {amendment_path} is not an amendment file (schema {am.get('schema')!r})")
+    orig, new = am.get("original") or {}, am.get("amendment") or {}
+    if (orig.get("decision") or {}).get("sha256") != _sha256(decision_path):
+        raise SystemExit(f"refused: the amendment does not name this decision file ({decision_path}) by its sha256")
+    if orig.get("outcome") != dec["outcome"]:
+        raise SystemExit(f"refused: the amendment's original outcome {orig.get('outcome')!r} is not the decision's {dec['outcome']!r}")
+    H, W = new.get("H_T_m"), new.get("ind28_width_m")
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 for v in (H, W)):
+        raise SystemExit(f"refused: the amendment gives no H_T / IND28 width (H_T_m {H!r}, ind28_width_m {W!r})")
+    if [list(x) for x in new.get("ycb_box_choices", [])] != kept:
+        raise SystemExit(f"refused: the amendment's ycb_box choices {new.get('ycb_box_choices')} are not the scan's kept {kept}")
+    pk = base()["occluder"]["parked"]["min_stops_in_frame"]
+    if new.get("parking_min_stops_in_frame") != pk:
+        raise SystemExit(f"refused: the amendment's parking rule ({new.get('parking_min_stops_in_frame')} stops) is not the base config's ({pk})")
+    H, W = float(H), float(W)
+    rel = "data/raw/2026-11-04_tabletop_scan/" + Path(amendment_path).name
+    sha = _sha256(amendment_path)
+    return {"H": H, "W": W, "kept": kept, "amendment": {"file": rel, "sha256": sha, "kind": am["kind"], "made_by": am["made_by"]},
+            "height_note": (f"H_T = {H:g} m: POST-HOC DEVELOPMENT AMENDMENT by the researcher after inspecting the scan ({rel}, "
+                            f"sha256 {sha}). The scan's own outcome stands: '{dec['outcome']}' (data/raw/2026-11-04_tabletop_scan/"
+                            f"decision.json; plan scan_plan.json sha256 {dec['plan_sha256']})."),
+            "variant_why": "chosen for the design-case geometry by the researcher's post-hoc development amendment (not by the scan's rule)",
+            "status_source": (f"H_T and the IND28 width are a POST-HOC DEVELOPMENT AMENDMENT by the researcher ({rel}, sha256 {sha}); "
+                              f"the board-height scan itself found '{dec['outcome']}' (decision.json, unchanged). The ycb_box "
+                              "choices are the scan's; the per-class target lists are the class matrix at the amended "
+                              "configuration on fresh probe seeds (matrix.json).")}
+
+
+def final(a) -> int:
+    """configs/sim/arrange_tabletop_v1.json from the scan decision (or its amendment) and the class matrix."""
+    src = height_source(a.decision, a.amendment)
+    mx = json.loads(Path(a.matrix).read_text())
+    H, W, kept = src["H"], src["W"], src["kept"]
     ov = mx.get("overrides", {})
     want = {**{f"occluder.families.{f}.height_m": H for f in ("S8", "M16", "IND28")},
             "occluder.families.IND28.width_m": W, "occluder.families.ycb_box.choices": kept}
     if ov != want:
         raise SystemExit(f"refused: the class matrix was run with {ov}, not the decision's {want}")
+    sys.path.insert(0, str(REPO))
+    from sim import arrange as A
+    from sim import feasibility as F
+    if mx.get("config", {}).get("sha256") != A.sha256_json(F.apply_overrides(base(), want)):
+        raise SystemExit("refused: the class matrix was not run on the base config with these overrides (config sha256 differs)")
+    plan = json.loads((HERE / "scan_plan.json").read_text())
+    ps = plan["class_matrix_probe_seeds"]
+    if (list(mx.get("probe_seeds", [])) != [ps["start"], ps["start"] + ps["n"] - 1] or int(mx["tries_per_cell"]) != ps["n"]
+            or {(r["class"], int(r["target"])) for r in mx["rows"]} != {(k, t) for k in CLASSES for t in TARGETS}):
+        raise SystemExit(f"refused: the class matrix is not the planned one ({ps['n']} tries on probe seeds {ps['start']}.., every "
+                         "class x target)")
     c = base()
     c["status"] = ("DEV config, 2026-11-04 (tabletop environment; researcher's decisions of 2026-11-04, "
-                   "progress/drafts/2026-11-04-tabletop-design.md). NOT FROZEN. H_T, the IND28 width, the ycb_box choices and the "
-                   "per-class target lists are the results of data/raw/2026-11-04_tabletop_scan/ (scan_plan.json committed before "
-                   "the scan; results.json, decision.json, matrix.json).")
+                   "progress/drafts/2026-11-04-tabletop-design.md). NOT FROZEN. " + src["status_source"])
+    if src["amendment"] is not None:
+        c["height_amendment"] = src["amendment"]
     set_boards(c, H, W)
     fam = c["occluder"]["families"]
-    hn = (f"H_T = {H:g} m: {dec['outcome']} (data/raw/2026-11-04_tabletop_scan/decision.json; plan scan_plan.json sha256 "
-          f"{dec['plan_sha256']})")
+    hn = src["height_note"]
     for f in ("S8", "M16", "IND28"):
         fam[f]["height_note"] = hn
     if W > 0.28:
         fam["IND28"]["variant"] = (f"TABLETOP VARIANT: {W:g} m wide x {H:g} m tall x 0.005 m thick (the physical IND28 is 0.28 m "
-                                   "wide); the narrowest scanned width meeting the scan's rule (b) at H_T")
+                                   "wide); " + src["variant_why"])
     fam["ycb_box"]["choices"] = kept
     fam["ycb_box"]["choices_note"] = ("kept by the scan (a choice is kept if it admits >= 1 target in 100 tries): "
                                       + ", ".join(f"{k} {'kept' if v['kept'] else 'dropped'} (admits {v['admitted']})"
-                                                  for k, v in dec["ycb_box"].items()))
+                                                  for k, v in json.loads(Path(a.decision).read_text())["ycb_box"].items()))
     n = int(mx["tries_per_cell"])
     classes, excluded = {}, {}
     for r in mx["rows"]:
@@ -293,6 +358,7 @@ def main(argv=None) -> int:
     fi = sub.add_parser("final")
     fi.add_argument("--decision", required=True)
     fi.add_argument("--matrix", required=True)
+    fi.add_argument("--amendment", default=None, help="post-hoc development amendment (only for a decision with no height)")
     fi.add_argument("--out", default=str(FINAL_OUT))
     a = ap.parse_args(argv)
     if a.cmd == "base":
