@@ -116,16 +116,20 @@ are POOLED: Step 1 and every fold of Step 3a calibrate on the views of all envir
 grouped CV leaves one arrangement out across the pool, and the bootstrap strata keep each environment's own quota classes
 (verify.manifest: tabletop strata are prefixed "tabletop:"). Every record keeps its environment (DevData.environment_of,
 from the manifest's records; absent = shelf). A policy replays an episode on that environment's positions file, and a
-travel cap of N arc steps is N of that environment's nominal steps (the pooled rows' travel_cap_cm is in the reference
-environment's cm: the first set given). Every output adds a per-environment breakdown (candidate "environments"; report
-section "Per environment"): per-view rates at the chosen and held-out thresholds, gate pass rates, the no-diagnostic share,
-the dev check and the held-out check rows with their FRR flags, and the lam check on each geometry. all_within_limit and
-the flags of the main rows stay those of the pooled rows; the per-environment check results are reported next to them
-(all_within_limit per environment), not folded into eligibility.
+travel cap of N arc steps is N of that environment's nominal steps. Rows pooled over environments carry the cap in arc
+steps only (no travel_cap_cm, no mean_travel_cm: each episode moved on its own geometry); centimetres are reported per
+environment (DECISIONS 2026-11-04, choice 3). Every output adds a per-environment breakdown (candidate "environments";
+report section "Per environment"): per-view rates at the chosen and held-out thresholds, gate pass rates, the
+no-diagnostic share, the dev check and the held-out check rows with their FRR flags and all_within_limit, each cap's cm,
+and the lam check on each geometry. all_within_limit and the flags of the main rows stay those of the pooled rows (the
+headline, as before); next to them, frr_within_limit_by_environment and all_environments_within_limit say whether each
+environment passed, because a pooled pass does not imply it (DECISIONS 2026-11-04, choice 2). FRR stays a reported
+policy check: no per-environment result retunes a threshold or gates freeze eligibility.
 
 Known gaps (docs/SIM_PREREGISTRATION.md; verify/README.md section 10): ranker A is not built (the held-out check
-has the per-fold training hook it will plug into); Step 5 (sensitivity) is not split by environment; verify.run still
-replays with placeholder thresholds, not a frozen candidate.
+has the per-fold training hook it will plug into); REQUIRED before pooled calibration, sensitivity reporting or policy
+replay (DECISIONS 2026-11-04, choice 4): Step 5 (sensitivity) is not split by environment, and verify.run still replays
+with placeholder thresholds, not the selected candidate.
 """
 from __future__ import annotations
 
@@ -802,7 +806,7 @@ class DevData:
 
     @property
     def reference_environment(self) -> str | None:
-        """Pooled: the environment whose positions are `positions` (pooled rows' travel caps are in its cm)."""
+        """Pooled: the environment whose positions are `positions` (run settings' caps are converted from its cm)."""
         if self.positions_by_environment is None:
             return None
         return next(e for e, p in self.positions_by_environment.items() if p == self.positions)
@@ -964,9 +968,17 @@ def sim_dev_data(manifest: str | Path, evidence: str | Path, view_labels: str | 
 POOLED_NOTE = ("pooled calibration over environments (tabletop wave, step 9; DEV, not frozen): one threshold set from the "
                "views of every environment's dev set together; grouped CV leaves one arrangement out across the pool; "
                "the bootstrap strata keep each environment's quota classes; each episode replays on its environment's "
-               "positions, with a cap of N arc steps = N of that environment's nominal steps (pooled rows' "
-               "travel_cap_cm: the reference environment's cm). The per-environment rows and rates are reported next "
-               "to the pooled ones; the pooled rows carry the flags and all_within_limit.")
+               "positions, with a cap of N arc steps = N of that environment's nominal steps. Rows pooled over "
+               "environments give the cap in arc steps only, with no cm and no mean travel in cm (the geometries "
+               "differ); the per-environment rows give the travel and each cap's cm. The per-environment rows and "
+               "rates are reported next to the pooled ones; the pooled rows carry the flags and all_within_limit, and "
+               "a pooled pass does not imply that each environment passed (frr_within_limit_by_environment).")
+POOLED_FRR_NOTE = ("FRR <= frr_limit is a reported policy check (false removal; Step 4 and the held-out check): it "
+                   "never changes a threshold and never gates freeze eligibility. all_within_limit is the pooled "
+                   "result over both environments' episodes and stays the headline; a pooled pass does NOT imply that "
+                   "each environment passed. frr_within_limit_by_environment is each environment's own result (true, "
+                   "false, or null = incomplete); all_environments_within_limit is true only if every one is true, "
+                   "false if one is false, else null.")
 
 
 def sim_dev_data_pooled(sets: Sequence[tuple[str | Path, str | Path, str | Path, str | Path]]) -> DevData:
@@ -1775,18 +1787,25 @@ class CheckRow:
     bounds: Mapping[str, Any] | None
     bootstrap: Mapping[str, Any] | None
     over_limit: bool | None         # FRR > frr_limit (None when FRR is undefined)
+    # False for a row pooled over environments: its episodes ran on different geometries, so it has no cm (no
+    # travel_cap_cm, no mean_travel_cm); the cap is in arc steps and the per-environment rows give the cm
+    travel_in_cm: bool = True
 
     def to_dict(self) -> dict[str, Any]:
-        return {"policy": self.policy, "k": self.k, "lam": self.lam, "budget": self.budget,
-                "cap_steps": self.cap_steps, "travel_cap_cm": self.travel_cap_cm, "lighting": self.lighting,
-                **self.counts.to_dict(), "bounds": self.bounds, "bootstrap": self.bootstrap,
-                "frr_over_limit": self.over_limit}
+        d = {"policy": self.policy, "k": self.k, "lam": self.lam, "budget": self.budget,
+             "cap_steps": self.cap_steps, "travel_cap_cm": self.travel_cap_cm, "lighting": self.lighting,
+             **self.counts.to_dict(), "bounds": self.bounds, "bootstrap": self.bootstrap,
+             "frr_over_limit": self.over_limit}
+        if not self.travel_in_cm:
+            del d["travel_cap_cm"], d["mean_travel_cm"]
+        return d
 
 
 def rows_from_outcomes(policy: str, k: int, lam: float, budget: Budget, cap_steps: float | None,
                        outs: Sequence[Outcome], settings: SelectionSettings, strata: Mapping[str, str] | None,
-                       *, with_bounds: bool = True) -> list[CheckRow]:
-    """One CheckRow per L1, L2 and pooled from one policy's outcomes."""
+                       *, with_bounds: bool = True, travel_in_cm: bool = True) -> list[CheckRow]:
+    """One CheckRow per L1, L2 and pooled from one policy's outcomes. travel_in_cm False: rows pooled over
+    environments (CheckRow.travel_in_cm)."""
     rows = []
     for light in (*REPORT_LIGHTINGS, POOLED):
         sub = outs if light == POOLED else [o for o in outs if o.lighting.value == light]
@@ -1795,7 +1814,7 @@ def rows_from_outcomes(policy: str, k: int, lam: float, budget: Budget, cap_step
                              bounds(c, settings.conf) if with_bounds else None,
                              cluster_bootstrap(sub, settings.bootstrap_B, settings.seed, strata) if with_bounds
                              else None,
-                             None if c.frr is None else c.frr > settings.frr_limit + EPS))
+                             None if c.frr is None else c.frr > settings.frr_limit + EPS, travel_in_cm))
     return rows
 
 
@@ -1812,7 +1831,7 @@ def setting_rows(runner: PolicyRunner, policy: str, th: Thresholds, cap_steps: f
         cap_steps = None
     outs = [Outcome.of(r, runner.dev.truth) for r in runner.results(policy, th, budget)]
     return rows_from_outcomes(policy, rule_k(policy, th), th.lam, budget, cap_steps, outs, settings,
-                              runner.dev.strata, with_bounds=with_bounds)
+                              runner.dev.strata, with_bounds=with_bounds, travel_in_cm=not runner.dev.pooled)
 
 
 def run_check(runner: PolicyRunner, th: Thresholds, settings: SelectionSettings) -> list[CheckRow]:
@@ -1890,7 +1909,8 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
                 for r in (got if got is not None else runner.results(p, f.thresholds, budget)):
                     outs.setdefault((p, cap), []).append(Outcome.of(r, held.truth))
                     episodes.append({"fold": f.held_out, "policy": p, "cap_steps": cap,
-                                     "travel_cap_cm": budget.travel_cap_cm, "episode_id": r.episode_id,
+                                     "travel_cap_cm": _episode_cap_cm(dev, budget, r.arrangement_id),
+                                     "episode_id": r.episode_id,
                                      "lighting": r.lighting.value,
                                      "decision_frac": {d.value: r.frac(d) for d in Decision},
                                      "mean_views": r.mean_views, "mean_travel_cm": r.mean_travel_cm,
@@ -1904,7 +1924,7 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
         for cap in policy_caps(p, settings):
             if (p, cap) in outs:
                 rows += rows_from_outcomes(p, rule_k(p, th0), LAM_FIXED, run_budget(p, cap, settings, dev.positions),
-                                           cap, outs[(p, cap)], settings, dev.strata)
+                                           cap, outs[(p, cap)], settings, dev.strata, travel_in_cm=not dev.pooled)
     ran = [x["held_out"] for x in fold_log if x["ran"]]
     flags = [f"held-out check: {r.policy}, {setting_label(r)}, {r.lighting} queries: FRR {r.counts.frr:.3f} "
              f"({_num(r.counts.n_false_removal)}/{r.counts.n_present}) > frr_limit {settings.frr_limit:g} (a reported "
@@ -1925,10 +1945,29 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
                         env_rows += rows_from_outcomes(p, rule_k(p, th0), LAM_FIXED, run_budget(p, cap, settings, pos),
                                                        cap, [o for o in outs[(p, cap)] if o.arrangement_id in arrs],
                                                        settings, _strata_of(dev, arrs))
-            by_env[env] = {"rows": env_rows,
-                           "flags": [f"{env}: {x}" for x in check_flags(env_rows, settings.frr_limit)]}
+            env_flags = [f"{env}: {x}" for x in check_flags(env_rows, settings.frr_limit, HELDOUT_CHECK)]
+            env_unchecked = [f"{env}: {x}" for x in check_unchecked(env_rows, HELDOUT_CHECK)]
+            by_env[env] = {"rows": env_rows, "flags": env_flags, "unchecked": env_unchecked,
+                           "all_within_limit": all_within_limit(env_flags, env_unchecked)}
         out["by_environment"] = by_env
+        out.update(environment_verdicts(by_env))
     return out
+
+
+def environment_verdicts(by_env: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """Pooled dev data: {"frr_within_limit_by_environment": {env: all_within_limit}, "all_environments_within_limit"}.
+    The second is True only if every environment's check passed, False if one failed, else None (incomplete). Reported
+    next to the pooled all_within_limit, which stays the headline: FRR is a policy check, so neither changes a
+    threshold or freeze eligibility, and a pooled pass does not imply that each environment passed."""
+    per = {env: b["all_within_limit"] for env, b in by_env.items()}
+    v = list(per.values())
+    return {"frr_within_limit_by_environment": per,
+            "all_environments_within_limit": False if False in v else (None if None in v else True)}
+
+
+def _episode_cap_cm(dev: DevData, budget: Budget, arrangement_id: str) -> float | None:
+    """A per-episode record's travel cap in cm: the episode's own environment's cm (pooled dev data), else the budget's."""
+    return environment_budget(budget, dev.positions, dev.positions_of(arrangement_id)).travel_cap_cm
 
 
 def _environment_key(dev: DevData, arrangement_id: str) -> dict[str, str]:
@@ -1995,22 +2034,26 @@ def setting_label(r: CheckRow) -> str:
         return "1 view (S: no budget, no cap)"
     if base == "FULL":
         return "all 5 views (FULL: b = 4, uncapped)"
-    cap = "uncapped" if r.cap_steps is None else f"cap {_steps(r.cap_steps)} ({r.travel_cap_cm:.2f} cm)"
+    cap = ("uncapped" if r.cap_steps is None else f"cap {_steps(r.cap_steps)} ({r.travel_cap_cm:.2f} cm)"
+           if r.travel_in_cm else f"cap {_steps(r.cap_steps)}")
     return f"b = {r.budget}, {cap}"
 
 
-def check_flags(rows: Sequence[CheckRow], frr_limit: float) -> list[str]:
+DEV_CHECK, HELDOUT_CHECK = "dev check", "held-out check"
+
+
+def check_flags(rows: Sequence[CheckRow], frr_limit: float, what: str = DEV_CHECK) -> list[str]:
     """Every (policy, setting, lighting) of the dev check whose FRR is above the limit (L1 and L2 rows)."""
-    return [f"dev check: {r.policy}, {setting_label(r)}, {r.lighting} queries: FRR {r.counts.frr:.3f} "
+    return [f"{what}: {r.policy}, {setting_label(r)}, {r.lighting} queries: FRR {r.counts.frr:.3f} "
             f"({_num(r.counts.n_false_removal)}/{r.counts.n_present}) > frr_limit {frr_limit:g}; the thresholds "
             "were not changed (FRR is a check, not an objective)"
             for r in rows if r.lighting in REPORT_LIGHTINGS and r.over_limit]
 
 
-def check_unchecked(rows: Sequence[CheckRow]) -> list[str]:
+def check_unchecked(rows: Sequence[CheckRow], what: str = DEV_CHECK) -> list[str]:
     """Every L1 / L2 row of the dev check whose FRR is undefined (no present-target episode at that lighting): the FRR
     limit was not checked there, so the check cannot pass on it."""
-    return [f"dev check: {r.policy}, {setting_label(r)}, {r.lighting} queries: FRR undefined (no present-target "
+    return [f"{what}: {r.policy}, {setting_label(r)}, {r.lighting} queries: FRR undefined (no present-target "
             "episode), so the FRR limit was not checked"
             for r in rows if r.lighting in REPORT_LIGHTINGS and r.over_limit is None]
 
@@ -2091,12 +2134,14 @@ def run_selection(dev: DevData, settings: SelectionSettings, context: RunContext
     if by_env is not None:
         for env, b in by_env.items():
             extra += [*b["warnings"], *(f"Step 4 per environment: {x}" for x in b["flags"]),
-                      *(f"held-out check per environment: {x}" for x in heldout["by_environment"][env]["flags"])]
+                      *(f"held-out check per environment: {x}" for x in (*heldout["by_environment"][env]["flags"],
+                                                                         *heldout["by_environment"][env]["unchecked"]))]
             for w in b["warnings"]:
                 log.warning(w)
             for w in b["lam_grid_check"].warnings:
                 extra.append(f"lam check ({env} positions): {w}")
-    return {"by_environment": by_env, "calibration": cal, "thresholds": th, "curves": curves, "view_rates": rates, "folds": folds,
+    verdicts = environment_verdicts(by_env) if by_env is not None else {}
+    return {"by_environment": by_env, **verdicts, "calibration": cal, "thresholds": th, "curves": curves, "view_rates": rates, "folds": folds,
             "gate_pass": gate_pass, "gate_pass_flags": gate_flags,
             "cv_held_out": held, "check": check, "flags": flags, "unchecked": unchecked,
             "all_within_limit": all_within_limit(flags, unchecked),
@@ -2222,6 +2267,11 @@ def candidate_doc(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
         "warnings": res["warnings"],
     }
     if dev.pooled:                         # one-environment dev data keep the document's keys
+        del doc["dev_check"]["travel_caps_cm"]   # the first set's cm; per environment: environments.breakdown
+        for k, r in (("dev_check", res), ("held_out_check", res["held_out_check"])):
+            doc[k]["pooled_note"] = POOLED_FRR_NOTE
+            doc[k]["frr_within_limit_by_environment"] = r["frr_within_limit_by_environment"]
+            doc[k]["all_environments_within_limit"] = r["all_environments_within_limit"]
         doc["environments"] = environments_doc(dev, res, conf)
     if provenance is not None:
         doc["synthetic_provenance"] = dict(provenance)
@@ -2243,7 +2293,9 @@ def environments_doc(dev: DevData, res: Mapping[str, Any], conf: float) -> dict[
                 "bootstrap_stratification": b["stratification"],
                 "dev_check": {"flags": b["flags"], "unchecked": b["unchecked"], "all_within_limit": b["all_within_limit"],
                               "rows": [r.to_dict() for r in b["check"]]},
-                "held_out_check": {"flags": ho[env]["flags"], "rows": [r.to_dict() for r in ho[env]["rows"]]},
+                "held_out_check": {"flags": ho[env]["flags"], "unchecked": ho[env]["unchecked"],
+                                   "all_within_limit": ho[env]["all_within_limit"],
+                                   "rows": [r.to_dict() for r in ho[env]["rows"]]},
                 "lam_grid_check": b["lam_grid_check"].to_dict()} for env, b in res["by_environment"].items()}}
 
 
@@ -2342,7 +2394,14 @@ def _cap_cell(r: CheckRow) -> str:
         return "n/a (1 view)"
     if base == "FULL":
         return "n/a (FULL, uncapped)"
-    return "uncapped" if r.cap_steps is None else f"{_steps(r.cap_steps)} ({r.travel_cap_cm:.1f} cm)"
+    if r.cap_steps is None:
+        return "uncapped"
+    return f"{_steps(r.cap_steps)} ({r.travel_cap_cm:.1f} cm)" if r.travel_in_cm else _steps(r.cap_steps)
+
+
+def _travel_cell(r: CheckRow) -> str:
+    """Mean travel in cm; a row pooled over environments has none (CheckRow.travel_in_cm)."""
+    return _f(r.counts.mean_travel_cm, 1) if r.travel_in_cm else "per environment"
 
 
 def _arr_frr(c: Counts) -> str:
@@ -2370,7 +2429,7 @@ def _check_table(rows: Sequence[CheckRow], conf: float) -> list[str]:
                  f"| {_bound(b['recall'] if b else None, 'lower')} | {_ci(r.bootstrap, 'recall')} "
                  f"| {_f(c.coverage)} ({_num(c.n_resolved)}/{c.n_episodes}) "
                  f"| {_bound(b['coverage'] if b else None, 'lower')} | {_ci(r.bootstrap, 'coverage')} "
-                 f"| {_f(c.mean_views, 2)} | {_f(c.mean_travel_cm, 1)} | {flag} |")
+                 f"| {_f(c.mean_views, 2)} | {_travel_cell(r)} | {flag} |")
     return L
 
 
@@ -2384,7 +2443,8 @@ def _sens_table(rows: Sequence[CheckRow], primary: Mapping[tuple[str, float | No
             return f"{_f(get(p), nd) if p else '-'} -> {_f(get(r), nd)}"
         flag = "undef" if r.over_limit is None else ("yes" if r.over_limit else "no")
         L.append(f"| {r.policy} | {_cap_cell(r)} | {arrow(lambda x: x.counts.frr)} | {arrow(lambda x: x.counts.recall)} "
-                 f"| {arrow(lambda x: x.counts.coverage)} | {arrow(lambda x: x.counts.mean_travel_cm, 1)} | {flag} |")
+                 f"| {arrow(lambda x: x.counts.coverage)} "
+                 f"| {arrow(lambda x: x.counts.mean_travel_cm, 1) if r.travel_in_cm else _travel_cell(r)} | {flag} |")
     return L
 
 
@@ -2504,6 +2564,7 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
           f"- dev check (Step 4): {len(flags)} flag(s) above FRR {settings.frr_limit:g}"
           + (f"; **INCOMPLETE**: FRR undefined in {len(unchecked)} L1 / L2 row(s), which were not checked"
              if unchecked else "") + f"; `all_within_limit` {within}",
+          *(_pooled_frr_lines(res) if dev.pooled else []),
           f"- cluster bootstrap: {_strat_text(dev)}", "",
           "## Frozen candidate", "",
           "| tau_q | tau_occ | tau_match | k | lam |", "| --- | --- | --- | --- | --- |",
@@ -2622,6 +2683,8 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
           + f". Rates above FRR {settings.frr_limit:g} are reported checks: they never touch eligibility or a "
           "threshold.", ""]
     L += [f"- **FLAG** {f}" for f in ho["flags"]]
+    if dev.pooled:
+        L.append("- these rows pool both environments' held-out episodes: " + _pooled_frr_text(ho))
     for light in REPORT_LIGHTINGS:
         L += ["", f"#### Held out, {light} queries", ""]
         L += _check_table([r for r in ho["rows"] if r.lighting == light], conf)
@@ -2648,6 +2711,8 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
     elif not flags:   # an incomplete check never reads as a pass (review: an L1-only dev set did)
         L.append(f"- no policy is above FRR {settings.frr_limit:g} where FRR is defined, but the check is incomplete "
                  "(`all_within_limit` is null): it says nothing about the rows not checked")
+    if dev.pooled:
+        L.append("- these rows pool both environments' dev episodes: " + _pooled_frr_text(res))
     for light in REPORT_LIGHTINGS:
         L += ["", f"### {light} queries", ""]
         L += _check_table([r for r in check if r.lighting == light], conf)
@@ -2684,7 +2749,7 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
     pooled_line = (lambda r: f"| {r.policy} | {_cap_cell(r)} | {_f(r.counts.frr)} ({_num(r.counts.n_false_removal)}/"
                    f"{r.counts.n_present}) | {_arr_frr(r.counts)} | {_f(r.counts.recall)} "
                    f"({_num(r.counts.n_true_removal)}/{r.counts.n_removed}) | {_f(r.counts.coverage)} "
-                   f"({_num(r.counts.n_resolved)}/{r.counts.n_episodes}) | {_f(r.counts.mean_travel_cm, 1)} |")
+                   f"({_num(r.counts.n_resolved)}/{r.counts.n_episodes}) | {_travel_cell(r)} |")
     L += [pooled_line(r) for r in check if r.lighting == POOLED]
     L += ["", "### Held-out policy check", "",
           "| policy | travel cap | FRR (x/n) | FRR per arrangement (x/n) | recall (x/n) | coverage (x/n) "
@@ -2711,6 +2776,26 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
     return "\n".join(L)
 
 
+def _verdicts_text(r: Mapping[str, Any]) -> str:
+    within = {True: "true", False: "false", None: "null"}
+    return (", ".join(f"{env} `{within[v]}`" for env, v in r["frr_within_limit_by_environment"].items())
+            + f"; `all_environments_within_limit` {within[r['all_environments_within_limit']]}")
+
+
+def _pooled_frr_text(r: Mapping[str, Any]) -> str:
+    """Pooled dev data: what a pooled FRR result does and does not say, with each environment's own result."""
+    return ("a pooled pass does NOT imply that each environment passed. `all_within_limit` per environment: "
+            + _verdicts_text(r) + " (reported: FRR is a policy check; it retunes no threshold and gates no freeze)")
+
+
+def _pooled_frr_lines(res: Mapping[str, Any]) -> list[str]:
+    """The report's summary lines for pooled dev data: the per-environment FRR results next to the pooled ones."""
+    return ["- per environment (pooled calibration; the pooled `all_within_limit` above stays the headline, and a pooled "
+            "pass does NOT imply that each environment passed): dev check " + _verdicts_text(res)
+            + "; held-out check " + _verdicts_text(res["held_out_check"])
+            + ". FRR is a reported policy check: no per-environment result retunes a threshold or gates freeze."]
+
+
 def _environment_section(dev: DevData, settings: SelectionSettings, res: Mapping[str, Any]) -> list[str]:
     """The report's per-environment breakdown of pooled dev data."""
     conf = settings.conf
@@ -2733,10 +2818,12 @@ def _environment_section(dev: DevData, settings: SelectionSettings, res: Mapping
               "- gate pass at the chosen setting (all views): " + "; ".join(
                   f"{k} {_rate_xn(b['gate_pass'][k]['all'])}" for k in (*REPORT_LIGHTINGS, POOLED)),
               f"- dev check: {len(b['flags'])} flag(s) above FRR {settings.frr_limit:g}; "
-              f"`all_within_limit` for {env}: {within[b['all_within_limit']]} (reported; the pooled rows decide the "
-              "headline)",
+              f"`all_within_limit` for {env}: {within[b['all_within_limit']]} (reported; the pooled "
+              "`all_within_limit` stays the headline, and a pooled pass does not imply this environment passed)",
+              f"- held-out check: {len(ho['flags'])} flag(s) above FRR {settings.frr_limit:g}; `all_within_limit` for "
+              f"{env}: {within[ho['all_within_limit']]} (reported)",
               *[f"- **FLAG** {x}" for x in (*b["flags"], *ho["flags"])],
-              *[f"- **NOT CHECKED** {x}" for x in b["unchecked"]], "",
+              *[f"- **NOT CHECKED** {x}" for x in (*b["unchecked"], *ho["unchecked"])], "",
               f"#### {env}: per-view rates at the frozen thresholds (resubstitution)", ""]
         L += _view_table(b["view_rates"], conf, lights)
         L += ["", f"#### {env}: held-out per-view rates", ""]
@@ -2837,7 +2924,8 @@ def check_episodes(runner: PolicyRunner, th: Thresholds, settings: SelectionSett
         for cap in policy_caps(p, settings):
             budget = run_budget(p, cap, settings, runner.dev.positions)
             for r in runner.results(p, th, budget):
-                out.append({"policy": p, "cap_steps": cap, "travel_cap_cm": budget.travel_cap_cm,
+                out.append({"policy": p, "cap_steps": cap,
+                            "travel_cap_cm": _episode_cap_cm(runner.dev, budget, r.arrangement_id),
                             "episode_id": r.episode_id, "lighting": r.lighting.value,
                             "decision_frac": {d.value: r.frac(d) for d in Decision},
                             "mean_views": r.mean_views, "mean_travel_cm": r.mean_travel_cm,
@@ -3061,7 +3149,9 @@ def main(argv: list[str] | None = None) -> int:
           f"k {th.k} (fixed), lam {th.lam:g} (fixed); dev check: {len(res['flags'])} flag(s) above FRR "
           f"{settings.frr_limit:g}" + (f", {len(res['unchecked'])} row(s) not checked (FRR undefined)"
                                        if res["unchecked"] else "")
-          + f"; held-out check: {len(res['held_out_check']['flags'])} flag(s)")
+          + f"; held-out check: {len(res['held_out_check']['flags'])} flag(s)"
+          + (f"; per environment (a pooled pass does not imply each passed): dev check {_verdicts_text(res)}"
+             if dev.pooled else ""))
     if not res["eligible_for_freeze"]:
         print(f"{who}: candidate NOT eligible for freeze: "
               + "; ".join(r["reason"] for r in res["ineligible_reasons"]), file=sys.stderr)

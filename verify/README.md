@@ -1218,7 +1218,19 @@ dev data are looked at.
   an `environments` block (per environment: per-view and held-out per-view rates, gate pass, no-diagnostic share,
   Step 4 and Step 3b rows with flags and `all_within_limit`, the lam check, the travel caps in cm) and the report a
   "Per environment" section; the main rows, flags and `all_within_limit` stay the pooled ones. One set runs exactly
-  as before (byte-identical outputs for shelf-only input).
+  as before (byte-identical outputs for shelf-only input; re-checked against 4fd65d7 on a feasible shelf set, an
+  infeasible one, exit 3, and `--synthetic`, exit 4).
+  - **Travel (DECISIONS 2026-11-04, choice 3).** Rows pooled over environments (Step 4, Step 3b and Step 5 main rows)
+    carry the cap in arc steps only: no `travel_cap_cm`, no `mean_travel_cm`, and `dev_check` has no `travel_caps_cm`,
+    because each episode moved on its own geometry (the old pooled label was the first set's cm). The per-environment
+    rows carry their environment's travel and cap cm; per-episode records in `selection_details.json` carry the cap
+    cm of the episode's own environment.
+  - **FRR per environment (DECISIONS 2026-11-04, choice 2).** FRR (false removal, Step 4 and the held-out check)
+    stays a reported policy check: no per-environment result retunes a threshold or gates freeze eligibility, and the
+    pooled `all_within_limit` stays the headline. Next to it, `dev_check` and `held_out_check` add
+    `frr_within_limit_by_environment` ({environment: true / false / null}), `all_environments_within_limit` (true only
+    if every environment's is true, false if one is false, else null) and a `pooled_note`; the report says plainly
+    that a pooled pass does not imply each environment passed.
 - **Replaced: select-v3** (until 2026-11-02). It chose (k, tau_match, lam) by **running primary G** on dev and
   maximising its coverage (D10), contrary to DECISIONS 2026-10-12; it would have handed G-tuned settings to ranker
   A. The fixed-sequence walk, the D10 objective and the `--policy`, `--k-grid` and `--lam-grid` options are gone.

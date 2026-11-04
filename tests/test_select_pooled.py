@@ -6,7 +6,12 @@ Pinned: one set still runs the one-environment path (its byte-identity with the 
 against a 1782efa export, not here); pooled data keep every record's environment, calibrate one threshold set on all
 views, replay each episode on its environment's positions with the cap in that environment's arc steps (the same
 decisions as the set run alone), and report a per-environment breakdown whose counts add up to the pooled rows; bad
-pools are refused.
+pools are refused. DECISIONS 2026-11-04 (tabletop pre-render choices 2 and 3): rows pooled over environments carry the cap
+in arc steps only (no travel_cap_cm, no mean_travel_cm, no dev_check.travel_caps_cm), the per-environment rows and the
+per-episode records carry their own environment's cm; FRR stays a reported policy check with the pooled all_within_limit
+as the headline, and frr_within_limit_by_environment / all_environments_within_limit sit next to it, with report text
+saying a pooled pass does not imply each environment passed. The single-set byte-identity with 4fd65d7 was re-checked
+by running the CLI from both trees (feasible, infeasible exit 3, --synthetic exit 4), not here.
 """
 from __future__ import annotations
 
@@ -149,6 +154,11 @@ class PooledSelectionTest(unittest.TestCase):
             cls.res = sel.run_selection(cls.dev, FAST, CTX)
             cls.rc = [sel.main([*cls.args, *QUICK, "--out", str(d / name)]) for name in ("a", "b")]
         cls.out = d / "a"
+        with quiet():                                    # FAST has a cap (2 steps): the cm labels are exercised
+            sel.write_outputs(d / "fast", cls.dev, FAST, cls.res)
+        cls.fast_doc = json.loads((d / "fast" / "frozen_candidate.json").read_text())
+        cls.fast_rep = (d / "fast" / sel.REPORT_FILE).read_text()
+        cls.fast_details = json.loads((d / "fast" / "selection_details.json").read_text())
         cls.doc = json.loads((cls.out / "frozen_candidate.json").read_text())
         cls.rep = (cls.out / sel.REPORT_FILE).read_text()
         cls.details = json.loads((cls.out / "selection_details.json").read_text())
@@ -208,6 +218,59 @@ class PooledSelectionTest(unittest.TestCase):
         self.assertEqual({e.get("environment") for e in self.details["check_episodes"]}, {"shelf", "tabletop"})
         self.assertEqual({e.get("environment") for e in self.details["held_out_episodes"]}, {"shelf", "tabletop"})
         self.assertIn("tabletop/evidence", self.doc["inputs"])
+
+    def test_pooled_rows_carry_cap_steps_only(self) -> None:
+        doc, tab = self.fast_doc, Positions.load(TAB_POS)
+        self.assertNotIn("travel_caps_cm", doc["dev_check"])
+        pooled_rows = [*doc["dev_check"]["rows"], *doc["held_out_check"]["rows"]]
+        self.assertTrue(any(r["cap_steps"] == 2.0 for r in pooled_rows))
+        for r in pooled_rows:
+            self.assertIn("cap_steps", r)
+            self.assertNotIn("travel_cap_cm", r)
+            self.assertNotIn("mean_travel_cm", r)
+        self.assertTrue(all(not r.travel_in_cm for r in (*self.res["check"], *self.res["held_out_check"]["rows"])))
+        # per environment: travel and each cap's cm of that environment's geometry
+        for env, pos in (("shelf", Positions.load(SHELF_POS)), ("tabletop", tab)):
+            b = doc["environments"]["breakdown"][env]
+            self.assertEqual(b["travel_caps_cm"], [None, cap_cm_from_steps(2.0, pos)])
+            for r in (*b["dev_check"]["rows"], *b["held_out_check"]["rows"]):
+                self.assertIn("mean_travel_cm", r)
+                if r["cap_steps"] == 2.0:
+                    self.assertAlmostEqual(r["travel_cap_cm"], cap_cm_from_steps(2.0, pos))
+        # per-episode records: the episode's own environment's cm
+        for e in (*self.fast_details["check_episodes"], *self.fast_details["held_out_episodes"]):
+            if e["cap_steps"] == 2.0:
+                pos = tab if e["environment"] == "tabletop" else Positions.load(SHELF_POS)
+                self.assertAlmostEqual(e["travel_cap_cm"], cap_cm_from_steps(2.0, pos))
+        # the report: pooled rows "2 steps", per-environment rows with cm
+        self.assertIn("| F | 2 steps | ", self.fast_rep)
+        self.assertIn(f"| F | 2 steps ({cap_cm_from_steps(2.0, tab):.1f} cm) | ", self.fast_rep)
+        self.assertIn("| per environment |", self.fast_rep)
+
+    def test_frr_per_environment_flags_next_to_the_pooled_ones(self) -> None:
+        for k, res in (("dev_check", self.res), ("held_out_check", self.res["held_out_check"])):
+            d = self.fast_doc[k]
+            by = self.fast_doc["environments"]["breakdown"]
+            self.assertEqual(d["frr_within_limit_by_environment"],
+                             {e: by[e][k]["all_within_limit"] for e in ("shelf", "tabletop")})
+            self.assertEqual(d["frr_within_limit_by_environment"], res["frr_within_limit_by_environment"])
+            self.assertEqual(d["all_environments_within_limit"], res["all_environments_within_limit"])
+            self.assertIn("does NOT imply that each environment passed", d["pooled_note"])
+            self.assertIn("never gates freeze eligibility", d["pooled_note"])
+        # the pooled headline and freeze eligibility are what they were: the pooled rows' flags, CV feasibility only
+        self.assertEqual(self.fast_doc["dev_check"]["all_within_limit"], self.res["all_within_limit"])
+        self.assertEqual(self.res["all_within_limit"], sel.all_within_limit(self.res["flags"], self.res["unchecked"]))
+        self.assertEqual(sel.freeze_eligibility(self.res["folds"], self.dev.arrangements)[0], self.res["eligible_for_freeze"])
+        self.assertIn("a pooled pass does NOT imply that each environment passed", self.fast_rep)
+        self.assertIn("`all_environments_within_limit`", self.fast_rep)
+
+    def test_environment_verdicts(self) -> None:
+        v = lambda *xs: sel.environment_verdicts({f"e{i}": {"all_within_limit": x} for i, x in enumerate(xs)})
+        self.assertEqual(v(True, True), {"frr_within_limit_by_environment": {"e0": True, "e1": True},
+                                         "all_environments_within_limit": True})
+        self.assertIs(v(True, False)["all_environments_within_limit"], False)   # a pooled pass can hide this
+        self.assertIs(v(None, False)["all_environments_within_limit"], False)
+        self.assertIsNone(v(True, None)["all_environments_within_limit"])
 
     def test_cli_needs_one_of_each_flag_per_set(self) -> None:
         with quiet():
