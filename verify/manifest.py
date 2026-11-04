@@ -12,6 +12,12 @@ Checkpoint 2 additions (docs/SIM_PREREGISTRATION.md sections 2, 3 and 8):
     and verify.select then label every output SIMULATION.
   - load_geometric_labels reads the sim view labels (cmpe249.sim-view-labels-set.v1): per-view geometric diagnostic
     labels, for development analysis and scoring only, never a policy input.
+
+Tabletop wave, step 9 (DEV, not frozen): ArrangementRecord carries the optional environment ("shelf" / "tabletop",
+ENVIRONMENTS). A record without it (every manifest before the tabletop) reads as the shelf, and a shelf record written
+by sim/episodes.py carries none, so shelf manifests keep their exact bytes. A tabletop record's stratum is prefixed
+"tabletop:", so a bootstrap over both environments (pooled calibration, verify/select.py) resamples within each
+environment's own quota classes; shelf strata are unchanged.
 """
 from __future__ import annotations
 
@@ -41,6 +47,8 @@ SIM_VIEW_LABELS_SCHEMA = "cmpe249.sim-view-labels-set.v1"   # written by sim/epi
 # Quota-slot classes (docs/SIM_PREREGISTRATION.md, occluder quotas). M16 is split by side in the strata.
 OCCLUDER_FAMILIES = ("S8", "M16", "IND28", "white_box", "ycb_box")
 M16_SIDES = ("L", "R")
+ENVIRONMENTS = ("shelf", "tabletop")   # docs/SIM_PREREGISTRATION.md section 1: no third environment
+DEFAULT_ENVIRONMENT = "shelf"          # a record without "environment" (every manifest before the tabletop)
 SIMULATION_LABEL = "SIMULATION - Isaac Sim renders; every result is a simulation result"
 UNSTRATIFIED_NOTE = ("no occluder-family information for every arrangement: the cluster bootstrap is UNSTRATIFIED "
                      "(it resamples arrangements over the whole set, so a replicate need not keep the design's quota "
@@ -60,9 +68,13 @@ class ArrangementRecord:
     occluder_family: str | None = None   # quota slot family; None for legacy (pilot) manifests
     m16_side: str | None = None          # "L" / "R" for M16, None otherwise
     design_case: bool = False            # DES0..DES3: dev checks outside the random quota slots
+    environment: str | None = None       # "shelf" / "tabletop"; None (absent) reads as the shelf
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "split", Split(self.split))
+        if self.environment is not None and self.environment not in ENVIRONMENTS:
+            raise ManifestError(f"{self.arrangement_id}: environment must be one of {ENVIRONMENTS} or absent, "
+                                f"got {self.environment!r}")
         if self.occluder_family is not None and self.occluder_family not in OCCLUDER_FAMILIES:
             raise ManifestError(f"{self.arrangement_id}: occluder_family must be one of {OCCLUDER_FAMILIES} or null, "
                                 f"got {self.occluder_family!r}")
@@ -88,12 +100,21 @@ class ArrangementRecord:
         return self.occluder_family is not None
 
     @property
+    def env(self) -> str:
+        """The record's environment, "shelf" when the record has none (legacy)."""
+        return self.environment or DEFAULT_ENVIRONMENT
+
+    @property
     def stratum(self) -> str | None:
         """The bootstrap stratum (quota slot class): the family, M16 split by side ("M16-L" / "M16-R"); design
-        cases get their own "design:" strata so they never mix with the random slots. None without a family."""
+        cases get their own "design:" strata so they never mix with the random slots; a tabletop record's stratum is
+        prefixed "tabletop:" (the shelf's are unchanged), so each environment keeps its own quota counts. None
+        without a family."""
         if self.occluder_family is None:
             return None
         base = f"M16-{self.m16_side}" if self.occluder_family == "M16" else self.occluder_family
+        if self.env != DEFAULT_ENVIRONMENT:
+            base = f"{self.env}:{base}"
         return f"design:{base}" if self.design_case else base
 
     def to_dict(self) -> dict:
@@ -102,6 +123,8 @@ class ArrangementRecord:
              "indistinguishable": self.indistinguishable}
         if self.occluder_family is not None or self.design_case:   # legacy records keep their exact shape
             d.update(occluder_family=self.occluder_family, m16_side=self.m16_side, design_case=self.design_case)
+        if self.environment is not None:                            # absent stays absent (reads as the shelf)
+            d["environment"] = self.environment
         return d
 
     @classmethod
@@ -111,7 +134,7 @@ class ArrangementRecord:
             raise ManifestError(f"{d.get('arrangement_id')}: indistinguishable and design_case must be JSON booleans")
         return cls(d["arrangement_id"], d["target_id"], Split(d["split"]),
                    tuple(Lighting(l) for l in d.get("lightings", ("L1", "L2"))),
-                   ind, d.get("occluder_family"), d.get("m16_side"), des)
+                   ind, d.get("occluder_family"), d.get("m16_side"), des, d.get("environment"))
 
 
 def _sort_key(s: EpisodeSpec) -> tuple:
@@ -146,6 +169,15 @@ class ManifestInfo:
 
     def strata(self) -> dict[str, str] | None:
         return bootstrap_strata(self.arrangements)
+
+    @property
+    def environments(self) -> tuple[str, ...]:
+        """The environments of the records, sorted ("shelf" for records without one)."""
+        return tuple(sorted({a.env for a in self.arrangements}))
+
+    def environment_of(self) -> dict[str, str]:
+        """{arrangement_id: environment} ("shelf" for records without one)."""
+        return {a.arrangement_id: a.env for a in self.arrangements}
 
 
 def _read_manifest(path: str | Path) -> dict:

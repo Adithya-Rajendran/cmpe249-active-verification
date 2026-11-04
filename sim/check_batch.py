@@ -13,6 +13,17 @@ Registration is capture/tags.py align() query -> L1 reference, the same call per
 quality is also measured at the target: the visible-phase target mask is warped through H into reference pixels and
 compared with the reference mask (IoU and centroid offset). Tags are 4 ArUco markers in the shelf's front plane; the
 target stands 5-30 cm behind it, so a camera move of a few mm leaves a small parallax residual at the target.
+
+Environments (tabletop wave, step 8; DEV): a set is one environment (sim/episodes.py environment(); a mixed set is
+refused). The true-alignment planes are taken from sim/alignment.py's output (shelf: front and target plane; tabletop:
+table and target plane), so the shelf's result keys are unchanged. Tabletop arrangements also get the clipped-pixel
+check before any evidence run (progress design note, section 7): per capture, the share of TABLE pixels whose grey level
+is at or above perception/evidence.py's Params.clip_hi (251, read from the frozen module, never copied). Table pixels =
+the pixels whose camera ray meets the table top (the scene spec's table_top mesh, the pinhole camera of that capture:
+nominal for the reference, revisit for the queries) AND that are class 0 in the class map at the same pose (no target,
+occluder or distractor in front). The class maps alone cannot separate the table: it is class 0 with the room and the
+dome. Pre-set criterion: < 1 % clipped table pixels at every stop (TABLE_CLIP_LIMIT); a breach is printed, and the
+light is adjusted once before any evidence result.
 """
 from __future__ import annotations
 
@@ -26,7 +37,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from perception.evidence import Params as EvidenceParams       # frozen v0.2.1 (read only): clip_hi
 from sim import alignment as AL
+from sim import episodes as E
 from sim import isaac_batch as B
 from sim import rig as R
 
@@ -36,6 +49,8 @@ CONDITIONS = ("visible", "occluded", "removed")
 LIGHTINGS = ("L1", "L2")
 N_TAGS = 4
 LEFTOVER = re.compile(r"\.(partial|old\d*)$")     # <ARR>.partial (interrupted render), <ARR>.old<pid> (crash while installing)
+CLIP_HI = EvidenceParams().clip_hi                 # 251: the evidence step's exposure clip (perception/evidence.py)
+TABLE_CLIP_LIMIT = 0.01                            # pre-set: < 1 % of the table pixels clipped, at every stop
 
 
 def _tags_module():
@@ -91,6 +106,68 @@ def read_png(p: Path, flags=cv2.IMREAD_COLOR) -> np.ndarray:
 def is_tag_free(arr: dict) -> bool:
     """A scene without the corner ArUco tags (shelf_v3): there is nothing to detect or register."""
     return arr.get("scene", {}).get("tags_enabled", True) is False
+
+
+def plane_names(stop_alignment: dict) -> list[str]:
+    """The planes of one stop of sim/alignment.py's output, in its order: 'front_plane', 'target_plane' (shelf) or
+    'table_plane', 'target_plane' (tabletop), from its H_<name> keys."""
+    return [k[2:] for k in stop_alignment if k.startswith("H_") and k.endswith("_plane")]
+
+
+def table_top_rect(arr: dict) -> tuple[float, float, float, float, float]:
+    """(x_min, x_max, y_min, y_max, z_top) of the table top: the top face (highest z) of the scene spec's table_top mesh."""
+    m = next((m for m in arr["scene"].get("meshes", []) if m.get("name") == "table_top"), None)
+    if m is None:
+        raise ValueError(f"{arr['arrangement_id']}: tabletop scene spec without a table_top mesh")
+    v = np.asarray(m["vertices"], float)
+    z = v[:, 2].max()
+    top = v[np.isclose(v[:, 2], z)]
+    return float(top[:, 0].min()), float(top[:, 0].max()), float(top[:, 1].min()), float(top[:, 1].max()), float(z)
+
+
+def table_ray_mask(cam: dict, rect: tuple[float, float, float, float, float]) -> np.ndarray:
+    """(height, width) bool: pixels whose ray (through the pixel centre, scene-spec pinhole camera: image x along right,
+    image y along -up, principal point (W/2, H/2)) meets the table top in front of the camera."""
+    w, h, f = int(cam["width"]), int(cam["height"]), float(cam["f_px"])
+    u = (np.arange(w) + 0.5 - w / 2) / f
+    v = (np.arange(h) + 0.5 - h / 2) / f
+    r, up, fw = (np.asarray(cam[k], float) for k in ("right", "up", "forward"))
+    d = fw[None, None, :] + u[None, :, None] * r[None, None, :] - v[:, None, None] * up[None, None, :]
+    c = np.asarray(cam["position"], float)
+    x0, x1, y0, y1, z = rect
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = (z - c[2]) / d[..., 2]
+    px, py = c[0] + t * d[..., 0], c[1] + t * d[..., 1]
+    return np.isfinite(t) & (t > 0) & (px >= x0) & (px <= x1) & (py >= y0) & (py <= y1)
+
+
+def table_clipping(folder: Path, arr: dict, lab: dict) -> dict:
+    """Per capture (phase, stop, lighting): table pixels (table_ray_mask at the capture's camera and class 0 in the class map
+    at the same pose) and the share of them with grey >= CLIP_HI; per stop: the largest share over phases and lightings."""
+    rect = table_top_rect(arr)
+    cams = {"nominal": {c["name"]: c for c in arr["scene"]["cameras"]},
+            "revisit": {c["name"]: c for c in arr["scene"]["revisit_cameras"]}}
+    caps, per_stop = [], {}
+    for ph in PHASES:
+        cam_set = "nominal" if ph == "reference" else "revisit"
+        for s in lab["stops"]:
+            cls = read_png(folder / "masks" / f"classes_{ph}_{s}.png", cv2.IMREAD_GRAYSCALE)
+            cam = cams[cam_set][s]
+            if cls.shape != (int(cam["height"]), int(cam["width"])):
+                raise ValueError(f"{folder.name} {ph} {s}: class map {cls.shape} but the {cam_set} camera is "
+                                 f"{cam['height']} x {cam['width']}")
+            table = table_ray_mask(cam, rect) & (cls == 0)
+            n = int(np.count_nonzero(table))
+            for L in lab["lightings"]:
+                grey = cv2.cvtColor(read_png(folder / "rgb" / f"{ph}_{s}_{L}.png"), cv2.COLOR_BGR2GRAY)
+                k = int(np.count_nonzero(grey[table] >= CLIP_HI))
+                share = None if n == 0 else k / n
+                caps.append({"phase": ph, "stop": s, "lighting": L, "camera": cam_set, "n_table_px": n, "n_clipped": k,
+                             "share": share})
+                if share is not None:
+                    per_stop[s] = max(per_stop.get(s, 0.0), share)
+    return {"clip_hi": CLIP_HI, "limit": TABLE_CLIP_LIMIT, "captures": caps,
+            "max_share_per_stop": {s: per_stop.get(s) for s in lab["stops"]}}
 
 
 def check_arrangement(folder: Path, tags) -> dict:
@@ -172,8 +249,9 @@ def check_arrangement(folder: Path, tags) -> dict:
     ta = AL.arrangement_alignment(arr, lab)
     # a stop without an L1 reference box has no corner displacement; report None instead of crashing on a bad render
     disp = lambda v, plane: v["box_corner_displacement_px"][plane]["max_px"] if "box_corner_displacement_px" in v else None
-    out["true_alignment"] = {s: {"pose_delta": v["pose_delta"], "front_plane_max_corner_px": disp(v, "front_plane"),
-                                 "target_plane_max_corner_px": disp(v, "target_plane")}
+    # the planes are the alignment's own (shelf: front, target; tabletop: table, target), so the keys follow the environment
+    out["true_alignment"] = {s: {"pose_delta": v["pose_delta"],
+                                 **{f"{p}_max_corner_px": disp(v, p) for p in plane_names(v)}}
                              for s, v in ta["stops"].items()}
     # for scenes with tags: the true front-plane H against the tag-based one on a grid of the frame's central 60 %
     if not out["tag_free"]:
@@ -197,7 +275,31 @@ def check_arrangement(folder: Path, tags) -> dict:
     # target pixels must be at least 0.9 x the target-alone pixels at the same revisit pose, at every stop
     out["label_sanity"] = B.label_sanity(stops, lab["target_px"]["visible"], lab["alone_px"]["query"])
     out["label_sanity_recorded"] = lab.get("label_sanity", {}).get("ok")
+    if E.environment(arr) == E.TABLETOP:            # the shelf's result keeps its keys
+        out["environment"] = E.TABLETOP
+        out["table_clipping"] = table_clipping(folder, arr, lab)
     return out
+
+
+def table_clipping_summary(arrs: list[dict]) -> dict:
+    """Set-level clipped-table-pixel check over the tabletop arrangements: the largest share per stop, the captures at or
+    over the limit, and whether every stop of every arrangement is under it (None without any table pixel)."""
+    tab = [a for a in arrs if "table_clipping" in a]
+    caps = [(a["arrangement_id"], c) for a in tab for c in a["table_clipping"]["captures"]]
+    stops = list(tab[0]["table_clipping"]["max_share_per_stop"]) if tab else []
+    per_stop = {s: max((v for a in tab if (v := a["table_clipping"]["max_share_per_stop"].get(s)) is not None), default=None)
+                for s in stops}
+    over = [(i, c["phase"], c["stop"], c["lighting"], c["share"]) for i, c in caps
+            if c["share"] is not None and c["share"] >= TABLE_CLIP_LIMIT]
+    known = [v for v in per_stop.values() if v is not None]
+    return {"note": f"share of table pixels with grey >= clip_hi {CLIP_HI} (perception/evidence.py Params.clip_hi) per "
+                    "capture; table pixels = rays meeting the table top and class 0 at the same pose (check_batch module "
+                    f"docstring). Pre-set criterion: < {TABLE_CLIP_LIMIT:.0%} at every stop.",
+            "clip_hi": CLIP_HI, "limit": TABLE_CLIP_LIMIT, "n_arrangements": len(tab), "n_captures": len(caps),
+            "n_captures_without_table_px": sum(c["n_table_px"] == 0 for _, c in caps),
+            "max_share_per_stop": per_stop, "max_share": max(known) if known else None,
+            "summary_share": summarize([c["share"] for _, c in caps]),
+            "captures_at_or_over_limit": over, "pass": None if not known else not over}
 
 
 def side_of_pattern(pattern: str, start: int = 2) -> str | None:
@@ -224,6 +326,7 @@ def list_folders(root: Path) -> tuple[list[Path], list[str]]:
 def check_set(root: Path) -> dict:
     tags = _tags_module()
     folders, leftovers = list_folders(root)
+    E.check_single_environment([(json.loads((f / "arrangement.json").read_text()), None, f) for f in folders])
     arrs = [check_arrangement(f, tags) for f in folders]
     caps = [c for a in arrs for c in a["captures"]]
     reg = [r for a in arrs for r in a["registration"]]
@@ -231,6 +334,8 @@ def check_set(root: Path) -> dict:
     tag_arrs = [a for a in arrs if not a["tag_free"]]
     tcaps = [c for a in tag_arrs for c in a["captures"]]
     ta_all = [v for a in arrs for v in a["true_alignment"].values()]
+    planes = list(dict.fromkeys(k[:-len("_max_corner_px")] for v in ta_all for k in v if k.endswith("_max_corner_px"))) \
+        or ["front_plane", "target_plane"]          # an empty set: the shelf's keys, as before
     summary = {
         "tag_free_arrangements": n_free,
         "tag_checks": ("SKIPPED: the scenes have no corner ArUco tags (tag detection, tag registration, tag-based target IoU and "
@@ -241,8 +346,7 @@ def check_set(root: Path) -> dict:
             "note": "per (arrangement, stop) view: the largest displacement of the reference box's 4 corners between reference and "
                     "query under the TRUE homography (what no alignment would leave); all queries of a stop share the pose",
             "n_views": len(ta_all),
-            "front_plane": summarize([v["front_plane_max_corner_px"] for v in ta_all]),
-            "target_plane": summarize([v["target_plane_max_corner_px"] for v in ta_all])},
+            **{p: summarize([v[f"{p}_max_corner_px"] for v in ta_all]) for p in planes}},
         "true_front_plane_vs_tag_h_px": summarize([v["max_px"] for a in arrs for v in a.get("true_front_plane_vs_tag_h", {}).values()]),
         "n_arrangements": len(arrs), "n_captures": len(caps), "n_query_views": len(reg),
         "leftover_folders_skipped": leftovers,
@@ -272,6 +376,9 @@ def check_set(root: Path) -> dict:
     }
     for k in ("dx_m", "dy_m", "dz_m", "dyaw_deg", "dpitch_deg", "droll_deg"):
         summary.setdefault("revisit_delta", {})[k] = summarize([v["delta"][k] for a in arrs for v in a["revisit"].values()])
+    if any("table_clipping" in a for a in arrs):    # tabletop sets only: the shelf summary keeps its keys
+        summary["environment"] = E.TABLETOP
+        summary["table_clipping"] = table_clipping_summary(arrs)
     for a in arrs:
         a["rendered_side"] = side_of_pattern(a["labels"]["patterns"]["occluded"])
     return {"root": str(root), "summary": summary, "arrangements": arrs}
@@ -289,8 +396,15 @@ def main(argv=None) -> int:
     print(json.dumps(res["summary"], indent=1))
     print(f"TAGS: {res['summary']['tag_checks']}")
     ta = res["summary"]["true_alignment_corner_displacement_px"]
-    print(f"TRUE ALIGNMENT (evaluation-only): largest reference-box corner displacement per view, {ta['n_views']} views: front plane "
-          f"{json.dumps(ta['front_plane'])}; target plane {json.dumps(ta['target_plane'])}")
+    print(f"TRUE ALIGNMENT (evaluation-only): largest reference-box corner displacement per view, {ta['n_views']} views: "
+          + "; ".join(f"{k.replace('_', ' ')} {json.dumps(v)}" for k, v in ta.items() if k.endswith("_plane")))
+    tc = res["summary"].get("table_clipping")
+    if tc is not None:
+        print(f"TABLE CLIPPING (grey >= {tc['clip_hi']}): largest share per stop "
+              + ", ".join(f"{s} {'-' if v is None else format(v, '.4f')}" for s, v in tc["max_share_per_stop"].items())
+              + f"; criterion < {tc['limit']:.0%}: " + {True: "PASS", False: "FAIL", None: "no table pixels"}[tc["pass"]])
+        for i, ph, s, L, v in tc["captures_at_or_over_limit"]:
+            print(f"WARNING TABLE CLIPPING {i} {ph} {s} {L}: {v:.4f} of the table pixels at or above {tc['clip_hi']}")
     if res["summary"]["leftover_folders_skipped"]:
         print(f"NOTE: skipped crash leftovers (not checked, and sim/episodes.py refuses them): {res['summary']['leftover_folders_skipped']}")
     flagged = res["summary"]["label_sanity_flagged"]

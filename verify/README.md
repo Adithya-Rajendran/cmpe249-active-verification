@@ -508,7 +508,9 @@ class ArrangementRecord:
     occluder_family: str | None = None   # S8, M16, IND28, white_box, ycb_box (quota slot); None in legacy manifests
     m16_side: str | None = None          # "L" / "R" for M16 only
     design_case: bool = False            # DES0..DES3, dev checks outside the random quota slots
-    stratum -> str | None                # "S8", "M16-L", "M16-R", ..., "design:<family>"; None without a family
+    environment: str | None = None       # "shelf" / "tabletop"; None (absent) = shelf
+    env -> str                           # environment or "shelf"
+    stratum -> str | None                # "S8", "M16-L", "M16-R", ..., "design:<family>"; tabletop: "tabletop:<class>"
 
 def episodes_from_arrangements(arrs: Sequence[ArrangementRecord]) -> tuple[list[EpisodeSpec], GroundTruth]: ...
 def load_manifest(path: str | Path) -> tuple[list[EpisodeSpec], GroundTruth]: ...
@@ -533,6 +535,12 @@ def load_geometric_labels(path, n_stops=None) -> GeometricLabels: ...   # cmpe24
   family. `load_geometric_labels` reads sim/episodes.py's `view_labels.json` (episodes -> stops) and checks that every
   episode's arrangement, condition, lighting and truth agree with its id and that it lists stops 0..n-1 with boolean
   `diagnostic` flags. The labels are development analysis and scoring inputs only, never a policy input.
+
+- **Tabletop wave, step 9 (DEV, not frozen).** `environment` is optional: a record without it (every manifest
+  before the tabletop, and every shelf row sim/episodes.py writes) reads as the shelf, and `to_dict` writes it only
+  when set, so shelf manifests keep their bytes. Tabletop rows carry `"environment": "tabletop"`; their strata are
+  prefixed `tabletop:` (shelf strata unchanged), so a bootstrap over both environments keeps each one's quota counts.
+  `ManifestInfo.environments` / `environment_of()` list them.
 
 - `episodes_from_arrangements` produces 3 conditions x the given lightings per arrangement,
   sorted by (arrangement_id, condition order visible/occluded/removed, lighting). Truth comes
@@ -1200,6 +1208,17 @@ dev data are looked at.
 
   Write order. `write_outputs` renders every text before it writes anything, then removes the earlier run's files
   and writes each file as a temp file moved into place with `os.replace`, `frozen_candidate.json` last.
+- **Pooled calibration over environments (tabletop wave, step 9; DEV, not frozen).** Give `--manifest`,
+  `--evidence`, `--view-labels` and `--positions` once per dev set (one set per environment, the same number of each);
+  `sim_dev_data_pooled` reads each with `sim_dev_data` and refuses two sets of one environment, a shared arrangement
+  id, or sets that disagree on the simulation flag or the stop count. `DevData.environment_of` keeps every
+  arrangement's environment and `positions_by_environment` its positions; `positions` is the first set's (the
+  reference). Steps 1 and 3a calibrate one threshold set on all views; each episode replays on its environment's
+  positions and a cap of N arc steps is N of that environment's nominal steps (`environment_budget`). The candidate gets
+  an `environments` block (per environment: per-view and held-out per-view rates, gate pass, no-diagnostic share,
+  Step 4 and Step 3b rows with flags and `all_within_limit`, the lam check, the travel caps in cm) and the report a
+  "Per environment" section; the main rows, flags and `all_within_limit` stay the pooled ones. One set runs exactly
+  as before (byte-identical outputs for shelf-only input).
 - **Replaced: select-v3** (until 2026-11-02). It chose (k, tau_match, lam) by **running primary G** on dev and
   maximising its coverage (D10), contrary to DECISIONS 2026-10-12; it would have handed G-tuned settings to ranker
   A. The fixed-sequence walk, the D10 objective and the `--policy`, `--k-grid` and `--lam-grid` options are gone.
@@ -1210,8 +1229,8 @@ dev data are looked at.
 - **Known gaps, next checkpoint.**
   - **Ranker A** is not built; the held-out check's `FoldTrainable` hook is where it plugs in (A is not yet in
     the Step 4 dev check).
-  - **Per environment.** Nothing is split by environment yet (shelf only); the prereg wants every result per
-    environment.
+  - **Per environment.** select pools environments (below) and reports a per-environment breakdown; `verify.run`
+    is not split by environment yet, and Step 5 (sensitivity) has no per-environment rows.
   - **verify.run thresholds.** `verify.run` still replays with the placeholder `Thresholds()`; it does not yet
     read a frozen candidate (through `require_freeze_eligible`).
 
