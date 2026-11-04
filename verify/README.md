@@ -1241,10 +1241,16 @@ dev data are looked at.
 - **Known gaps, next checkpoint.**
   - **Ranker A** is not built; the held-out check's `FoldTrainable` hook is where it plugs in (A is not yet in
     the Step 4 dev check).
-  - **Per environment.** select pools environments (below) and reports a per-environment breakdown; `verify.run`
-    is not split by environment yet, and Step 5 (sensitivity) has no per-environment rows.
+  - **TODO, REQUIRED before calibration (DECISIONS 2026-11-04, choice 4; not done).** Rendering may proceed, but
+    before pooled calibration, sensitivity reporting or policy replay on the tabletop:
+    - split Step 5 (sensitivity) by environment (per-environment k and lam rows next to the pooled ones, like Steps
+      3b and 4);
+    - split `verify.run` by environment and make it consume the selected candidate (through
+      `require_freeze_eligible`) instead of the placeholder `Thresholds()` it replays with today.
+  - **Per environment.** select pools environments (above) and reports a per-environment breakdown; `verify.run`
+    is not split by environment yet, and Step 5 (sensitivity) has no per-environment rows (the TODO above).
   - **verify.run thresholds.** `verify.run` still replays with the placeholder `Thresholds()`; it does not yet
-    read a frozen candidate (through `require_freeze_eligible`).
+    read a frozen candidate (through `require_freeze_eligible`; the TODO above).
 
 ---
 
