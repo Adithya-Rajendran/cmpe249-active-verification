@@ -1,0 +1,92 @@
+{
+ "run_id": "shelf_dev_v3_truealign",
+ "note": "EVALUATION ONLY: evidence v0.3 on the simulator's true alignment (target and front plane) for the random dev arrangements, compared view by view with image registration (quality resampling sensitivity). Never a calibration input; no select stage. Run with --from-stage evidence after shelf_dev_v3_evidence.",
+ "remote": "configs/pipeline/remote.local.json",
+ "set_root": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_dev_v3",
+ "local_python": [
+  "uv",
+  "run",
+  "--offline",
+  "--no-project",
+  "--python",
+  "3.13.5",
+  "--with",
+  "numpy==2.5.3",
+  "--with",
+  "opencv-python-headless==5.0.0.93",
+  "python"
+ ],
+ "poll_seconds": 30,
+ "heartbeat_seconds": 600,
+ "evidence": {
+  "out_dir": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_dev_v3/evidence",
+  "step_alert_minutes": 40,
+  "code_paths": [
+   "perception/*.py",
+   "verify/*.py",
+   "capture/*.py",
+   "sim/true_align_evidence.py",
+   "pyproject.toml",
+   "uv.lock"
+  ],
+  "jobs": [
+   "jobs_refL1.json"
+  ],
+  "variants": {
+   "v03_truetarget": {
+    "args": [
+     "-m",
+     "sim.true_align_evidence",
+     "--set",
+     "{set}",
+     "--plane",
+     "target",
+     "--jobs",
+     "{jobs}",
+     "--out",
+     "{out}/v03_truetarget_{part}.jsonl",
+     "--diag",
+     "{out}/v03_truetarget_{part}.diag.jsonl"
+    ],
+    "outputs": [
+     "{out}/v03_truetarget_{part}.jsonl",
+     "{out}/v03_truetarget_{part}.diag.jsonl"
+    ]
+   },
+   "v03_truefront": {
+    "args": [
+     "-m",
+     "sim.true_align_evidence",
+     "--set",
+     "{set}",
+     "--plane",
+     "front",
+     "--jobs",
+     "{jobs}",
+     "--out",
+     "{out}/v03_truefront_{part}.jsonl",
+     "--diag",
+     "{out}/v03_truefront_{part}.diag.jsonl"
+    ],
+    "outputs": [
+     "{out}/v03_truefront_{part}.jsonl",
+     "{out}/v03_truefront_{part}.diag.jsonl"
+    ]
+   }
+  }
+ },
+ "summary": {
+  "script": "tools/quality_resampling.py",
+  "v03_candidate": "runs/shelf_dev_v3_evidence/select/v03_image/frozen_candidate.json",
+  "illustrative": {
+   "tau_q": 0.6,
+   "tau_occ": 0.3,
+   "tau_match": 0.6
+  },
+  "image_diag": "{out}/v03_image_refL1.diag.jsonl",
+  "true_diags": {
+   "target": "{out}/v03_truetarget_refL1.diag.jsonl",
+   "front": "{out}/v03_truefront_refL1.diag.jsonl"
+  }
+ }
+}

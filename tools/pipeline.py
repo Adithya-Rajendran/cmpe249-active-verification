@@ -1,4 +1,5 @@
-"""Run driver for a simulated dev set: render on the GB10, then build episodes and check the set on the Jetson.
+"""Run driver for a simulated dev set: render on the GB10, build episodes and check the set on the Jetson, then
+compute per-view evidence on the GB10 and calibrate each evidence variant with select-v4 on the Jetson.
 
 Runs unattended from a run spec (configs/pipeline/*.json) and writes everything a person or a watcher needs to a run
 directory, runs/<run_id>/:
@@ -19,13 +20,33 @@ Stages:
               arrangements than expected.
     episodes  python -m sim.episodes --root SET --contact-sheets --generation-log GENLOG
     check     python -m sim.check_batch --root SET
+    evidence  ship `git archive` of the last commit that changed the GB10's code (evidence.code_paths, default
+              perception/ verify/ capture/ pyproject.toml uv.lock; the tracked tree must be clean and
+              perception/evidence.py the frozen v0.2.1) to the GB10, and run the spec's evidence steps there one
+              after another in the GB10 project uv env; outputs land on the shared dataset volume. The job is
+              keyed on run_id, that commit and a hash of the steps and jobs files: rerunning re-attaches to a
+              running or finished job, and any change to the code, steps or jobs launches a new one (old outputs
+              are deleted first). Host paths (uv, project, checkpoints, code_dir) come from remote.local.json.
+              Alerts: an error line, a step slower than step_alert_minutes. Terminal: a non-zero step (rerun with
+              --retry), the job gone without an rc file, a missing output or one with the wrong number of
+              records, 5 failed ssh calls in a row. Writes RUN_DIR/evidence_provenance.json and
+              <out_dir>/provenance_<job>.json: commits, steps, sha256 and record count of every output, and the
+              GB10 env (its uv.lock sha256 and installed package versions).
+    select    python -m verify.select on each variant's evidence (random dev arrangements only). Exit 0, 3
+              (calibration infeasible) and 4 (candidate not eligible for freeze) are results, not failures.
+    summary   summary.script (default tools/evidence_summary.py) --spec SPEC --run-dir RUN_DIR. The default:
+              per-lighting registration refusals, gate pass by view class, held-out FRR / recall / false present /
+              coverage / confusion counts for every variant, and the DES cases separately.
 
-Stdlib only. Usage:
+A stage whose spec section is missing is skipped. Stdlib only. Usage:
     python tools/pipeline.py configs/pipeline/shelf_dev_v3.json [--launch] [--from-stage episodes]
+    python tools/pipeline.py configs/pipeline/shelf_dev_v3_evidence.json --from-stage evidence [--to-stage select]
+    python tools/pipeline.py configs/pipeline/shelf_dev_v3_truealign.json --from-stage evidence  (after the above)
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -34,11 +55,17 @@ import statistics
 import subprocess
 import sys
 import time
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-STAGES = ("render", "episodes", "check")
+STAGES = ("render", "episodes", "check", "evidence", "select", "summary")
+# What the evidence stage runs on the GB10 (python -m perception.evidence / evidence_v03 and their imports);
+# a spec can override it with evidence.code_paths.
+EVIDENCE_CODE = ("perception/*.py", "verify/*.py", "capture/*.py", "pyproject.toml", "uv.lock")
+# perception/evidence.py is frozen (v0.2.1); the evidence stage refuses to ship a commit where it differs.
+FROZEN_EVIDENCE_SHA256 = "d0e0927ff9d36ee2a8027cc8050f1801e372faea1e12cd98c513345d258d46cf"
 ERROR_LINE = re.compile(r"^(Traceback \(most recent call last\)|\w*(Error|Exception): )")
 # Known harmless line from Isaac's Vulkan probe on the GB10.
 IGNORED = ("TU: error:",)
@@ -76,11 +103,26 @@ class Remote:
     def __init__(self, cfg: dict):
         self.cfg = cfg
 
-    def run(self, command: str, timeout: int = 60) -> subprocess.CompletedProcess:
+    def argv(self, command: str) -> list[str]:
         c = self.cfg
-        argv = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", f"HostKeyAlias={c['host_key_alias']}",
+        return ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", f"HostKeyAlias={c['host_key_alias']}",
                 "-i", os.path.expanduser(c["key"]), f"{c['user']}@{c['host']}", command]
-        return subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+
+    def run(self, command: str, timeout: int = 60, stdin: bytes | str | None = None) -> subprocess.CompletedProcess:
+        return subprocess.run(self.argv(command), input=stdin, capture_output=True, timeout=timeout,
+                              text=not isinstance(stdin, bytes))
+
+
+def read_new_lines(remote: Remote, log: str, offset: int) -> tuple[list[str], int]:
+    """The complete lines appended to the remote log since byte `offset`, and the new offset. Byte offsets and
+    "\\n" only: progress bars write "\\r", which str.splitlines() would also count as line ends. Each line is
+    split at "\\r" too, so a marker printed after a progress bar is still at the start of its piece."""
+    data = subprocess.run(remote.argv(f"tail -c +{offset + 1} {log} 2>/dev/null"), capture_output=True,
+                          timeout=120).stdout
+    end = data.rfind(b"\n") + 1           # keep a partial last line for the next poll
+    text = data[:end - 1].decode("utf-8", "replace") if end else None   # without the final newline
+    lines = [] if text is None else [piece for line in text.split("\n") for piece in line.split("\r")]
+    return lines, offset + end
 
 
 def stage_render(run: Run, launch: bool) -> None:
@@ -113,7 +155,7 @@ def stage_render(run: Run, launch: bool) -> None:
     while True:
         try:
             # Read only the new part of the log.
-            res = remote.run(f"tail -n +{offset + 1} {log} 2>/dev/null", timeout=120)
+            new_lines, offset = read_new_lines(remote, log, offset)
             state = probe()
             ssh_failures = 0
         except (subprocess.TimeoutExpired, OSError) as e:
@@ -122,8 +164,6 @@ def stage_render(run: Run, launch: bool) -> None:
                 run.fail("render", "GB10 unreachable over ssh 5 times in a row", error=str(e))
             time.sleep(run.spec["poll_seconds"])
             continue
-        new_lines = res.stdout.splitlines()
-        offset += len(new_lines)
         for line in new_lines:
             if line.startswith("ISAAC_BATCH "):
                 rec = json.loads(line[len("ISAAC_BATCH "):])
@@ -171,17 +211,228 @@ def stage_render(run: Run, launch: bool) -> None:
         time.sleep(run.spec["poll_seconds"])
 
 
-def stage_local(run: Run, stage: str, module_args: list[str]) -> None:
+def stage_local(run: Run, stage: str, module_args: list[str], ok_rcs: tuple[int, ...] = (0,),
+                out_name: str | None = None) -> int:
     argv = run.spec["local_python"] + module_args
-    out = run.dir / f"{stage}.out"
+    out = run.dir / f"{out_name or stage}.out"
     run.emit(stage, "info", "started", argv=argv)
     t0 = time.time()
     with out.open("w") as f:
         rc = subprocess.run(argv, cwd=REPO, stdout=f, stderr=subprocess.STDOUT).returncode
     tail = out.read_text().splitlines()[-15:]
-    if rc != 0:
-        run.fail(stage, f"{stage} exited with rc {rc}", rc=rc, tail=tail, log=str(out))
-    run.emit(stage, "info", "finished", seconds=round(time.time() - t0, 1), tail=tail[-5:])
+    if rc not in ok_rcs:
+        run.fail(stage, f"{out_name or stage} exited with rc {rc}", rc=rc, tail=tail, log=str(out))
+    run.emit(stage, "info", "finished", rc=rc, seconds=round(time.time() - t0, 1), tail=tail[-5:])
+    return rc
+
+
+def git(*args: str) -> str:
+    return subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True, check=True).stdout
+
+
+def sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def evidence_settings(spec: dict) -> dict:
+    """The spec's evidence section on top of the host's (remote.local.json "evidence": uv, project, checkpoints,
+    code_dir), so tracked specs hold no host paths."""
+    return {**spec["remote"].get("evidence", {}), **spec["evidence"]}
+
+
+def evidence_steps(spec: dict) -> list[dict]:
+    """One step per (jobs file, variant): the command, and the outputs it must write with their record count.
+    Placeholders in args and outputs: {jobs} (the jobs file), {out} (out_dir), {part} (the jobs file's stem without
+    "jobs_"), {set} (set_root)."""
+    ev, root = evidence_settings(spec), spec["set_root"]
+    steps = []
+    for jobs in ev["jobs"]:
+        jobs_path = f"{root}/{jobs}"
+        n = len(json.loads(Path(jobs_path).read_text())["jobs"])
+        part = Path(jobs).stem.removeprefix("jobs_")
+        for name, v in ev["variants"].items():
+            fmt = {"jobs": jobs_path, "out": ev["out_dir"], "part": part, "set": root}
+            steps.append({"name": f"{name}_{part}", "args": [a.format(**fmt) for a in v["args"]], "records": n,
+                          "outputs": [o.format(**fmt) for o in v["outputs"]]})
+    return steps
+
+
+def steps_key(steps: list[dict]) -> str:
+    """Hash of the step commands and the content of every jobs file they read: part of the GB10 job's key, so a
+    changed spec or changed jobs never attaches to outputs made by different commands."""
+    h = hashlib.sha256(json.dumps(steps, sort_keys=True).encode())
+    for jobs in sorted({a for st in steps for a in st["args"] if a.endswith(".json") and "jobs_" in a}):
+        h.update(sha256(Path(jobs)).encode())
+    return h.hexdigest()[:10]
+
+
+class SshError(OSError):
+    """An ssh command that did not run (connection refused or timed out: exit 255, no output)."""
+
+
+def stage_evidence(run: Run, retry: bool = False) -> None:
+    ev = evidence_settings(run.spec)
+    remote = Remote(run.spec["remote"])
+    head = git("rev-parse", "HEAD").strip()
+    # Shipped code: `git archive` of the last commit that changed the code the GB10 runs (code_paths), so a
+    # driver-only or notes-only commit re-attaches to a running or finished job instead of recomputing it.
+    code_commit = git("log", "-1", "--format=%H", "HEAD", "--", *ev.get("code_paths", EVIDENCE_CODE)).strip()
+    # Tracked files only: the archive is built from git, so an untracked file can never reach the GB10.
+    if git("status", "--porcelain", "--untracked-files=no").strip():
+        run.fail("evidence", "tracked files differ from HEAD; commit first (the GB10 runs `git archive` of a commit)")
+    frozen = hashlib.sha256(subprocess.run(["git", "show", f"{code_commit}:perception/evidence.py"], cwd=REPO,
+                                           capture_output=True, check=True).stdout).hexdigest()
+    if frozen != FROZEN_EVIDENCE_SHA256:
+        run.fail("evidence", f"perception/evidence.py at {code_commit[:12]} is not the frozen v0.2.1", sha256=frozen)
+    steps = evidence_steps(run.spec)
+    rd = run.spec["remote"]["run_dir"]
+    # The job is keyed on the run, the shipped code and the steps; its code dir is per run and commit, so two
+    # specs never share (or delete) each other's code.
+    key = f"{code_commit[:12]}_{steps_key(steps)}"
+    tag = f"evidence_{run.run_id}_{key}"
+    log, rc_file, pid_file = f"{rd}/{tag}.log", f"{rd}/{tag}.rc", f"{rd}/{tag}.pid"
+    code = f"{ev['code_dir']}/{run.run_id}_{code_commit[:12]}"
+
+    def probe() -> dict:
+        cmd = (f"test -f {pid_file} && kill -0 $(cat {pid_file}) 2>/dev/null && echo RUNNING=1 || echo RUNNING=0; "
+               f"test -f {rc_file} && echo RC=$(cat {rc_file}) || echo RC=")
+        res = remote.run(cmd)
+        out = res.stdout.split()
+        if res.returncode != 0 or not any(o.startswith("RC=") for o in out):
+            raise SshError(f"probe failed (ssh exit {res.returncode}): {str(res.stderr).strip()[-200:]}")
+        return {"running": "RUNNING=1" in out, "rc": next(o[3:] for o in out if o.startswith("RC="))}
+
+    def probe_retrying() -> dict:
+        for attempt in range(5):
+            try:
+                return probe()
+            except (subprocess.TimeoutExpired, OSError) as e:
+                err = e
+                time.sleep(run.spec["poll_seconds"])
+        run.fail("evidence", "GB10 unreachable over ssh 5 times in a row", error=str(err))
+
+    state = probe_retrying()
+    if state["rc"] not in ("", "0") and not state["running"] and retry:
+        remote.run(f"rm -f {rc_file} {pid_file}")
+        run.emit("evidence", "info", f"--retry: cleared the failed job's rc {state['rc']}", tag=tag)
+        state = {"running": False, "rc": ""}
+    if not state["running"] and state["rc"] == "":
+        archive = subprocess.run(["git", "archive", "--format=tar", code_commit], cwd=REPO, capture_output=True,
+                                 check=True).stdout
+        outputs = " ".join(shlex.quote(o) for st in steps for o in st["outputs"])
+        # old outputs are removed first, so a step that exits 0 without writing cannot pass on a stale file
+        res = remote.run(f"rm -rf {code} && mkdir -p {code} {ev['out_dir']} && tar -x -C {code} && "
+                         f"ln -sfn {ev['checkpoints']} {code}/checkpoints && rm -f {outputs}", timeout=300,
+                         stdin=archive)
+        if res.returncode != 0:
+            run.fail("evidence", "could not ship the code to the GB10", stderr=str(res.stderr)[-500:])
+        py = f"env PYTHONPATH={code} {ev['uv']} run --no-sync --project {ev['project']} python"
+        lines = ["#!/bin/bash", "set -u", f"cd {code}"]
+        for i, st in enumerate(steps):
+            mark = json.dumps({"i": i, "n": len(steps), "name": st["name"]})
+            lines += [f"echo 'EVIDENCE_STEP start {mark}'", "t0=$(date +%s)",
+                      f"{py} {' '.join(shlex.quote(a) for a in st['args'])}", "rc=$?",
+                      f"printf 'EVIDENCE_STEP end {{\"i\": {i}, \"rc\": %d, \"seconds\": %d}}\\n' "
+                      f"$rc $(( $(date +%s) - t0 ))",
+                      f"if [ $rc -ne 0 ]; then echo $rc > {rc_file}; exit $rc; fi"]
+        lines.append(f"echo 0 > {rc_file}")
+        script = f"{rd}/{tag}.sh"
+        remote.run(f"cat > {script}", stdin="\n".join(lines) + "\n")
+        # braces: only the job goes to the background, so ssh returns at once (`a && b & c` would background a && b)
+        remote.run(f"cd {rd} && {{ setsid nohup bash {script} > {log} 2>&1 < /dev/null & echo $! > {pid_file}; }}")
+        run.emit("evidence", "info", "launched", git=head, code_commit=code_commit, key=key, code=code,
+                 steps=[s["name"] for s in steps])
+    else:
+        run.emit("evidence", "info", "attached", running=state["running"], rc=state["rc"], key=key)
+
+    offset, step_started, ssh_failures, last_heartbeat = 0, time.time(), 0, 0.0
+    alert_after = ev.get("step_alert_minutes", 30) * 60
+    alerted = False
+    while True:
+        try:
+            new_lines, offset = read_new_lines(remote, log, offset)
+            state = probe()
+            ssh_failures = 0
+        except (subprocess.TimeoutExpired, OSError) as e:
+            ssh_failures += 1
+            if ssh_failures >= 5:
+                run.fail("evidence", "GB10 unreachable over ssh 5 times in a row", error=str(e))
+            time.sleep(run.spec["poll_seconds"])
+            continue
+        for line in new_lines:
+            if line.startswith("EVIDENCE_STEP start "):
+                rec = json.loads(line.split(" ", 2)[2])
+                step_started, alerted = time.time(), False
+                run.emit("evidence", "info", f"step {rec['i'] + 1}/{rec['n']} {rec['name']} started", **rec)
+            elif line.startswith("EVIDENCE_STEP end "):
+                rec = json.loads(line.split(" ", 2)[2])
+                run.emit("evidence", "info", f"step {rec['i'] + 1} {steps[rec['i']]['name']} finished", **rec)
+            elif ERROR_LINE.match(line.strip()) and not line.startswith(IGNORED):
+                run.emit("evidence", "alert", "error line in the evidence log", line=line.strip()[:500])
+        if state["rc"] != "":
+            if state["rc"] != "0":
+                run.fail("evidence", f"evidence exited with rc {state['rc']}; fix the cause and rerun with --retry "
+                         "(it clears this job's rc file)", log=log)
+            break
+        if not state["running"]:
+            time.sleep(10)
+            if probe_retrying()["rc"] == "":
+                run.fail("evidence", "evidence job is gone and wrote no rc file", log=log)
+            continue
+        if not alerted and time.time() - step_started > alert_after:
+            run.emit("evidence", "alert", f"an evidence step has run for over {alert_after / 60:.0f} min")
+            alerted = True
+        if time.time() - last_heartbeat > run.spec["heartbeat_seconds"]:
+            run.emit("evidence", "info", "heartbeat")
+            last_heartbeat = time.time()
+        time.sleep(run.spec["poll_seconds"])
+
+    # the outputs are on the shared volume: check every one and record its provenance
+    outputs = {}
+    for st in steps:
+        for o in st["outputs"]:
+            path = Path(o)
+            if not path.exists():
+                run.fail("evidence", f"{st['name']} did not write {o}")
+            n = sum(1 for line in path.open() if line.strip())
+            outputs[o] = {"sha256": sha256(path), "records": n}
+            if n != st["records"]:
+                run.fail("evidence", f"{o} has {n} records, expected {st['records']} (one per job)")
+    # the GB10 env is the project's own venv (uv run --no-sync), not synced to the shipped uv.lock: record it
+    env_cmd = (f"sha256sum {ev['project']}/uv.lock | cut -c1-64; {ev['uv']} run --no-sync --project {ev['project']} "
+               "python -c \"import importlib.metadata as m, json; print(json.dumps({d.metadata['Name']: d.version "
+               "for d in m.distributions()}, sort_keys=True))\"")
+    env_out = remote.run(env_cmd, timeout=120).stdout.splitlines()
+    gb10_env = {"uv_lock_sha256": env_out[0] if env_out else None,
+                "packages": json.loads(env_out[-1]) if len(env_out) > 1 else None}
+    prov = {"git": head, "code_commit": code_commit, "key": key, "code_dir": code, "frozen_evidence_sha256": frozen,
+            "set_root": run.spec["set_root"], "steps": steps, "outputs": outputs, "remote_log": log,
+            "gb10_env": gb10_env, "finished": now()}
+    text = json.dumps(prov, indent=1, sort_keys=True)
+    (run.dir / "evidence_provenance.json").write_text(text)
+    # written by the GB10 user, who owns out_dir on the shared volume
+    remote.run(f"cat > {ev['out_dir']}/provenance_{tag}.json", stdin=text)
+    run.emit("evidence", "info", "evidence finished", outputs=len(outputs))
+
+
+def stage_select(run: Run) -> None:
+    sel, root = run.spec["select"], run.spec["set_root"]
+    out_root = run.dir / "select"
+    results = {}
+    for name, evidence in sel["variants"].items():
+        evidence = evidence.format(out=run.spec["evidence"]["out_dir"])
+        rc = stage_local(run, "select", ["-m", "verify.select", "--manifest", f"{root}/manifest.json",
+                                         "--evidence", evidence, "--view-labels", f"{root}/view_labels.json",
+                                         "--positions", f"{root}/{sel['positions']}", "--model-id", name,
+                                         "--tag", name, "--out", str(out_root / name)],
+                         ok_rcs=(0, 3, 4), out_name=f"select_{name}")
+        results[name] = {0: "eligible", 3: "calibration infeasible", 4: "candidate not eligible for freeze"}[rc]
+        run.emit("select", "info", f"{name}: {results[name]}", variant=name, rc=rc)
+    (out_root / "outcomes.json").write_text(json.dumps(results, indent=1, sort_keys=True))
 
 
 def main() -> None:
@@ -189,7 +440,10 @@ def main() -> None:
     ap.add_argument("spec", type=Path)
     ap.add_argument("--launch", action="store_true", help="start the render if it is not already running")
     ap.add_argument("--from-stage", choices=STAGES, default="render")
+    ap.add_argument("--to-stage", choices=STAGES, default=STAGES[-1])
     ap.add_argument("--run-dir", type=Path, help="default: runs/<run_id>")
+    ap.add_argument("--retry", action="store_true",
+                    help="evidence: relaunch a job whose rc file holds a failure (clears that rc file first)")
     args = ap.parse_args()
     spec = json.loads(args.spec.read_text())
     if isinstance(spec["remote"], str):  # host details live in an untracked file (configs/pipeline/remote.example.json)
@@ -201,8 +455,18 @@ def main() -> None:
     run.status.update(git=git, dirty=dirty, spec=str(args.spec))
     run.emit("driver", "info", "run started", git=git, dirty=dirty, spec=spec, from_stage=args.from_stage)
 
+    try:
+        run_stages(run, spec, args)
+    except SystemExit:
+        raise
+    except BaseException as e:  # any crash ends in a terminal alert, so a watcher never sees a silent death
+        run.fail("driver", f"driver crashed: {type(e).__name__}: {str(e)[:300]}",
+                 tail=traceback.format_exc().splitlines()[-15:])
+
+
+def run_stages(run: Run, spec: dict, args: argparse.Namespace) -> None:
     root = spec["set_root"]
-    todo = STAGES[STAGES.index(args.from_stage):]
+    todo = STAGES[STAGES.index(args.from_stage):STAGES.index(args.to_stage) + 1]
     if "render" in todo:
         stage_render(run, args.launch)
     if "episodes" in todo:
@@ -210,6 +474,15 @@ def main() -> None:
                                       "--generation-log", spec["generation_log"]])
     if "check" in todo:
         stage_local(run, "check", ["-m", "sim.check_batch", "--root", root])
+    for stage, fn in (("evidence", lambda r: stage_evidence(r, args.retry)), ("select", stage_select)):
+        if stage in todo:
+            if stage in spec:
+                fn(run)
+            else:
+                run.emit(stage, "info", "skipped: no section in the spec")
+    if "summary" in todo and "summary" in spec:
+        stage_local(run, "summary", [spec["summary"].get("script", "tools/evidence_summary.py"), "--spec", str(args.spec.resolve()),
+                                     "--run-dir", str(run.dir)])
     run.emit("driver", "done", "run finished", set_root=root)
 
 
