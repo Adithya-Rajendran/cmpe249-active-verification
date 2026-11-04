@@ -16,6 +16,12 @@ Convention (also written into true_alignment.json):
     Two planes are given: the shelf front plane y = 0 (where the tags used to be) and the vertical plane through the target's
     centre depth (y = the target pose's base y).
   - The same H serves the L1 and L2 queries and all three conditions (visible, occluded, removed), which share the revisit pose.
+
+Tabletop (scene spec 'environment': 'tabletop'; the shelf code path and its output are unchanged): any plane n . X = d has the
+same kind of homography (plane_homography_general). The tabletop gives two horizontal planes: `H_table_plane` (z = 0, the table
+top, the analogue of the shelf front plane and what ECC mostly fits on a plain top) and `H_target_plane` (z = the target's
+centre height, `target_plane_z_m` = base z + size_z / 2; the key name is shared with the shelf, whose target plane is the
+vertical y = target depth). The document says which: `environment` ('tabletop'; absent for the shelf) and `convention.planes`.
 """
 from __future__ import annotations
 
@@ -47,6 +53,38 @@ def plane_homography(cam_from: Mapping, cam_to: Mapping, y0: float) -> np.ndarra
     return h / h[2, 2]
 
 
+def _plane_basis(n: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Two orthonormal in-plane directions for the unit normal n (deterministic: the world axis least aligned with n seeds it)."""
+    a = np.zeros(3)
+    a[int(np.argmin(np.abs(n)))] = 1.0
+    e1 = np.cross(n, a)
+    e1 /= np.linalg.norm(e1)
+    return e1, np.cross(n, e1)
+
+
+def plane_matrix_general(cam: Mapping, n: Sequence[float], d: float) -> np.ndarray:
+    """A (3 x 3) with homogeneous pixel ~ A @ (s, t, 1) for the world points X = p0 + s e1 + t e2 of the plane n . X = d (p0 = the
+    plane's point nearest the origin, (e1, e2) = _plane_basis(n), n normalised first), for a scene-spec camera as in plane_matrix.
+    The plane must not pass through the camera centre."""
+    n = np.asarray(n, float)
+    nn = float(np.linalg.norm(n))
+    if nn == 0.0:
+        raise ValueError("plane normal is zero")
+    n, d = n / nn, float(d) / nn
+    e1, e2 = _plane_basis(n)
+    c = np.asarray(cam["position"], float)
+    m = np.stack([np.asarray(cam["right"], float), -np.asarray(cam["up"], float), np.asarray(cam["forward"], float)], 1)
+    cols = np.stack([e1 @ m, e2 @ m, (n * d) @ m - c @ m], 1)
+    return camera_matrix(cam) @ cols
+
+
+def plane_homography_general(cam_from: Mapping, cam_to: Mapping, n: Sequence[float], d: float) -> np.ndarray:
+    """H with x_to ~ H x_from for the pixels of the plane n . X = d seen by `cam_from` and `cam_to` (normalised, H[2, 2] = 1).
+    The same H as plane_homography for n = (0, 1, 0), d = y0 (up to rounding)."""
+    h = plane_matrix_general(cam_to, n, d) @ np.linalg.inv(plane_matrix_general(cam_from, n, d))
+    return h / h[2, 2]
+
+
 def apply(h: np.ndarray, pts: Sequence[Sequence[float]]) -> np.ndarray:
     p = np.c_[np.asarray(pts, float), np.ones(len(pts))] @ np.asarray(h, float).T
     return p[:, :2] / p[:, 2:3]
@@ -74,10 +112,28 @@ def target_plane_y(arr: Mapping) -> float:
     return float(arr["objects"]["target"]["pose"]["base"][1])
 
 
+TABLETOP = "tabletop"
+Z_UP = (0.0, 0.0, 1.0)
+
+
+def environment(arr: Mapping) -> str:
+    """'tabletop' for a tabletop arrangement (its scene spec says so), else 'shelf' (the shelf spec has no 'environment')."""
+    return TABLETOP if arr["scene"].get("environment") == TABLETOP else "shelf"
+
+
+def target_plane_z(arr: Mapping) -> float:
+    """Height (z, m) of the target's centre (tabletop): the pose's base z plus half the target's z extent (size_m[2])."""
+    t = arr["objects"]["target"]
+    return float(t["pose"]["base"][2]) + float(t["size_m"][2]) / 2.0
+
+
 def stop_alignment(arr: Mapping, stop: str, ref_box: Sequence[float] | None) -> dict:
-    """True query-to-reference alignment of one stop of one arrangement: pose delta, H for the front plane and the target plane,
-    and (with the reference box) the corner displacement under each."""
+    """True query-to-reference alignment of one stop of one arrangement: pose delta, H for the front plane and the target plane
+    (tabletop: the table plane z = 0 and the horizontal plane through the target's centre), and (with the reference box) the
+    corner displacement under each."""
     scene = arr["scene"]
+    if environment(arr) == TABLETOP:
+        return _stop_alignment_tabletop(arr, stop, ref_box)
     ref = next(c for c in scene["cameras"] if c["name"] == stop)
     qry = next(c for c in scene["revisit_cameras"] if c["name"] == stop)
     yt = target_plane_y(arr)
@@ -93,10 +149,30 @@ def stop_alignment(arr: Mapping, stop: str, ref_box: Sequence[float] | None) -> 
     return out
 
 
+def _stop_alignment_tabletop(arr: Mapping, stop: str, ref_box: Sequence[float] | None) -> dict:
+    scene = arr["scene"]
+    ref = next(c for c in scene["cameras"] if c["name"] == stop)
+    qry = next(c for c in scene["revisit_cameras"] if c["name"] == stop)
+    zt = target_plane_z(arr)
+    out = {"stop_index": [c["name"] for c in scene["cameras"]].index(stop),
+           "pose_delta": arr["revisit"]["stops"][stop]["delta"],
+           "H_table_plane": _round(plane_homography_general(qry, ref, Z_UP, 0.0)),
+           "H_target_plane": _round(plane_homography_general(qry, ref, Z_UP, zt)),
+           "reference_box": None if ref_box is None else [int(v) for v in ref_box]}
+    if ref_box is not None:
+        out["box_corner_displacement_px"] = {
+            "table_plane": corner_displacement(np.array(out["H_table_plane"]), ref_box),
+            "target_plane": corner_displacement(np.array(out["H_target_plane"]), ref_box)}
+    return out
+
+
 def arrangement_alignment(arr: Mapping, labels: Mapping | None, lighting: str = "L1") -> dict:
-    """{target, target_plane_y_m, stops: {stop: stop_alignment}} for one arrangement; the reference box is the one of the
-    labels' `lighting` reference mask (L1: the primary pairing's reference)."""
+    """{target, target_plane_y_m, stops: {stop: stop_alignment}} for one arrangement (tabletop: target_plane_z_m instead); the
+    reference box is the one of the labels' `lighting` reference mask (L1: the primary pairing's reference)."""
     boxes = None if labels is None else labels["reference_box"][lighting]
+    if environment(arr) == TABLETOP:
+        return {"target": arr["target_id"], "target_plane_z_m": round(target_plane_z(arr), 6),
+                "stops": {s: stop_alignment(arr, s, None if boxes is None else boxes[s]) for s in arr["stops"]}}
     return {"target": arr["target_id"], "target_plane_y_m": round(target_plane_y(arr), 6),
             "stops": {s: stop_alignment(arr, s, None if boxes is None else boxes[s]) for s in arr["stops"]}}
 
@@ -117,8 +193,31 @@ CONVENTION = {
 }
 
 
+CONVENTION_TABLETOP = {
+    **{k: v for k, v in CONVENTION.items() if k not in ("planes", "box_corner_displacement_px")},
+    "planes": {"table_plane": "z = 0 m: the table top (what ECC mostly fits on a plain top; the analogue of the shelf front plane)",
+               "target_plane": "z = target_plane_z_m: the horizontal plane through the target's centre height "
+                               "(base z + half the target's z extent); the key H_target_plane is shared with the shelf, "
+                               "whose target plane is vertical (y = target depth)"},
+    "box_corner_displacement_px": "|H^-1 c - c| for the 4 corners c of the reference box (L1 reference mask), under the "
+                                  "table-plane and the target-plane homography: how far the box is from where the query "
+                                  "shows the target with no alignment (identity fallback)",
+}
+
+
 def doc(items: Sequence[tuple[Mapping, Mapping]], group: str = "random") -> dict:
-    """The true_alignment.json document for a list of (arrangement, labels)."""
+    """The true_alignment.json document for a list of (arrangement, labels). A shelf set's document is unchanged; a tabletop
+    set's adds `environment` and its own convention (planes, keys). A set mixing the two is refused."""
+    envs = {environment(a) for a, _ in items}
+    if len(envs) > 1:
+        raise ValueError(f"arrangements of different environments in one true-alignment document: {sorted(envs)}")
+    if envs == {TABLETOP}:
+        return {"schema": SCHEMA, "environment": TABLETOP, "simulation": True, "evaluation_only": True,
+                "never_an_evidence_or_policy_input": True, "group": group,
+                "note": "Ground truth from the simulator's camera poses, for scoring an image-based alignment only. Never an "
+                        "input to the evidence step or to a policy (like view_labels.json and truth.json).",
+                "convention": CONVENTION_TABLETOP,
+                "arrangements": {a["arrangement_id"]: arrangement_alignment(a, lab) for a, lab in items}}
     return {"schema": SCHEMA, "simulation": True, "evaluation_only": True, "never_an_evidence_or_policy_input": True,
             "group": group,
             "note": "Ground truth from the simulator's camera poses, for scoring an image-based alignment only. Never an input to "

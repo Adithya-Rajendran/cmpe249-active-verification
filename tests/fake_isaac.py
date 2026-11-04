@@ -162,7 +162,7 @@ def modules() -> dict:
 def patches(B):
     """Context managers replacing the USD-building parts of isaac_batch with the fake scene (and sys.modules entries)."""
 
-    def build_stage(arr, assets_dir, tags_dir, ply_cache):
+    def build_stage(arr, assets_dir, tags_dir, ply_cache, textures_dir="textures"):
         poses = {k: B.pose_matrix(p["base"], p["yaw_deg"]) for k, p in arr["objects"]["occluder"]["poses"].items()}
         POSES.clear()
         POSES.update({k: tuple(m.reshape(-1).tolist()) for k, m in poses.items()})

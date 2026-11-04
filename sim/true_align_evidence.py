@@ -1,7 +1,10 @@
 """EVALUATION ONLY: evidence v0.3 with the simulator's TRUE query -> reference homography instead of image registration.
 
 The homographies come from true_alignment*.json (cmpe249.sim-true-alignment.v1), computed from the renderer's camera
-poses, on the shelf front plane (y = 0) or the target's plane. This is never an evidence step a robot could run and
+poses, on the shelf front plane (y = 0) or the target's plane; for a tabletop set (true_alignment*.json with
+"environment": "tabletop", sim/alignment.py) on the table plane (z = 0) or the target's horizontal plane (z = the target's
+centre height). `--plane` is checked against the alignment document: front|target for a shelf set, table|target for a
+tabletop set. This is never an evidence step a robot could run and
 its output is never a policy or calibration input. It separates registration error from cue error, and in particular
 measures how much v0.2.1's quality term (sharpness on a nearest-neighbour resampled ring) moves when the warp moves
 by a pixel or two (notes/2026-11-03-evidence-v03-align.md). Each record is perception.evidence_v03.evidence_for,
@@ -9,7 +12,7 @@ unchanged, given the true H; the job loop repeats evidence_v03.run_jobs's checks
 job path resolution) and the diagnostics record the plane.
 
 Usage (repo root, GB10 project env):
-    python -m sim.true_align_evidence --set SET_DIR --jobs JOBS.json --plane target|front --out OUT.jsonl \\
+    python -m sim.true_align_evidence --set SET_DIR --jobs JOBS.json --plane target|front|table --out OUT.jsonl \\
         --diag DIAG.jsonl [--device cuda]
 """
 from __future__ import annotations
@@ -26,16 +29,24 @@ from perception import evidence_v03 as v03
 from verify.schema import EvidenceStore
 
 TRUE_ALIGNMENT_FILES = ("true_alignment.json", "true_alignment_design.json")
+PLANES = {"shelf": ("front", "target"), "tabletop": ("table", "target")}     # by the alignment document's "environment" (absent: shelf)
 
 
 def load_true_h(set_dir: Path, plane: str) -> dict[tuple[str, int], np.ndarray]:
     """(arrangement_id, stop index) -> the true query -> reference homography on `plane`."""
-    out = {}
+    out, envs = {}, set()
     for name in TRUE_ALIGNMENT_FILES:
         path = set_dir / name
         if not path.exists():
             continue
-        for arr, a in json.loads(path.read_text())["arrangements"].items():
+        doc = json.loads(path.read_text())
+        env = doc.get("environment", "shelf")
+        if plane not in PLANES.get(env, ()):
+            raise ValueError(f"{path}: --plane {plane!r} is not a plane of a {env} set (choose from {PLANES.get(env, ())})")
+        envs.add(env)
+        if len(envs) > 1:
+            raise ValueError(f"{set_dir}: true-alignment files of different environments {sorted(envs)}")
+        for arr, a in doc["arrangements"].items():
             for s in a["stops"].values():
                 out[(arr, int(s["stop_index"]))] = np.asarray(s[f"H_{plane}_plane"], np.float64)
     return out
@@ -46,7 +57,8 @@ def main(argv: list[str] | None = None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--set", required=True, type=Path, help="set root holding true_alignment*.json")
     ap.add_argument("--jobs", required=True)
-    ap.add_argument("--plane", required=True, choices=("target", "front"))
+    ap.add_argument("--plane", required=True, choices=("target", "front", "table"),
+                    help="front|target for a shelf set, table|target for a tabletop set (checked against the alignment document)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--diag", required=True)
     ap.add_argument("--device", default="cuda")
