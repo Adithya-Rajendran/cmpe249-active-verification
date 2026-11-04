@@ -103,6 +103,17 @@ class Remote:
                               text=not isinstance(stdin, bytes))
 
 
+def read_new_lines(remote: Remote, log: str, offset: int) -> tuple[list[str], int]:
+    """The complete lines appended to the remote log since byte `offset`, and the new offset. Byte offsets and
+    "\\n" only: progress bars write "\\r", which str.splitlines() would also count as line ends. Each line is
+    split at "\\r" too, so a marker printed after a progress bar is still at the start of its piece."""
+    data = subprocess.run(remote.argv(f"tail -c +{offset + 1} {log} 2>/dev/null"), capture_output=True,
+                          timeout=120).stdout
+    end = data.rfind(b"\n") + 1           # keep a partial last line for the next poll
+    lines = [piece for line in data[:end].decode("utf-8", "replace").split("\n") for piece in line.split("\r")]
+    return lines, offset + end
+
+
 def stage_render(run: Run, launch: bool) -> None:
     r = run.spec["render"]
     remote = Remote(run.spec["remote"])
@@ -133,7 +144,7 @@ def stage_render(run: Run, launch: bool) -> None:
     while True:
         try:
             # Read only the new part of the log.
-            res = remote.run(f"tail -n +{offset + 1} {log} 2>/dev/null", timeout=120)
+            new_lines, offset = read_new_lines(remote, log, offset)
             state = probe()
             ssh_failures = 0
         except (subprocess.TimeoutExpired, OSError) as e:
@@ -142,8 +153,6 @@ def stage_render(run: Run, launch: bool) -> None:
                 run.fail("render", "GB10 unreachable over ssh 5 times in a row", error=str(e))
             time.sleep(run.spec["poll_seconds"])
             continue
-        new_lines = res.stdout.splitlines()
-        offset += len(new_lines)
         for line in new_lines:
             if line.startswith("ISAAC_BATCH "):
                 rec = json.loads(line[len("ISAAC_BATCH "):])
@@ -290,7 +299,7 @@ def stage_evidence(run: Run) -> None:
     alerted = False
     while True:
         try:
-            res = remote.run(f"tail -n +{offset + 1} {log} 2>/dev/null", timeout=120)
+            new_lines, offset = read_new_lines(remote, log, offset)
             state = probe()
             ssh_failures = 0
         except (subprocess.TimeoutExpired, OSError) as e:
@@ -299,8 +308,6 @@ def stage_evidence(run: Run) -> None:
                 run.fail("evidence", "GB10 unreachable over ssh 5 times in a row", error=str(e))
             time.sleep(run.spec["poll_seconds"])
             continue
-        new_lines = res.stdout.splitlines()
-        offset += len(new_lines)
         for line in new_lines:
             if line.startswith("EVIDENCE_STEP start "):
                 rec = json.loads(line.split(" ", 2)[2])
