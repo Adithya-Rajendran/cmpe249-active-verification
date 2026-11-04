@@ -65,11 +65,12 @@
 
 `summary.md` has these counts for every policy and variant. The summary now always reports false present and the confusion counts alongside coverage.
 
-**The one wrong "present" (SD1024-removed-L2, G, F and FULL) is a look-alike behind the target, not a threshold quirk:**
+**The one wrong "present" (SD1024-removed-L2) is a look-alike behind the target, not a threshold quirk.** Every policy except S answers "present" there; R does so in 0.75 of its seeds.
 - P1 is a diagnostic view (the occluder covers 0 of the region). Removing the tomato-soup can reveals a SPAM can that stood directly behind it and fills the box.
 - DINOv2 match against the reference soup can is 0.651 in L2 and 0.649 in L1; that fold's τ_match is 0.65.
 - In L2 the strong-match rule answers "present", and that rule does not consult the occlusion gate. In L1 the episode stays unknown.
-- This is the same-footprint limit already recorded in `perception/README.md`, here with a can-shaped neighbour. One example does not justify moving τ_match. It stays a documented failure mode for the paper's error analysis.
+- **This is a newly recorded limit**, now added to `perception/README.md` ("Known limits"). It is related to the recorded "Loose boxes keep removed targets present", because both come from comparing the whole box. The mechanism is different: here a similar-looking object behind the target fills the box once the target is gone.
+- One example does not justify moving τ_match. It stays a documented failure mode for the error analysis.
 
 - The `-fcm` rows in the summary use the first-clear-miss rule (k = 1). They are a reported sensitivity, not the primary rule.
 - The **frozen v0.2.1** candidate is eligible only because nothing passes the gate, and it is worse than useless:

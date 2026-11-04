@@ -23,7 +23,9 @@
 **Decisions at the v0.3 select-v4 thresholds** (τ_q 0.3, τ_occ 0.35, τ_match 0.65):
 - 8 of 1800 views decide differently against the true target plane, and 7 against the true front plane.
 - Only one of those flips comes from quality: SD1019-removed-L2 P5. Its image-registration sharpness is 0.29, just under τ_q 0.3; on either true warp it is 1.0. That is a diagnostic removed view the gate then refuses, the safe direction.
-- The others are obstruction (±0.02 around 0.35) or match (around 0.65) values sitting at their thresholds. One of them is SD1024-removed-L1 P1, the look-alike case in `notes/2026-11-04-dev60-evidence-variants.md`, whose match goes from 0.649 to 0.666.
+- The others are obstruction or match values sitting at their thresholds.
+  - Obstruction moves within 0.03 of τ_occ 0.35, except SD1043-visible-L2 P5: 0.294 under image registration, 0.365 under the true target plane. That is a present view that fails the gate under true alignment.
+  - Match moves around τ_match 0.65. One of them is SD1024-removed-L1 P1, the look-alike case in `notes/2026-11-04-dev60-evidence-variants.md`, whose match goes from 0.649 to 0.666.
 - At the stricter illustrative setting (τ_q 0.6), more views flip: 9 and 15 gate flips against the target plane, in L1 and L2.
 
 **Quality barely binds on this data:**

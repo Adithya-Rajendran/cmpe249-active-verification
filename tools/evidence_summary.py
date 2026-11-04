@@ -123,14 +123,16 @@ def main() -> int:
         des = load_views(diag_des, labels_des, v["obstruction"])
         sel = args.run_dir / "select" / name
         cand_path, details_path = sel / "frozen_candidate.json", sel / "selection_details.json"
-        chosen = None
+        chosen, eligible = None, None
         if cand_path.exists():
             c = json.loads(cand_path.read_text())
-            th = c.get("thresholds", c)
-            chosen = {k: th[k] for k in ("tau_q", "tau_occ", "tau_match") if k in th}
+            chosen = {k: c["thresholds"][k] for k in ("tau_q", "tau_occ", "tau_match")}
+            eligible = bool(c.get("eligible_for_freeze"))
         outcome = ("calibration infeasible" if (sel / "calibration_infeasible.json").exists()
-                   else "candidate written" if chosen else "no select output")
-        r = {"diag": str(diag), "outcome": outcome, "chosen": chosen,
+                   else "no select output" if chosen is None
+                   else "candidate written, eligible for freeze" if eligible
+                   else "candidate written, NOT eligible for freeze (select exit 4)")
+        r = {"diag": str(diag), "outcome": outcome, "chosen": chosen, "eligible_for_freeze": eligible,
              "align_refused": {L: [sum(not x["align_ok"] for x in views if x["lighting"] == L),
                                    sum(x["lighting"] == L for x in views)] for L in LIGHTINGS},
              "gate_illustrative": gate_table(views, illustrative),
@@ -171,20 +173,20 @@ def main() -> int:
                     x, n = by[L]["accuracy_resolved"]
                     md.append(f"| {pol} | {L} | " + " | ".join(cells) + f" | {frac(x, n)} |")
             md.append("")
-        if chosen:
-            md += ["DES cases (not calibrated on), gate at the variant's thresholds; per stop P1..P5 the class "
-                   "(C/p/H present-occluded, R removed) and + where the gate passes:", "",
-                   "| episode | stops |", "|---|---|"]
-            by_ep: dict = defaultdict(list)
-            for x in des:
-                by_ep[x["episode_id"]].append(x)
-            for eid in sorted(by_ep):
-                cells = []
-                for x in sorted(by_ep[eid], key=lambda x: x["stop"]):
-                    k = {"present": "C", "occluded C": "C", "occluded p": "p", "occluded H": "H"}.get(x["cls"], "R")
-                    cells.append(k + ("+" if gate(x, chosen) else ""))
-                md.append(f"| {eid} | {' '.join(cells)} |")
-            md.append("")
+        # DES cases always: at the variant's thresholds when calibration gave some, else at the illustrative setting
+        des_th, des_label = (chosen, "the variant's thresholds") if chosen else (illustrative, "the illustrative setting")
+        md += [f"DES cases (not calibrated on), gate at {des_label}; per stop P1..P5 the class (C/p/H "
+               "present-occluded, R removed) and + where the gate passes:", "", "| episode | stops |", "|---|---|"]
+        by_ep: dict = defaultdict(list)
+        for x in des:
+            by_ep[x["episode_id"]].append(x)
+        for eid in sorted(by_ep):
+            cells = []
+            for x in sorted(by_ep[eid], key=lambda x: x["stop"]):
+                k = {"present": "C", "occluded C": "C", "occluded p": "p", "occluded H": "H"}.get(x["cls"], "R")
+                cells.append(k + ("+" if gate(x, des_th) else ""))
+            md.append(f"| {eid} | {' '.join(cells)} |")
+        md.append("")
     (args.run_dir / "summary.json").write_text(json.dumps(report, indent=1, sort_keys=True))
     (args.run_dir / "summary.md").write_text("\n".join(md) + "\n")
     print(f"wrote {args.run_dir / 'summary.md'}")

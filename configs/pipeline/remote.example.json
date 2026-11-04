@@ -3,5 +3,11 @@
   "host_key_alias": "<GB10_HOST_KEY_ALIAS>",
   "user": "<GB10_USER>",
   "key": "~/.ssh/<KEY>",
-  "run_dir": "/home/<GB10_USER>/cmpe249-sim/run"
+  "run_dir": "/home/<GB10_USER>/cmpe249-sim/run",
+  "evidence": {
+    "uv": "/home/<GB10_USER>/.local/bin/uv",
+    "project": "<GB10_PROJECT_CHECKOUT>",
+    "checkpoints": "<GB10_PROJECT_CHECKOUT>/checkpoints",
+    "code_dir": "/home/<GB10_USER>/cmpe249-sim/code"
+  }
 }

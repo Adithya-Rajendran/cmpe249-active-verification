@@ -46,7 +46,7 @@ uv run --no-project --python 3.13.5 --with numpy==2.5.3 --with opencv-python-hea
     python -m unittest discover -s tests -t .
 ```
 
-- Expected: `Ran 606 tests`, `OK (skipped=10)`, about 110 s on the Jetson. Skips: 9 need `mujoco`, 1 needs CUDA and the model weights.
+- Expected: `Ran 641 tests`, `OK (skipped=10)`, about 110 s on the Jetson. Skips: 9 need `mujoco`, 1 needs CUDA and the model weights.
 - Below, `UV_RUN` is that same environment as a shell variable:
 
 ```bash
@@ -218,7 +218,19 @@ uv run --no-sync python -m perception.evidence --jobs $SET/jobs_refL1.json \
 - `perception/evidence.py` is frozen at sha256 `d0e0927ff9d36ee2a8027cc8050f1801e372faea1e12cd98c513345d258d46cf`. Check it with `sha256sum`. Never edit it.
 - **Tag-free scenes:** v0.2.1 finds no tags, falls back to no alignment, and sets quality to 0 for every view. An unregistered view never counts as a clear miss. So on shelf_v3 it is only a baseline.
 
-**v0.3 (pending):** image-based registration plus a background-consistency occlusion cue. It is on branch `cp3-evidence` (`perception/evidence_v03.py`, `python -m perception.evidence_v03 --jobs ... --out ... [--diag ...] [--align image|tag|identity]`). It is **not merged**, not frozen and not in this branch. This section gets exact commands when it is merged.
+**v0.3 (dev, not frozen):** image-based registration (ECC homography) plus a background-consistency occlusion cue. The same pass also writes the *v0.2.1 + image alignment* ablation:
+
+```bash
+cd <CODE_DIR>      # a checkout or `git archive` of the commit; checkpoints/ linked as in section 3.5
+PYTHONPATH=. uv run --no-sync --project <GB10_PROJECT> python -m perception.evidence_v03 --align image \
+    --jobs $SET/jobs_refL1.json --out $OUT/v03_image_refL1.jsonl \
+    --out-v021-aligned $OUT/v021_image_refL1.jsonl --diag $OUT/v03_image_refL1.diag.jsonl --device cuda
+```
+
+- Speed on `shelf_dev_v3`: 1800 views in 2013 s (CPU-bound ECC). Frozen v0.2.1 took 225 s for the same views.
+- The driver (section 6, `configs/pipeline/shelf_dev_v3_evidence.json`) runs both versions for the random and the DES jobs, and checks and records every output.
+
+**True alignment (evaluation only):** `python -m sim.true_align_evidence --set $SET --plane target|front --jobs ... --out ... --diag ...` runs v0.3 on the simulator's true homography. It is a diagnostic and never an input to calibration or policies (section 6).
 
 ### 5.6 Calibrate thresholds: `verify.select` (Jetson)
 
@@ -280,16 +292,23 @@ $UV_PY tools/watch.py runs/shelf_dev_v3 --stale-minutes 20 --resume        # --f
 - Event levels: `info`, `alert` (a person must look), `done`. A terminal failure is an alert with `terminal: true`, and the driver exits non-zero.
 - Render alerts: error line in the log, failed label sanity, an arrangement slower than 2.5 x the running median, no arrangement for 10 min, process gone without an rc file, non-zero rc, or fewer arrangements than expected, and 5 failed ssh polls in a row.
 - **Evidence, select and summary stages** (`configs/pipeline/shelf_dev_v3_evidence.json`, run with `--from-stage evidence`):
-  - `evidence` ships `git archive` of the last commit that changed `perception/`, `verify/`, `capture/`, `pyproject.toml` or `uv.lock` to `evidence.code_dir/<commit>` on the GB10, links the checkpoints, and runs one step per (jobs file, variant) in the GB10 project env. It refuses a dirty tree and a `perception/evidence.py` that is not the frozen v0.2.1. The job is keyed on that commit, so rerunning the driver after a driver-only change re-attaches instead of recomputing.
+  - `evidence` ships `git archive` of the last commit that changed a `.py` file under `perception/`, `verify/` or `capture/`, or `pyproject.toml` or `uv.lock`, to `<code_dir>/<run_id>_<commit>` on the GB10, links the checkpoints, and runs one step per (jobs file, variant) in the GB10 project env. It refuses a dirty tree and a `perception/evidence.py` that is not the frozen v0.2.1. The job is keyed on the run id, that commit, and a hash of the steps and the jobs files. Rerunning after a driver-only or docs change re-attaches instead of recomputing. Any change to the code, steps or jobs launches a new job, and old outputs are deleted first. Provenance also records the GB10 env: its `uv.lock` sha256 and the installed package versions.
   - Variants: `v021_frozen` (perception/evidence.py, tag registration; on tag-free scenes it refuses every view), `v03_image` (evidence v0.3 on ECC image registration) and, from the same pass (`--out-v021-aligned`), `v021_image`: v0.2.1's match, quality and obstruction on v0.3's registration. That is an ablation, not unchanged v0.2.1.
   - Outputs go to `evidence.out_dir` on the shared volume. The driver checks one record per job in every output and writes `evidence_provenance.json` (commit, commands, sha256 and record count of each output).
   - `select` runs `verify.select` on each variant's random-arrangement evidence, with the same alpha, grid and folds for every variant. Exit 3 (infeasible) and 4 (not eligible) are recorded in `select/outcomes.json`, not treated as failures.
   - `summary` (`tools/evidence_summary.py`) writes `summary.md`/`summary.json`: registration refusals, gate pass by view class per lighting (at each variant's thresholds and at one illustrative setting), held-out FRR / recall / coverage per lighting, and the DES cases separately.
+- **Host paths.** The evidence stage takes `uv`, `project`, `checkpoints` and `code_dir` from the `evidence` block of `remote.local.json` (see `remote.example.json`), not from the tracked spec.
+- **Order and working directory.** Run the specs from the repo root, in this order:
+  1. `shelf_dev_v3_evidence.json --from-stage evidence`;
+  2. `shelf_dev_v3_truealign.json --from-stage evidence`. Its summary reads `runs/shelf_dev_v3_evidence/select/v03_image/frozen_candidate.json`, a run output of step 1, by a path relative to the repo root.
+- **True-alignment diagnostic** (`shelf_dev_v3_truealign.json`): `sim/true_align_evidence.py` on the true target and front planes. Its `summary.script` is `tools/quality_resampling.py`, which compares every view's quality, quality parts and gate / clear-miss / strong-match decisions with the image-registered v0.3 run, and writes `quality_resampling.md`. Its `evidence.code_paths` adds that tool to the shipped code.
+- **Retrying a failed evidence job.** A job that exited non-zero leaves its rc file, and a rerun re-attaches and fails again. After fixing the cause, rerun with `--retry`, which clears that job's rc file and relaunches.
+- **Offline env.** The evidence specs run the local stages with `uv run --offline`. Run the section 3.1 test command once first, so uv's cache holds the same pins.
 - Watcher output: `ALERT ...`, `DONE ...` (exit 0), `FAILED ...` (exit 1). It also alerts if the driver pid died or no event came for `--stale-minutes`. `--resume` continues from `RUN_DIR/watch.offset`.
 
 ## 7. What you can verify
 
-**Unit tests** (section 3.1): 606 tests, OK, 10 skipped. The tests for the physical capture tools are separate: `uv run ... python -m unittest discover -s capture/tests -t .` gave 159 tests, OK, 6 skipped, in 278 s on the Jetson. On the Pi: `python3 -m unittest discover -s capture/tests` ([capture/README.md](../capture/README.md)).
+**Unit tests** (section 3.1): 641 tests, OK, 10 skipped. The tests for the physical capture tools are separate: `uv run ... python -m unittest discover -s capture/tests -t .` gave 159 tests, OK, 6 skipped, in 278 s on the Jetson. On the Pi: `python3 -m unittest discover -s capture/tests` ([capture/README.md](../capture/README.md)).
 
 **Synthetic reruns are byte-identical.** Run each command twice with different `--out` and compare with `diff -r`:
 
@@ -342,9 +361,9 @@ $UV_RUN -m verify.select --synthetic --n-arr 30 --seed 0 --bootstrap-B 200 --tag
 ## 10. Known gaps: not yet reproducible
 
 - **Ranker A is not built.** Policies S, F, R, G (and ablations) run. The held-out check has a per-fold hook for A. No A exists, so the primary contrast A - G cannot be run.
-- **Evidence v0.3 is on a branch** (`cp3-evidence`), not merged, not frozen. Until then evidence on tag-free scenes is the unaligned baseline.
+- **Evidence v0.3 is not frozen.** It is the development evidence step (section 5.5). Freezing it is part of the final pre-registration review.
 - **No feasible frozen thresholds.** The only select-v4 run on rendered data (6 arrangements, v0.2.1) was infeasible (exit 3). `verify.run` uses placeholder thresholds.
-- **No evidence on `shelf_dev_v3` yet.** The full dev render was still running when this was written.
+- **Dev results only, shelf only.** Evidence and select-v4 on `shelf_dev_v3` (`notes/2026-11-04-dev60-evidence-variants.md`) are development numbers.
 - **The tabletop environment does not exist in the repo.** No config, positions file or scene. Results are not yet split by environment.
 - **`docs/FREEZE.md` and the test split do not exist.** The pre-registration is a draft. A final review comes after A.
 - **No results.** Nothing in this repo is a study result.
