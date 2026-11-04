@@ -12,6 +12,9 @@ View classes come from view_labels*.json (renderer masks; evaluation only): pres
 occluded C / p / H = an occluded-condition stop with visible fraction >= 0.9 / between / <= 0.05; removed diag /
 removed non-diag = a removed-condition stop whose region the occluder covers < 0.1 / more.
 
+Evidence files are read through RUN_DIR/evidence_provenance.json (tools/provenance.py): each must be a recorded
+output of the run's evidence job with its recorded sha256.
+
 Writes RUN_DIR/summary.md and RUN_DIR/summary.json. Stdlib only. Usage:
     python tools/evidence_summary.py --spec configs/pipeline/shelf_dev_v3_evidence.json --run-dir runs/<run_id>
 """
@@ -21,6 +24,8 @@ import argparse
 import json
 from collections import defaultdict
 from pathlib import Path
+
+import provenance
 
 CLASSES = ("present", "occluded C", "occluded p", "occluded H", "removed diag", "removed non-diag")
 LIGHTINGS = ("L1", "L2")
@@ -105,7 +110,8 @@ def main() -> int:
     ap.add_argument("--run-dir", type=Path, required=True)
     args = ap.parse_args()
     spec = json.loads(args.spec.read_text())
-    root, out_dir, sm = Path(spec["set_root"]), spec["evidence"]["out_dir"], spec["summary"]
+    root, sm = Path(spec["set_root"]), spec["summary"]
+    prov = provenance.load(args.run_dir)
     labels = json.loads((root / "view_labels.json").read_text())["episodes"]
     labels_des = json.loads((root / "view_labels_design.json").read_text())["episodes"]
     truth = {k: v["truth"] for k, v in labels.items()}
@@ -117,8 +123,8 @@ def main() -> int:
           f"tau_q {illustrative['tau_q']}, tau_occ {illustrative['tau_occ']}. View classes from the renderer's "
           f"masks (evaluation only).", ""]
     for name, v in sm["variants"].items():
-        diag = Path(v["diag"].format(out=out_dir, part="refL1"))
-        diag_des = Path(v["diag"].format(out=out_dir, part="design_refL1"))
+        diag = provenance.output(prov, v["diag"], part="refL1")
+        diag_des = provenance.output(prov, v["diag"], part="design_refL1")
         views = load_views(diag, labels, v["obstruction"])
         des = load_views(diag_des, labels_des, v["obstruction"])
         sel = args.run_dir / "select" / name
