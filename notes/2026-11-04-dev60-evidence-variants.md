@@ -33,7 +33,10 @@
 | Removed, diagnostic | 124/124 / 122/124 | 113/124 / 107/124 |
 | Present (visible condition) | 300/300 / 300/300 | 300/300 / 297/300 |
 
-With identical alignment, the background cue alone is what removes the fully hidden false clears. It costs some diagnostic removal views and some clear present views in L2.
+**Reading:**
+- Image alignment alone was not enough: the v0.2.1 cues on aligned images are infeasible.
+- Under identical alignment, the background cue improves the result. It removes the fully hidden false clears, at the cost of some diagnostic removal views and some clear present views in L2.
+- This isolates the cue's added benefit. It does not show that alignment is unimportant: without registration, frozen v0.2.1 refuses every view.
 
 **v0.3 held out** (thresholds from the leave-one-arrangement-out folds; uncapped; b = 3; primary k = 2):
 
@@ -52,6 +55,22 @@ With identical alignment, the background cue alone is what removes the fully hid
 | G | 0/120 | 45/60 | 0/60 | 0.883 | 0/120 | 43/60 | 1/60 | 0.878 |
 | FULL | 0/120 | 46/60 | 0/60 | 0.889 | 0/120 | 44/60 | 1/60 | 0.883 |
 
+**v0.3 confusion counts for G** (truth → decision; present episodes 120 per lighting, removed 60):
+
+| | L1 | L2 |
+|---|---|---|
+| present → present / removed / unknown | 114 / 0 / 6 | 114 / 0 / 6 |
+| removed → removed / present / unknown | 45 / 0 / 15 | 43 / 1 / 16 |
+| accuracy among resolved episodes | 159/159 | 157/158 |
+
+`summary.md` has these counts for every policy and variant. The summary now always reports false present and the confusion counts alongside coverage.
+
+**The one wrong "present" (SD1024-removed-L2, G, F and FULL) is a look-alike behind the target, not a threshold quirk:**
+- P1 is a diagnostic view (the occluder covers 0 of the region). Removing the tomato-soup can reveals a SPAM can that stood directly behind it and fills the box.
+- DINOv2 match against the reference soup can is 0.651 in L2 and 0.649 in L1; that fold's τ_match is 0.65.
+- In L2 the strong-match rule answers "present", and that rule does not consult the occlusion gate. In L1 the episode stays unknown.
+- This is the same-footprint limit already recorded in `perception/README.md`, here with a can-shaped neighbour. One example does not justify moving τ_match. It stays a documented failure mode for the paper's error analysis.
+
 - The `-fcm` rows in the summary use the first-clear-miss rule (k = 1). They are a reported sensitivity, not the primary rule.
 - The **frozen v0.2.1** candidate is eligible only because nothing passes the gate, and it is worse than useless:
   - held-out removal recall is 0/60 in both lightings;
@@ -67,4 +86,9 @@ The full table is in `summary.md`.
 ## Open for checkpoint 3
 
 - The v0.2.1 quality (sharpness) term is sensitive to resampling: up to 2 px of registration difference moved it by more than 0.1 on 16 of 360 views of the check set. This has not been measured on the full dev set, which needs the true-alignment diagnostic run (evaluation only).
-- The v0.3 false-clear rate is 0.057 on the dev data, with a held-out per-view upper bound of 0.108 in L1. That bound sits just above α in L1, so dev data gives little margin. These are descriptive dev numbers, not test claims.
+- The v0.3 held-out per-view false-clear rate is 12/176 in L1, with a binomial upper bound of 0.108.
+  - **This is not a freeze failure.** The freeze rule (docs/SIM_PREREGISTRATION.md, §7) requires the empirical training constraints to hold and calibration to succeed in every fold. An independent review audit (`runs/2026-11-03-full-dev-review/audit.json`, main checkout) confirmed that all 60 v0.3 training folds meet both constraints. Held-out bounds are reported checks.
+  - The views share arrangements, so the binomial bound is descriptive. Arrangement-level uncertainty stays the primary analysis.
+- **Little removal-recall headroom for A on this dev set** (from the same review audit). An ordering that knew every view's scores in advance reaches at most 46/60 (L1) and 44/60 (L2), against G's 45/60 and 43/60. SD1047 is the only removed episode in each lighting that is achievable but missed by G.
+  - That is conditional on these scores, not a prediction of test performance.
+  - A may still save views or travel. Keep the declared primary comparison and report the planned secondary budget curves. An A–G tie is a valid result.

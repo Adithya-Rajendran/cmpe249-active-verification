@@ -55,7 +55,7 @@ def gate(v: dict, th: dict) -> bool:
 
 
 def frac(x: float, n: int) -> str:
-    return f"{x / n:.3f} ({x:g}/{n})" if n else "n/a"
+    return f"{x / n:.3f} ({x:g}/{n:g})" if n else "n/a"
 
 
 def gate_table(views: list[dict], th: dict) -> dict:
@@ -68,7 +68,9 @@ def gate_table(views: list[dict], th: dict) -> dict:
 
 
 def held_out(details: dict, truth: dict) -> dict:
-    """policy -> lighting -> FRR, recall, coverage (uncapped episodes of the primary setting)."""
+    """policy -> lighting -> FRR, recall, false present, coverage, the confusion counts (truth -> decision) and
+    the accuracy among resolved episodes (uncapped episodes of the primary setting)."""
+    conf: dict = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
     acc: dict = defaultdict(lambda: defaultdict(lambda: {"frr": [0.0, 0], "recall": [0.0, 0], "false_present": [0.0, 0],
                                                          "coverage": [0.0, 0]}))
     for e in details["held_out_episodes"]:
@@ -84,7 +86,17 @@ def held_out(details: dict, truth: dict) -> dict:
             a["false_present"][1] += 1
         a["coverage"][0] += 1.0 - f["unknown"]
         a["coverage"][1] += 1
-    return {p: {L: {k: [round(x, 4), n] for k, (x, n) in d.items()} for L, d in by.items()} for p, by in acc.items()}
+        t = truth[e["episode_id"]]
+        for decided in ("present", "removed", "unknown"):   # the full confusion counts, truth x decision
+            conf[e["policy"]][e["lighting"]][f"{t}->{decided}"] += f[decided]
+    out = {p: {L: {k: [round(x, 4), n] for k, (x, n) in d.items()} for L, d in by.items()} for p, by in acc.items()}
+    for p, by in conf.items():
+        for L, c in by.items():
+            right = c["present->present"] + c["removed->removed"]
+            resolved = right + c["present->removed"] + c["removed->present"]
+            out[p][L]["confusion"] = {k: round(v, 4) for k, v in c.items()}
+            out[p][L]["accuracy_resolved"] = [round(right, 4), round(resolved, 4)]
+    return out
 
 
 def main() -> int:
@@ -145,6 +157,19 @@ def main() -> int:
                 cells = [frac(*by[L][k]) if L in by else "n/a" for L in LIGHTINGS
                          for k in ("frr", "recall", "false_present", "coverage")]
                 md.append(f"| {pol} | " + " | ".join(cells) + " |")
+            md += ["", "Confusion counts (truth -> decision; R-type policies average fractional decisions over seeds) "
+                   "and accuracy among resolved episodes (correct / decided present or removed):", "",
+                   "| policy | lighting | present->present | present->removed | present->unknown | removed->removed | "
+                   "removed->present | removed->unknown | accuracy among resolved |", "|---" * 9 + "|"]
+            for pol, by in r["held_out"].items():
+                for L in LIGHTINGS:
+                    if L not in by:
+                        continue
+                    c = by[L]["confusion"]
+                    cells = [f"{c.get(k, 0):g}" for k in ("present->present", "present->removed", "present->unknown",
+                                                          "removed->removed", "removed->present", "removed->unknown")]
+                    x, n = by[L]["accuracy_resolved"]
+                    md.append(f"| {pol} | {L} | " + " | ".join(cells) + f" | {frac(x, n)} |")
             md.append("")
         if chosen:
             md += ["DES cases (not calibrated on), gate at the variant's thresholds; per stop P1..P5 the class "
