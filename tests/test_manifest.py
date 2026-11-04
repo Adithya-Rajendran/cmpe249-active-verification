@@ -204,6 +204,31 @@ class TestQuotaSlotsAndSimulation(unittest.TestCase):
             with self.assertRaises(ManifestError):
                 m.load_manifest_info(p)
 
+    def test_environment_field_strata_and_legacy_shelf(self):
+        """Tabletop wave, step 9: an optional environment; absent reads as the shelf and keeps the record's shape."""
+        R = m.ArrangementRecord
+        shelf = R("SD01", "t", Split.DEV, occluder_family="M16", m16_side="L")
+        tab = R("TD01", "t", Split.DEV, occluder_family="M16", m16_side="L", environment="tabletop")
+        tdes = R("TDES0", "t", Split.DEV, occluder_family="IND28", design_case=True, environment="tabletop")
+        explicit = R("SD02", "t", Split.DEV, occluder_family="S8", environment="shelf")
+        self.assertEqual((shelf.env, shelf.environment, tab.env, explicit.env), ("shelf", None, "tabletop", "shelf"))
+        self.assertEqual([x.stratum for x in (shelf, tab, tdes, explicit)],
+                         ["M16-L", "tabletop:M16-L", "design:tabletop:IND28", "S8"])
+        self.assertNotIn("environment", shelf.to_dict())
+        self.assertEqual(tab.to_dict()["environment"], "tabletop")
+        self.assertEqual(R.from_dict(tab.to_dict()), tab)
+        self.assertEqual(R.from_dict(shelf.to_dict()), shelf)
+        with self.assertRaises(ManifestError):
+            R("TD02", "t", Split.DEV, environment="kitchen")
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "m.json"
+            m.save_manifest([shelf, tab, tdes], p, simulation=True)
+            info = m.load_manifest_info(p)
+            self.assertEqual(info.arrangements, (shelf, tab, tdes))
+            self.assertEqual(info.environments, ("shelf", "tabletop"))
+            self.assertEqual(info.environment_of(), {"SD01": "shelf", "TD01": "tabletop", "TDES0": "tabletop"})
+            self.assertEqual(info.strata(), {"SD01": "M16-L", "TD01": "tabletop:M16-L", "TDES0": "design:tabletop:IND28"})
+
     def test_geometric_labels_loader(self):
         def doc(**over):
             stops = [{"stop": i, "diagnostic": i != 2} for i in range(5)]
