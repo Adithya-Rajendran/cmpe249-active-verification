@@ -248,7 +248,7 @@ def stage_evidence(run: Run) -> None:
     head = git("rev-parse", "HEAD").strip()
     # The GB10 job is keyed on the last commit that changed the code it runs, so a driver-only commit re-attaches
     # to a running or finished job instead of recomputing it; that commit is what gets shipped.
-    code_commit = git("log", "-1", "--format=%H", "HEAD", "--", *EVIDENCE_CODE).strip()
+    code_commit = git("log", "-1", "--format=%H", "HEAD", "--", *ev.get("code_paths", EVIDENCE_CODE)).strip()
     if git("status", "--porcelain", "--untracked-files=no").strip():
         run.fail("evidence", "tracked files differ from HEAD; commit first (the GB10 runs `git archive HEAD`)")
     frozen = hashlib.sha256(subprocess.run(["git", "show", f"{code_commit}:perception/evidence.py"], cwd=REPO,
@@ -415,7 +415,7 @@ def run_stages(run: Run, spec: dict, args: argparse.Namespace) -> None:
             else:
                 run.emit(stage, "info", "skipped: no section in the spec")
     if "summary" in todo and "summary" in spec:
-        stage_local(run, "summary", ["tools/evidence_summary.py", "--spec", str(args.spec.resolve()),
+        stage_local(run, "summary", [spec["summary"].get("script", "tools/evidence_summary.py"), "--spec", str(args.spec.resolve()),
                                      "--run-dir", str(run.dir)])
     run.emit("driver", "done", "run finished", set_root=root)
 
