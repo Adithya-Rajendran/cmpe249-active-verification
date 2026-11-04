@@ -337,8 +337,9 @@ provenance records, and numpy's version.
 ## Tabletop environment (DEV, 2026-11-04)
 
 The second simulated environment (decision 2026-11-04; design: progress/drafts/2026-11-04-tabletop-design.md, not in the
-repo). Built so far: the scene, the texture and the positions (code-plan steps 1-2). The generator, renderer, alignment and
-episodes do not know the tabletop yet (steps 3-9).
+repo). Built so far: the scene, the texture and the positions (steps 1-2), the generator adapter and the height scan (steps 3-4),
+the alignment planes and the spec-driven renderer (steps 6-7). Episodes, check_batch and verify do not know the tabletop
+yet (steps 8-9).
 
 - **Frame:** metres, origin at the workspace centre on the table top, x right as seen from P3, y away from P3, z up.
   `sim/rig.py arc_stops` works unchanged (arc centre at the origin).
@@ -363,6 +364,10 @@ episodes do not know the tabletop yet (steps 3-9).
 uv run --no-project --python 3.13.5 --with numpy==2.5.3 python -m sim.tabletop positions      # rewrites the positions file
 uv run --no-project --python 3.13.5 --with numpy==2.5.3 python -m sim.tabletop scene --scene-out scene.json
 ```
+
+**Tabletop render path.** A scene spec from `sim.tabletop` carries `lighting`, textured materials and static meshes; `sim/isaac_rig.py` and `sim/isaac_batch.py` use them and the shelf path is unchanged. Create the texture once with `python -m sim.wood_texture --out textures/tabletop_light_oak_v1.png` and keep `textures/` next to `isaac_batch.py` in the GB10 run dir, or pass `--textures-dir`. The file's sha256 must equal the spec's `file_sha256`, or the batch is refused before Isaac starts. `render.json` settings record the spec's presets, aim, materials and texture sha256. True alignment for tabletop sets has `H_table_plane` (z = 0) and `H_target_plane` (z = target centre); `sim.true_align_evidence --plane table|target`.
+
+First-real-render checklist (from wave 2B): texture grain along +x from P3 and v=1 = far edge; RectLight orientation; 24-vertex mesh normals/st; metallic effect, brightness, clipping < 1 % table pixels; table_top segmented as background and hidden in target-alone pass; UsdTransform2d unused; render time with 2400x1600 PNG.
 
 ## Shelf goldens (tabletop wave, step 0)
 
