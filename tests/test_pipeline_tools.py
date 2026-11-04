@@ -1,22 +1,34 @@
 """tools/pipeline.py helpers, tools/evidence_summary.py and tools/quality_resampling.py (stdlib tools, no GB10)."""
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import evidence_summary as es  # noqa: E402
 import pipeline  # noqa: E402
+import provenance  # noqa: E402
 import quality_resampling as qr  # noqa: E402
 
 
 class LocalShell:
     """Stands in for Remote: runs the command locally."""
+    def __init__(self, cfg: dict | None = None):
+        pass
+
     def argv(self, command: str) -> list[str]:
         return ["bash", "-c", command]
+
+    def run(self, command: str, timeout: int = 60, stdin: bytes | str | None = None) -> subprocess.CompletedProcess:
+        return subprocess.run(self.argv(command), input=stdin, capture_output=True, timeout=timeout,
+                              text=not isinstance(stdin, bytes))
 
 
 class TestReadNewLines(unittest.TestCase):
@@ -48,7 +60,7 @@ class TestEvidenceSteps(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             t = Path(t)
             spec = spec_with_jobs(t, ["--jobs", "{jobs}", "--set", "{set}", "--out", "{out}/v_{part}.jsonl"])
-            (st,) = pipeline.evidence_steps(spec)
+            (st,) = pipeline.evidence_steps(spec, "/out")
             self.assertEqual(st["name"], "v_refL1")
             self.assertEqual(st["args"], ["--jobs", f"{t}/jobs_refL1.json", "--set", str(t), "--out", "/out/v_refL1.jsonl"])
             self.assertEqual((st["records"], st["outputs"]), (3, ["/out/v_refL1.jsonl"]))
@@ -58,13 +70,128 @@ class TestEvidenceSteps(unittest.TestCase):
     def test_key_changes_with_the_steps_and_the_jobs(self) -> None:
         with tempfile.TemporaryDirectory() as t:
             t = Path(t)
-            a = pipeline.evidence_steps(spec_with_jobs(t, ["--jobs", "{jobs}", "--align", "image"]))
-            b = pipeline.evidence_steps(spec_with_jobs(t, ["--jobs", "{jobs}", "--align", "tag"]))
+            a = pipeline.evidence_steps(spec_with_jobs(t, ["--jobs", "{jobs}", "--align", "image"]), "{out}")
+            b = pipeline.evidence_steps(spec_with_jobs(t, ["--jobs", "{jobs}", "--align", "tag"]), "{out}")
+            self.assertEqual(a[0]["outputs"], ["{out}/v_refL1.jsonl"])     # the key never depends on the out dir
             ka, kb = pipeline.steps_key(a), pipeline.steps_key(b)
             self.assertNotEqual(ka, kb)
             self.assertEqual(ka, pipeline.steps_key(a))
             (t / "jobs_refL1.json").write_text(json.dumps({"jobs": [{}, {}, {}], "x": 1}))
             self.assertNotEqual(ka, pipeline.steps_key(a))       # same commands, different jobs content
+
+
+# The GB10 side of a job, run locally: `uv run --no-sync --project P python ARGS` -> python3 ARGS.
+FAKE_UV = '#!/bin/bash\nwhile [ "$1" != python ]; do shift; done\nshift\nexec python3 "$@"\n'
+# One step: write a single record naming the variant to the output (no braces: args go through str.format).
+WRITE = "import json, sys; open(sys.argv[1], 'w').write(json.dumps(dict(variant=sys.argv[2])) + chr(10))"
+
+
+def job_spec(t: Path, variant: str) -> dict:
+    return {"run_id": "same_run", "set_root": str(t), "poll_seconds": 0, "heartbeat_seconds": 3600,
+            "remote": {"run_dir": str(t / "remote_run"),
+                       "evidence": {"uv": str(t / "uv"), "project": str(t / "project"), "code_dir": str(t / "code"),
+                                    "checkpoints": str(t / "checkpoints")}},
+            "evidence": {"out_dir": str(t / "evidence"), "jobs": ["jobs_refL1.json"],
+                         "variants": {"v": {"args": ["-c", WRITE, "{out}/v_{part}.jsonl", variant],
+                                            "outputs": ["{out}/v_{part}.jsonl"]}}}}
+
+
+class TestEvidenceJobs(unittest.TestCase):
+    """stage_evidence end to end with the GB10 replaced by a local shell (git archive of the real repo)."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        t = self.t = Path(self.tmp.name)
+        for d in ("remote_run", "project", "checkpoints"):
+            (t / d).mkdir()
+        (t / "project" / "uv.lock").write_text("lock\n")
+        (t / "uv").write_text(FAKE_UV)
+        (t / "uv").chmod(0o755)
+        (t / "jobs_refL1.json").write_text(json.dumps({"jobs": [{}]}))
+        real_git = pipeline.git   # the working tree may hold uncommitted edits: report it clean
+        self.patches = [patch.object(pipeline, "Remote", LocalShell),
+                        patch.object(pipeline, "git", lambda *a: "" if a[0] == "status" else real_git(*a))]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self) -> None:
+        for p in self.patches:
+            p.stop()
+        self.tmp.cleanup()
+
+    def run_job(self, variant: str, run_dir: str) -> dict:
+        run = pipeline.Run(job_spec(self.t, variant), self.t / run_dir)
+        with contextlib.redirect_stdout(io.StringIO()):
+            pipeline.stage_evidence(run)
+        return json.loads((run.dir / "evidence_provenance.json").read_text())
+
+    def test_a_then_b_then_resume_a_keeps_a_outputs(self) -> None:
+        a = self.run_job("A", "run_a")
+        b = self.run_job("B", "run_b")
+        self.assertNotEqual(a["key"], b["key"])
+        self.assertNotEqual(a["out"], b["out"])                     # each job has its own output dir
+        (out_a,), (out_b,) = a["outputs"], b["outputs"]
+        self.assertEqual(json.loads(Path(out_a).read_text())["variant"], "A")
+        self.assertEqual(json.loads(Path(out_b).read_text())["variant"], "B")
+        resumed = self.run_job("A", "run_a_resumed")                 # attaches to the finished A job
+        self.assertEqual(resumed["outputs"], a["outputs"])
+        self.assertEqual(resumed["finished"], a["finished"])
+        events = (self.t / "run_a_resumed" / "events.jsonl").read_text()
+        self.assertIn("attached", events)
+        self.assertIn("reused outputs match the saved sha256", events)
+        self.assertEqual(provenance.output(resumed, "{out}/v_refL1.jsonl"), Path(out_a))
+
+    def test_resume_refuses_outputs_changed_after_the_job_finished(self) -> None:
+        a = self.run_job("A", "run_a")
+        (out_a,) = a["outputs"]
+        Path(out_a).write_text(json.dumps({"variant": "B"}) + "\n")   # same record count, other bytes
+        with self.assertRaises(SystemExit):
+            self.run_job("A", "run_a_resumed")
+        last = json.loads((self.t / "run_a_resumed" / "events.jsonl").read_text().splitlines()[-1])
+        self.assertTrue(last["data"]["terminal"])
+        self.assertEqual(last["data"]["changed"], [out_a])
+        with self.assertRaises(SystemExit):                         # downstream readers refuse it too
+            provenance.output(a, "{out}/v_refL1.jsonl")
+
+    def test_deleting_the_output_dir_relaunches_a_finished_job(self) -> None:
+        a = self.run_job("A", "run_a")
+        Path(a["outputs"].popitem()[0]).unlink()
+        Path(a["out"], "provenance.json").unlink()
+        Path(a["out"]).rmdir()
+        again = self.run_job("A", "run_a_again")
+        self.assertIn("relaunching", (self.t / "run_a_again" / "events.jsonl").read_text())
+        self.assertEqual(again["key"], a["key"])
+        self.assertNotEqual(again["finished"], None)
+
+    def test_moving_out_dir_is_a_new_job(self) -> None:
+        a = self.run_job("A", "run_a")
+        spec = job_spec(self.t, "A")
+        spec["evidence"]["out_dir"] = str(self.t / "evidence2")
+        run = pipeline.Run(spec, self.t / "run_moved")
+        with contextlib.redirect_stdout(io.StringIO()):
+            pipeline.stage_evidence(run)
+        moved = json.loads((run.dir / "evidence_provenance.json").read_text())
+        self.assertNotEqual(moved["key"], a["key"])
+        self.assertTrue(moved["out"].startswith(str(self.t / "evidence2")))
+
+
+class TestProvenance(unittest.TestCase):
+    def test_only_recorded_outputs_with_their_sha256(self) -> None:
+        with tempfile.TemporaryDirectory() as t:
+            f = Path(t) / "v_refL1.jsonl"
+            f.write_text("{}\n")
+            prov = {"key": "k", "out": t, "outputs": {str(f): {"sha256": provenance.sha256(f), "records": 1}}}
+            self.assertEqual(provenance.output(prov, "{out}/v_{part}.jsonl", part="refL1"), f)
+            with self.assertRaises(SystemExit):
+                provenance.output(prov, "{out}/v_{part}.jsonl", part="design_refL1")   # not recorded
+            f.write_text("{} \n")
+            with self.assertRaises(SystemExit):
+                provenance.output(prov, "{out}/v_{part}.jsonl", part="refL1")          # changed bytes
+
+    def test_old_provenance_without_out_uses_the_shared_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as t:
+            (Path(t) / "evidence_provenance.json").write_text(json.dumps({"outputs": {"/d/a.jsonl": {}, "/d/b": {}}}))
+            self.assertEqual(provenance.load(Path(t))["out"], "/d")
 
 
 class TestEvidenceSummary(unittest.TestCase):

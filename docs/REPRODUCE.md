@@ -46,7 +46,7 @@ uv run --no-project --python 3.13.5 --with numpy==2.5.3 --with opencv-python-hea
     python -m unittest discover -s tests -t .
 ```
 
-- Expected: `Ran 641 tests`, `OK (skipped=10)`, about 110 s on the Jetson. Skips: 9 need `mujoco`, 1 needs CUDA and the model weights.
+- Expected: `Ran 647 tests`, `OK (skipped=10)`, about 110 s on the Jetson. Skips: 9 need `mujoco`, 1 needs CUDA and the model weights.
 - Below, `UV_RUN` is that same environment as a shell variable:
 
 ```bash
@@ -292,9 +292,10 @@ $UV_PY tools/watch.py runs/shelf_dev_v3 --stale-minutes 20 --resume        # --f
 - Event levels: `info`, `alert` (a person must look), `done`. A terminal failure is an alert with `terminal: true`, and the driver exits non-zero.
 - Render alerts: error line in the log, failed label sanity, an arrangement slower than 2.5 x the running median, no arrangement for 10 min, process gone without an rc file, non-zero rc, or fewer arrangements than expected, and 5 failed ssh polls in a row.
 - **Evidence, select and summary stages** (`configs/pipeline/shelf_dev_v3_evidence.json`, run with `--from-stage evidence`):
-  - `evidence` ships `git archive` of the last commit that changed a `.py` file under `perception/`, `verify/` or `capture/`, or `pyproject.toml` or `uv.lock`, to `<code_dir>/<run_id>_<commit>` on the GB10, links the checkpoints, and runs one step per (jobs file, variant) in the GB10 project env. It refuses a dirty tree and a `perception/evidence.py` that is not the frozen v0.2.1. The job is keyed on the run id, that commit, and a hash of the steps and the jobs files. Rerunning after a driver-only or docs change re-attaches instead of recomputing. Any change to the code, steps or jobs launches a new job, and old outputs are deleted first. Provenance also records the GB10 env: its `uv.lock` sha256 and the installed package versions.
+  - `evidence` ships `git archive` of the last commit that changed a `.py` file under `perception/`, `verify/` or `capture/`, or `pyproject.toml` or `uv.lock`, to `<code_dir>/<job>` on the GB10, links the checkpoints, and runs one step per (jobs file, variant) in the GB10 project env. It refuses a dirty tree and a `perception/evidence.py` that is not the frozen v0.2.1. The job is keyed on the run id, that commit, and a hash of the steps and the jobs files. Rerunning after a driver-only or docs change re-attaches instead of recomputing. Any change to the code, steps or jobs launches a new job. Each job (`evidence_<run_id>_<commit>_<steps hash>`) has its own code dir and its own output dir, so two jobs never share or overwrite files. Provenance also records the GB10 env: its `uv.lock` sha256 and the installed package versions.
   - Variants: `v021_frozen` (perception/evidence.py, tag registration; on tag-free scenes it refuses every view), `v03_image` (evidence v0.3 on ECC image registration) and, from the same pass (`--out-v021-aligned`), `v021_image`: v0.2.1's match, quality and obstruction on v0.3's registration. That is an ablation, not unchanged v0.2.1.
-  - Outputs go to `evidence.out_dir` on the shared volume. The driver checks one record per job in every output and writes `evidence_provenance.json` (commit, commands, sha256 and record count of each output).
+  - Outputs go to `<evidence.out_dir>/<job>/` on the shared volume (`{out}` in the spec); only that job's launch empties and writes it. The driver checks one record per job in every output and writes `evidence_provenance.json` in the run dir and `provenance.json` in the job's output dir (commit, commands, output dir, sha256 and record count of each output). Reattaching to a job that had already finished checks every output against the sha256 saved when it finished and stops if any differs. To recompute a finished job, delete its output dir; the driver then relaunches it. The key also hashes `out_dir`, so moving `out_dir` starts a new job. Because the key formula changed with per-job dirs, the first evidence run after this change relaunches instead of re-attaching to pre-change jobs.
+  - `select` and the summaries read evidence only through the run's `evidence_provenance.json` (`tools/provenance.py`): a file must be a recorded output and still have its recorded sha256. The true-alignment summary reads the image diagnostics through the provenance of the run named by `summary.image_run`. Runs made before per-job output dirs (all outputs in `out_dir`) still read correctly.
   - `select` runs `verify.select` on each variant's random-arrangement evidence, with the same alpha, grid and folds for every variant. Exit 3 (infeasible) and 4 (not eligible) are recorded in `select/outcomes.json`, not treated as failures.
   - `summary` (`tools/evidence_summary.py`) writes `summary.md`/`summary.json`: registration refusals, gate pass by view class per lighting (at each variant's thresholds and at one illustrative setting), held-out FRR / recall / coverage per lighting, and the DES cases separately.
 - **Host paths.** The evidence stage takes `uv`, `project`, `checkpoints` and `code_dir` from the `evidence` block of `remote.local.json` (see `remote.example.json`), not from the tracked spec.
@@ -308,7 +309,7 @@ $UV_PY tools/watch.py runs/shelf_dev_v3 --stale-minutes 20 --resume        # --f
 
 ## 7. What you can verify
 
-**Unit tests** (section 3.1): 641 tests, OK, 10 skipped. The tests for the physical capture tools are separate: `uv run ... python -m unittest discover -s capture/tests -t .` gave 159 tests, OK, 6 skipped, in 278 s on the Jetson. On the Pi: `python3 -m unittest discover -s capture/tests` ([capture/README.md](../capture/README.md)).
+**Unit tests** (section 3.1): 647 tests, OK, 10 skipped. The tests for the physical capture tools are separate: `uv run ... python -m unittest discover -s capture/tests -t .` gave 159 tests, OK, 6 skipped, in 292 s on the Jetson. On the Pi: `python3 -m unittest discover -s capture/tests` ([capture/README.md](../capture/README.md)).
 
 **Synthetic reruns are byte-identical.** Run each command twice with different `--out` and compare with `diff -r`:
 

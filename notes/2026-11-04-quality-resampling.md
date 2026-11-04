@@ -21,8 +21,8 @@
 - **Cause:** sharpness is a Laplacian-variance ratio on a nearest-neighbour resampled ring, and a pixel or two of warp changes it.
 
 **Decisions at the v0.3 select-v4 thresholds** (τ_q 0.3, τ_occ 0.35, τ_match 0.65):
-- 8 of 1800 views decide differently against the true target plane, and 7 against the true front plane.
-- Only one of those flips comes from quality: SD1019-removed-L2 P5. Its image-registration sharpness is 0.29, just under τ_q 0.3; on either true warp it is 1.0. That is a diagnostic removed view the gate then refuses, the safe direction.
+- 8 of 1800 views have a different per-view outcome (gate, clear miss or strong match) against the true target plane, and 7 against the true front plane. These are per-view outcomes, not final episode decisions; this diagnostic does not re-run the policies.
+- Only one of those flips comes from quality: SD1019-removed-L2 P5. Its image-registration sharpness is 0.29, just under τ_q 0.3; on either true warp it is 1.0. Under image registration the gate refuses this diagnostic removed view; under true alignment it would pass. That is the safe direction.
 - The others are obstruction or match values sitting at their thresholds.
   - Obstruction moves within 0.03 of τ_occ 0.35, except SD1043-visible-L2 P5: 0.294 under image registration, 0.365 under the true target plane. That is a present view that fails the gate under true alignment.
   - Match moves around τ_match 0.65. One of them is SD1024-removed-L1 P1, the look-alike case in `notes/2026-11-04-dev60-evidence-variants.md`, whose match goes from 0.649 to 0.666.
@@ -35,7 +35,7 @@
 
 ## Recommendation
 
-- **Keep quality as it is:** no new evidence version and no re-calibration. On this data its resampling fragility changes one gate decision in 1800, in the safe direction.
+- **Keep quality as it is:** no new evidence version and no re-calibration. On this data its resampling fragility changes one per-view gate outcome in 1800 (not a final episode decision), in the safe direction.
 - **Disclose it as a limit:**
   - the v0.2.1 sharpness term is not resampling-invariant;
   - it would matter at a higher τ_q, or on real captures where blur and exposure make quality bind.

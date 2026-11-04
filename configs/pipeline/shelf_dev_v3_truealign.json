@@ -83,6 +83,7 @@
    "tau_occ": 0.3,
    "tau_match": 0.6
   },
+  "image_run": "runs/shelf_dev_v3_evidence",
   "image_diag": "{out}/v03_image_refL1.diag.jsonl",
   "true_diags": {
    "target": "{out}/v03_truetarget_refL1.diag.jsonl",

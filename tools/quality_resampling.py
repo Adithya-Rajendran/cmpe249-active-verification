@@ -7,7 +7,9 @@ of the target plane and of the front plane (sim/true_align_evidence.py). Reports
     - flips of the gate (quality >= tau_q and obstruction <= tau_occ), of a clear miss (gate and match < tau_match)
       and of a strong match (match >= tau_match), at the v0.3 select-v4 thresholds and at the illustrative setting;
     - the views with the largest quality difference.
-Writes RUN_DIR/quality_resampling.md and .json. Stdlib only. Usage:
+The true-alignment diagnostics are read through RUN_DIR/evidence_provenance.json and the image diagnostics through
+the provenance of the evidence run summary.image_run (tools/provenance.py: recorded outputs with their recorded
+sha256 only). Writes RUN_DIR/quality_resampling.md and .json. Stdlib only. Usage:
     python tools/quality_resampling.py --spec configs/pipeline/shelf_dev_v3_truealign.json --run-dir runs/<run_id>
 """
 from __future__ import annotations
@@ -15,6 +17,8 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+
+import provenance
 
 LIGHTINGS = ("L1", "L2")
 PARTS = ("sharpness", "exposure", "valid")
@@ -70,18 +74,24 @@ def main() -> int:
     ap.add_argument("--run-dir", type=Path, required=True)
     args = ap.parse_args()
     spec = json.loads(args.spec.read_text())
-    sm, out_dir, root = spec["summary"], spec["evidence"]["out_dir"], Path(spec["set_root"])
+    sm, root = spec["summary"], Path(spec["set_root"])
+    prov = provenance.load(args.run_dir)
+    repo = Path(__file__).resolve().parents[1]
+    image_prov = provenance.load(repo / sm["image_run"])
+    if Path(image_prov["set_root"]) != root:
+        raise SystemExit(f"{sm['image_run']} scored {image_prov['set_root']}, not {root}")
     labels = json.loads((root / "view_labels.json").read_text())["episodes"]
-    cand = json.loads(Path(sm["v03_candidate"]).read_text())["thresholds"]
+    cand = json.loads((repo / sm["v03_candidate"]).read_text())["thresholds"]
     settings = {"v0.3 select-v4": {k: cand[k] for k in ("tau_q", "tau_occ", "tau_match")},
                 "illustrative": sm["illustrative"]}
-    base = load(Path(sm["image_diag"].format(out=out_dir)))
-    report = {"settings": settings, "image_diag": sm["image_diag"].format(out=out_dir), "planes": {}}
+    image_diag = provenance.output(image_prov, sm["image_diag"])
+    base = load(image_diag)
+    report = {"settings": settings, "image_diag": str(image_diag), "planes": {}}
     md = ["# Evidence under image registration vs the true alignment (evaluation only)", "",
           f"SIMULATION, development data: {root.name}, random dev arrangements, {len(base)} views. Base: v0.3 on ECC "
           f"image registration. Compared: the same code on the simulator's true homography. Settings: {settings}.", ""]
     for plane, path in sm["true_diags"].items():
-        other = load(Path(path.format(out=out_dir)))
+        other = load(provenance.output(prov, path))
         missing = set(base) ^ set(other)
         if missing:
             raise SystemExit(f"{plane}: {len(missing)} views differ between the files, e.g. {sorted(missing)[:3]}")
