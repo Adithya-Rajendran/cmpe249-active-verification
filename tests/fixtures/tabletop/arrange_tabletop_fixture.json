@@ -1,0 +1,1011 @@
+{
+ "schema": "cmpe249.sim-arrange-config.v1",
+ "name": "tabletop_test_fixture",
+ "status": "TEST FIXTURE ONLY (tests/test_sim_arrange_tabletop.py): the tabletop base config with every board at 0.20 m (IND28 0.44 m wide) and design cases from the margin scan. Not a study config; the study config is configs/sim/arrange_tabletop_v1.json.",
+ "environment": "tabletop",
+ "geometry": "configs/sim/tabletop_geometry.json",
+ "positions": "configs/sim/positions_tabletop_A.json",
+ "seeds": {
+  "dev": [
+   0,
+   9999
+  ],
+  "test_reserved_min": 100000,
+  "note": "Dev seeds 0-9999 only. Seeds >= 100000 are reserved for test ([open] in docs/SIMULATION_STUDY.md) and are refused by sim/arrange.py and sim/isaac_batch.py; 10000-99999 are unassigned and refused too."
+ },
+ "ids": {
+  "dev_prefix": "TD",
+  "design_prefix": "TDES",
+  "note": "TD + 4-digit dev seed actually used (TD5003 = seed 5003; a slot replaced from the reserve list is named after the reserve seed); TDES0..TDES3 = the tabletop design cases (seeds design-4..design-7). Disjoint from the shelf's SD / DES; both match verify's ^[A-Z][A-Z0-9]{1,15}$."
+ },
+ "objects": {
+  "source": "YCB-Video BOP models, ycbv_models.zip models/ (mm, bounding box centred on the origin, +Z up in the resting pose). min_mm/size_mm copied by script from models/models_info.json (sha256 13978298d8c37f089a7e0c421ed8be867fa836818936f5499786175da2c4c4cb); names from ycbv_base.zip ycbv/dataset_info.md.",
+  "licence": "YCB-Video / YCB object models keep their own terms (dataset README on the share); renders used in a paper carry attribution (docs/SIMULATION_STUDY.md rule 5).",
+  "hulls": {
+   "path": "configs/sim/ycbv_hulls.json",
+   "sha256": "9d7004d0be6226a13ca219324eae9c21f35ef20ba6e25ccfa89e1c3725bb7e3c",
+   "note": "convex-hull support points per model (mm, BOP frame), from data/raw/2026-11-03_sim_pilot/make_ycbv_hulls.py; the generator refuses a hull file with another hash"
+  },
+  "items": {
+   "1": {
+    "ycb": "002_master_chef_can",
+    "name": "master_chef_can",
+    "ply": "obj_000001.ply",
+    "min_mm": [
+     -51.1445,
+     -51.223,
+     -70.072
+    ],
+    "size_mm": [
+     102.289,
+     102.446,
+     140.144
+    ]
+   },
+   "2": {
+    "ycb": "003_cracker_box",
+    "name": "cracker_box",
+    "ply": "obj_000002.ply",
+    "min_mm": [
+     -35.865,
+     -81.9885,
+     -106.743
+    ],
+    "size_mm": [
+     71.73,
+     163.977,
+     213.486
+    ]
+   },
+   "3": {
+    "ycb": "004_sugar_box",
+    "name": "sugar_box",
+    "ply": "obj_000003.ply",
+    "min_mm": [
+     -24.772,
+     -47.024,
+     -88.0075
+    ],
+    "size_mm": [
+     49.544,
+     94.048,
+     176.015
+    ]
+   },
+   "4": {
+    "ycb": "005_tomato_soup_can",
+    "name": "tomato_soup_can",
+    "ply": "obj_000004.ply",
+    "min_mm": [
+     -33.927,
+     -33.875,
+     -51.0185
+    ],
+    "size_mm": [
+     67.854,
+     67.75,
+     102.037
+    ]
+   },
+   "5": {
+    "ycb": "006_mustard_bottle",
+    "name": "mustard_bottle",
+    "ply": "obj_000005.ply",
+    "min_mm": [
+     -48.575,
+     -33.31,
+     -95.704
+    ],
+    "size_mm": [
+     97.15,
+     66.62,
+     191.408
+    ]
+   },
+   "6": {
+    "ycb": "007_tuna_fish_can",
+    "name": "tuna_fish_can",
+    "ply": "obj_000006.ply",
+    "min_mm": [
+     -42.755,
+     -42.807,
+     -16.7555
+    ],
+    "size_mm": [
+     85.51,
+     85.614,
+     33.511
+    ]
+   },
+   "7": {
+    "ycb": "008_pudding_box",
+    "name": "pudding_box",
+    "ply": "obj_000007.ply",
+    "min_mm": [
+     -68.924,
+     -64.3955,
+     -19.414
+    ],
+    "size_mm": [
+     137.848,
+     128.791,
+     38.828
+    ]
+   },
+   "8": {
+    "ycb": "009_gelatin_box",
+    "name": "gelatin_box",
+    "ply": "obj_000008.ply",
+    "min_mm": [
+     -44.6775,
+     -50.5545,
+     -15.06
+    ],
+    "size_mm": [
+     89.355,
+     101.109,
+     30.12
+    ]
+   },
+   "9": {
+    "ycb": "010_potted_meat_can",
+    "name": "potted_meat_can",
+    "ply": "obj_000009.ply",
+    "min_mm": [
+     -51.0615,
+     -30.161,
+     -41.8185
+    ],
+    "size_mm": [
+     102.123,
+     60.322,
+     83.637
+    ]
+   },
+   "10": {
+    "ycb": "011_banana",
+    "name": "banana",
+    "ply": "obj_000010.ply",
+    "min_mm": [
+     -54.444,
+     -89.206,
+     -18.335
+    ],
+    "size_mm": [
+     108.888,
+     178.412,
+     36.67
+    ]
+   },
+   "11": {
+    "ycb": "019_pitcher_base",
+    "name": "pitcher_base",
+    "ply": "obj_000011.ply",
+    "min_mm": [
+     -74.4985,
+     -72.3845,
+     -121.32
+    ],
+    "size_mm": [
+     148.997,
+     144.769,
+     242.64
+    ]
+   },
+   "12": {
+    "ycb": "021_bleach_cleanser",
+    "name": "bleach_cleanser",
+    "ply": "obj_000012.ply",
+    "min_mm": [
+     -51.203,
+     -33.856,
+     -125.32
+    ],
+    "size_mm": [
+     102.406,
+     67.712,
+     250.64
+    ]
+   },
+   "13": {
+    "ycb": "024_bowl",
+    "name": "bowl",
+    "ply": "obj_000013.ply",
+    "min_mm": [
+     -80.722,
+     -80.5565,
+     -27.485
+    ],
+    "size_mm": [
+     161.444,
+     161.113,
+     54.97
+    ]
+   },
+   "14": {
+    "ycb": "025_mug",
+    "name": "mug",
+    "ply": "obj_000014.ply",
+    "min_mm": [
+     -58.483,
+     -46.5375,
+     -40.692
+    ],
+    "size_mm": [
+     116.966,
+     93.075,
+     81.384
+    ]
+   },
+   "15": {
+    "ycb": "035_power_drill",
+    "name": "power_drill",
+    "ply": "obj_000015.ply",
+    "min_mm": [
+     -92.1205,
+     -93.717,
+     -28.6585
+    ],
+    "size_mm": [
+     184.241,
+     187.434,
+     57.317
+    ]
+   },
+   "16": {
+    "ycb": "036_wood_block",
+    "name": "wood_block",
+    "ply": "obj_000016.ply",
+    "min_mm": [
+     -51.9755,
+     -51.774,
+     -102.945
+    ],
+    "size_mm": [
+     103.951,
+     103.548,
+     205.89
+    ]
+   },
+   "17": {
+    "ycb": "037_scissors",
+    "name": "scissors",
+    "ply": "obj_000017.ply",
+    "min_mm": [
+     -48.04,
+     -100.772,
+     -7.858
+    ],
+    "size_mm": [
+     96.08,
+     201.544,
+     15.716
+    ]
+   },
+   "18": {
+    "ycb": "040_large_marker",
+    "name": "large_marker",
+    "ply": "obj_000018.ply",
+    "min_mm": [
+     -10.5195,
+     -60.4225,
+     -9.4385
+    ],
+    "size_mm": [
+     21.039,
+     120.845,
+     18.877
+    ]
+   },
+   "19": {
+    "ycb": "051_large_clamp",
+    "name": "large_clamp",
+    "ply": "obj_000019.ply",
+    "min_mm": [
+     -59.978,
+     -85.639,
+     -19.575
+    ],
+    "size_mm": [
+     119.956,
+     171.278,
+     39.15
+    ]
+   },
+   "20": {
+    "ycb": "052_extra_large_clamp",
+    "name": "extra_large_clamp",
+    "ply": "obj_000020.ply",
+    "min_mm": [
+     -104.897,
+     -82.18,
+     -18.1665
+    ],
+    "size_mm": [
+     209.794,
+     164.36,
+     36.333
+    ]
+   },
+   "21": {
+    "ycb": "061_foam_brick",
+    "name": "foam_brick",
+    "ply": "obj_000021.ply",
+    "min_mm": [
+     -26.315,
+     -38.921,
+     -25.5655
+    ],
+    "size_mm": [
+     52.63,
+     77.842,
+     51.131
+    ]
+   }
+  }
+ },
+ "rest_poses": {
+  "note": "3x3 rotation R (world = R @ model) applied before the yaw about z; the renderer and the generator both centre the rotated bounding box in x/y on base_xy and put its lowest point on base_z.",
+  "upright": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    0
+   ],
+   [
+    0,
+    0,
+    1
+   ]
+  ],
+  "side": [
+   [
+    0,
+    0,
+    1
+   ],
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    0
+   ]
+  ],
+  "edge": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    -1
+   ],
+   [
+    0,
+    1,
+    0
+   ]
+  ]
+ },
+ "clearances_m": {
+  "table_edge": 0.02,
+  "between_objects": 0.01,
+  "camera_depth": 0.05,
+  "note": "table_edge: every footprint (target, occluders placed and parked, distractors) at least this far inside the table's edges (design proposal section 3: 2 cm from the edge); between_objects as the shelf; camera_depth: every hull point at least this far in front of every stop's camera (sim/arrange.py in_front_of_cameras). No ceiling."
+ },
+ "target": {
+  "objects": [
+   4,
+   9,
+   14,
+   21,
+   6
+  ],
+  "max_height_m": 0.105,
+  "max_height_note": "the shelf's limit kept for parity (the five targets are <= 10.2 cm)",
+  "region_m": {
+   "x": [
+    -0.15,
+    0.15
+   ],
+   "y": [
+    -0.05,
+    0.15
+   ]
+  },
+  "region_note": "base-centre sampling box (design proposal section 3); a draw is kept only if the target is on the table and every stop sees it whole: every hull point projects frame_margin_px inside the frame, pinhole and with the fitted k1 (no opening test on the table)",
+  "frame_margin_px": 40,
+  "tries": 2000,
+  "objects_note": "the shelf's five YCB-V targets (design proposal section 3: enables the secondary comparison on common targets)"
+ },
+ "distractors": {
+  "count": [
+   2,
+   5
+  ],
+  "p_inner": 0.5,
+  "inner_radius_m": 0.2,
+  "outer_region_m": {
+   "x": [
+    -0.58,
+    0.58
+   ],
+   "y": [
+    -0.28,
+    0.48
+   ]
+  },
+  "outer_min_stops_in_frame": 1,
+  "objects": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18,
+   19,
+   20,
+   21
+  ],
+  "tries_each": 200,
+  "rule": "2-5 distinct upright models, never the target's or the occluder's; per try 'inner' with probability p_inner (base centre uniform over the 0.20 m workspace disc) or 'outer' (base centre uniform over outer_region_m, outside the disc and inside the frame at >= outer_min_stops_in_frame stops: on the seen table); on the table with table_edge clearance, footprint between_objects clear of the target, the placed occluder and earlier distractors, and never occluding the target from any stop (projected hulls overlap only if the distractor is wholly behind the target)"
+ },
+ "occluder": {
+  "p3_coverage_min": 0.95,
+  "coverage_note": "share of the target's projected convex hull (YCB-V hull points, configs/sim/ycbv_hulls.json; the measured mug's mesh) at P3 covered by the occluder's projected hull (pinhole, as rendered); the rendered visible fraction is checked after rendering",
+  "min_clear_stops": 2,
+  "clear_coverage_max": 0.001,
+  "stop_rule_note": "families other than IND28 must leave at least min_clear_stops stops where the occluder's projected hull does not touch the target's (coverage <= clear_coverage_max), so another view resolves the occluded episode and a removed episode can reach the k = 2 clear-miss rule (the design picks leave 3-4 such stops); IND28 (predeclared_indistinguishable) must cover the target's hull at every stop (p3_coverage_min); M16 also has to satisfy its side_rule",
+  "families": {
+   "S8": {
+    "kind": "board",
+    "width_m": 0.08,
+    "thickness_m": 0.005,
+    "height_m": 0.2,
+    "gap_m": [
+     0.01,
+     0.3
+    ],
+    "shift_m": [
+     -0.015,
+     0.015
+    ],
+    "note": "8 cm x H_T board, 0.5 cm thick (the physical S8's width and thickness); symmetric shift about the start-stop sight line (shelf values)"
+   },
+   "M16": {
+    "kind": "board",
+    "width_m": 0.16,
+    "thickness_m": 0.005,
+    "height_m": 0.2,
+    "gap_m": [
+     0.01,
+     0.3
+    ],
+    "side_shift_m": [
+     0.01,
+     0.06
+    ],
+    "tries": 300,
+    "side_rule": {
+     "opposite_near_max": 0.1,
+     "adjacent_min": 0.95,
+     "adjacent_note": "2026-11-03: the adjacent same-side stop must be HIDDEN (analytic coverage >= 0.95 = p3_coverage_min, an H view), so that both sides render the intended CHHCC / CCHHC. shelf_v1 allowed 0.5, which rendered a partial 'p' at that stop on 4 of the 9 M16-L dev boards (SD1000: CpHCC).",
+     "far_same_stop_note": "2026-11-03: the stops BEYOND the adjacent one on the board's side (P1 for L, P5 for R) are not limited: partial cover there is accepted, so a pHHCC (L) or CCHHp (R) board is still one-sided. shelf_v2 limited them to 0.10 (same_far_max)."
+    },
+    "note": "16 cm x H_T board; the shelf_v3 side rule and ranges (SIDE R = displaced toward +x, hides P3 and P4: CCHHC; L hides P2 and P3: CHHCC)"
+   },
+   "IND28": {
+    "kind": "board",
+    "width_m": 0.44,
+    "thickness_m": 0.005,
+    "height_m": 0.2,
+    "gap_m": [
+     0.01,
+     0.04
+    ],
+    "shift_m": [
+     -0.02,
+     0.02
+    ],
+    "predeclared_indistinguishable": true,
+    "note": "28 cm x H_T board (a wider tabletop variant only if the scan's rule picks one); must cover the target at every stop"
+   },
+   "white_box": {
+    "kind": "white_box",
+    "material": "white_box",
+    "gap_m": [
+     0.005,
+     0.3
+    ],
+    "depth_m": [
+     0.03,
+     0.08
+    ],
+    "pad_m": [
+     0.005,
+     0.015
+    ],
+    "shift_m": [
+     -0.005,
+     0.005
+    ],
+    "note": "pilot-2 failure case: a plain white box (the shelf's colour) whose front face is the smallest rectangle hiding the target's bounding box from P3 (corners back-projected along their sight lines), padded by pad_m, so its P3 image footprint is about the target's; anywhere between the front lip and the target"
+   },
+   "ycb_box": {
+    "kind": "ycbv",
+    "choices": [
+     [
+      2,
+      "upright"
+     ],
+     [
+      3,
+      "upright"
+     ],
+     [
+      16,
+      "upright"
+     ],
+     [
+      7,
+      "edge"
+     ]
+    ],
+    "gap_m": [
+     0.005,
+     0.3
+    ],
+    "shift_m": [
+     -0.03,
+     0.03
+    ],
+    "note": "design proposal section 4: upright cracker box (7.2 x 16.4 x 21.3 cm), upright sugar box (5.0 x 9.4 x 17.6), upright wood block (10.4 x 10.4 x 20.6), pudding box on edge (13.8 x 3.9 x 12.9); the scan decides which are kept"
+   }
+  },
+  "tries_per_family": 100,
+  "parked": {
+   "region_m": {
+    "x": [
+     -0.58,
+     0.58
+    ],
+    "y": [
+     -0.28,
+     0.48
+    ]
+   },
+   "tries": 600,
+   "target_window_context": 1.0,
+   "min_stops_in_frame": 1,
+   "shadow": {
+    "light_grid_n": 5,
+    "target_step_m": 0.01,
+    "target_levels": 6
+   },
+   "rule": "the occluder at yaw 0, base centre uniform over region_m: on the table, footprint clear of the target and distractors, base centre inside the frame at >= min_stops_in_frame stops, outside the target's context window at every stop, hiding no object from any stop (as the shelf), and free of the parked-shadow nuisance (sim/arrange.py parked_reason): (i) initial screen: its hull projected from each light's centre onto z = 0 must not overlap the target window's table footprint at any stop; (ii) ray check: no segment from a light_grid_n x light_grid_n grid over each rect light that is on in some preset to the target's full-height samples (prism over its hull outline, every target_step_m, at target_levels heights, plus a target_step_m grid on its top) meets the occluder's box (analytic slab test). Shadows of the occluder MOVING between phases are legitimate and kept (decision 2026-11-04 item 6): this is nuisance control only."
+  },
+  "gap_note": "gap_m = target front face to occluder back face, drawn uniformly in the range clipped to the room in front of the target (occluder front face >= occluder_front behind the front plane); 0.30 = anywhere up to the table's near edge (table_edge). IND28 and the white box stay close (they must cover every stop / the target's own footprint); a family's own 'tries' overrides tries_per_family"
+ },
+ "slots": {
+  "note": "Quotas are SLOTS, not weights (SIM_PREREGISTRATION section 2, decided 2026-11-02/03). slot_list(split) expands the quota table in sorted key order (family, then side), permutes it with a Fisher-Yates shuffle driven by Draw([permutation_seed]), and gives slot i the primary seed primary_seed_start + i. A slot never changes family or M16 side. Placement failure: the generator retries (seed, attempt 1..retry_max) within the slot's family; if all fail, it takes the next unused seed of that family's reserve list (consumed in slot order, one list per family, disjoint from every primary seed and from each other) and tries it with attempts 0..retry_max again; an exhausted reserve list is an error. Every failed try and replacement is logged in the arrangement and in the set-level generation_log.json. The test block exists only so slot_list('test') can be inspected: no test arrangement is generated (sim/arrange.py refuses seeds >= 100000). All values are DEV and not frozen. shelf_v2: each slot also has a target model (slots.target_assignment); the slot list and the seeds are otherwise those of shelf_v1.",
+  "retry_max": 20,
+  "dev": {
+   "permutation_seed": 20261107,
+   "primary_seed_start": 5000,
+   "quota": {
+    "S8": 12,
+    "M16": {
+     "L": 9,
+     "R": 9
+    },
+    "IND28": 6,
+    "white_box": 12,
+    "ycb_box": 12
+   },
+   "reserve": {
+    "S8": [
+     6000,
+     6001,
+     6002,
+     6003,
+     6004,
+     6005,
+     6006,
+     6007,
+     6008,
+     6009,
+     6010,
+     6011
+    ],
+    "M16": [
+     6100,
+     6101,
+     6102,
+     6103,
+     6104,
+     6105,
+     6106,
+     6107,
+     6108,
+     6109,
+     6110,
+     6111,
+     6112,
+     6113,
+     6114,
+     6115,
+     6116,
+     6117
+    ],
+    "IND28": [
+     6200,
+     6201,
+     6202,
+     6203,
+     6204,
+     6205
+    ],
+    "white_box": [
+     6300,
+     6301,
+     6302,
+     6303,
+     6304,
+     6305,
+     6306,
+     6307,
+     6308,
+     6309,
+     6310,
+     6311
+    ],
+    "ycb_box": [
+     6400,
+     6401,
+     6402,
+     6403,
+     6404,
+     6405,
+     6406,
+     6407,
+     6408,
+     6409,
+     6410,
+     6411
+    ]
+   },
+   "target_seed": 20261109
+  },
+  "test": {
+   "permutation_seed": 20261108,
+   "primary_seed_start": 110000,
+   "quota": {
+    "S8": 20,
+    "M16": {
+     "L": 15,
+     "R": 15
+    },
+    "IND28": 10,
+    "white_box": 20,
+    "ycb_box": 20
+   },
+   "reserve": {
+    "S8": [
+     111000,
+     111001,
+     111002,
+     111003,
+     111004,
+     111005,
+     111006,
+     111007,
+     111008,
+     111009,
+     111010,
+     111011,
+     111012,
+     111013,
+     111014,
+     111015,
+     111016,
+     111017,
+     111018,
+     111019
+    ],
+    "M16": [
+     111100,
+     111101,
+     111102,
+     111103,
+     111104,
+     111105,
+     111106,
+     111107,
+     111108,
+     111109,
+     111110,
+     111111,
+     111112,
+     111113,
+     111114,
+     111115,
+     111116,
+     111117,
+     111118,
+     111119,
+     111120,
+     111121,
+     111122,
+     111123,
+     111124,
+     111125,
+     111126,
+     111127,
+     111128,
+     111129
+    ],
+    "IND28": [
+     111200,
+     111201,
+     111202,
+     111203,
+     111204,
+     111205,
+     111206,
+     111207,
+     111208,
+     111209
+    ],
+    "white_box": [
+     111300,
+     111301,
+     111302,
+     111303,
+     111304,
+     111305,
+     111306,
+     111307,
+     111308,
+     111309,
+     111310,
+     111311,
+     111312,
+     111313,
+     111314,
+     111315,
+     111316,
+     111317,
+     111318,
+     111319
+    ],
+    "ycb_box": [
+     111400,
+     111401,
+     111402,
+     111403,
+     111404,
+     111405,
+     111406,
+     111407,
+     111408,
+     111409,
+     111410,
+     111411,
+     111412,
+     111413,
+     111414,
+     111415,
+     111416,
+     111417,
+     111418,
+     111419
+    ]
+   },
+   "target_seed": 20261110
+  },
+  "target_assignment": {
+   "rule": "Quotas are slots, not weights, for targets too. Within each slot class (S8, M16-L, M16-R, IND28, white_box, ycb_box; the two M16 sides are separate classes) slot targets come from a seeded balanced list over the class's models below: a class of n slots over k models gives every model n // k slots and n % k models one more, those with the lowest running total over the classes already assigned (classes in sorted key order, ties by the class's seeded shuffle), so the totals are as even as the class sizes allow as well. The class's list is shuffled with Draw([target_seed, class number]) and handed to its slots in index order (sim/arrange.py assign_targets). A failed try retries the same (family, side, target) and then uses the family's reserve seeds; it never changes the target.",
+   "classes": {
+    "IND28": [
+     4,
+     9,
+     14,
+     21,
+     6
+    ],
+    "M16-L": [
+     4,
+     9,
+     14,
+     21,
+     6
+    ],
+    "M16-R": [
+     4,
+     9,
+     14,
+     21,
+     6
+    ],
+    "S8": [
+     4,
+     9,
+     14,
+     21,
+     6
+    ],
+    "white_box": [
+     4,
+     9,
+     14,
+     21,
+     6
+    ],
+    "ycb_box": [
+     4,
+     9,
+     14,
+     21,
+     6
+    ]
+   },
+   "model_ids": {
+    "4": "tomato_soup_can",
+    "9": "potted_meat_can",
+    "14": "mug",
+    "21": "foam_brick",
+    "6": "tuna_fish_can"
+   },
+   "excluded": {},
+   "excluded_note": "provisional (base config): every target in every class"
+  }
+ },
+ "revisit": {
+  "translation_m": 0.01,
+  "rotation_deg": 0.5,
+  "min_margin_px": 0.0,
+  "distort": true,
+  "max_redraws": 400,
+  "stream_salt": 2094307861,
+  "note": "The shelf_v3 revisit protocol (ranges, min margin, k1, max_redraws) with a new stream_salt; the entropy is salted by environment (sim/arrange.py revisit_entropy: [ENTROPY_SALT['tabletop'], seed]) so equal seeds in the two environments never share draws. Frame check: scene.frame_check."
+ },
+ "materials": {
+  "white_box": {
+   "rgba": [
+    0.93,
+    0.93,
+    0.9,
+    1.0
+   ],
+   "note": "white (decision 2026-11-04 item 4: the white box stays white; the shelf's white box colour)"
+  }
+ },
+ "design_cases": {
+  "note": "Tabletop design cases TDES0-TDES3 (design proposal section 4): the measured study mug of configs/rig_geometry.json (profile + handle plate) at the workspace centre, handle toward P3, no distractors; the family's board at H_T (IND28 at its width) at the gap / shift that maximises the smallest per-stop pixel margin of the intended pattern over the margin_scan grid (sim/arrange.py design_margin_scan: inset of the mug's projected hull in the board's at H stops, separation at C stops); S8 CCHCC, M16-R CCHHC, M16-L CHHCC, IND28 HHHHH (predeclared indistinguishable). Parked at one fixed spot for all four (parked: the first spot of a 5 cm grid over the parking region, nearest (-0.4, 0.35), that parked_reason accepts for every case). Fixed, predeclared dev arrangements outside the 60 slots.",
+  "mug_geometry": "configs/rig_geometry.json",
+  "mug_x": 0.0,
+  "mug_y": 0.0,
+  "handle": "toward",
+  "target_name": "study_mug",
+  "margin_scan": {
+   "gap_m": [
+    0.005,
+    0.25,
+    0.005
+   ],
+   "shift_m": [
+    -0.15,
+    0.15,
+    0.005
+   ]
+  },
+  "parked": {
+   "x": -0.35,
+   "y": 0.4,
+   "note": "first accepted spot of the 5 cm grid nearest (-0.4, 0.35) (checked by design_arrangement)"
+  },
+  "cases": [
+   {
+    "seed": "design-4",
+    "arrangement_id": "TDES0",
+    "family": "S8",
+    "m16_side": null,
+    "intended_pattern": "CCHCC",
+    "gap_m": 0.095,
+    "shift_m": 0.0,
+    "margin_px": 69.528,
+    "stop_margins_px": [
+     272.03,
+     75.765,
+     69.528,
+     75.765,
+     272.03
+    ],
+    "scan_grid_n": 3050
+   },
+   {
+    "seed": "design-5",
+    "arrangement_id": "TDES1",
+    "family": "M16",
+    "m16_side": "R",
+    "intended_pattern": "CCHHC",
+    "gap_m": 0.08,
+    "shift_m": 0.045,
+    "margin_px": 38.325,
+    "stop_margins_px": [
+     219.531,
+     53.15,
+     38.325,
+     47.369,
+     113.75
+    ],
+    "scan_grid_n": 3050
+   },
+   {
+    "seed": "design-6",
+    "arrangement_id": "TDES2",
+    "family": "M16",
+    "m16_side": "L",
+    "intended_pattern": "CHHCC",
+    "gap_m": 0.08,
+    "shift_m": -0.045,
+    "margin_px": 38.325,
+    "stop_margins_px": [
+     113.75,
+     47.369,
+     38.325,
+     52.627,
+     219.531
+    ],
+    "scan_grid_n": 3050
+   },
+   {
+    "seed": "design-7",
+    "arrangement_id": "TDES3",
+    "family": "IND28",
+    "m16_side": null,
+    "intended_pattern": "HHHHH",
+    "gap_m": 0.005,
+    "shift_m": 0.04,
+    "margin_px": 56.067,
+    "stop_margins_px": [
+     56.067,
+     61.652,
+     61.292,
+     61.652,
+     56.067
+    ],
+    "scan_grid_n": 3050,
+    "predeclared_indistinguishable": true
+   }
+  ]
+ },
+ "scene": {
+  "tags": false,
+  "note": "no fiducials (decision 2026-11-03, kept for the tabletop)",
+  "frame_check": "Revisit and nominal frame check: the workspace outline (sim/tabletop.py workspace_outline, 24 points on the 0.20 m circle at z = 0 and z = 0.12) and the target's projected hull inside the frame with margin >= revisit.min_margin_px (0), fitted k1 (revisit.distort)"
+ }
+}
