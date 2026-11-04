@@ -1,0 +1,1060 @@
+{
+ "schema": "cmpe249.tabletop-height-scan-decision.v1",
+ "plan_sha256": "84fe4030df31d9c32546d2386a443bc77c7572b53fc22a7aa4e5e7c2d343f13b",
+ "results_n_cells": 175,
+ "best_support": {
+  "S8": {
+   "identities": [
+    4,
+    6,
+    9,
+    14,
+    21
+   ],
+   "best_successes": {
+    "4": 100,
+    "9": 100,
+    "14": 100,
+    "21": 100,
+    "6": 100
+   }
+  },
+  "IND28": {
+   "identities": [
+    4,
+    6,
+    9,
+    14,
+    21
+   ],
+   "best_successes": {
+    "4": 69,
+    "9": 51,
+    "14": 30,
+    "21": 90,
+    "6": 87
+   }
+  }
+ },
+ "per_height": {
+  "0.15": {
+   "a_m16_ok": true,
+   "m16_admitted": {
+    "L": [
+     6,
+     21
+    ],
+    "R": [
+     6,
+     21
+    ]
+   },
+   "b_s8_ok": false,
+   "s8_admitted": [
+    4,
+    6,
+    9,
+    14,
+    21
+   ],
+   "s8_detail": {
+    "4": {
+     "successes": 86,
+     "best_successes": 100,
+     "p_lower": 3.7e-05,
+     "retained": false
+    },
+    "6": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "9": {
+     "successes": 64,
+     "best_successes": 100,
+     "p_lower": 0.0,
+     "retained": false
+    },
+    "14": {
+     "successes": 23,
+     "best_successes": 100,
+     "p_lower": 0.0,
+     "retained": false
+    },
+    "21": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    }
+   },
+   "b_ind28_ok": false,
+   "ind28_narrowest_width_m": null,
+   "ind28_by_width": {
+    "0.28": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 2,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 58,
+       "best_successes": 87,
+       "p_lower": 3e-06,
+       "retained": false
+      },
+      "9": {
+       "successes": 16,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 0,
+       "best_successes": 30,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "21": {
+       "successes": 71,
+       "best_successes": 90,
+       "p_lower": 0.000561,
+       "retained": false
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      9,
+      21
+     ]
+    },
+    "0.36": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 2,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 69,
+       "best_successes": 87,
+       "p_lower": 0.001703,
+       "retained": false
+      },
+      "9": {
+       "successes": 14,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 0,
+       "best_successes": 30,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "21": {
+       "successes": 77,
+       "best_successes": 90,
+       "p_lower": 0.010616,
+       "retained": false
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      9,
+      21
+     ]
+    },
+    "0.44": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 2,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 65,
+       "best_successes": 87,
+       "p_lower": 0.000216,
+       "retained": false
+      },
+      "9": {
+       "successes": 10,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 0,
+       "best_successes": 30,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "21": {
+       "successes": 64,
+       "best_successes": 90,
+       "p_lower": 9e-06,
+       "retained": false
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      9,
+      21
+     ]
+    }
+   },
+   "ok": false
+  },
+  "0.18": {
+   "a_m16_ok": true,
+   "m16_admitted": {
+    "L": [
+     4,
+     6,
+     9,
+     14,
+     21
+    ],
+    "R": [
+     4,
+     6,
+     9,
+     14,
+     21
+    ]
+   },
+   "b_s8_ok": true,
+   "s8_admitted": [
+    4,
+    6,
+    9,
+    14,
+    21
+   ],
+   "s8_detail": {
+    "4": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "6": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "9": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "14": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "21": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    }
+   },
+   "b_ind28_ok": false,
+   "ind28_narrowest_width_m": null,
+   "ind28_by_width": {
+    "0.28": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 69,
+       "best_successes": 69,
+       "p_lower": 0.560715,
+       "retained": true
+      },
+      "6": {
+       "successes": 58,
+       "best_successes": 87,
+       "p_lower": 3e-06,
+       "retained": false
+      },
+      "9": {
+       "successes": 51,
+       "best_successes": 51,
+       "p_lower": 0.556219,
+       "retained": true
+      },
+      "14": {
+       "successes": 24,
+       "best_successes": 30,
+       "p_lower": 0.212992,
+       "retained": true
+      },
+      "21": {
+       "successes": 77,
+       "best_successes": 90,
+       "p_lower": 0.010616,
+       "retained": false
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      9,
+      14,
+      21
+     ]
+    },
+    "0.36": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 42,
+       "best_successes": 69,
+       "p_lower": 9.9e-05,
+       "retained": false
+      },
+      "6": {
+       "successes": 87,
+       "best_successes": 87,
+       "p_lower": 0.583063,
+       "retained": true
+      },
+      "9": {
+       "successes": 34,
+       "best_successes": 51,
+       "p_lower": 0.010922,
+       "retained": false
+      },
+      "14": {
+       "successes": 30,
+       "best_successes": 30,
+       "p_lower": 0.561269,
+       "retained": true
+      },
+      "21": {
+       "successes": 90,
+       "best_successes": 90,
+       "p_lower": 0.592851,
+       "retained": true
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      9,
+      14,
+      21
+     ]
+    },
+    "0.44": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 18,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 81,
+       "best_successes": 87,
+       "p_lower": 0.16748,
+       "retained": true
+      },
+      "9": {
+       "successes": 15,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 17,
+       "best_successes": 30,
+       "p_lower": 0.022335,
+       "retained": false
+      },
+      "21": {
+       "successes": 64,
+       "best_successes": 90,
+       "p_lower": 9e-06,
+       "retained": false
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      9,
+      14,
+      21
+     ]
+    }
+   },
+   "ok": false
+  },
+  "0.2": {
+   "a_m16_ok": true,
+   "m16_admitted": {
+    "L": [
+     4,
+     6,
+     9,
+     14,
+     21
+    ],
+    "R": [
+     4,
+     6,
+     9,
+     14,
+     21
+    ]
+   },
+   "b_s8_ok": true,
+   "s8_admitted": [
+    4,
+    6,
+    9,
+    14,
+    21
+   ],
+   "s8_detail": {
+    "4": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "6": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "9": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "14": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "21": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    }
+   },
+   "b_ind28_ok": false,
+   "ind28_narrowest_width_m": null,
+   "ind28_by_width": {
+    "0.28": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 53,
+       "best_successes": 69,
+       "p_lower": 0.014678,
+       "retained": false
+      },
+      "6": {
+       "successes": 58,
+       "best_successes": 87,
+       "p_lower": 3e-06,
+       "retained": false
+      },
+      "9": {
+       "successes": 42,
+       "best_successes": 51,
+       "p_lower": 0.12834,
+       "retained": true
+      },
+      "14": {
+       "successes": 20,
+       "best_successes": 30,
+       "p_lower": 0.070603,
+       "retained": true
+      },
+      "21": {
+       "successes": 76,
+       "best_successes": 90,
+       "p_lower": 0.006775,
+       "retained": false
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      9,
+      14,
+      21
+     ]
+    },
+    "0.36": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 14,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 87,
+       "best_successes": 87,
+       "p_lower": 0.583063,
+       "retained": true
+      },
+      "9": {
+       "successes": 9,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 12,
+       "best_successes": 30,
+       "p_lower": 0.001433,
+       "retained": false
+      },
+      "21": {
+       "successes": 84,
+       "best_successes": 90,
+       "p_lower": 0.146537,
+       "retained": true
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      9,
+      14,
+      21
+     ]
+    },
+    "0.44": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 5,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 85,
+       "best_successes": 87,
+       "p_lower": 0.419441,
+       "retained": true
+      },
+      "9": {
+       "successes": 3,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 1,
+       "best_successes": 30,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "21": {
+       "successes": 52,
+       "best_successes": 90,
+       "p_lower": 0.0,
+       "retained": false
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      9,
+      14,
+      21
+     ]
+    }
+   },
+   "ok": false
+  },
+  "0.22": {
+   "a_m16_ok": true,
+   "m16_admitted": {
+    "L": [
+     4,
+     6,
+     9,
+     14,
+     21
+    ],
+    "R": [
+     4,
+     6,
+     9,
+     14,
+     21
+    ]
+   },
+   "b_s8_ok": true,
+   "s8_admitted": [
+    4,
+    6,
+    9,
+    14,
+    21
+   ],
+   "s8_detail": {
+    "4": {
+     "successes": 99,
+     "best_successes": 100,
+     "p_lower": 0.5,
+     "retained": true
+    },
+    "6": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "9": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "14": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "21": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    }
+   },
+   "b_ind28_ok": false,
+   "ind28_narrowest_width_m": null,
+   "ind28_by_width": {
+    "0.28": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 21,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 56,
+       "best_successes": 87,
+       "p_lower": 1e-06,
+       "retained": false
+      },
+      "9": {
+       "successes": 15,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 7,
+       "best_successes": 30,
+       "p_lower": 2e-05,
+       "retained": false
+      },
+      "21": {
+       "successes": 71,
+       "best_successes": 90,
+       "p_lower": 0.000561,
+       "retained": false
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      9,
+      14,
+      21
+     ]
+    },
+    "0.36": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 5,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 84,
+       "best_successes": 87,
+       "p_lower": 0.344252,
+       "retained": true
+      },
+      "9": {
+       "successes": 1,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 1,
+       "best_successes": 30,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "21": {
+       "successes": 77,
+       "best_successes": 90,
+       "p_lower": 0.010616,
+       "retained": false
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      9,
+      14,
+      21
+     ]
+    },
+    "0.44": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 0,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 80,
+       "best_successes": 87,
+       "p_lower": 0.126409,
+       "retained": true
+      },
+      "9": {
+       "successes": 0,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 0,
+       "best_successes": 30,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "21": {
+       "successes": 42,
+       "best_successes": 90,
+       "p_lower": 0.0,
+       "retained": false
+      }
+     },
+     "admitted": [
+      6,
+      21
+     ]
+    }
+   },
+   "ok": false
+  },
+  "0.25": {
+   "a_m16_ok": true,
+   "m16_admitted": {
+    "L": [
+     4,
+     6,
+     9,
+     14,
+     21
+    ],
+    "R": [
+     4,
+     6,
+     9,
+     14,
+     21
+    ]
+   },
+   "b_s8_ok": true,
+   "s8_admitted": [
+    4,
+    6,
+    9,
+    14,
+    21
+   ],
+   "s8_detail": {
+    "4": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "6": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "9": {
+     "successes": 99,
+     "best_successes": 100,
+     "p_lower": 0.5,
+     "retained": true
+    },
+    "14": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    },
+    "21": {
+     "successes": 100,
+     "best_successes": 100,
+     "p_lower": 1.0,
+     "retained": true
+    }
+   },
+   "b_ind28_ok": false,
+   "ind28_narrowest_width_m": null,
+   "ind28_by_width": {
+    "0.28": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 0,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 56,
+       "best_successes": 87,
+       "p_lower": 1e-06,
+       "retained": false
+      },
+      "9": {
+       "successes": 1,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 0,
+       "best_successes": 30,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "21": {
+       "successes": 64,
+       "best_successes": 90,
+       "p_lower": 9e-06,
+       "retained": false
+      }
+     },
+     "admitted": [
+      6,
+      9,
+      21
+     ]
+    },
+    "0.36": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 3,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 83,
+       "best_successes": 87,
+       "p_lower": 0.27651,
+       "retained": true
+      },
+      "9": {
+       "successes": 0,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 1,
+       "best_successes": 30,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "21": {
+       "successes": 71,
+       "best_successes": 90,
+       "p_lower": 0.000561,
+       "retained": false
+      }
+     },
+     "admitted": [
+      4,
+      6,
+      14,
+      21
+     ]
+    },
+    "0.44": {
+     "ok": false,
+     "detail": {
+      "4": {
+       "successes": 0,
+       "best_successes": 69,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "6": {
+       "successes": 78,
+       "best_successes": 87,
+       "p_lower": 0.067892,
+       "retained": true
+      },
+      "9": {
+       "successes": 1,
+       "best_successes": 51,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "14": {
+       "successes": 0,
+       "best_successes": 30,
+       "p_lower": 0.0,
+       "retained": false
+      },
+      "21": {
+       "successes": 41,
+       "best_successes": 90,
+       "p_lower": 0.0,
+       "retained": false
+      }
+     },
+     "admitted": [
+      6,
+      9,
+      21
+     ]
+    }
+   },
+   "ok": false
+  }
+ },
+ "H_T_m": null,
+ "ind28_width_m": null,
+ "ycb_box": {
+  "2:upright": {
+   "admitted": [
+    4,
+    6,
+    9,
+    14,
+    21
+   ],
+   "successes": {
+    "4": 72,
+    "9": 66,
+    "14": 64,
+    "21": 100,
+    "6": 100
+   },
+   "kept": true
+  },
+  "3:upright": {
+   "admitted": [
+    4,
+    6,
+    9,
+    14,
+    21
+   ],
+   "successes": {
+    "4": 43,
+    "9": 19,
+    "14": 3,
+    "21": 47,
+    "6": 34
+   },
+   "kept": true
+  },
+  "16:upright": {
+   "admitted": [
+    4,
+    6,
+    9,
+    14,
+    21
+   ],
+   "successes": {
+    "4": 92,
+    "9": 86,
+    "14": 87,
+    "21": 100,
+    "6": 100
+   },
+   "kept": true
+  },
+  "7:edge": {
+   "admitted": [
+    6,
+    21
+   ],
+   "successes": {
+    "4": 0,
+    "9": 0,
+    "14": 0,
+    "21": 2,
+    "6": 9
+   },
+   "kept": true
+  }
+ },
+ "white_box": {
+  "successes": {
+   "4": 91,
+   "9": 88,
+   "14": 93,
+   "21": 100,
+   "6": 100
+  },
+  "admitted": [
+   4,
+   6,
+   9,
+   14,
+   21
+  ]
+ },
+ "outcome": "no height satisfies (a) and (b)"
+}

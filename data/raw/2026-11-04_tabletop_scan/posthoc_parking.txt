@@ -1,0 +1,4 @@
+IND28 h=0.22 w=0.36 target 4: 19 failed parks of 20 seeds; refused draws by reason {'table': 6744, 'frame': 0, 'window': 4617, 'occludes': 29, 'shadow_screen': 10, 'shadow_rays': 0}
+IND28 h=0.25 w=0.28 target 4: 14 failed parks of 20 seeds; refused draws by reason {'table': 4472, 'frame': 0, 'window': 3789, 'occludes': 112, 'shadow_screen': 27, 'shadow_rays': 0}
+M16-L h=0.25 w=0.28 target 4: 4 failed parks of 20 seeds; refused draws by reason {'table': 947, 'frame': 0, 'window': 1289, 'occludes': 113, 'shadow_screen': 51, 'shadow_rays': 0}
+IND28 h=0.18 w=0.28 target 4: 1 failed parks of 20 seeds; refused draws by reason {'table': 270, 'frame': 0, 'window': 311, 'occludes': 17, 'shadow_screen': 2, 'shadow_rays': 0}

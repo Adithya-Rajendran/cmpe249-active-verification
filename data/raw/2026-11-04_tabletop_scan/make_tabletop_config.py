@@ -230,7 +230,58 @@ def design_block(c: dict) -> dict:
 
 
 def final(a) -> int:
-    raise SystemExit("final: written after the scan")
+    """configs/sim/arrange_tabletop_v1.json from the scan decision and the class matrix."""
+    dec = json.loads(Path(a.decision).read_text())
+    mx = json.loads(Path(a.matrix).read_text())
+    if dec["H_T_m"] is None:
+        raise SystemExit(f"refused: the scan's outcome is '{dec['outcome']}', no H_T to write")
+    H, W = float(dec["H_T_m"]), float(dec["ind28_width_m"])
+    kept = [[int(k.split(":")[0]), k.split(":")[1]] for k, v in dec["ycb_box"].items() if v["kept"]]
+    ov = mx.get("overrides", {})
+    want = {**{f"occluder.families.{f}.height_m": H for f in ("S8", "M16", "IND28")},
+            "occluder.families.IND28.width_m": W, "occluder.families.ycb_box.choices": kept}
+    if ov != want:
+        raise SystemExit(f"refused: the class matrix was run with {ov}, not the decision's {want}")
+    c = base()
+    c["status"] = ("DEV config, 2026-11-04 (tabletop environment; researcher's decisions of 2026-11-04, "
+                   "progress/drafts/2026-11-04-tabletop-design.md). NOT FROZEN. H_T, the IND28 width, the ycb_box choices and the "
+                   "per-class target lists are the results of data/raw/2026-11-04_tabletop_scan/ (scan_plan.json committed before "
+                   "the scan; results.json, decision.json, matrix.json).")
+    set_boards(c, H, W)
+    fam = c["occluder"]["families"]
+    hn = (f"H_T = {H:g} m: {dec['outcome']} (data/raw/2026-11-04_tabletop_scan/decision.json; plan scan_plan.json sha256 "
+          f"{dec['plan_sha256']})")
+    for f in ("S8", "M16", "IND28"):
+        fam[f]["height_note"] = hn
+    if W > 0.28:
+        fam["IND28"]["variant"] = (f"TABLETOP VARIANT: {W:g} m wide x {H:g} m tall x 0.005 m thick (the physical IND28 is 0.28 m "
+                                   "wide); the narrowest scanned width meeting the scan's rule (b) at H_T")
+    fam["ycb_box"]["choices"] = kept
+    fam["ycb_box"]["choices_note"] = ("kept by the scan (a choice is kept if it admits >= 1 target in 100 tries): "
+                                      + ", ".join(f"{k} {'kept' if v['kept'] else 'dropped'} (admits {v['admitted']})"
+                                                  for k, v in dec["ycb_box"].items()))
+    n = int(mx["tries_per_cell"])
+    classes, excluded = {}, {}
+    for r in mx["rows"]:
+        if r["ok"] >= 1:
+            classes.setdefault(r["class"], []).append(int(r["target"]))
+        else:
+            excluded.setdefault(r["class"], {})[str(r["target"])] = (
+                f"{NAMES[int(r['target'])]}: no valid placement found in {n} tries (0 of {n}; fails at {r['fail_reasons']})")
+    order = {t: i for i, t in enumerate(TARGETS)}
+    ta = c["slots"]["target_assignment"]
+    ta["classes"] = {k: sorted(v, key=order.get) for k, v in sorted(classes.items())}
+    ta["excluded"] = excluded
+    ta["excluded_note"] = (f"class matrix at H_T (data/raw/2026-11-04_tabletop_scan/matrix.json: {n} real generator tries per (class, "
+                           f"target), probe seeds {mx['probe_seeds'][0]}-{mx['probe_seeds'][1]}); zero in N tries is not a proof "
+                           "that no placement exists")
+    missing = [k for k in CLASSES if not ta["classes"].get(k)]
+    if missing:
+        raise SystemExit(f"refused: classes with no admitted target: {missing}")
+    c["design_cases"] = design_block(c)
+    Path(a.out).write_text(json.dumps(c, indent=1) + "\n")
+    print(f"wrote {a.out}")
+    return 0
 
 
 def main(argv=None) -> int:
