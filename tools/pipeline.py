@@ -234,7 +234,9 @@ def stage_render(run: Run, launch: bool) -> None:
     if state["status"] == STOPPED and state["rc"] == "":
         if not launch:
             run.fail("render", "no render is running for this spec and none has finished; rerun with --launch")
-        remote.run(f"cd {rd} && setsid nohup bash {r['launch_script']} >/dev/null 2>&1 < /dev/null &")
+        # braces: only the launcher goes to the background, so ssh returns at once (`a && b &` backgrounds a && b
+        # in a subshell that keeps ssh's stdout open until the render ends)
+        remote.run(f"cd {rd} && {{ setsid nohup bash {r['launch_script']} >/dev/null 2>&1 < /dev/null & }}")
         run.emit("render", "info", "launched", script=r["launch_script"])
         # the render appears a moment after the launcher returns: wait for it (or its rc) before polling for "gone"
         wait = r.get("launch_wait_seconds", 60)

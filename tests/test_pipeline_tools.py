@@ -5,6 +5,7 @@ import argparse
 import contextlib
 import io
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -296,7 +297,7 @@ class RenderStageBase(unittest.TestCase):
         (t / "dummy.py").write_text(DUMMY_RENDER)
         (t / "remote_run" / "run_render.sh").write_text(
             f"#!/bin/bash\necho started >> {t}/launches\n"
-            f"{sys.executable} {t}/dummy.py 1 isaac_batch.py --arrangements {t}/arr_s/a.json > $1 2>&1\necho $? > $2\n")
+            f"{sys.executable} {t}/dummy.py ${{DUMMY_SECONDS:-1}} isaac_batch.py --arrangements {t}/arr_s/a.json > $1 2>&1\necho $? > $2\n")
         self.spec = {"run_id": "render-test", "poll_seconds": 0.1, "heartbeat_seconds": 3600, "stall_minutes": 60,
                      "slow_factor": 2.5, "remote": {"run_dir": str(t / "remote_run")},
                      "render": {"log": "s.log", "rc_file": "s.rc", "expected": 1, "arrangements_dir": str(t / "arr_s"),
@@ -339,6 +340,20 @@ class TestRenderStage(RenderStageBase):
         self.assertIsNone(code)
         self.assertIn("launched", msgs)
         self.assertNotIn("attached", msgs)
+        self.assertEqual(self.launches, 1)
+        self.assertEqual(msgs[-1], "render finished")
+
+    def test_the_launch_call_returns_while_the_render_runs(self) -> None:
+        # the launcher must not hold ssh's pipes: with `cd X && setsid ... &` the whole list went to the background
+        # in a subshell that kept stdout open, so ssh waited for the render and the 60 s launch call timed out
+        class ShortTimeout(LocalShell):
+            def run(self, command, timeout=60, stdin=None):
+                return super().run(command, timeout=min(timeout, 3), stdin=stdin)
+        with patch.object(pipeline, "Remote", ShortTimeout), patch.dict(os.environ, {"DUMMY_SECONDS": "6"}):
+            code, ev = self.run_render(launch=True)
+        msgs = [e["msg"] for e in ev]
+        self.assertIsNone(code, msgs)
+        self.assertIn("launched", msgs)
         self.assertEqual(self.launches, 1)
         self.assertEqual(msgs[-1], "render finished")
 
