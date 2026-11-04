@@ -1,0 +1,224 @@
+{
+ "n_arrangements": 64,
+ "n_design": 4,
+ "counts_by_class": {
+  "IND28": {
+   "slots": 6,
+   "with_retries": 2,
+   "replaced": 1,
+   "failed_tries": 36
+  },
+  "M16-R": {
+   "slots": 9,
+   "with_retries": 5,
+   "replaced": 0,
+   "failed_tries": 30
+  },
+  "ycb_box": {
+   "slots": 12,
+   "with_retries": 2,
+   "replaced": 0,
+   "failed_tries": 2
+  },
+  "S8": {
+   "slots": 12,
+   "with_retries": 0,
+   "replaced": 0,
+   "failed_tries": 0
+  },
+  "M16-L": {
+   "slots": 9,
+   "with_retries": 2,
+   "replaced": 0,
+   "failed_tries": 9
+  },
+  "white_box": {
+   "slots": 12,
+   "with_retries": 0,
+   "replaced": 0,
+   "failed_tries": 0
+  }
+ },
+ "reserve_used": {
+  "IND28": 1
+ },
+ "n_failed_tries": 77,
+ "n_replacements": 1,
+ "failed_by_class_reason": {
+  "IND28": {
+   "parked": 8,
+   "occluder": 28
+  },
+  "M16-L": {
+   "occluder": 9
+  },
+  "M16-R": {
+   "occluder": 30
+  },
+  "ycb_box": {
+   "parked": 2
+  }
+ },
+ "targets_by_class": {
+  "IND28": {
+   "tuna_fish_can": 2,
+   "tomato_soup_can": 1,
+   "potted_meat_can": 1,
+   "foam_brick": 1,
+   "mug": 1
+  },
+  "M16-L": {
+   "tomato_soup_can": 2,
+   "mug": 2,
+   "potted_meat_can": 2,
+   "foam_brick": 2,
+   "tuna_fish_can": 1
+  },
+  "M16-R": {
+   "mug": 2,
+   "tomato_soup_can": 2,
+   "tuna_fish_can": 1,
+   "potted_meat_can": 2,
+   "foam_brick": 2
+  },
+  "S8": {
+   "tomato_soup_can": 3,
+   "potted_meat_can": 2,
+   "mug": 2,
+   "tuna_fish_can": 3,
+   "foam_brick": 2
+  },
+  "white_box": {
+   "tuna_fish_can": 2,
+   "mug": 2,
+   "foam_brick": 3,
+   "potted_meat_can": 3,
+   "tomato_soup_can": 2
+  },
+  "ycb_box": {
+   "tuna_fish_can": 3,
+   "mug": 3,
+   "potted_meat_can": 2,
+   "foam_brick": 2,
+   "tomato_soup_can": 2
+  }
+ },
+ "m16_patterns": {
+  "M16-L": {
+   "pHHCC": 1,
+   "CHHCC": 8
+  },
+  "M16-R": {
+   "CCHHC": 8,
+   "CCHHp": 1
+  }
+ },
+ "revisit": {
+  "stops": 320,
+  "stops_with_a_redraw": 0,
+  "rejected_draws": 0,
+  "rejected_by_stop": {
+   "P1": 0,
+   "P2": 0,
+   "P3": 0,
+   "P4": 0,
+   "P5": 0
+  },
+  "redraw_rate_per_stop": 0.0
+ },
+ "parking": {
+  "random_arrangements": 60,
+  "draws_total": 2903,
+  "refused_by_reason": {
+   "table": 1451,
+   "frame": 0,
+   "window": 1247,
+   "occludes": 78,
+   "shadow_screen": 67,
+   "shadow_rays": 0
+  },
+  "shadow_rays_rejections_after_passing_the_screen": 0
+ },
+ "design": {
+  "TDES0": {
+   "pattern": "CCHCC",
+   "margin_px": 30.729,
+   "parked": [
+    -0.35,
+    0.4,
+    0.0
+   ],
+   "shadow_check": {
+    "lights": [
+     "key_left",
+     "key_right"
+    ],
+    "light_grid_n": 5,
+    "target_samples": 461,
+    "rays": 23050,
+    "rays_blocked": 0,
+    "screen_flagged": false
+   }
+  },
+  "TDES1": {
+   "pattern": "CCHHC",
+   "margin_px": 10.883,
+   "parked": [
+    -0.35,
+    0.4,
+    0.0
+   ],
+   "shadow_check": {
+    "lights": [
+     "key_left",
+     "key_right"
+    ],
+    "light_grid_n": 5,
+    "target_samples": 461,
+    "rays": 23050,
+    "rays_blocked": 0,
+    "screen_flagged": false
+   }
+  },
+  "TDES2": {
+   "pattern": "CHHCC",
+   "margin_px": 10.883,
+   "parked": [
+    -0.35,
+    0.4,
+    0.0
+   ],
+   "shadow_check": {
+    "lights": [
+     "key_left",
+     "key_right"
+    ],
+    "light_grid_n": 5,
+    "target_samples": 461,
+    "rays": 23050,
+    "rays_blocked": 0,
+    "screen_flagged": false
+   }
+  },
+  "TDES3": {
+   "pattern": "HHHHH",
+   "margin_px": 3.435,
+   "parked": [
+    -0.35,
+    0.4,
+    0.0
+   ],
+   "shadow_check": {
+    "lights": [
+     "key_left",
+     "key_right"
+    ],
+    "light_grid_n": 5,
+    "target_samples": 461,
+    "rays": 23050,
+    "rays_blocked": 0,
+    "screen_flagged": false
+   }
+  }
+ }
+}
