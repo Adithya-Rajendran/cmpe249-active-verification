@@ -1,0 +1,348 @@
+{
+ "tries_per_cell": 100,
+ "probe_seeds": [
+  7200,
+  7299
+ ],
+ "rows": [
+  {
+   "target": 4,
+   "name": "tomato_soup_can",
+   "class": "IND28",
+   "tries": 100,
+   "ok": 39,
+   "fail_reasons": {
+    "occluder": 30,
+    "parked": 31
+   },
+   "seconds": 86.9
+  },
+  {
+   "target": 9,
+   "name": "potted_meat_can",
+   "class": "IND28",
+   "tries": 100,
+   "ok": 31,
+   "fail_reasons": {
+    "parked": 31,
+    "occluder": 38
+   },
+   "seconds": 78.7
+  },
+  {
+   "target": 14,
+   "name": "mug",
+   "class": "IND28",
+   "tries": 100,
+   "ok": 25,
+   "fail_reasons": {
+    "occluder": 62,
+    "parked": 13
+   },
+   "seconds": 148.8
+  },
+  {
+   "target": 21,
+   "name": "foam_brick",
+   "class": "IND28",
+   "tries": 100,
+   "ok": 93,
+   "fail_reasons": {
+    "parked": 6,
+    "occluder": 1
+   },
+   "seconds": 29.1
+  },
+  {
+   "target": 6,
+   "name": "tuna_fish_can",
+   "class": "IND28",
+   "tries": 100,
+   "ok": 87,
+   "fail_reasons": {
+    "occluder": 13
+   },
+   "seconds": 49.5
+  },
+  {
+   "target": 4,
+   "name": "tomato_soup_can",
+   "class": "M16-L",
+   "tries": 100,
+   "ok": 53,
+   "fail_reasons": {
+    "occluder": 46,
+    "parked": 1
+   },
+   "seconds": 158.4
+  },
+  {
+   "target": 9,
+   "name": "potted_meat_can",
+   "class": "M16-L",
+   "tries": 100,
+   "ok": 27,
+   "fail_reasons": {
+    "occluder": 73
+   },
+   "seconds": 126.9
+  },
+  {
+   "target": 14,
+   "name": "mug",
+   "class": "M16-L",
+   "tries": 100,
+   "ok": 11,
+   "fail_reasons": {
+    "occluder": 89
+   },
+   "seconds": 210.9
+  },
+  {
+   "target": 21,
+   "name": "foam_brick",
+   "class": "M16-L",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 23.6
+  },
+  {
+   "target": 6,
+   "name": "tuna_fish_can",
+   "class": "M16-L",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 31.8
+  },
+  {
+   "target": 4,
+   "name": "tomato_soup_can",
+   "class": "M16-R",
+   "tries": 100,
+   "ok": 46,
+   "fail_reasons": {
+    "occluder": 54
+   },
+   "seconds": 153.5
+  },
+  {
+   "target": 9,
+   "name": "potted_meat_can",
+   "class": "M16-R",
+   "tries": 100,
+   "ok": 28,
+   "fail_reasons": {
+    "occluder": 72
+   },
+   "seconds": 128.5
+  },
+  {
+   "target": 14,
+   "name": "mug",
+   "class": "M16-R",
+   "tries": 100,
+   "ok": 9,
+   "fail_reasons": {
+    "occluder": 91
+   },
+   "seconds": 209.1
+  },
+  {
+   "target": 21,
+   "name": "foam_brick",
+   "class": "M16-R",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 22.6
+  },
+  {
+   "target": 6,
+   "name": "tuna_fish_can",
+   "class": "M16-R",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 29.2
+  },
+  {
+   "target": 4,
+   "name": "tomato_soup_can",
+   "class": "S8",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 25.4
+  },
+  {
+   "target": 9,
+   "name": "potted_meat_can",
+   "class": "S8",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 21.2
+  },
+  {
+   "target": 14,
+   "name": "mug",
+   "class": "S8",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 29.0
+  },
+  {
+   "target": 21,
+   "name": "foam_brick",
+   "class": "S8",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 16.1
+  },
+  {
+   "target": 6,
+   "name": "tuna_fish_can",
+   "class": "S8",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 20.1
+  },
+  {
+   "target": 4,
+   "name": "tomato_soup_can",
+   "class": "white_box",
+   "tries": 100,
+   "ok": 93,
+   "fail_reasons": {
+    "parked": 7
+   },
+   "seconds": 54.4
+  },
+  {
+   "target": 9,
+   "name": "potted_meat_can",
+   "class": "white_box",
+   "tries": 100,
+   "ok": 90,
+   "fail_reasons": {
+    "parked": 10
+   },
+   "seconds": 52.8
+  },
+  {
+   "target": 14,
+   "name": "mug",
+   "class": "white_box",
+   "tries": 100,
+   "ok": 90,
+   "fail_reasons": {
+    "parked": 10
+   },
+   "seconds": 51.6
+  },
+  {
+   "target": 21,
+   "name": "foam_brick",
+   "class": "white_box",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 15.7
+  },
+  {
+   "target": 6,
+   "name": "tuna_fish_can",
+   "class": "white_box",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 21.2
+  },
+  {
+   "target": 4,
+   "name": "tomato_soup_can",
+   "class": "ycb_box",
+   "tries": 100,
+   "ok": 79,
+   "fail_reasons": {
+    "parked": 21
+   },
+   "seconds": 84.6
+  },
+  {
+   "target": 9,
+   "name": "potted_meat_can",
+   "class": "ycb_box",
+   "tries": 100,
+   "ok": 84,
+   "fail_reasons": {
+    "parked": 16
+   },
+   "seconds": 77.4
+  },
+  {
+   "target": 14,
+   "name": "mug",
+   "class": "ycb_box",
+   "tries": 100,
+   "ok": 88,
+   "fail_reasons": {
+    "parked": 12
+   },
+   "seconds": 68.4
+  },
+  {
+   "target": 21,
+   "name": "foam_brick",
+   "class": "ycb_box",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 24.2
+  },
+  {
+   "target": 6,
+   "name": "tuna_fish_can",
+   "class": "ycb_box",
+   "tries": 100,
+   "ok": 100,
+   "fail_reasons": {},
+   "seconds": 27.5
+  }
+ ],
+ "overrides": {
+  "occluder.families.S8.height_m": 0.18,
+  "occluder.families.M16.height_m": 0.18,
+  "occluder.families.IND28.height_m": 0.18,
+  "occluder.families.IND28.width_m": 0.36,
+  "occluder.families.ycb_box.choices": [
+   [
+    2,
+    "upright"
+   ],
+   [
+    3,
+    "upright"
+   ],
+   [
+    16,
+    "upright"
+   ],
+   [
+    7,
+    "edge"
+   ]
+  ]
+ },
+ "config": {
+  "path": "data/raw/2026-11-04_tabletop_scan/base_config.json",
+  "sha256": "f834745e19e374aae5e0c7fee420e76e5a9dd179cc2ce052f94d773312bff1ed"
+ },
+ "generator_sha256": "e08da91658e2864a96a6735c3a78e49e5056d1b9e91b4798aa9a571fa910fd85",
+ "seconds": 431.3
+}
