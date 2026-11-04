@@ -98,6 +98,134 @@ class TestPlaneHomography(unittest.TestCase):
             self.assertGreater(st["box_corner_displacement_px"]["target_plane"]["max_px"], 0.0)
 
 
+class TestGeneralPlane(unittest.TestCase):
+    """The general-plane path (n . X = d) and the tabletop planes. Points are projected through both cameras by the
+    independent pinhole `_project`, then mapped through H."""
+
+    @classmethod
+    def setUpClass(cls):
+        from sim import tabletop as T
+
+        cls.scene = T.load_scene(positions=T.DEFAULT_POSITIONS_PATH)
+        rng = np.random.default_rng(11)
+        cls.nominal, cls.moved, cls.deltas = [], [], []
+        for c in cls.scene.cameras:
+            d = {"dx_m": rng.uniform(-.01, .01), "dy_m": rng.uniform(-.01, .01), "dz_m": rng.uniform(-.01, .01),
+                 "dyaw_deg": rng.uniform(-.5, .5), "dpitch_deg": rng.uniform(-.5, .5), "droll_deg": rng.uniform(-.5, .5)}
+            cls.nominal.append(_spec(c))
+            cls.moved.append(_spec(A.perturb_camera(c, d)))
+            cls.deltas.append(d)
+
+    def test_z_plane_points_map_through_h_subpixel(self):
+        rng = np.random.default_rng(2)
+        for z0 in (0.0, 0.03, 0.0275, 0.12):                 # the table top, and heights of target centres
+            for ref, qry in zip(self.nominal, self.moved):
+                pts = np.c_[rng.uniform(-0.2, 0.2, 40), rng.uniform(-0.1, 0.2, 40), np.full(40, z0)]
+                uq, ur = _project(qry, pts), _project(ref, pts)
+                h = AL.plane_homography_general(qry, ref, AL.Z_UP, z0)
+                self.assertAlmostEqual(h[2, 2], 1.0)
+                self.assertLess(float(np.abs(AL.apply(h, uq) - ur).max()), 1e-6)         # far below one pixel
+                back = AL.plane_homography_general(ref, qry, AL.Z_UP, z0)
+                self.assertLess(float(np.abs(AL.apply(back, ur) - uq).max()), 1e-6)
+
+    def test_a_point_off_the_plane_moves_by_parallax(self):
+        ref, qry = self.nominal[0], self.moved[0]
+        h0 = AL.plane_homography_general(qry, ref, AL.Z_UP, 0.0)
+        pt = np.array([[0.05, 0.05, 0.10]])                  # 10 cm above the table
+        off = float(np.abs(AL.apply(h0, _project(qry, pt)) - _project(ref, pt)).max())
+        self.assertGreater(off, 0.5)
+        h1 = AL.plane_homography_general(qry, ref, AL.Z_UP, 0.10)
+        self.assertLess(float(np.abs(AL.apply(h1, _project(qry, pt)) - _project(ref, pt)).max()), 1e-6)
+
+    def test_general_equals_the_y_plane_path_and_is_scale_invariant(self):
+        for ref, qry in zip(self.nominal, self.moved):
+            for y0 in (0.0, 0.2):
+                a = AL.plane_homography(qry, ref, y0)
+                self.assertLess(float(np.abs(AL.plane_homography_general(qry, ref, (0, 1, 0), y0) - a).max()), 1e-9)
+                self.assertLess(float(np.abs(AL.plane_homography_general(qry, ref, (0, 5, 0), 5 * y0) - a).max()), 1e-9)
+
+    def test_a_tilted_plane(self):
+        n = np.array([0.3, -0.5, 0.8])
+        n /= np.linalg.norm(n)
+        d = 0.04
+        e1, e2 = AL._plane_basis(n)
+        self.assertAlmostEqual(abs(float(e1 @ n)), 0.0)
+        self.assertAlmostEqual(float(np.linalg.norm(np.cross(e1, e2))), 1.0)
+        rng = np.random.default_rng(3)
+        st = rng.uniform(-0.15, 0.15, (30, 2))
+        pts = n * d + st[:, :1] * e1 + st[:, 1:] * e2
+        ref, qry = self.nominal[1], self.moved[1]
+        h = AL.plane_homography_general(qry, ref, n, d)
+        self.assertLess(float(np.abs(AL.apply(h, _project(qry, pts)) - _project(ref, pts)).max()), 1e-6)
+        with self.assertRaises(ValueError):
+            AL.plane_matrix_general(ref, (0, 0, 0), 0.0)
+
+    def _tabletop_arr(self, size_z=0.055, base_z=0.0):
+        from sim import tabletop as T
+
+        spec = T.export_scene_spec(self.scene)
+        spec["revisit_cameras"] = [dict(c) for c in spec["cameras"]]
+        stops = [c["name"] for c in spec["cameras"]]
+        for c, m in zip(spec["revisit_cameras"], self.moved):
+            c.update({k: m[k] for k in ("position", "right", "up", "forward")})
+        return {"arrangement_id": "TD1000", "target_id": "foam_brick", "stops": stops, "scene": spec,
+                "objects": {"target": {"size_m": [0.05, 0.08, size_z], "pose": {"base": [0.02, 0.05, base_z], "yaw_deg": 0.0}}},
+                "revisit": {"stops": {s: {"delta": dict(d)} for s, d in zip(stops, self.deltas)}}}
+
+    def test_tabletop_arrangement_alignment(self):
+        arr = self._tabletop_arr()
+        self.assertEqual(AL.environment(arr), "tabletop")
+        self.assertAlmostEqual(AL.target_plane_z(arr), 0.0275)
+        self.assertAlmostEqual(AL.target_plane_z(self._tabletop_arr(0.2, 0.01)), 0.11)
+        box = [900, 500, 1000, 600]
+        lab = {"reference_box": {"L1": {s: box for s in arr["stops"]}}}
+        al = AL.arrangement_alignment(arr, lab)
+        self.assertEqual((al["target"], al["target_plane_z_m"]), ("foam_brick", 0.0275))
+        self.assertNotIn("target_plane_y_m", al)
+        for i, (s, st) in enumerate(al["stops"].items()):
+            self.assertEqual(st["stop_index"], i)
+            self.assertEqual(set(st) - {"box_corner_displacement_px"},
+                             {"stop_index", "pose_delta", "H_table_plane", "H_target_plane", "reference_box"})
+            self.assertEqual(set(st["box_corner_displacement_px"]), {"table_plane", "target_plane"})
+            ref, qry = self.nominal[i], self.moved[i]
+            tab = np.c_[np.random.default_rng(i).uniform(-0.2, 0.2, (20, 2)), np.zeros(20)]
+            self.assertLess(float(np.abs(AL.apply(np.array(st["H_table_plane"]), _project(qry, tab)) - _project(ref, tab)).max()), 1e-5)
+            mid = tab + [0, 0, 0.0275]
+            self.assertLess(float(np.abs(AL.apply(np.array(st["H_target_plane"]), _project(qry, mid)) - _project(ref, mid)).max()), 1e-5)
+            self.assertGreater(st["box_corner_displacement_px"]["table_plane"]["max_px"], 0.0)
+        al2 = AL.arrangement_alignment(arr, None)
+        self.assertIsNone(al2["stops"]["P3"]["reference_box"])
+        self.assertNotIn("box_corner_displacement_px", al2["stops"]["P3"])
+
+    def test_tabletop_doc_names_its_planes_and_a_mixed_set_is_refused(self):
+        arr = self._tabletop_arr()
+        lab = {"reference_box": {"L1": {s: [900, 500, 1000, 600] for s in arr["stops"]}}}
+        d = AL.doc([(arr, lab)])
+        self.assertEqual((d["schema"], d["environment"]), (AL.SCHEMA, "tabletop"))
+        self.assertTrue(d["simulation"] and d["evaluation_only"] and d["never_an_evidence_or_policy_input"])
+        self.assertEqual(set(d["convention"]["planes"]), {"table_plane", "target_plane"})
+        self.assertIn("QUERY pixel", d["convention"]["H"])
+        self.assertIn("TD1000", d["arrangements"])
+        json.dumps(d)
+        shelf = A.design_arrangement(1, ctx=A.load_context(V3))
+        self.assertEqual(AL.environment(shelf), "shelf")
+        with self.assertRaises(ValueError):
+            AL.doc([(arr, lab), (shelf, _labels("DES1", "design-1", "study_mug", b"x", design=True))])
+
+    def test_shelf_document_is_unchanged(self):
+        """No 'environment' key, the shelf planes and keys: the episodes golden pins the bytes; this pins the shape."""
+        arr = A.design_arrangement(1, ctx=A.load_context(V3))
+        d = AL.doc([(arr, _labels("DES1", "design-1", "study_mug", b"x", design=True))])
+        self.assertEqual(list(d), ["schema", "simulation", "evaluation_only", "never_an_evidence_or_policy_input", "group", "note",
+                                   "convention", "arrangements"])
+        self.assertEqual(set(d["convention"]["planes"]), {"front_plane", "target_plane"})
+        st = d["arrangements"]["DES1"]
+        self.assertEqual(list(st)[:2], ["target", "target_plane_y_m"])
+        self.assertEqual(set(st["stops"]["P3"]) - {"box_corner_displacement_px"},
+                         {"stop_index", "pose_delta", "H_front_plane", "H_target_plane", "reference_box"})
+
+
+
 class TestTrueAlignmentFile(unittest.TestCase):
     def _set(self, root: Path):
         ctx = A.load_context(V3)
