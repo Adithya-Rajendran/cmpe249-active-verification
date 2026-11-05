@@ -155,6 +155,8 @@ class TestHarness(unittest.TestCase):
         rec, diag = r32.evidence_for(ref, BOX, qry, 0, enc, no_detections, "C0")
         self.assertEqual(rec, base)
         self.assertEqual(diag["registration"], bdiag["registration"])
+        H, _ = v03.image_align(ref, qry, BOX)
+        self.assertEqual(diag["H"], np.round(H, 10).tolist())
         t = diag["timing"]
         self.assertGreaterEqual(t["evidence_s"], t["registration_s"])
         self.assertGreater(t["registration_s"], 0.0)

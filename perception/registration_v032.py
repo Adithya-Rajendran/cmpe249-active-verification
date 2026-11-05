@@ -22,7 +22,7 @@ Its outlier threshold is relative only, so it drops textured blocks of correct f
 runs/2026-11-04-block-rejection-repair/test_direction.py); that is part of C1 and is not changed.
 
 C0 = v0.3 `image_align`, unchanged, run through this same harness so that C0 and a candidate are timed as comparable
-jobs (plan, Amendment 1). Every diagnostic records `timing`: registration_s (the aligner call alone) and evidence_s
+jobs (plan, Amendment 1). Every diagnostic records `H` (the warp the evidence step used; None if refused) and `timing`: registration_s (the aligner call alone) and evidence_s
 (the whole evidence step of the view, registration included), perf_counter. `--workers N` shards the jobs round-robin
 over N spawned processes (each loads its own encoder and detector; cv2 one thread, torch / OMP `--torch-threads`);
 the merged outputs are in the jobs file's order and must hold every (episode_id, stop) key of the jobs exactly once.
@@ -224,7 +224,7 @@ def evidence_for(ref_bgr: np.ndarray, box: Box, query_bgr: np.ndarray, stop: int
     t1 = time.perf_counter()
     rec, diag = v03.evidence_for(ref_bgr, box, query_bgr, stop, encoder, detector, align=lambda r, q: H)
     t2 = time.perf_counter()
-    return rec, {**diag, "registration": ainfo,
+    return rec, {**diag, "registration": ainfo, "H": None if H is None else np.round(H, 10).tolist(),
                  "timing": {"registration_s": round(t1 - t0, 4), "evidence_s": round(t2 - t0, 4)}}
 
 
