@@ -614,6 +614,14 @@ class TestQualityResampling(unittest.TestCase):
         self.assertEqual(r["flips"]["s"], {"gate": 1, "clear_miss": 1, "strong_match": 0})
         self.assertEqual(c["per_lighting"]["L1"]["n"], 0)
 
+    def test_each_spec_says_how_its_set_was_chosen(self) -> None:
+        cfg = Path(__file__).resolve().parents[1] / "configs" / "pipeline"
+        desc = {n: json.loads((cfg / f"{n}.json").read_text())["summary"]["set_description"]
+                for n in ("shelf_dev_v3_truealign", "tabletop_transfer11_truealign")}
+        self.assertEqual(desc["shelf_dev_v3_truealign"], "random dev arrangements")
+        self.assertIn("class coverage", desc["tabletop_transfer11_truealign"])
+        self.assertNotIn("random dev", desc["tabletop_transfer11_truealign"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,7 +9,8 @@ of the target plane and of the front plane (sim/true_align_evidence.py). Reports
     - the views with the largest quality difference.
 The true-alignment diagnostics are read through RUN_DIR/evidence_provenance.json and the image diagnostics through
 the provenance of the evidence run summary.image_run (tools/provenance.py: recorded outputs with their recorded
-sha256 only); an optional summary.v03_candidate_sha256 pins the thresholds file. Writes RUN_DIR/quality_resampling.md and .json. Stdlib only. Usage:
+sha256 only); an optional summary.v03_candidate_sha256 pins the thresholds file; summary.set_description (required)
+says how the set's arrangements were chosen, for the report heading. Writes RUN_DIR/quality_resampling.md and .json. Stdlib only. Usage:
     python tools/quality_resampling.py --spec configs/pipeline/shelf_dev_v3_truealign.json --run-dir runs/<run_id>
 """
 from __future__ import annotations
@@ -91,7 +92,7 @@ def main() -> int:
     base = load(image_diag)
     report = {"settings": settings, "image_diag": str(image_diag), "planes": {}}
     md = ["# Evidence under image registration vs the true alignment (evaluation only)", "",
-          f"SIMULATION, development data: {root.name}, random dev arrangements, {len(base)} views. Base: v0.3 on ECC "
+          f"SIMULATION, development data: {root.name}, {sm['set_description']}, {len(base)} views. Base: v0.3 on ECC "
           f"image registration. Compared: the same code on the simulator's true homography. Settings: {settings}.", ""]
     for plane, path in sm["true_diags"].items():
         other = load(provenance.output(prov, path))

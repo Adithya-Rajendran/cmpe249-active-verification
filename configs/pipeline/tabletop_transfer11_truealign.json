@@ -89,6 +89,7 @@
    "target": "{out}/v03_truetarget_refL1.diag.jsonl",
    "table": "{out}/v03_truetable_refL1.diag.jsonl"
   },
-  "v03_candidate_sha256": "4a06de0eebe407aad27b58fdfce3751460b5357924aba93a6f6830095b93b983"
+  "v03_candidate_sha256": "4a06de0eebe407aad27b58fdfce3751460b5357924aba93a6f6830095b93b983",
+  "set_description": "the 11-arrangement transfer diagnostic (slots 0-10, TD5000-TD5010, the shortest dev prefix covering all six classes; chosen for class coverage, not a random draw)"
  }
 }
