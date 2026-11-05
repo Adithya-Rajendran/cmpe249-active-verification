@@ -186,6 +186,71 @@ class TestC1M(unittest.TestCase):
         self.assertIn(info["winner"], ("S0", "S1"))
 
 
+class TestC2(unittest.TestCase):
+    def test_weighted_ecc_with_unit_weights_matches_cv2(self):
+        """The plan's pre-scoring validation: <= 0.05 px at the box corners against cv2.findTransformECC."""
+        cv2.setNumThreads(1)
+        crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 200, 1e-6)
+        for seed, W in ((0, SHIFT), (1, HOMOG), (2, HOMOG)):
+            ref = scene(seed)
+            R, Q = r32._prep(ref, 1.5, "edges"), r32._prep(query_of(ref, W), 1.5, "edges")
+            m = np.zeros(R.shape, np.uint8); m[24:-24, 24:-24] = 1
+            _, Wc = cv2.findTransformECC(Q, R, np.eye(3, dtype=np.float32), cv2.MOTION_HOMOGRAPHY, crit, m, 1)
+            cc, Wn = r32.weighted_ecc(Q, R, m.astype(np.float32), np.eye(3))
+            self.assertLessEqual(corner_err(Wc.astype(np.float64), Wn), 0.05)
+            self.assertGreater(cc, 0.99)
+
+    def test_block_weight_formula(self):
+        rng = np.random.default_rng(0)
+        R1 = cv2.GaussianBlur(rng.normal(0, 1, (96, 96)).astype(np.float32), (0, 0), 1.0)
+        Q1 = R1.copy()
+        Q1[0:16, 0:16] = rng.normal(0, 1, (16, 16)).astype(np.float32)       # one changed block
+        m1 = np.ones(R1.shape, np.uint8)
+        wmap, info = r32.block_weights(R1, Q1, m1, np.eye(3))
+        self.assertEqual(info["blocks"], 36)
+        self.assertEqual(info["residual_scale"], 0.02)                       # MAD 0: the floor
+        self.assertAlmostEqual(float(wmap[40, 40]), 1.0, places=6)           # unchanged: residual 0 = the median
+        r = 1.0 - r32._wzncc(R1[:16, :16].astype(np.float64), Q1[:16, :16].astype(np.float64), np.ones((16, 16)))
+        self.assertAlmostEqual(float(wmap[5, 5]), 1.0 / (1.0 + (r / (2.385 * 0.02)) ** 2), places=5)
+        self.assertLess(float(wmap[5, 5]), 0.01)
+
+    def test_weighted_support(self):
+        m = np.ones((90, 90), np.uint8)
+        self.assertTrue(r32.weighted_support(m, m.astype(np.float32))["support_ok"])
+        half = np.full((90, 90), 0.5, np.float32)                            # uniform halves keep N_eff = all
+        s = r32.weighted_support(m, half)
+        self.assertEqual(s["support_share"], 1.0)
+        self.assertTrue(s["support_ok"])
+        few = np.zeros((90, 90), np.float32); few[:30, :] = 1.0             # one row of cells: 3 cells, 33 %
+        self.assertFalse(r32.weighted_support(m, few)["support_ok"])
+
+    def test_c2_recovers_a_known_warp_and_downweights_an_occluder(self):
+        ref = scene(8)
+        q = query_of(ref, HOMOG)
+        rng = np.random.default_rng(3)
+        for rect in ((40, 100, 480, 560), (30, 130, 440, 600)):                # warm the generator as when tuned
+            rng.normal(0, 1, (rect[1] - rect[0], rect[3] - rect[2]))
+        tex = 110 + 40 * cv2.GaussianBlur(rng.normal(0, 1, (130, 160)).astype(np.float32), (0, 0), 2.0)
+        q[200:330, 40:200] = np.clip(tex, 0, 255).astype(np.uint8)[..., None]   # a textured object in front
+        H0, _ = r32.c0_align(ref, q, BOX)
+        H, info = r32.c2_align(ref, q, BOX)
+        self.assertIsNotNone(H, info)
+        self.assertEqual(len(info["rounds"]), 3)
+        self.assertLess(corner_err(H, HOMOG), 0.1)
+        self.assertLess(corner_err(H, HOMOG), corner_err(H0, HOMOG) / 4)
+        self.assertGreater(info["cc"], 0.95)
+
+
+class TestC2M(unittest.TestCase):
+    def test_c2m_on_a_known_warp(self):
+        ref = scene(9)
+        H, info = r32.c2m_align(ref, query_of(ref, HOMOG), BOX)
+        self.assertIsNotNone(H, info)
+        self.assertLess(corner_err(H, HOMOG), 0.3)
+        self.assertEqual(info["method"], "C2+M")
+        self.assertIn(info["winner"], ("S0", "S1"))
+
+
 class TestHarness(unittest.TestCase):
     def test_c0_is_v03_unchanged_and_views_are_timed(self):
         ref = scene(4)

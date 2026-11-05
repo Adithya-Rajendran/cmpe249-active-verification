@@ -316,17 +316,18 @@ def _c1_from(ref_bgr, qry_bgr, box, W0):
     return (None if reason else H), ({**info, "refused": reason} if reason else info), W, m
 
 
-def c1m_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.ndarray | None, dict[str, Any]]:
-    """C1+M: C1 from S0 (identity) and S1 (phase-correlation translation); the pinned ranking picks one."""
+def _multistart(ref_bgr, qry_bgr, box, run_from, method: str) -> tuple[np.ndarray | None, dict[str, Any]]:
+    """A candidate (`run_from`: C1's or C2's single run) from S0 (identity) and S1 (phase-correlation translation);
+    the pinned C1+M ranking picks one."""
     nt = cv2.getNumThreads()
     cv2.setNumThreads(1)
     try:
         if qry_bgr.shape[:2] != ref_bgr.shape[:2]:
-            return None, {"method": "C1+M", "refused": f"size {qry_bgr.shape[:2]} != {ref_bgr.shape[:2]}"}
-        runs = {"S0": _c1_from(ref_bgr, qry_bgr, box, None)}
+            return None, {"method": method, "refused": f"size {qry_bgr.shape[:2]} != {ref_bgr.shape[:2]}"}
+        runs = {"S0": run_from(ref_bgr, qry_bgr, box, None)}
         s1 = phase_start(ref_bgr, qry_bgr, box)
         if s1 is not None:
-            runs["S1"] = _c1_from(ref_bgr, qry_bgr, box, s1)
+            runs["S1"] = run_from(ref_bgr, qry_bgr, box, s1)
         eligible = {k: r[0] is not None for k, r in runs.items()}
         val = None
         if sum(eligible.values()) == 2:
@@ -335,7 +336,7 @@ def c1m_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.nd
             Q1 = cv2.pyrDown(_prep(qry_bgr, AP.sigma, "edges"))
             val = validation_scores(R1, Q1, m1, {k: runs[k][2].astype(np.float64) for k in ("S0", "S1")})
         win = choose(eligible, val)
-        info = {"method": "C1+M", "s1_start": None if s1 is None else np.round(s1, 4).tolist(),
+        info = {"method": method, "s1_start": None if s1 is None else np.round(s1, 4).tolist(),
                 "starts": {k: r[1] for k, r in runs.items()}, "validation": val, "winner": win}
         if win is None:
             return None, {**info, "refused": runs["S0"][1].get("refused")}
@@ -344,12 +345,186 @@ def c1m_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.nd
         cv2.setNumThreads(nt)
 
 
+def c1m_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.ndarray | None, dict[str, Any]]:
+    """C1+M: C1 from S0 and S1; the pinned ranking picks one."""
+    return _multistart(ref_bgr, qry_bgr, box, _c1_from, "C1+M")
+
+
+# ---------------------------------------------------------------- C2: R-ECC-style block reweighting (plan, C2)
+
+C2_ROUNDS, C2_SCALE_FLOOR, C2_CAUCHY_C, C2_ITERS, C2_EPS = 3, 0.02, 2.385, 200, 1e-6
+
+
+def _grad(img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Central-difference gradients (d/dx, d/dy) of a float32 image."""
+    return (cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=1) * 0.5, cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize=1) * 0.5)
+
+
+def _wzncc(a: np.ndarray, b: np.ndarray, w: np.ndarray) -> float:
+    sw = float(w.sum())
+    if sw <= 0:
+        return 0.0
+    a = a - float((w * a).sum()) / sw
+    b = b - float((w * b).sum()) / sw
+    den = np.sqrt(float((w * a * a).sum()) * float((w * b * b).sum()))
+    return float((w * a * b).sum()) / den if den > 0 else 0.0
+
+
+def weighted_ecc(tmpl: np.ndarray, inp: np.ndarray, w_inp: np.ndarray, W0: np.ndarray, iters: int = C2_ITERS,
+                 eps: float = C2_EPS) -> tuple[float, np.ndarray]:
+    """Weighted ECC (Evangelidis & Psarakis 2008, homography, forward-additive Gauss-Newton as in the paper and in
+    cv2.findTransformECC), every inner product, mean and norm taken with pixel weights. W maps template (query) pixels
+    to input (reference) pixels; w_inp are weights in INPUT coordinates, sampled at W(x) (nearest) like cv2's input
+    mask. Parameters (h00, h01, h02, h10, h11, h12, h20, h21), h22 = 1. Stops when max |delta p| < eps or after `iters`
+    updates. Returns (weighted ZNCC at the final warp, W); raises cv2.error if the update is undefined (lambda_d <= 0,
+    the condition under which cv2's ECC also stops), or with fewer than 200 weighted pixels."""
+    h, w = tmpl.shape
+    ys, xs = np.mgrid[0:h, 0:w].astype(np.float64)
+    gx_in, gy_in = _grad(inp.astype(np.float32))
+    W = np.asarray(W0, np.float64) / float(W0[2, 2])
+    flags = cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP
+    T = tmpl.astype(np.float64)
+
+    def sample(W):
+        Iw = cv2.warpPerspective(inp, W, (w, h), flags=flags).astype(np.float64)
+        ww = cv2.warpPerspective(w_inp.astype(np.float32), W, (w, h), flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
+        valid = cv2.warpPerspective(np.ones_like(inp, np.uint8), W, (w, h), flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
+        return Iw, ww.astype(np.float64) * (valid > 0)
+
+    for _ in range(iters):
+        Iw, wt = sample(W)
+        sel = wt > 0
+        if int(sel.sum()) < 200:
+            raise cv2.error("weighted ECC: fewer than 200 weighted pixels")
+        wv, x, y = wt[sel], xs[sel], ys[sel]
+        sw = wv.sum()
+        t = T[sel] - (wv * T[sel]).sum() / sw
+        i = Iw[sel] - (wv * Iw[sel]).sum() / sw
+        gx = cv2.warpPerspective(gx_in, W, (w, h), flags=flags).astype(np.float64)[sel]
+        gy = cv2.warpPerspective(gy_in, W, (w, h), flags=flags).astype(np.float64)[sel]
+        den = W[2, 0] * x + W[2, 1] * y + 1.0
+        u = (W[0, 0] * x + W[0, 1] * y + W[0, 2]) / den
+        v = (W[1, 0] * x + W[1, 1] * y + W[1, 2]) / den
+        G = np.stack([gx * x / den, gx * y / den, gx / den, gy * x / den, gy * y / den, gy / den,
+                      -(gx * u + gy * v) * x / den, -(gx * u + gy * v) * y / den], 1)
+        G = G - (wv[:, None] * G).sum(0) / sw
+        Gw = G * wv[:, None]
+        Hs = G.T @ Gw
+        Hi = np.linalg.inv(Hs)
+        ip, tp = Gw.T @ i, Gw.T @ t
+        ipH = Hi @ ip
+        lam_n = float((wv * i * i).sum() - ip @ ipH)
+        lam_d = float((wv * t * i).sum() - tp @ ipH)
+        if lam_d <= 0:
+            raise cv2.error("weighted ECC: the update is undefined (lambda_d <= 0)")
+        err = (lam_n / lam_d) * t - i
+        dp = Hi @ (Gw.T @ err)
+        W = W + np.array([[dp[0], dp[1], dp[2]], [dp[3], dp[4], dp[5]], [dp[6], dp[7], 0.0]])
+        if float(np.abs(dp).max()) < eps:
+            break
+    Iw, wt = sample(W)
+    return _wzncc(T, Iw, wt), W
+
+
+def block_weights(R1: np.ndarray, Q1: np.ndarray, m1: np.ndarray, W: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
+    """Pixel weights (level-1 reference coordinates) for one C2 round: per usable block r_b = 1 - ZNCC(reference edges,
+    query edges warped by W), m = median, s = max(1.4826 MAD, 0.02), w_b = 1 / (1 + (max(0, r_b - m) / (2.385 s))^2);
+    unusable blocks 0; times the fit mask."""
+    h, w = R1.shape
+    Qw = cv2.warpPerspective(Q1, W, (w, h), flags=cv2.INTER_LINEAR, borderValue=0)
+    valid = cv2.warpPerspective(np.ones_like(Q1, np.uint8), W, (w, h), flags=cv2.INTER_NEAREST, borderValue=0) > 0
+    b = BLOCK_L1
+    res = {}
+    for y in range(0, h, b):
+        for x in range(0, w, b):
+            sl = (slice(y, y + b), slice(x, x + b))
+            sel = (m1[sl] > 0) & valid[sl]
+            if sel.sum() >= 0.25 * m1[sl].size:
+                res[(y, x)] = 1.0 - _wzncc(R1[sl][sel].astype(np.float64), Qw[sl][sel].astype(np.float64),
+                                           np.ones(int(sel.sum())))
+    wmap = np.zeros((h, w), np.float32)
+    if not res:
+        return wmap, {"blocks": 0}
+    r = np.array(list(res.values()))
+    med = float(np.median(r))
+    sc = max(1.4826 * float(np.median(np.abs(r - med))), C2_SCALE_FLOOR)
+    for (y, x), rb in res.items():
+        wmap[y:y + b, x:x + b] = 1.0 / (1.0 + (max(0.0, rb - med) / (C2_CAUCHY_C * sc)) ** 2)
+    wmap *= (m1 > 0)
+    return wmap, {"blocks": len(res), "residual_median": round(med, 4), "residual_scale": round(sc, 4)}
+
+
+def weighted_support(m1: np.ndarray, wmap: np.ndarray) -> dict[str, Any]:
+    """C2's support guard: N_eff = (sum w)^2 / sum w^2 >= 50 % of the pass-1 fit pixels, and >= 6 of the 9 cells with
+    weight mass >= 25 % of their pass-1 fit pixels."""
+    h, w = m1.shape
+    s1, s2 = float(wmap.sum()), float((wmap.astype(np.float64) ** 2).sum())
+    neff = s1 * s1 / s2 if s2 > 0 else 0.0
+    share = neff / max(float(m1.sum()), 1.0)
+    cells = 0
+    for i in range(3):
+        for j in range(3):
+            sl = (slice(i * h // 3, (i + 1) * h // 3), slice(j * w // 3, (j + 1) * w // 3))
+            base = float(m1[sl].sum())
+            cells += base > 0 and float(wmap[sl].sum()) >= CELL_SHARE * base
+    return {"support_share": round(share, 4), "support_cells": int(cells),
+            "support_ok": share >= SUPPORT_SHARE and cells >= CELLS_MIN}
+
+
+def _c2_from(ref_bgr, qry_bgr, box, W0):
+    """One C2 run from start W0 (None = identity): (H or None, info, level-1 W, pass-1 mask)."""
+    h, w = ref_bgr.shape[:2]
+    R, Q = _prep(ref_bgr, AP.sigma, "edges"), _prep(qry_bgr, AP.sigma, "edges")
+    m = np.zeros((h, w), np.uint8); m[AP.border:h - AP.border, AP.border:w - AP.border] = 1
+    ex0, ey0, ex1, ey1 = e021.grow(box, AP.excl_f, w, h); m[ey0:ey1, ex0:ex1] = 0
+    R, Q = cv2.pyrDown(R), cv2.pyrDown(Q)
+    m = (cv2.resize(m.astype(np.float32), (R.shape[1], R.shape[0]), interpolation=cv2.INTER_AREA) > 0.999).astype(np.uint8)
+    start = np.eye(3, dtype=np.float32) if W0 is None else _scale(np.asarray(W0, np.float64), 0.5)
+    rounds = []
+    try:
+        cc1, W = _ecc_pyr(Q, R, m, AP.levels - AP.stop_level, start)
+        W = W.astype(np.float64)
+        for _ in range(C2_ROUNDS):
+            wmap, binfo = block_weights(R, Q, m, W)
+            cc, W = weighted_ecc(Q, R, wmap, W)
+            rounds.append({**binfo, "cc": round(cc, 6)})
+    except cv2.error as err:
+        return None, {"refused": "ECC: " + str(err).strip().splitlines()[-1][:160], "rounds": rounds}, None, None
+    H = _scale(W, 2.0).astype(np.float64)
+    if not np.all(np.isfinite(H)) or abs(H[2, 2]) < 1e-12:
+        return None, {"refused": "non-finite warp", "rounds": rounds}, None, None
+    H = H / H[2, 2]
+    sup = weighted_support(m, wmap)
+    info = {"cc1": round(cc1, 6), "cc": round(cc, 6), "rounds": rounds, **sup, "H_unchecked": np.round(H, 10).tolist()}
+    reason = final_checks(H, cc, box, sup)
+    return (None if reason else H), ({**info, "refused": reason} if reason else info), W.astype(np.float32), m
+
+
+def c2_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.ndarray | None, dict[str, Any]]:
+    """C2: pass 1 (unweighted cv2, from identity), then 3 rounds of block reweighting and a weighted ECC refit at
+    level 1; final checks (cc = weighted ZNCC, weighted support guard) once, on the final warp."""
+    nt = cv2.getNumThreads()
+    cv2.setNumThreads(1)
+    try:
+        if qry_bgr.shape[:2] != ref_bgr.shape[:2]:
+            return None, {"method": "C2", "refused": f"size {qry_bgr.shape[:2]} != {ref_bgr.shape[:2]}"}
+        H, info, _, _ = _c2_from(ref_bgr, qry_bgr, box, None)
+        return H, {"method": "C2", **info}
+    finally:
+        cv2.setNumThreads(nt)
+
+
+def c2m_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.ndarray | None, dict[str, Any]]:
+    """C2+M: C2 from S0 and S1 with the C1+M ranking rule unchanged."""
+    return _multistart(ref_bgr, qry_bgr, box, _c2_from, "C2+M")
+
+
 def c0_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.ndarray | None, dict[str, Any]]:
     """C0: v0.3's image_align at its default AlignParams, unchanged."""
     return v03.image_align(ref_bgr, qry_bgr, box)
 
 
-CANDIDATES = {"C0": c0_align, "C1": c1_align, "C1M": c1m_align}
+CANDIDATES = {"C0": c0_align, "C1": c1_align, "C1M": c1m_align, "C2": c2_align, "C2M": c2m_align}
 
 
 # ---------------------------------------------------------------- evidence with a candidate's warp
