@@ -143,6 +143,18 @@ Most failures are on the design cases: a plain shelf around the mug leaves too l
 
 The robust pass dropped good blocks.
 
+> **Correction, 2026-11-04: this row does not show that block rejection is unsuitable.** The prototype's
+> `block_inliers` (`ALIGN/scripts/align_lib.py`, preserved unchanged, sha256 a8e021f0...) warps the query by W^-1
+> where W already maps query pixels to reference pixels (`cv2.warpPerspective` without `WARP_INVERSE_MAP` maps by the
+> inverse of its matrix), so it scored blocks on a doubly misaligned pair. Found by the researcher's review
+> (`runs/2026-11-04-registration-deep-research/`); a synthetic check with a known shift drops 6 good blocks with the
+> old call and none with the corrected one. A second property, not a bug, also drops good blocks: the outlier
+> threshold (median + 4 MAD of block residuals, no absolute floor) flags the resampling residual of the most textured
+> blocks of a correct homography fit. Both are pinned by `runs/2026-11-04-block-rejection-repair/test_direction.py`.
+> The 22 / 33 counts above are kept as recorded; the rerun with only the direction corrected is in
+> `runs/2026-11-04-block-rejection-repair/` (results to be added below this note's tabletop follow-up). v0.3's
+> `image_align` never used this helper and is unaffected.
+
 **Refusal is a gross-failure guard only.** On six deliberately wrong pairs, a reference from one stop with a query from another (`ALIGN/out/wrong_stop_pairs.json`), four were refused (cc < 0.5 or scale off by more than 10 %). Two were accepted:
 - SD1005 P2 against P3: cc 0.81, box shift 97 px;
 - DES0 P2 against P3: cc 0.93, shift 62 px.
