@@ -21,15 +21,27 @@ sha256 689ad6d1...; `ecc_global(..., "homography", "edges", robust=True)`):
 Its outlier threshold is relative only, so it drops textured blocks of correct fits too (the known limit pinned in
 runs/2026-11-04-block-rejection-repair/test_direction.py); that is part of C1 and is not changed.
 
+C0 = v0.3 `image_align`, unchanged, run through this same harness so that C0 and a candidate are timed as comparable
+jobs (plan, Amendment 1). Every diagnostic records `timing`: registration_s (the aligner call alone) and evidence_s
+(the whole evidence step of the view, registration included), perf_counter. `--workers N` shards the jobs round-robin
+over N spawned processes (each loads its own encoder and detector; cv2 one thread, torch / OMP `--torch-threads`);
+the merged outputs are in the jobs file's order and must hold every (episode_id, stop) key of the jobs exactly once.
+`--timing PATH` writes the batch record: settings, host, wall clock, views per hour.
+
 Usage (repo root, GB10 project env), the CLI shape of perception/evidence_v03.py:
-    python -m perception.registration_v032 --candidate C1 --jobs JOBS.json --out evidence.jsonl --diag diag.jsonl
+    python -m perception.registration_v032 --candidate C1 --jobs JOBS.json --out evidence.jsonl --diag diag.jsonl \
+        [--workers 8] [--torch-threads 1] [--timing timing.json]
 """
 from __future__ import annotations
 
 import argparse
 import dataclasses
 import json
+import multiprocessing as mp
+import os
+import platform
 import sys
+import time
 from collections.abc import Sequence
 from typing import Any
 
@@ -38,7 +50,7 @@ import numpy as np
 
 from perception import evidence as e021
 from perception import evidence_v03 as v03
-from verify.schema import EvidenceStore
+from verify.schema import EvidenceRecord, EvidenceStore
 
 EVIDENCE_VERSION = "0.3.2-dev"
 Box = e021.Box
@@ -193,7 +205,12 @@ def c1_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.nda
         cv2.setNumThreads(nt)
 
 
-CANDIDATES = {"C1": c1_align}
+def c0_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.ndarray | None, dict[str, Any]]:
+    """C0: v0.3's image_align at its default AlignParams, unchanged."""
+    return v03.image_align(ref_bgr, qry_bgr, box)
+
+
+CANDIDATES = {"C0": c0_align, "C1": c1_align}
 
 
 # ---------------------------------------------------------------- evidence with a candidate's warp
@@ -201,10 +218,14 @@ CANDIDATES = {"C1": c1_align}
 def evidence_for(ref_bgr: np.ndarray, box: Box, query_bgr: np.ndarray, stop: int, encoder: e021.PatchEncoder,
                  detector: e021.Detector, candidate: str) -> tuple[Any, dict[str, Any]]:
     """v0.3's evidence_for, unchanged, on the candidate's warp (only H is passed)."""
+    t0 = time.perf_counter()
     box = tuple(float(x) for x in box)
     H, ainfo = CANDIDATES[candidate](ref_bgr, query_bgr, box)
+    t1 = time.perf_counter()
     rec, diag = v03.evidence_for(ref_bgr, box, query_bgr, stop, encoder, detector, align=lambda r, q: H)
-    return rec, {**diag, "registration": ainfo}
+    t2 = time.perf_counter()
+    return rec, {**diag, "registration": ainfo,
+                 "timing": {"registration_s": round(t1 - t0, 4), "evidence_s": round(t2 - t0, 4)}}
 
 
 def run_jobs(jobs: Sequence[dict], encoder: e021.PatchEncoder, detector: e021.Detector,
@@ -226,6 +247,42 @@ def run_jobs(jobs: Sequence[dict], encoder: e021.PatchEncoder, detector: e021.De
     return store, diags
 
 
+def merge_shards(jobs: Sequence[dict], shards: Sequence[Sequence[dict]]) -> list[dict]:
+    """The shards' diagnostics in the jobs' order; every (episode_id, stop) key of the jobs exactly once, or ValueError."""
+    want = [(j["episode_id"], int(j["stop"])) for j in jobs]
+    if len(set(want)) != len(want):
+        raise ValueError("the jobs file repeats an (episode_id, stop) key")
+    got: dict[tuple[str, int], dict] = {}
+    for sh in shards:
+        for d in sh:
+            k = (d["episode_id"], int(d["stop"]))
+            if k in got:
+                raise ValueError(f"key {k} produced twice")
+            got[k] = d
+    missing, extra = set(want) - set(got), set(got) - set(want)
+    if missing or extra:
+        raise ValueError(f"{len(missing)} keys missing (e.g. {sorted(missing)[:3]}), {len(extra)} unexpected")
+    return [got[k] for k in want]
+
+
+def _worker(args: tuple) -> list[dict]:
+    jobs, candidate, device, torch_threads = args
+    cv2.setNumThreads(1)
+    import torch
+    torch.set_num_threads(torch_threads)
+    _, diags = run_jobs(jobs, e021.DinoV2Patches(device), e021.YoloWorld(device), candidate)
+    return diags
+
+
+def run_sharded(jobs: Sequence[dict], candidate: str, device: str, workers: int,
+                torch_threads: int) -> list[dict]:
+    os.environ["OMP_NUM_THREADS"] = str(torch_threads)     # inherited by the spawned workers
+    shards = [list(jobs[i::workers]) for i in range(workers)]
+    with mp.get_context("spawn").Pool(workers) as pool:
+        out = pool.map(_worker, [(sh, candidate, device, torch_threads) for sh in shards])
+    return merge_shards(jobs, out)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="perception.registration_v032", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -234,13 +291,35 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", required=True, help="evidence.jsonl (EvidenceStore format)")
     ap.add_argument("--diag", default=None, help="per-view diagnostics jsonl (v0.3's fields; registration = the candidate's)")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--workers", type=int, default=1, help="spawned worker processes (jobs sharded round-robin)")
+    ap.add_argument("--torch-threads", type=int, default=1, help="torch.set_num_threads and OMP_NUM_THREADS per worker")
+    ap.add_argument("--timing", default=None, help="batch timing record (json)")
     args = ap.parse_args(argv)
     doc = json.loads(e021._path(args.jobs).read_text())
     if doc.get("schema") != e021.JOBS_SCHEMA:
         print(f"{args.jobs}: schema is {doc.get('schema')!r}, expected {e021.JOBS_SCHEMA!r}", file=sys.stderr)
         return 2
-    store, diags = run_jobs(doc["jobs"], e021.DinoV2Patches(args.device), e021.YoloWorld(args.device), args.candidate)
+    start, wall0 = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), time.perf_counter()
+    diags = run_sharded(doc["jobs"], args.candidate, args.device, args.workers, args.torch_threads)
+    wall = time.perf_counter() - wall0
+    store = EvidenceStore(synthetic=False, source=f"perception.registration_v032 {EVIDENCE_VERSION} {args.candidate}")
+    for d in diags:
+        store.put(d["episode_id"], EvidenceRecord(int(d["stop"]), d["match_score"], d["quality"], d["obstruction"]))
     store.to_jsonl(args.out)
+    if args.timing:
+        gpu = None
+        try:
+            import torch
+            gpu = torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
+        except Exception:  # noqa: BLE001 - the record says what it could not read
+            gpu = "unknown"
+        with open(args.timing, "w") as f:
+            json.dump({"candidate": args.candidate, "jobs": str(args.jobs), "views": len(diags),
+                       "workers": args.workers, "torch_threads": args.torch_threads,
+                       "omp_num_threads": args.torch_threads, "cv2_threads": 1, "device": args.device,
+                       "host": platform.node(), "cpu_count": os.cpu_count(), "gpu": gpu,
+                       "started_utc": start, "wall_s": round(wall, 2),
+                       "views_per_hour": round(len(diags) / wall * 3600, 1)}, f, indent=1)
     if args.diag:
         with open(args.diag, "w") as f:
             for d in diags:

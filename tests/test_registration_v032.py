@@ -146,5 +146,31 @@ class TestOnlyTheWarpReachesTheEvidence(unittest.TestCase):
             r32.CANDIDATES.update(saved)
 
 
+class TestHarness(unittest.TestCase):
+    def test_c0_is_v03_unchanged_and_views_are_timed(self):
+        ref = scene(4)
+        qry = query_of(ref, SHIFT)
+        enc = MeanColour()
+        base, bdiag = v03.evidence_for(ref, BOX, qry, 0, enc, no_detections)
+        rec, diag = r32.evidence_for(ref, BOX, qry, 0, enc, no_detections, "C0")
+        self.assertEqual(rec, base)
+        self.assertEqual(diag["registration"], bdiag["registration"])
+        t = diag["timing"]
+        self.assertGreaterEqual(t["evidence_s"], t["registration_s"])
+        self.assertGreater(t["registration_s"], 0.0)
+
+    def test_merge_keeps_the_jobs_order_and_every_key_exactly_once(self):
+        jobs = [{"episode_id": e, "stop": s} for e in ("A-visible-L1", "A-removed-L1") for s in range(3)]
+        shards = [[dict(j) for j in jobs[i::2]] for i in range(2)]
+        merged = r32.merge_shards(jobs, shards)
+        self.assertEqual([(d["episode_id"], d["stop"]) for d in merged], [(j["episode_id"], j["stop"]) for j in jobs])
+        with self.assertRaisesRegex(ValueError, "twice"):
+            r32.merge_shards(jobs, shards + [[dict(jobs[0])]])
+        with self.assertRaisesRegex(ValueError, "missing"):
+            r32.merge_shards(jobs, shards[:1])
+        with self.assertRaisesRegex(ValueError, "repeats"):
+            r32.merge_shards(jobs + [jobs[0]], shards)
+
+
 if __name__ == "__main__":
     unittest.main()
