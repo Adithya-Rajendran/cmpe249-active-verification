@@ -121,7 +121,7 @@ present views; run time per view. Quantiles: numpy default (linear) on the state
    this non-regression comparison): candidate median <= C0 median + 0.5 px, p90 <= C0 p90 + 1 px, max <= C0 max + 2 px.
 6. Geometry, newly accepted views (refused by C0, accepted by the candidate): each view's box-corner error vs the true
    target plane <= the maximum over C0-accepted views (same environment and lighting) + 2 px.
-7. Run time <= 3 x C0 per view (median).
+7. ~~Run time <= 3 x C0 per view (median).~~ Replaced by mandatory run-time reporting: see Amendment 1.
 Silhouette IoU, the table / front plane errors and the grid error are reported alongside 5 and 6 and do not gate.
 
 ## Order, stopping and lock
@@ -147,3 +147,30 @@ characterises C1; it does not change C1's definition.
 - `runs/2026-11-04-block-rejection-repair/test_direction.py`: 4da62e87cc297e55e82169c03ae72cf395d4e447b03f03d3ad102d31c3ad6ad3
 - `runs/2026-11-04-block-rejection-repair/run.sh` (step 1): c932e40af92386bd73391cddcd5dae684afcb1ee59adeff3f67d9b88040e48db
 - preserved prototype `runs/2026-11-03-evidence-v03-align/scripts/align_lib.py` (main checkout): a8e021f0800eeb1c6b2f52ed1f6adfe0055d74b0cb19f339219a777e5e21263e
+
+## Amendment 1 (2026-11-04, researcher's choice (c)): criterion 7 replaced by mandatory run-time reporting
+
+POST-HOC development amendment, made AFTER inspecting C1's historical registration accuracy and timings (step 1,
+`runs/2026-11-04-block-rejection-repair/RESULT.md`: on shelf_dev_v1_check, Jetson, 6 worker processes, cv2 one thread
+per process, the block-rejection arm took a median 23.96 s per view against 2.32 s for plain global ECC, about 10x),
+and BEFORE the planned full-dev candidate EVIDENCE evaluation. It does not precede all candidate scoring: C1's
+historical fitting performance had already been examined. The original criterion 7 (run time <= 3 x C0, median)
+stays above, struck through, and in the history of this file (pin commit b144e04).
+
+Why: as drafted, criterion 7 would have failed C1 and C1+M on timing alone, and probably C2; the 2026-11-03 summary
+already showed 24 s against 2.6 s per view when the 3x budget was proposed (a drafting error, not a result-driven
+change of the accuracy or evidence criteria).
+
+Replacement (reported, never gating): per environment and lighting, for C0 and each scored candidate, the median, p90
+and maximum of (i) registration latency (the aligner call alone) and (ii) complete evidence latency (one view's whole
+evidence step, registration included), with the candidate / C0 ratio of each; and (iii) parallel batch throughput
+(views per hour of wall clock for the whole job). C0 and the candidate are measured on the GB10 as comparable jobs:
+the same module and harness (`perception/registration_v032.py`, C0 = v0.3 `image_align` unchanged), the same jobs, the
+same number of worker processes, and the recorded thread settings (cv2, torch, OMP). The Jetson step-1 timings stay
+reported with their actual conditions. Slow execution remains a disclosed limitation: removing the gate does not
+establish practical online speed.
+
+Unchanged: criteria 1-6 (refusals per environment and lighting; present-labelled clear misses and removed-labelled
+strong matches; diagnostic removal yield; common-accepted and newly accepted geometry), the candidate definitions and
+order, the evidence thresholds and every other setting. The remaining 49 tabletop arrangements still wait until a
+candidate passes the retained criteria and is locked.
