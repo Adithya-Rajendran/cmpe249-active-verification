@@ -205,12 +205,151 @@ def c1_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.nda
         cv2.setNumThreads(nt)
 
 
+# ---------------------------------------------------------------- C1+M: two starts, one winner (plan, C1+M)
+
+PC_LEVEL, PC_MAX_PX, TIE_MARGIN, BLOCK_L1 = 4, 100.0, 0.01, 16
+
+
+def phase_start(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> np.ndarray | None:
+    """S1: a full-resolution translation start from phase correlation of the level-4 edge images, each multiplied by
+    the level-4 fit mask and a Hann window; t with query(x) ~ ref(x + t) (cv2.phaseCorrelate(query, ref), sign pinned
+    by a test). None if |16 t| > 100 px."""
+    h, w = ref_bgr.shape[:2]
+    R, Q = v03._edges(ref_bgr, AP.sigma), v03._edges(qry_bgr, AP.sigma)
+    m = np.zeros((h, w), np.uint8)
+    m[AP.border:h - AP.border, AP.border:w - AP.border] = 1
+    x0, y0, x1, y1 = e021.grow(box, AP.excl_f, w, h)
+    m[y0:y1, x0:x1] = 0
+    for _ in range(PC_LEVEL):
+        R, Q = cv2.pyrDown(R), cv2.pyrDown(Q)
+        m = v03._pyr_down_mask(m, R.shape)
+    win = cv2.createHanningWindow((R.shape[1], R.shape[0]), cv2.CV_32F)
+    mf = m.astype(np.float32)
+    (tx, ty), _ = cv2.phaseCorrelate(np.ascontiguousarray(Q * mf), np.ascontiguousarray(R * mf), win)
+    t = np.array([tx, ty]) * 2.0 ** PC_LEVEL
+    if float(np.hypot(*t)) > PC_MAX_PX:
+        return None
+    return np.array([[1.0, 0, t[0]], [0, 1.0, t[1]], [0, 0, 1.0]])
+
+
+def _blocks(m: np.ndarray) -> list[tuple[int, int]]:
+    """Level-1 blocks (16 px, grid at (0, 0)) with >= 25 % of their pixels in the mask m."""
+    h, w = m.shape
+    b = BLOCK_L1
+    return [(y, x) for y in range(0, h, b) for x in range(0, w, b)
+            if m[y:y + b, x:x + b].sum() >= 0.25 * m[y:y + b, x:x + b].size]
+
+
+def _cells(blocks: Sequence[tuple[int, int]], base: Sequence[tuple[int, int]], shape: tuple[int, int]) -> int:
+    """Cells of a 3 x 3 grid over the level-1 frame that keep >= 25 % of their `base` blocks."""
+    h, w = shape
+    cell = lambda yx: (min(2, yx[0] * 3 // h), min(2, yx[1] * 3 // w))
+    keep, tot = {}, {}
+    for yx in base:
+        tot[cell(yx)] = tot.get(cell(yx), 0) + 1
+    for yx in blocks:
+        keep[cell(yx)] = keep.get(cell(yx), 0) + 1
+    return sum(1 for c, n in tot.items() if keep.get(c, 0) >= CELL_SHARE * n)
+
+
+def validation_scores(R1: np.ndarray, Q1: np.ndarray, m1: np.ndarray, warps: dict[str, np.ndarray]) -> dict[str, Any]:
+    """The comparable robust validation score: median block ZNCC of reference edges and query edges warped into
+    reference coordinates (bilinear) by each level-1 warp, over the COMMON blocks: S0 pass-1 fit-mask blocks usable
+    (>= 25 % in the mask and valid) under EVERY warp, with reference edge std > 1e-6."""
+    h, w = R1.shape
+    base = _blocks(m1)
+    warped, valid = {}, {}
+    for k, W in warps.items():
+        warped[k] = cv2.warpPerspective(Q1, W, (w, h), flags=cv2.INTER_LINEAR, borderValue=0)
+        valid[k] = cv2.warpPerspective(np.ones_like(Q1), W, (w, h), flags=cv2.INTER_NEAREST, borderValue=0) > 0
+    b = BLOCK_L1
+    common = []
+    for y, x in base:
+        sl = (slice(y, y + b), slice(x, x + b))
+        if R1[sl][m1[sl] > 0].std() <= 1e-6:
+            continue
+        if all(((m1[sl] > 0) & valid[k][sl]).sum() >= 0.25 * m1[sl].size for k in warps):
+            common.append((y, x))
+    scores = {}
+    for k in warps:
+        z = []
+        for y, x in common:
+            sl = (slice(y, y + b), slice(x, x + b))
+            sel = (m1[sl] > 0) & valid[k][sl]
+            a, q = R1[sl][sel].astype(np.float64), warped[k][sl][sel].astype(np.float64)
+            a, q = a - a.mean(), q - q.mean()
+            den = np.sqrt((a * a).sum() * (q * q).sum())
+            z.append(float((a * q).sum() / den) if den > 0 else 0.0)
+        scores[k] = float(np.median(z)) if z else float("nan")
+    ok = len(common) >= SUPPORT_SHARE * len(base) and _cells(common, base, (h, w)) >= CELLS_MIN
+    return {"scores": scores, "common_blocks": len(common), "base_blocks": len(base),
+            "common_cells": _cells(common, base, (h, w)), "comparable": bool(ok)}
+
+
+def choose(eligible: dict[str, bool], val: dict[str, Any] | None) -> str | None:
+    """The pinned ranking: only eligible starts; none -> None (refused); one -> it; both: S0 unless the scores are
+    comparable and S1's exceeds S0's by more than 0.01; not comparable -> S0."""
+    el = [k for k in ("S0", "S1") if eligible.get(k)]
+    if not el:
+        return None
+    if len(el) == 1:
+        return el[0]
+    if not val["comparable"]:
+        return "S0"
+    sc = val["scores"]
+    return "S1" if sc["S1"] > sc["S0"] + TIE_MARGIN else "S0"
+
+
+def _c1_from(ref_bgr, qry_bgr, box, W0):
+    """One C1 run from start W0 (None = identity): (H or None, info, level-1 W, pass-1 mask)."""
+    try:
+        W, info, m, m2 = _c1_fit(ref_bgr, qry_bgr, box, W0=W0)
+    except cv2.error as err:
+        return None, {"refused": "ECC: " + str(err).strip().splitlines()[-1][:160]}, None, None
+    H = _scale(W, 2.0).astype(np.float64)
+    if not np.all(np.isfinite(H)) or abs(H[2, 2]) < 1e-12:
+        return None, {**info, "refused": "non-finite warp"}, None, None
+    H = H / H[2, 2]
+    sup = support(m, m2)
+    reason = final_checks(H, info["cc"], box, sup)
+    info = {**info, **sup, "H_unchecked": np.round(H, 10).tolist()}
+    return (None if reason else H), ({**info, "refused": reason} if reason else info), W, m
+
+
+def c1m_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.ndarray | None, dict[str, Any]]:
+    """C1+M: C1 from S0 (identity) and S1 (phase-correlation translation); the pinned ranking picks one."""
+    nt = cv2.getNumThreads()
+    cv2.setNumThreads(1)
+    try:
+        if qry_bgr.shape[:2] != ref_bgr.shape[:2]:
+            return None, {"method": "C1+M", "refused": f"size {qry_bgr.shape[:2]} != {ref_bgr.shape[:2]}"}
+        runs = {"S0": _c1_from(ref_bgr, qry_bgr, box, None)}
+        s1 = phase_start(ref_bgr, qry_bgr, box)
+        if s1 is not None:
+            runs["S1"] = _c1_from(ref_bgr, qry_bgr, box, s1)
+        eligible = {k: r[0] is not None for k, r in runs.items()}
+        val = None
+        if sum(eligible.values()) == 2:
+            m1 = runs["S0"][3]
+            R1 = cv2.pyrDown(_prep(ref_bgr, AP.sigma, "edges"))
+            Q1 = cv2.pyrDown(_prep(qry_bgr, AP.sigma, "edges"))
+            val = validation_scores(R1, Q1, m1, {k: runs[k][2].astype(np.float64) for k in ("S0", "S1")})
+        win = choose(eligible, val)
+        info = {"method": "C1+M", "s1_start": None if s1 is None else np.round(s1, 4).tolist(),
+                "starts": {k: r[1] for k, r in runs.items()}, "validation": val, "winner": win}
+        if win is None:
+            return None, {**info, "refused": runs["S0"][1].get("refused")}
+        return runs[win][0], {**info, "cc": runs[win][1]["cc"]}
+    finally:
+        cv2.setNumThreads(nt)
+
+
 def c0_align(ref_bgr: np.ndarray, qry_bgr: np.ndarray, box: Box) -> tuple[np.ndarray | None, dict[str, Any]]:
     """C0: v0.3's image_align at its default AlignParams, unchanged."""
     return v03.image_align(ref_bgr, qry_bgr, box)
 
 
-CANDIDATES = {"C0": c0_align, "C1": c1_align}
+CANDIDATES = {"C0": c0_align, "C1": c1_align, "C1M": c1m_align}
 
 
 # ---------------------------------------------------------------- evidence with a candidate's warp

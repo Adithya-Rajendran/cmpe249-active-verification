@@ -146,6 +146,46 @@ class TestOnlyTheWarpReachesTheEvidence(unittest.TestCase):
             r32.CANDIDATES.update(saved)
 
 
+class TestC1M(unittest.TestCase):
+    def test_phase_start_sign_and_size(self):
+        ref = scene(5)
+        for t in ((40.0, -24.0), (-32.0, 16.0)):
+            W = np.array([[1, 0, t[0]], [0, 1, t[1]], [0, 0, 1.0]])
+            s1 = r32.phase_start(ref, query_of(ref, W), BOX)
+            self.assertIsNotNone(s1)
+            self.assertLess(float(np.hypot(*(s1[:2, 2] - np.array(t)))), 16.0, s1)   # one level-4 pixel
+        far = np.array([[1, 0, 130.0], [0, 1, 0], [0, 0, 1.0]])
+        self.assertIsNone(r32.phase_start(ref, query_of(ref, far), BOX))
+
+    def test_ranking_rule(self):
+        comp = {"comparable": True, "scores": {"S0": 0.80, "S1": 0.805}}
+        self.assertIsNone(r32.choose({"S0": False, "S1": False}, None))
+        self.assertEqual(r32.choose({"S0": False, "S1": True}, None), "S1")
+        self.assertEqual(r32.choose({"S0": True}, None), "S0")
+        self.assertEqual(r32.choose({"S0": True, "S1": True}, comp), "S0")              # within the 0.01 tie
+        self.assertEqual(r32.choose({"S0": True, "S1": True}, {**comp, "scores": {"S0": 0.80, "S1": 0.82}}), "S1")
+        self.assertEqual(r32.choose({"S0": True, "S1": True},
+                                    {"comparable": False, "scores": {"S0": 0.1, "S1": 0.9}}), "S0")
+
+    def test_validation_prefers_the_true_warp_on_common_support(self):
+        ref = scene(6)
+        q = query_of(ref, HOMOG)
+        R1, Q1 = cv2.pyrDown(r32._prep(ref, 1.5, "edges")), cv2.pyrDown(r32._prep(q, 1.5, "edges"))
+        m1 = np.zeros(R1.shape, np.uint8); m1[12:-12, 12:-12] = 1
+        good = r32._scale(HOMOG, 0.5).astype(np.float64)
+        bad = r32._scale(np.array([[1, 0, 14.0], [0, 1, 9.0], [0, 0, 1]]) @ HOMOG, 0.5).astype(np.float64)
+        v = r32.validation_scores(R1, Q1, m1, {"S0": bad, "S1": good})
+        self.assertTrue(v["comparable"])
+        self.assertGreater(v["scores"]["S1"], v["scores"]["S0"] + 0.1)
+
+    def test_c1m_on_a_known_warp(self):
+        ref = scene(7)
+        H, info = r32.c1m_align(ref, query_of(ref, HOMOG), BOX)
+        self.assertIsNotNone(H, info)
+        self.assertLess(corner_err(H, HOMOG), 0.3)
+        self.assertIn(info["winner"], ("S0", "S1"))
+
+
 class TestHarness(unittest.TestCase):
     def test_c0_is_v03_unchanged_and_views_are_timed(self):
         ref = scene(4)

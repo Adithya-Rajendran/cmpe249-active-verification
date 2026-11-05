@@ -154,7 +154,11 @@ def score(args) -> dict:
     for L in LIGHTINGS:
         rs = [x for x in rows if x["lighting"] == L]
         n = len(rs)
-        res: dict = {"n": n}
+        res: dict = {"n": n, "denominators": {
+            "refused": n, "present_clear_miss": sum(x["truth"] == "present" for x in rs),
+            "removed_strong_match": sum(x["truth"] == "removed" for x in rs),
+            "diag_removal_yield": sum(x["class"] == "removed diag" for x in rs),
+            "present_gate_pass": sum(x["class"] == "present" for x in rs)}}
         for tag in ("c0", "cand"):
             res[tag] = {
                 "refused": sum(x[tag]["refused"] is not None for x in rs),
@@ -220,7 +224,8 @@ def markdown(o: dict) -> str:
     for key, lbl in (("refused", "refused"), ("present_clear_miss", "present-labelled clear misses"),
                      ("removed_strong_match", "removed-labelled strong matches"),
                      ("diag_removal_yield", "diagnostic removal yield"), ("present_gate_pass", "present gate pass")):
-        md.append(f"| {lbl} | " + " | ".join(f"{P[L]['c0'][key]} / {P[L]['n']} | {P[L]['cand'][key]} / {P[L]['n']}" for L in LIGHTINGS) + " |")
+        md.append(f"| {lbl} | " + " | ".join(f"{P[L]['c0'][key]} / {P[L]['denominators'][key]} | "
+                                             f"{P[L]['cand'][key]} / {P[L]['denominators'][key]}" for L in LIGHTINGS) + " |")
     md.append("| target-plane error, common accepted (median / p90 / max px) | " + " | ".join(
         f"{fmt(P[L]['geometry_common_target']['c0'])} | {fmt(P[L]['geometry_common_target']['cand'])}" for L in LIGHTINGS) + " |")
     md.append(f"| {'table' if o['environment'] == 'tabletop' else 'front'}-plane error, common accepted | " + " | ".join(
@@ -275,7 +280,7 @@ def main() -> int:
     stem = f"{args.name}_{Path(args.jobs).stem.removeprefix('jobs_')}"
     (d / f"{stem}.json").write_text(json.dumps(o, indent=1))
     (d / f"{stem}.md").write_text(markdown(o))
-    print(f"wrote {d / stem}.md; overall {'PASS' if o['pass'] else 'FAIL'}")
+    print(f"wrote {d / stem}.md; " + (f"overall {'PASS' if o['pass'] else 'FAIL'}" if o["gating"] else "design cases: not gating"))
     return 0
 
 
