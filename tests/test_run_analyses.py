@@ -14,6 +14,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from analysis.bootstrap import paired_diff
 from analysis.metrics import compute_all
@@ -119,6 +120,28 @@ class AnalysesRunTest(unittest.TestCase):
         self.assertNotIn("tau_match_sweep", res)
         self.assertIsNone(res["config"]["gate_off_ablation"])
         self.assertIsNone(res["config"]["tau_match_sweep"])
+        for key in ("by_family", "by_occluder_family"):   # no A: the per-family A - G says why it did not run
+            self.assertEqual(res[key]["bootstrap"], [])
+            self.assertEqual(res[key]["bootstrap_note"], "no per-family A - G bootstrap: A or G did not run")
+        self.assertIn("A - G per family: no per-family A - G bootstrap: A or G did not run.",
+                      (self.d / "o2" / "table.md").read_text())
+
+    def test_values_of_an_x_minus_s_contrast_under_a_cap_and_of_the_gate_off_contrast(self) -> None:
+        groups = run.group_results(self.logs)
+        strata = {a: (f"M16-{s}" if f == "M16" else f) for a, f, s in SLOTS_SINGLE}
+        cap = next(c for c in self.res["config"]["travel_caps_cm"] if c is not None)
+        for (a, ka), (b, kb), c in ((("Dir", ("Dir", 3, cap)), ("S", ("S", 0, None)), cap),
+                                    (("F", ("F", 3, None)), ("F-gateoff", ("F-gateoff", 3, None)), None)):
+            for metric in run.BOOTSTRAP_METRICS:
+                row = next(r for r in self.res["bootstrap"] if (r["policy_a"], r["policy_b"], r["metric"],
+                                                                r["lighting"], r["travel_cap_cm"]) ==
+                           (a, b, metric, "L2", c))
+                pick = lambda k: [r for r in groups[k] if r.lighting is Lighting.L2]   # noqa: E731
+                want = paired_diff(pick(ka), pick(kb), self.truth, metric, B=50, seed=0, strata=strata)
+                self.assertEqual((row["estimate"], row["ci_lo"], row["ci_hi"], row["n_undefined"]),
+                                 (want.estimate, want.ci_lo, want.ci_hi, want.n_undefined), (a, b, metric))
+        self.assertTrue(any(r["estimate"] for r in self.res["bootstrap"]
+                            if (r["policy_a"], r["policy_b"]) in (("F", "F-gateoff"), ("Dir", "S"))))   # not all 0
 
     # ------------------------------------------------------------ item 2: per-family breakdowns
 
@@ -148,7 +171,8 @@ class AnalysesRunTest(unittest.TestCase):
         comp = {c["family"]: c for c in self.res["by_family"]["composition"] if c["scope"] == "test"}
         self.assertEqual(comp["IND28"]["targets"], {"foam_brick": 1})                       # ST0010 (index 10)
         self.assertEqual(comp["M16-L"]["targets"], {"foam_brick": 1, "tuna_fish_can": 1})   # ST0002, ST0003
-        self.assertIn("**IND28** (1 test arrangements; targets: foam_brick 1)", self.table)
+        self.assertIn("**IND28** (1 test arrangement; targets: foam_brick 1)", self.table)
+        self.assertIn("**M16** (4 test arrangements; targets: foam_brick 2, tuna_fish_can 2)", self.table)
 
     def test_family_bootstrap_and_the_singleton_skip(self) -> None:
         fam = self.res["by_family"]
@@ -156,21 +180,76 @@ class AnalysesRunTest(unittest.TestCase):
         self.assertEqual(skipped, {("L1", "IND28"), ("L2", "IND28")})
         self.assertEqual({r["family"] for r in fam["bootstrap"]}, {"M16-L", "M16-R", "S8", "white_box", "ycb_box"})
         self.assertEqual(len(fam["bootstrap"]), 5 * 2 * 3)
-        self.assertEqual(fam["bootstrap_seed"], run.family_bootstrap_seed(0))
-        self.assertNotEqual(fam["bootstrap_seed"], 0)
+        self.assertTrue(fam["bootstrap_note"].startswith("paired arrangement-level cluster bootstrap of A - G"))
+        seeds = {run.family_bootstrap_seed(0, f, light) for f in fam["families"] for light in ("L1", "L2")}
+        self.assertEqual(len(seeds), 2 * len(fam["families"]))   # one seed per family and lighting
+        self.assertEqual(self.res["config"]["by_family"]["bootstrap_seed"],
+                         "derive_seed(0, 'by-family', family, lighting)")
         groups = run.group_results(self.logs)
         row = next(r for r in fam["bootstrap"] if (r["lighting"], r["family"], r["metric"]) ==
                    ("L1", "S8", "coverage"))
         s8 = ("ST0000", "ST0001")
         pick = lambda k: [r for r in groups[k] if r.lighting is Lighting.L1 and r.arrangement_id in s8]   # noqa: E731
         want = paired_diff(pick(("A", 3, None)), pick(("G", 3, None)), self.truth, "coverage", B=50,
-                           seed=run.family_bootstrap_seed(0))
+                           seed=run.family_bootstrap_seed(0, "S8", "L1"))
         self.assertFalse(want.stratified)
         self.assertEqual((row["estimate"], row["ci_lo"], row["ci_hi"], row["B"]),
                          (want.estimate, want.ci_lo, want.ci_hi, 50))
         self.assertEqual(row["inconclusive"], row["ci_lo"] <= 0.0 <= row["ci_hi"])
         self.assertIn("A - G on IND28, L1 queries: not bootstrapped (1 test arrangement)", self.table)
-        self.assertIn("## L2 queries - By family, b = 3, uncapped (test split; descriptive, H3)", self.table)
+        self.assertIn("## L2 queries - By occluder family, b = 3, uncapped (test split; descriptive, H3)", self.table)
+        self.assertIn("## L2 queries - By slot class (the occluder families split by M16 side), b = 3", self.table)
+
+    def test_occluder_family_level_pools_m16_and_stratifies_by_side(self) -> None:
+        occ = self.res["by_occluder_family"]
+        self.assertTrue(occ["ran"])
+        self.assertEqual(occ["families"], ["IND28", "M16", "S8", "white_box", "ycb_box"])
+        comp = {c["family"]: c for c in occ["composition"] if c["scope"] == "test"}
+        self.assertEqual((comp["M16"]["n_arrangements"], comp["M16"]["targets"]),
+                         (4, {"foam_brick": 2, "tuna_fish_can": 2}))
+        self.assertEqual({m["travel_cap_cm"] for m in occ["metrics"] if m["policy"] == "F" and m["family"] == "M16"},
+                         set(self.res["config"]["travel_caps_cm"]))
+        groups = run.group_results(self.logs)
+        m16 = ("ST0002", "ST0003", "ST0004", "ST0005")
+        m = next(m for m in occ["metrics"] if (m["scope"], m["lighting"], m["family"], m["policy"],
+                                               m["travel_cap_cm"]) == ("test", "L1", "M16", "G", None))
+        self.assertEqual(m["overall"]["n_arrangements"], 4)
+        pick = lambda k, light: [r for r in groups[k] if r.lighting is light and r.arrangement_id in m16]  # noqa
+        for light in Lighting:
+            for metric in run.BOOTSTRAP_METRICS:
+                row = next(r for r in occ["bootstrap"] if (r["lighting"], r["family"], r["metric"]) ==
+                           (light.value, "M16", metric))
+                want = paired_diff(pick(("A", 3, None), light), pick(("G", 3, None), light), self.truth, metric,
+                                   B=50, seed=run.family_bootstrap_seed(0, "M16", light.value),
+                                   strata={"ST0002": "M16-L", "ST0003": "M16-L", "ST0004": "M16-R",
+                                           "ST0005": "M16-R"})
+                self.assertTrue(want.stratified and row["stratified"])
+                self.assertEqual((row["estimate"], row["ci_lo"], row["ci_hi"]), (want.estimate, want.ci_lo,
+                                                                                 want.ci_hi))
+                self.assertEqual(row["inconclusive"], row["ci_lo"] <= 0.0 <= row["ci_hi"])
+        s8 = next(r for r in occ["bootstrap"] if r["family"] == "S8")
+        self.assertFalse(s8["stratified"])   # a single slot class: unstratified
+        self.assertEqual({(r["lighting"], r["family"]) for r in occ["bootstrap_skipped"]},
+                         {("L1", "IND28"), ("L2", "IND28")})
+        self.assertIn("A - G on M16, L1 queries (B = 50, stratified by slot class):", self.table)
+        cfg = self.res["config"]["by_family"]["levels"]
+        self.assertEqual(set(cfg), {"by_family", "by_occluder_family"})
+        cov = [r for r in self.res["diagnostic_view_coverage"]["rows"] if r["scope"] == "test" and
+               r["lighting"] == "L1"]
+        self.assertEqual([(r["family"], r["level"]) for r in cov],
+                         [("all", None), *((f, "occluder_family") for f in occ["families"]),
+                          ("M16-L", "slot_class"), ("M16-R", "slot_class")])
+
+    def test_family_bootstrap_note_when_every_family_is_skipped(self) -> None:
+        # every test arrangement its own slot class (family, side, design case, environment): all singletons
+        recs = [dataclasses.replace(a, design_case=bool(i % 2), environment="tabletop" if i % 4 >= 2 else None)
+                for i, a in enumerate(ArrangementRecord.from_dict(x) for x in
+                                      json.loads(Path(self.test_args[1]).read_text())["arrangements"])]
+        slot = run.family_of_records(recs, run.SLOT_CLASS)
+        self.assertEqual(len(set(slot.values())), len(recs))
+        res = run.family_stage(self.logs, self.truth, recs, 3, 20, 0, level=run.SLOT_CLASS)
+        self.assertEqual((res["bootstrap"], res["bootstrap_note"]), ([], run.FAMILY_ALL_SKIPPED_NOTE))
+        self.assertEqual(len(res["bootstrap_skipped"]), 2 * len(recs))
 
     def test_family_breakdown_needs_every_family(self) -> None:
         d = self.d / "nofam"
@@ -179,10 +258,12 @@ class AnalysesRunTest(unittest.TestCase):
             rc = run.main([*args, *RUN_QUICK, "--candidate", str(self.cand), "--out", str(d / "o")])
         self.assertEqual(rc, 0)
         res = json.loads((d / "o" / "results.json").read_text())
-        self.assertFalse(res["by_family"]["ran"])
-        self.assertIn("occluder_family", res["by_family"]["note"])
-        self.assertIn("By family, b = 3, uncapped (test split; descriptive, H3)\n\nNot computed",
-                      (d / "o" / "table.md").read_text())
+        for key in ("by_family", "by_occluder_family"):
+            self.assertFalse(res[key]["ran"])
+            self.assertIn("occluder_family", res[key]["note"])
+        table = (d / "o" / "table.md").read_text()
+        self.assertIn("By occluder family, b = 3, uncapped (test split; descriptive, H3)\n\nNot computed", table)
+        self.assertNotIn("By slot class", table)
 
     # ------------------------------------------------------------ item 3: the occlusion-gate-off ablation
 
@@ -214,8 +295,8 @@ class AnalysesRunTest(unittest.TestCase):
         frozen = self.th.tau_match
         self.assertEqual(grid, sel.require_freeze_eligible(self.cand)["settings"]["tau_match_grid"])
         self.assertIn(frozen, grid)
-        others = [v for v in grid if v != frozen]
-        self.assertTrue(others)
+        others = sorted({*(v for v in grid if v != frozen), *run.TAU_MATCH_SWEEP_ABOVE})
+        self.assertEqual(self.res["config"]["tau_match_sweep"]["extension"], [0.75, 0.8, 0.85, 0.9])
         want = {f"{p}-tm{v:g}" for p in run.TM_SWEEP_POLICIES for v in others}
         got = {g.policy for g in self.logs if "-tm" in g.policy}
         self.assertEqual(got, want)
@@ -240,6 +321,33 @@ class AnalysesRunTest(unittest.TestCase):
                 fp = m["confusion"]["removed"]["present"]
                 self.assertEqual(x["false_present_rate_removed"], fp / m["n_removed"])
         self.assertIn(f"| A | **{self.th.tau_match:g} (frozen)** |", self.table)
+        # Dir and the rankers have curves, at L1, L2 and pooled, with points on both sides of the frozen value
+        by = {(c["policy"], c["lighting"]): c for c in curves if c["scope"] == "test"}
+        for p in ("Dir", "A", "A-nocue"):
+            for light in ("L1", "L2", "pooled"):
+                taus = [x["tau_match"] for x in by[(p, light)]["points"]]
+                self.assertEqual(taus, sorted({0.5, 0.6, *run.TAU_MATCH_SWEEP_ABOVE}), (p, light))
+        pooled = by[("A", "pooled")]["points"][-1]
+        m = next(m for m in self.res["metrics"] if (m["scope"], m["lighting"], m["policy"], m["travel_cap_cm"]) ==
+                 ("test", "pooled", "A-tm0.9", None))["overall"]
+        self.assertEqual((pooled["row"], pooled["removal_recall"], pooled["n_episodes"]),
+                         ("A-tm0.9", m["removal_recall"], 3 * len(SLOTS_SINGLE) * 2))
+        self.assertIn("extended above the frozen point by 0.75, 0.8, 0.85, 0.9", self.table)
+
+    def test_sweep_extension_values_and_refusal(self) -> None:
+        th = Thresholds(tau_match=0.7)
+        grid = (0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7)
+        self.assertEqual(run.tau_match_sweep_values(th, grid),
+                         (0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.75, 0.8, 0.85, 0.9))
+        self.assertEqual([x for x, _ in run.tau_match_sweep_settings(th, run.tau_match_sweep_values(th, grid))][-4:],
+                         ["tm0.75", "tm0.8", "tm0.85", "tm0.9"])
+        for above in ((0.7, 0.8), (0.65,), (0.8, 1.2), (0.8, "x")):
+            with self.assertRaises(run.SweepRefused, msg=str(above)):
+                run.tau_match_sweep_values(th, grid, above)
+        with self.assertRaisesRegex(run.SweepRefused, "at or below the frozen tau_match 0.8"):
+            run.tau_match_sweep_values(Thresholds(tau_match=0.8), (0.75, 0.8))   # the default extension
+        self.assertEqual(run.tau_match_sweep_values(Thresholds(tau_match=0.5), (0.5, 0.6)),
+                         (0.6, 0.75, 0.8, 0.85, 0.9))
 
     def test_sweep_grid_comes_from_the_candidate(self) -> None:
         th = Thresholds(tau_match=0.5)
@@ -310,6 +418,33 @@ class AnalysesRunTest(unittest.TestCase):
         want = {k: v.to_dict() for k, v in sel.rates_by_lighting(rows, self.th).items()}
         got = {r["lighting"]: r["rates"] for r in rates["rows"] if r["scope"] == "test"}
         self.assertEqual(got, want)
+        rule = run.StoppingRule(self.th)
+        for r in rates["rows"]:
+            removed = [v for v in rows if not v.present and (r["lighting"] == "pooled" or
+                                                             v.lighting.value == r["lighting"])]
+            self.assertEqual(r["all_removed_views"]["strong_match"]["n"], len(removed))
+            self.assertEqual(r["all_removed_views"]["strong_match"]["x"],
+                             sum(rule.is_strong_match(v.obs) for v in removed))
+        self.assertIn("| strong-match rate on ALL views of removed episodes (each one decides PRESENT) |", self.table)
+        self.assertIn("| false strong-match rate (verify.select's: diagnostic views only) |", self.table)
+
+    def test_evidence_changed_before_the_gate_rates_is_refused(self) -> None:
+        real_stage = run.run_stage
+        d = self.d / "evchange"
+        args = write_sim_set(d / "set", SLOTS_SINGLE, split="test")
+        ev = Path(args[3])
+
+        def stage(*a, **kw):
+            logs = real_stage(*a, **kw)
+            ev.write_text(ev.read_text() + "\n")   # different bytes after the run
+            return logs
+        with mock.patch.object(run, "run_stage", stage), contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()) as err:
+            rc = run.main([*args, *RUN_QUICK, "--candidate", str(self.cand), "--out", str(d / "o")])
+        self.assertEqual(rc, 2)
+        self.assertIn("bad --evidence after the run", err.getvalue())
+        self.assertIn("changed during the run", err.getvalue())
+        self.assertFalse((d / "o" / "results.json").exists())
 
     def test_no_view_labels_no_view_diagnostics(self) -> None:
         args = [*self.test_args[:4], *self.test_args[6:]]   # the same set without --view-labels
@@ -328,12 +463,39 @@ class GateOffStageTest(unittest.TestCase):
     """run_stage on synthetic evidence: the gate-off setting runs F and R exactly as with tau_occ = 1.0, and leaves
     the k / lam sensitivity runs unchanged."""
 
-    def stage(self, th: Thresholds, sensitivity=(), seed: int = 3) -> list[EpisodeLog]:
+    def stage(self, th: Thresholds, sensitivity=(), seed: int = 3, sweep=()) -> list[EpisodeLog]:
         pos = Positions.default()
         specs, store = run.generate_stage(4, seed, SyntheticParams(), pos)
         cap = 2 * pos.nominal_step_cm()
         return run.run_stage(specs, store, pos, th, (1, 3), (None, cap), (0, 1), RunContext(synthetic=True),
-                             sensitivity=sensitivity, primary_budget=3)
+                             sensitivity=sensitivity, primary_budget=3, tau_match_sweep=sweep)
+
+    def test_a_sweep_log_equals_a_run_at_that_tau_match(self) -> None:
+        th = Thresholds()   # tau_match 0.6
+        sweep = run.tau_match_sweep_settings(th, (0.45, 0.6, 0.75))
+        self.assertEqual([x for x, _ in sweep], ["tm0.45", "tm0.75"])
+        logs = self.stage(th, sweep=sweep)
+        for v in (0.45, 0.75):
+            other = self.stage(dataclasses.replace(th, tau_match=v))
+            for p in ("S", "F", "R", "G", "G-lookahead", "G-myopic", "FULL"):
+                b = {"S": 0, "FULL": 4}.get(p, 3)
+                got = [{**g.to_dict(), "policy": p} for g in logs if g.policy == f"{p}-tm{v:g}"]
+                want = [g.to_dict() for g in other if g.policy == p and g.budget_additional_views == b
+                        and g.travel_cap_cm is None]
+                self.assertTrue(got, (p, v))
+                self.assertEqual(got, want, (p, v))
+        # not vacuous: the sweep changes some decision
+        dec = lambda name: [g.decision for g in logs if g.policy == name]   # noqa: E731
+        self.assertTrue(any(dec(f"{p}-tm0.45") != dec(f"{p}-tm0.75") for p in ("F", "G", "FULL")))
+
+    def test_the_sweep_leaves_every_existing_log_byte_identical(self) -> None:
+        th = Thresholds()
+        sens = [*run.sensitivity_settings(th, (3,), (0.7,)), run.gate_off_setting(th)]
+        dump = lambda logs: [json.dumps(run.to_jsonable(g.to_dict()), sort_keys=True) for g in logs]   # noqa: E731
+        a = dump(self.stage(th, sens))
+        b = dump(g for g in self.stage(th, sens, sweep=run.tau_match_sweep_settings(th, (0.5, 0.6, 0.75)))
+                 if "-tm" not in g.policy)
+        self.assertEqual(a, b)
 
     def test_gate_off_equals_a_run_with_tau_occ_one(self) -> None:
         th = Thresholds()

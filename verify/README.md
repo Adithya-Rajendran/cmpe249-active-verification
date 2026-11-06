@@ -820,27 +820,45 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   - **Simulation flag.** A view-labels file whose `simulation` flag disagrees with the manifest's is refused (exit 2),
     as verify.select refuses it. On a simulation manifest every line of logs.jsonl and ground_truth.json carries
     `"label": SIM_LABEL` and `"simulation": true` (`EpisodeLog.from_dict` and `GroundTruth.load` ignore both keys).
-  - Config versions `synthetic-v7` and `real-v5`.
-- **Declared test analyses (real-v6, 2026-11-05; docs/SIM_PREREGISTRATION.md sections 1, 4, 9 and 10).** Additions
-  only: the primary contrast, the metrics, the bootstrap, the stopping rule, the calibration and the k / lam
-  sensitivity runs are unchanged, and every row of a real-v5 run is reproduced exactly. All of them are reported,
-  none is ever selected, and all are computed after the run (truth, view labels and the evidence file re-read).
+  - Config versions at checkpoint 2 (historical): `synthetic-v7` and `real-v5`. Current: `synthetic-v8` and
+    `real-v6` (below).
+- **Declared sensitivity runs (real-v5, ee2c4fa, 2026-11-05; real/sim data only).** `--k-sensitivity` (default `3`,
+  or `none`) and `--lam-sensitivity` (default `0.7,0.9,1.2`, or `none`) run at the primary budget under every cap
+  (`sensitivity_settings`, through `run_stage`'s `sensitivity`): each k value runs every multi-view policy (F, R, G,
+  G-lookahead, G-myopic, and Dir, A, A-nocue when they run) with that k-rule, logged as `<policy>-k<k>` (e.g. `G-k3`,
+  `R-k3` over the R seeds); each lam value runs G and G-lookahead with that weight, logged as `<policy>-lam<lam>`
+  (e.g. `G-lam0.7`, `G-lookahead-lam1.2`). The primary setting is k = 2, lam = 0. They are recorded in the hashed
+  config (`sensitivity`), reported in a "Sensitivity runs" table per lighting, and never selected.
+- **Declared test analyses (real-v6, 2026-11-05, with the review fixes of 2026-11-06; docs/SIM_PREREGISTRATION.md
+  sections 1, 4, 9 and 10).** Additions only: the primary contrast, the metrics, the bootstrap, the stopping rule,
+  the calibration and the k / lam sensitivity runs are unchanged, and every row of a real-v5 run is reproduced
+  exactly. All of them are reported, none is ever selected, and all are computed after the run (truth, view labels
+  and the evidence file re-read).
   - **Each multi-view policy against S.** `BOOTSTRAP_PAIRS` adds A - S, A-nocue - S, Dir - S, G-lookahead - S and
     G-myopic - S (with their `-fcm` variants, as for G, F and R - S), at every cap; skipped when a policy did not run.
-    The synthetic mode gets G-lookahead - S and G-myopic - S too (its config version stays `synthetic-v7`).
-  - **By family** (`results.json` `by_family`). The family is the quota slot class, the bootstrap stratum
-    (`ArrangementRecord.stratum`: S8, M16-L, M16-R, IND28, white_box, ycb_box; design cases and tabletop records
-    prefixed as in the strata). `metrics`: `compute_all` per scope, lighting (L1, L2) and family for every policy row
-    of `ORDER` (S and FULL at their own effort; the others at the primary budget, uncapped and under every cap; no
-    sensitivity, gate-off or sweep rows), with the by-condition confusion. `composition`: per split and family, the
-    number of arrangements per `target_id`, from the manifest. `bootstrap`: on test, A - G per family and lighting at
-    the primary budget, uncapped (FRR, removal recall, coverage), the paired cluster bootstrap unstratified within the
-    family, with the main B and the seed `family_bootstrap_seed(seed)` (`derive_seed(seed, "by-family", "A", "G")`),
-    `inconclusive` when the interval contains 0; a family with fewer than 2 test arrangements is listed in
-    `bootstrap_skipped` with the reason. Descriptive evidence for H3, not a new primary. A manifest where some
-    arrangement has no family gives `{"ran": false, "note": ...}`. table.md: a "By family" section per lighting with
-    the uncapped primary-budget rows of F, R, G, G-lookahead, Dir, A, A-nocue and FULL, each family's target
-    composition and its A - G rows (or the skip).
+    The synthetic mode gets G-lookahead - S and G-myopic - S too, so its config version is `synthetic-v8`.
+  - **By family, at two levels.** `results.json` `by_occluder_family`: the occluder family (S8, M16 with its two
+    sides pooled, IND28, white_box, ycb_box). `by_family`: the quota slot class, the bootstrap stratum
+    (`ArrangementRecord.stratum`: S8, M16-L, M16-R, IND28, white_box, ycb_box). At both levels design cases and
+    tabletop records are prefixed as in the strata (`design:`, `tabletop:`). Each level has:
+    - `metrics`: `compute_all` per scope, lighting (L1, L2) and family for every policy row of `ORDER` (S and FULL at
+      their own effort; the others at the primary budget, uncapped and under every cap; no sensitivity, gate-off or
+      sweep rows), with the by-condition confusion;
+    - `composition`: per split and family, the number of arrangements per `target_id`, from the manifest;
+    - `bootstrap`: on test, A - G per family and lighting at the primary budget, uncapped (FRR, removal recall,
+      coverage), with the main B and a seed per family and lighting, `family_bootstrap_seed(seed, family, lighting)`
+      = `derive_seed(seed, "by-family", family, lighting)`, so equal-size families never share draws; `inconclusive`
+      when the interval contains 0. Per occluder family the paired cluster bootstrap is stratified by slot class
+      within the family (by side for M16, with the usual fallback to unstratified, flagged, when a side has fewer
+      than 2 arrangements); a family of one slot class, and every slot class, is unstratified. A family with fewer
+      than 2 test arrangements is listed in `bootstrap_skipped` with the reason, and `bootstrap_note` says when every
+      family was skipped, when A or G did not run, or when there is no test arrangement.
+
+    Descriptive evidence for H3, not a new primary. A manifest where some arrangement has no family gives
+    `{"ran": false, "note": ...}` at both levels. table.md, per lighting: "By occluder family" first (the uncapped
+    primary-budget rows of F, R, G, G-lookahead, Dir, A, A-nocue and FULL, each family's target composition and its
+    A - G rows or the skip), then "By slot class" with the slot classes that are not an occluder family (M16-L and
+    M16-R).
   - **Occlusion-gate-off ablation** (`--gate-off-ablation`): F and R only with tau_occ = 1.0 (`gate_off_setting`:
     no view is flagged occluded), at the primary budget under every cap, through the sensitivity mechanism with the
     suffix `gateoff` (logs `F-gateoff`, `R-gateoff` over the R seeds). G is excluded: tau_occ is also G's occlusion
@@ -849,26 +867,32 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
     R-gateoff across the caps.
   - **Risk-coverage sweep of tau_match** (`--tau-match-sweep`, needs `--candidate`): the grid is the frozen candidate's
     predeclared `settings.tau_match_grid` (`tau_match_grid_of`; refused, exit 2, when it is missing or does not hold
-    the frozen tau_match). Every other grid value runs with all other thresholds frozen, at the primary budget,
-    uncapped: S (first-clear-miss rule) and FULL at their own effort, then F, R, G, G-lookahead, G-myopic and, when
-    they run, Dir, A and A-nocue, logged as `<policy>-tm<value>`. `results.json` `tau_match_sweep.curves`: per scope,
-    lighting (L1, L2, pooled) and policy, one point per grid value with FRR, removal recall, coverage, resolved
-    accuracy and the false-present rate among removed episodes (with counts); the frozen point is the policy's own
-    primary row (`"frozen": true`, bold in table.md).
+    the frozen tau_match), extended above the frozen point by `TAU_MATCH_SWEEP_ABOVE` = 0.75, 0.8, 0.85, 0.9
+    (declared 2026-11-06, before the freeze: the frozen 0.7 is the top of the grid, so the grid alone stops every
+    curve at the frozen point; an extension value at or below the frozen tau_match is refused). The values run
+    (`tau_match_sweep_values`) are the grid without the frozen value plus the extension, each with all other
+    thresholds frozen, at the primary budget, uncapped: S (first-clear-miss rule) and FULL at their own effort, then
+    F, R, G, G-lookahead, G-myopic and, when they run, Dir, A and A-nocue, logged as `<policy>-tm<value>`.
+    `results.json` `tau_match_sweep.curves`: per scope, lighting (L1, L2, pooled) and policy, one point per value with
+    FRR, removal recall, coverage, resolved accuracy and the false-present rate among removed episodes (with counts);
+    the frozen point is the policy's own primary row (`"frozen": true`, bold in table.md).
   - **Geometric diagnostic-view coverage** (`diagnostic_view_coverage`, prereg 10.3; needs `--view-labels`): per
-    scope, lighting (L1, L2, pooled) and family (`all`, then each family), the occluded episodes with at least one
-    geometrically diagnostic stop other than the start stop (from the positions file), and the removed episodes with
-    at least k (the run's k, 2) such stops, as x / n.
+    scope, lighting (L1, L2, pooled) and family (`all`, each occluder family, then the slot classes that are not one;
+    `level` says which), the occluded episodes with at least one geometrically diagnostic stop other than the start
+    stop (from the positions file), and the removed episodes with at least k (the run's k, 2) such stops, as x / n.
   - **Gate per-view rates against the geometric labels** (`gate_view_rates`, prereg 10.4; needs `--view-labels`): at
     the run's thresholds, per scope and lighting, verify.select's `ViewRates` (`rates_by_lighting`) on the rows that
     `verify.select.labelled_view_rows` (factored out of `view_rows`, whose output is unchanged) builds from the
     evidence file and the labels: false-clear on non-diagnostic views of occluded-present episodes, false clear-miss on
     diagnostic present views, clear-miss and false strong-match on diagnostic removed views (plus `clear`), with x / n.
+    Beside verify.select's diagnostic-only false strong-match, `all_removed_views.strong_match` counts strong matches
+    on every view of the removed episodes, diagnostic or not: any one decides PRESENT. table.md labels the two apart.
+    The evidence file must have the sha256 recorded in the config when it is re-read (exit 2 otherwise).
   - Without `--view-labels` both view diagnostics are `{"ran": false, "note": ...}`. `--gate-off-ablation` and
     `--tau-match-sweep` are refused with `--synthetic`, like the other real/sim options. The hashed config records
-    `bootstrap_pairs`, `by_family`, `gate_off_ablation` and `tau_match_sweep` (null when not requested, else the
-    policies, tau_occ, the grid and the values run) and `view_diagnostics` (start stop, k). Tests:
-    `tests/test_run_analyses.py`.
+    `bootstrap_pairs`, `by_family` (both levels, their bootstrap strata, the seed rule), `gate_off_ablation` and
+    `tau_match_sweep` (null when not requested, else the policies, tau_occ, the grid, the extension and the values
+    run) and `view_diagnostics` (start stop, k). Tests: `tests/test_run_analyses.py`.
 - `--synthetic` is the main mode. Real data (v0): `--manifest MANIFEST.json --evidence
   <evidence.jsonl from perception/evidence.py>` runs the same run / score / diagnostics stages with
   the placeholder thresholds, or with `--candidate` the frozen candidate's (read through `require_freeze_eligible`;
@@ -967,7 +991,7 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   "pooled". The `config` dict (thresholds, positions,
   budgets, `cap_steps`, `travel_caps_cm`, `nominal_step_cm`, `travel_tol_cm`, `g_lookahead`
   {"G": false, "G-lookahead": true}, `g_myopic` {lam_deg, travel_norm_cm}, r_seeds, generator
-  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v7`; `real-v6`
+  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v8`; `real-v6`
   for real data), `simulation`, `bootstrap_stratified`, model_id, positions file path and sha256) is hashed with `config_sha256`, and
   the same hash is in every log line. `cap_steps` is hashed as floats (`[null, 1.0, 2.0, ...]`),
   so the default caps and an explicit `--cap-steps 1,2,3,4,6` give the same hash. v4 (real-v1)
@@ -1069,7 +1093,7 @@ arrangement); **3** calibration infeasible on all dev data (no candidate, `calib
 candidate written but **not** eligible for freeze.
 
 **No compared policy's results set any shared setting.** DECISIONS 2026-10-12: "Shared thresholds are
-selected by a documented procedure that does not optimise them on G's results"; the student approved
+selected by a documented procedure that does not optimise them on G's results"; the researcher approved
 select-v4 on 2026-11-02. tau_q, tau_occ and tau_match are calibrated from per-view dev labels alone, k and
 lam are fixed in advance, and every policy (S, F, R, G, G-lookahead, G-myopic; with side descriptors Dir, A and
 A-nocue) then runs with the
@@ -1255,7 +1279,8 @@ dev data are looked at.
 - **Outputs** (deterministic, no timestamps; default directory `runs/select-v4-<tag>/`; default tag
   `synthetic-n<N>-s<seed>`, or `sim-<set folder>` / `real-<set folder>` on the manifest path).
   - `frozen_candidate.json`: schema `cmpe249.frozen_candidate.v3`, procedure `select-v4`, `procedure_revision`,
-    status "CANDIDATE - not frozen until the student signs FREEZE.md", `synthetic`, `simulation`, `label`,
+    status "CANDIDATE - not frozen until the student signs FREEZE.md" (the literal string the candidate carries,
+    written before the wording changed; read "the researcher"), `synthetic`, `simulation`, `label`,
     `eligible_for_freeze`, `ineligible_reasons`, the thresholds, `fixed_a_priori`, `selected_on_policy_results:
     false`, `alpha_clear`, the `calibration` (search, objective, constraints, `order`, the chosen point, the
     counts and tie-break record, the curves, per-view rates, gate pass rates and flags, grouped CV with per-fold
@@ -1268,7 +1293,10 @@ dev data are looked at.
 
   Write order. `write_outputs` renders every text before it writes anything, then removes the earlier run's files
   and writes each file as a temp file moved into place with `os.replace`, `frozen_candidate.json` last.
-- **Pooled calibration over environments (tabletop wave, step 9; DEV, not frozen).** Give `--manifest`,
+- **Pooled calibration over environments (tabletop wave, step 9; written as a DEV procedure, historical label).** The
+  candidate it produced on both environments' 120 development arrangements is the one copied to `frozen/`; it is
+  frozen by the commit of `docs/FREEZE.md`, after the researcher's review (until then it is the candidate). Give
+  `--manifest`,
   `--evidence`, `--view-labels` and `--positions` once per dev set (one set per environment, the same number of each);
   `sim_dev_data_pooled` reads each with `sim_dev_data` and refuses two sets of one environment, a shared arrangement
   id, or sets that disagree on the simulation flag or the stop count. `DevData.environment_of` keeps every
@@ -1294,8 +1322,10 @@ dev data are looked at.
 - **Replaced: select-v3** (until 2026-11-02). It chose (k, tau_match, lam) by **running primary G** on dev and
   maximising its coverage (D10), contrary to DECISIONS 2026-10-12; it would have handed G-tuned settings to ranker
   A. The fixed-sequence walk, the D10 objective and the `--policy`, `--k-grid` and `--lam-grid` options are gone.
-- **Protocol documents.** `docs/SIM_PREREGISTRATION.md` section 7 describes select-v4 and is open for the student's
-  confirmation; the revision-2 note there is the coordinator's. **Conflict to resolve in `docs/` (not edited
+- **Protocol documents.** `docs/SIM_PREREGISTRATION.md` section 7 describes select-v4 (historical: it was open for
+  the researcher's confirmation when this was written; it is now part of the preregistration the researcher reviews
+  before `docs/FREEZE.md` is committed, which freezes the candidate in `frozen/`); the revision-2 note there is the
+  coordinator's. **Conflict to resolve in `docs/` (not edited
   here):** `docs/EXPERIMENT_PLAN.md` and `docs/SIMULATION_STUDY.md` still describe selecting k and the travel
   penalty on dev; select-v4 fixes k = 2 and lam = 0 a priori.
 - **Known gaps, next checkpoint.**
