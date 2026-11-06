@@ -821,6 +821,54 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
     as verify.select refuses it. On a simulation manifest every line of logs.jsonl and ground_truth.json carries
     `"label": SIM_LABEL` and `"simulation": true` (`EpisodeLog.from_dict` and `GroundTruth.load` ignore both keys).
   - Config versions `synthetic-v7` and `real-v5`.
+- **Declared test analyses (real-v6, 2026-11-05; docs/SIM_PREREGISTRATION.md sections 1, 4, 9 and 10).** Additions
+  only: the primary contrast, the metrics, the bootstrap, the stopping rule, the calibration and the k / lam
+  sensitivity runs are unchanged, and every row of a real-v5 run is reproduced exactly. All of them are reported,
+  none is ever selected, and all are computed after the run (truth, view labels and the evidence file re-read).
+  - **Each multi-view policy against S.** `BOOTSTRAP_PAIRS` adds A - S, A-nocue - S, Dir - S, G-lookahead - S and
+    G-myopic - S (with their `-fcm` variants, as for G, F and R - S), at every cap; skipped when a policy did not run.
+    The synthetic mode gets G-lookahead - S and G-myopic - S too (its config version stays `synthetic-v7`).
+  - **By family** (`results.json` `by_family`). The family is the quota slot class, the bootstrap stratum
+    (`ArrangementRecord.stratum`: S8, M16-L, M16-R, IND28, white_box, ycb_box; design cases and tabletop records
+    prefixed as in the strata). `metrics`: `compute_all` per scope, lighting (L1, L2) and family for every policy row
+    of `ORDER` (S and FULL at their own effort; the others at the primary budget, uncapped and under every cap; no
+    sensitivity, gate-off or sweep rows), with the by-condition confusion. `composition`: per split and family, the
+    number of arrangements per `target_id`, from the manifest. `bootstrap`: on test, A - G per family and lighting at
+    the primary budget, uncapped (FRR, removal recall, coverage), the paired cluster bootstrap unstratified within the
+    family, with the main B and the seed `family_bootstrap_seed(seed)` (`derive_seed(seed, "by-family", "A", "G")`),
+    `inconclusive` when the interval contains 0; a family with fewer than 2 test arrangements is listed in
+    `bootstrap_skipped` with the reason. Descriptive evidence for H3, not a new primary. A manifest where some
+    arrangement has no family gives `{"ran": false, "note": ...}`. table.md: a "By family" section per lighting with
+    the uncapped primary-budget rows of F, R, G, G-lookahead, Dir, A, A-nocue and FULL, each family's target
+    composition and its A - G rows (or the skip).
+  - **Occlusion-gate-off ablation** (`--gate-off-ablation`): F and R only with tau_occ = 1.0 (`gate_off_setting`:
+    no view is flagged occluded), at the primary budget under every cap, through the sensitivity mechanism with the
+    suffix `gateoff` (logs `F-gateoff`, `R-gateoff` over the R seeds). G is excluded: tau_occ is also G's occlusion
+    flag. F - F-gateoff and R - R-gateoff run with the paired bootstrap on test at the primary setting only
+    (`GATE_OFF_PAIRS`). table.md: an "Occlusion-gate-off ablation" section per lighting with F, F-gateoff, R and
+    R-gateoff across the caps.
+  - **Risk-coverage sweep of tau_match** (`--tau-match-sweep`, needs `--candidate`): the grid is the frozen candidate's
+    predeclared `settings.tau_match_grid` (`tau_match_grid_of`; refused, exit 2, when it is missing or does not hold
+    the frozen tau_match). Every other grid value runs with all other thresholds frozen, at the primary budget,
+    uncapped: S (first-clear-miss rule) and FULL at their own effort, then F, R, G, G-lookahead, G-myopic and, when
+    they run, Dir, A and A-nocue, logged as `<policy>-tm<value>`. `results.json` `tau_match_sweep.curves`: per scope,
+    lighting (L1, L2, pooled) and policy, one point per grid value with FRR, removal recall, coverage, resolved
+    accuracy and the false-present rate among removed episodes (with counts); the frozen point is the policy's own
+    primary row (`"frozen": true`, bold in table.md).
+  - **Geometric diagnostic-view coverage** (`diagnostic_view_coverage`, prereg 10.3; needs `--view-labels`): per
+    scope, lighting (L1, L2, pooled) and family (`all`, then each family), the occluded episodes with at least one
+    geometrically diagnostic stop other than the start stop (from the positions file), and the removed episodes with
+    at least k (the run's k, 2) such stops, as x / n.
+  - **Gate per-view rates against the geometric labels** (`gate_view_rates`, prereg 10.4; needs `--view-labels`): at
+    the run's thresholds, per scope and lighting, verify.select's `ViewRates` (`rates_by_lighting`) on the rows that
+    `verify.select.labelled_view_rows` (factored out of `view_rows`, whose output is unchanged) builds from the
+    evidence file and the labels: false-clear on non-diagnostic views of occluded-present episodes, false clear-miss on
+    diagnostic present views, clear-miss and false strong-match on diagnostic removed views (plus `clear`), with x / n.
+  - Without `--view-labels` both view diagnostics are `{"ran": false, "note": ...}`. `--gate-off-ablation` and
+    `--tau-match-sweep` are refused with `--synthetic`, like the other real/sim options. The hashed config records
+    `bootstrap_pairs`, `by_family`, `gate_off_ablation` and `tau_match_sweep` (null when not requested, else the
+    policies, tau_occ, the grid and the values run) and `view_diagnostics` (start stop, k). Tests:
+    `tests/test_run_analyses.py`.
 - `--synthetic` is the main mode. Real data (v0): `--manifest MANIFEST.json --evidence
   <evidence.jsonl from perception/evidence.py>` runs the same run / score / diagnostics stages with
   the placeholder thresholds, or with `--candidate` the frozen candidate's (read through `require_freeze_eligible`;
@@ -919,7 +967,7 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   "pooled". The `config` dict (thresholds, positions,
   budgets, `cap_steps`, `travel_caps_cm`, `nominal_step_cm`, `travel_tol_cm`, `g_lookahead`
   {"G": false, "G-lookahead": true}, `g_myopic` {lam_deg, travel_norm_cm}, r_seeds, generator
-  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v7`; `real-v5`
+  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v7`; `real-v6`
   for real data), `simulation`, `bootstrap_stratified`, model_id, positions file path and sha256) is hashed with `config_sha256`, and
   the same hash is in every log line. `cap_steps` is hashed as floats (`[null, 1.0, 2.0, ...]`),
   so the default caps and an explicit `--cap-steps 1,2,3,4,6` give the same hash. v4 (real-v1)

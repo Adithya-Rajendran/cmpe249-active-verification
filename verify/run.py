@@ -11,7 +11,8 @@ Real or simulated data:
 
     uv run --no-sync python -m verify.run --manifest MANIFEST.json --evidence evidence.jsonl \\
         [--view-labels view_labels.json] --positions P [--candidate frozen_candidate.json | --placeholder-thresholds] \\
-        [--side side.jsonl [--model A=model_A.json --model A-nocue=model_A-nocue.json]] [budgets, caps, B as above]
+        [--side side.jsonl [--model A=model_A.json --model A-nocue=model_A-nocue.json]] [budgets, caps, B as above] \\
+        [--gate-off-ablation] [--tau-match-sweep]
 
 The evidence file comes from perception/evidence.py or evidence_v03.py (EvidenceStore.to_jsonl format). The same run
 stage replays it with no truth; the manifest is re-read for truth only after the run, and the optional sim view labels
@@ -32,6 +33,15 @@ are stratified by quota slot class (occluder family, M16 split by side) when eve
 carries its family and every stratum holds at least two test arrangements; otherwise (the synthetic generator,
 legacy pilot manifests, singleton strata) they are unstratified and flagged as such. With no test arrangement no
 bootstrap runs, and the outputs say so. FRR is reported per episode and per arrangement (any false removal).
+
+Declared test analyses (real-v6; docs/SIM_PREREGISTRATION.md sections 1, 4, 9 and 10), all reported, none selected:
+each multi-view policy against S (BOOTSTRAP_PAIRS); per-family breakdowns (`by_family`: metrics per quota slot class,
+its target composition and A - G per family on test, unstratified within the family); the occlusion-gate-off ablation
+(--gate-off-ablation: F and R with tau_occ = 1.0, logged as F-gateoff / R-gateoff, with F - F-gateoff and R - R-gateoff
+on test at the primary setting); the risk-coverage sweep of tau_match over the frozen candidate's predeclared grid
+(--tau-match-sweep, needs --candidate; logged as <policy>-tm<value>); and, with --view-labels, the geometric
+diagnostic-view coverage and the gate's per-view rates against the geometric labels (verify.select's ViewRates). They
+are computed after the run, from the truth, the labels and the evidence file read again from disk.
 
 Every output is removed from the output directory before a run starts, so a run that fails part-way never leaves
 an earlier run's results next to its own config (RUN_OUTPUTS, REAL_OUTPUTS).
@@ -59,15 +69,18 @@ import argparse
 import dataclasses
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections import Counter
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from analysis.bootstrap import paired_diff, rate_intervals, resolve_strata
+from analysis.bootstrap import MIN_STRATUM_SIZE, paired_diff, rate_intervals, resolve_strata
 from analysis.common_target import COMMON_TARGETS, common_target_diff
-from analysis.metrics import NO_DIAG_SOURCE_LABELS, compute_all, seed_decisions
+from analysis.metrics import NO_DIAG_SOURCE_LABELS, compute_all, ratio, seed_decisions
 from verify.manifest import (
     UNSTRATIFIED_NOTE,
+    ArrangementRecord,
+    GeometricLabels,
     episodes_from_arrangements,
     load_geometric_labels,
     load_manifest_info,
@@ -94,6 +107,7 @@ from verify.schema import (
     REPO_ROOT,
     SYNTHETIC_LABEL,
     Budget,
+    Condition,
     Decision,
     EpisodeLog,
     EpisodeResult,
@@ -109,6 +123,7 @@ from verify.schema import (
     as_results,
     cap_cm_from_steps,
     config_sha256,
+    derive_seed,
     file_sha256,
     to_jsonable,
 )
@@ -132,9 +147,28 @@ G_LOOKAHEAD = {"G": False, "G-lookahead": True}   # recorded in the config (and 
 # every capped setting is secondary. A - G-lookahead across the caps: researcher's decision 2026-11-05 item 4. A - Dir:
 # explanatory (post-hoc development origin, notes/2026-11-05-side-descriptor.md).
 PRIMARY_PAIR = ("A", "G")
+# Each multi-view policy against S (prereg sections 1 and 9): A, A-nocue, Dir, G-lookahead and G-myopic - S added in
+# real-v6 next to G, F and R - S.
 BOOTSTRAP_PAIRS = (PRIMARY_PAIR, ("A", "F"), ("A", "R"), ("A", "A-nocue"), ("A", "G-lookahead"), ("A", "Dir"),
-                   ("G", "F"), ("G", "R"), ("G", "S"), ("F", "S"), ("R", "S"), ("G", "G-lookahead"),
+                   ("G", "F"), ("G", "R"), ("G", "S"), ("F", "S"), ("R", "S"), ("A", "S"), ("A-nocue", "S"),
+                   ("Dir", "S"), ("G-lookahead", "S"), ("G-myopic", "S"), ("G", "G-lookahead"),
                    ("G", "G-myopic"))
+# Occlusion-gate-off ablation (prereg sections 4 and 10.5; --gate-off-ablation): F and R only, with tau_occ = 1.0, so
+# no view is ever flagged occluded and the gate is the quality cut alone. G is left out because tau_occ is also G's
+# occlusion flag (it would change G's selection, not only the gate). Reported only, never selected; the paired
+# contrasts run on test at the primary setting only (primary budget, uncapped).
+GATE_OFF_SUFFIX = "gateoff"
+GATE_OFF_TAU_OCC = 1.0
+GATE_OFF_POLICIES = ("F", "R")
+GATE_OFF_PAIRS = tuple((p, f"{p}-{GATE_OFF_SUFFIX}") for p in GATE_OFF_POLICIES)
+# Risk-coverage sweep of tau_match (prereg section 9; --tau-match-sweep): every value of the frozen candidate's
+# predeclared tau_match grid except the frozen one, every other threshold frozen, at the primary budget, uncapped only;
+# logged as "<policy>-tm<value>". The frozen point of each curve is the policy's own primary row. Reported only.
+TM_SWEEP_PREFIX = "tm"
+TM_SWEEP_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "Dir", "A", "A-nocue", "FULL")   # those that run
+# Per-family breakdowns (prereg section 9; H3): the family of an arrangement is its quota slot class, the bootstrap
+# stratum (verify.manifest.ArrangementRecord.stratum). table.md shows these policies' uncapped primary-budget rows.
+FAMILY_TABLE_POLICIES = ("F", "R", "G", "G-lookahead", "Dir", "A", "A-nocue", "FULL")
 # H1 (prereg sec. 10): the same selector with the k-distinct rule vs the first-clear-miss rule (k = 1).
 H1_PAIRS = tuple((x, f"{x}-fcm") for x in MULTI_VIEW)
 # "selection can matter" diagnostics (lit report sec. 4): G's path against these, per budget and cap
@@ -244,6 +278,14 @@ def build_parser() -> argparse.ArgumentParser:
                         "A=model_A.json; needs --side and --candidate (the model's features, thresholds and "
                         "candidate must match); "
                         "repeatable")
+    p.add_argument("--gate-off-ablation", action="store_true",
+                   help="real/sim data: the occlusion-gate-off ablation, F and R only with tau_occ = 1.0 (logged as "
+                        "F-gateoff and R-gateoff), at the primary budget under every cap; reported only, never "
+                        "selected")
+    p.add_argument("--tau-match-sweep", action="store_true",
+                   help="real/sim data: the risk-coverage sweep of tau_match over the frozen candidate's predeclared "
+                        "tau_match_grid (needs --candidate), every other threshold frozen, at the primary budget, "
+                        "uncapped (logged as <policy>-tm<value>); reported only, never selected")
     return p
 
 
@@ -317,7 +359,8 @@ def run_stage(specs: Sequence[EpisodeSpec], store: EvidenceStore, positions: Pos
               budgets: Sequence[int], caps: Sequence[float | None], r_seeds: Sequence[int],
               context: RunContext, side: SideData | None = None,
               rankers: Sequence[Ranker] = (), sensitivity: Sequence[tuple[str, Thresholds]] = (),
-              primary_budget: int | None = None) -> list[EpisodeLog]:
+              primary_budget: int | None = None,
+              tau_match_sweep: Sequence[tuple[str, Thresholds]] = ()) -> list[EpisodeLog]:
     """Every policy x budget x cap on every episode, each run on a fresh ReplayEnv.
 
     Envs are built from opaque ReplayKeys (minted here, before the store is sealed), never from
@@ -325,7 +368,10 @@ def run_stage(specs: Sequence[EpisodeSpec], store: EvidenceStore, positions: Pos
     SideEnv (each revealed view carries its own stop's descriptor, nothing else), and Dir runs; each frozen ranker
     (A, A-nocue) runs like G, with the same rules, budgets and caps. sensitivity: (suffix, thresholds) pairs run at the
     primary budget under every cap and logged as "<policy>-<suffix>" (SENSITIVITY_SUFFIX): a k value runs every
-    multi-view policy with that k-rule; a lam value runs G and G-lookahead with that weight (reported only).
+    multi-view policy with that k-rule; a lam value runs G and G-lookahead with that weight (reported only); the
+    GATE_OFF_SUFFIX setting (gate_off_setting) runs F and R only. tau_match_sweep: (suffix, thresholds) pairs from
+    tau_match_sweep_settings, each run once at the primary budget, uncapped: S (first-clear-miss rule) and FULL at their
+    own budgets, then every multi-view policy with the k-rule, logged as "<policy>-<suffix>" (reported only).
     """
     if rankers and side is None:
         raise ValueError("the rankers read the side descriptor: pass side descriptors with ranker models")
@@ -359,20 +405,34 @@ def run_stage(specs: Sequence[EpisodeSpec], store: EvidenceStore, positions: Pos
                     logs.extend(seed_logs)
         for suffix, t in sensitivity:
             k_run = suffix.startswith("k")
+            gate_off = suffix == GATE_OFF_SUFFIX   # F and R only (G reads tau_occ as its occlusion flag)
             r = StoppingRule(t)
             for cap in caps:
                 budget = Budget(primary_budget, cap)
                 pols = ((F(), G.from_thresholds(t, lookahead=False), G.from_thresholds(t, lookahead=True),
                          GMyopic.from_thresholds(t), *((Dir.from_thresholds(t),) if side_store is not None else ()),
                          *rankers) if k_run
+                        else (F(),) if gate_off
                         else (G.from_thresholds(t, lookahead=False), G.from_thresholds(t, lookahead=True)))
                 for pol in pols:
                     run = run_episode(pol, env(budget), r, name=f"{pol.name}-{suffix}")
                     logs.append(EpisodeLog.from_run(spec, run))
-                if k_run:
+                if k_run or gate_off:
                     seed_logs, _ = run_r_seeds(lambda bu=budget, e=env: e(bu), r, r_seeds, r_seed_salt(spec),
                                                spec=spec, name=f"R-{suffix}")
                     logs.extend(seed_logs)
+        for suffix, t in tau_match_sweep:   # only tau_match differs from th: the policies keep th's tau_occ and lam
+            r, r1 = StoppingRule(t), StoppingRule.first_clear_miss(t)
+            logs.append(EpisodeLog.from_run(spec, run_episode(S(), env(Budget(0)), r1, name=f"S-{suffix}")))
+            logs.append(EpisodeLog.from_run(spec, run_episode(FullSweep(), env(Budget(4)), r, name=f"FULL-{suffix}")))
+            budget = Budget(primary_budget, None)
+            for pol in (F(), G.from_thresholds(t, lookahead=G_LOOKAHEAD["G"]),
+                        G.from_thresholds(t, lookahead=G_LOOKAHEAD["G-lookahead"]), GMyopic.from_thresholds(t),
+                        *((Dir.from_thresholds(t),) if side_store is not None else ()), *rankers):
+                logs.append(EpisodeLog.from_run(spec, run_episode(pol, env(budget), r, name=f"{pol.name}-{suffix}")))
+            seed_logs, _ = run_r_seeds(lambda bu=budget, e=env: e(bu), r, r_seeds, r_seed_salt(spec),
+                                       spec=spec, name=f"R-{suffix}")
+            logs.extend(seed_logs)
     return logs
 
 
@@ -380,6 +440,39 @@ def sensitivity_settings(th: Thresholds, ks: Sequence[int], lams: Sequence[float
     """The declared sensitivity runs (SIM_PREREGISTRATION §0, §7): k in ks with lam fixed, lam in lams with k fixed."""
     return ([(f"k{k}", dataclasses.replace(th, k=k)) for k in ks]
             + [(f"lam{lam:g}", dataclasses.replace(th, lam=lam)) for lam in lams])
+
+
+def gate_off_setting(th: Thresholds) -> tuple[str, Thresholds]:
+    """The occlusion-gate-off ablation as a sensitivity setting (run_stage runs it for F and R only): tau_occ = 1.0,
+    so no view is flagged occluded (obstruction <= 1 always passes) and the clear-miss gate is the quality cut alone."""
+    return GATE_OFF_SUFFIX, dataclasses.replace(th, tau_occ=GATE_OFF_TAU_OCC)
+
+
+class SweepRefused(ValueError):
+    """--tau-match-sweep refused: no predeclared tau_match grid in the candidate, or one that does not hold the frozen
+    value."""
+
+
+def tau_match_grid_of(candidate: Mapping[str, Any], th: Thresholds) -> tuple[float, ...]:
+    """The frozen candidate's predeclared tau_match grid (settings.tau_match_grid), sorted. SweepRefused when the
+    candidate has none, when a value is not a number in [0, 1], or when the frozen tau_match is not one of its values
+    (the candidate was chosen from that grid, so a grid without it is not the candidate's)."""
+    grid = (candidate.get("settings") or {}).get("tau_match_grid")
+    if not isinstance(grid, list) or not grid:
+        raise SweepRefused("the candidate records no predeclared tau_match grid (settings.tau_match_grid); the sweep "
+                           "never invents one")
+    if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not 0.0 <= v <= 1.0 for v in grid):
+        raise SweepRefused(f"the candidate's tau_match_grid {grid} is not a list of numbers in [0, 1]")
+    if th.tau_match not in grid:
+        raise SweepRefused(f"the frozen tau_match {th.tau_match:g} is not in the candidate's tau_match_grid {grid}")
+    return tuple(sorted({float(v) for v in grid}))
+
+
+def tau_match_sweep_settings(th: Thresholds, grid: Sequence[float]) -> list[tuple[str, Thresholds]]:
+    """("tm<value>", th with that tau_match) for every grid value except the frozen th.tau_match, in grid order: the
+    other thresholds, k and lam stay frozen."""
+    return [(f"{TM_SWEEP_PREFIX}{v:g}", dataclasses.replace(th, tau_match=float(v)))
+            for v in grid if float(v) != th.tau_match]
 
 
 # ---------------------------------------------------------------- stage 3: score
@@ -446,7 +539,8 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
     "primary" lists the primary contrast's rows (PRIMARY_PAIR at the primary budget, uncapped, per lighting) with
     "inconclusive" = the 95% interval contains 0 (never read as equivalence). common_target ({arrangement_id: (occluder
     family, target id)}) adds the predeclared secondary A - G on common targets (analysis.common_target) at the same
-    setting, per lighting.
+    setting, per lighting. GATE_OFF_PAIRS run with the other pairs at the primary budget, uncapped only, when the
+    gate-off rows exist.
     """
     groups = group_results(logs)
     # R's per-seed decisions, for its per-arrangement FRR (computed per base seed: R's condition-free salt makes the
@@ -478,7 +572,8 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
     for light in Lighting:
         sub = {k: [r for r in v if r.lighting is light] for k, v in test.items()}
         for cap in caps:
-            for a, b in pairs:
+            # the gate-off contrasts at the primary setting only (skipped, as any pair, when the ablation did not run)
+            for a, b in (pairs + list(GATE_OFF_PAIRS) if cap is None else pairs):
                 ka = _lookup(sub, a, primary_budget, cap)
                 kb = _lookup(sub, b, primary_budget, cap)
                 if ka is None or kb is None or not sub[ka] or not sub[kb]:
@@ -543,6 +638,210 @@ def _lookup(groups: dict[RunKey, list[EpisodeResult]], policy: str, budget: int,
         return ("FULL", 4, None) if ("FULL", 4, None) in groups else None
     k = (policy, budget, cap)
     return k if k in groups else None
+
+
+# ---------------------------------------------------------------- declared test analyses (real-v6, after the run)
+
+FAMILY_ALL = "all"   # the row over every family in the diagnostic-view coverage
+FAMILY_NOTE = ("Descriptive evidence for H3 (prereg section 1), not a new primary. The family is the quota slot class "
+               "(the bootstrap stratum: occluder family, M16 split by side, design cases apart). Each family carries "
+               "its target composition: a difference between families can reflect their targets as well as their "
+               "occluders")
+FAMILY_SKIPPED_NOTE = ("the manifest lacks occluder_family for some arrangement, so there is no per-family breakdown "
+                       "(the family is the quota slot class)")
+FAMILY_BOOTSTRAP_NOTE = ("paired arrangement-level cluster bootstrap of A - G per family and lighting at the primary "
+                         "budget, uncapped, on test; unstratified within the family; the main bootstrap's B with a "
+                         "seed derived from the main seed (family_bootstrap_seed); inconclusive when the 95% interval "
+                         "contains 0. Descriptive (H3), not a new primary")
+FAMILY_SINGLETON_REASON = (f"fewer than {MIN_STRATUM_SIZE} test arrangements: a cluster bootstrap over a single "
+                           "arrangement only redraws it and has no interval")
+NO_LABELS_NOTE = "needs --view-labels (the geometric labels, read after the run): not computed"
+
+
+def family_bootstrap_seed(seed: int) -> int:
+    """The per-family A - G bootstrap seed, derived deterministically from the main seed (verify.schema.derive_seed)."""
+    return derive_seed(seed, "by-family", *PRIMARY_PAIR)
+
+
+def _seed_removed(logs: Sequence[EpisodeLog]) -> dict[RunKey, dict[str, dict[int, bool]]]:
+    """(policy, budget, cap) -> R's per-seed decisions (seed_decisions), as score_stage builds them."""
+    seed_logs: dict[RunKey, list[EpisodeLog]] = {}
+    for g in logs:
+        if g.seed is not None:
+            seed_logs.setdefault((g.policy, g.budget_additional_views, g.travel_cap_cm), []).append(g)
+    return {k: seed_decisions(v) for k, v in seed_logs.items()}
+
+
+def family_of_records(records: Iterable[ArrangementRecord]) -> dict[str, str] | None:
+    """{arrangement_id: family} with the family the record's quota slot class (ArrangementRecord.stratum, the
+    bootstrap stratum), or None when any record lacks its occluder family."""
+    fam = {a.arrangement_id: a.stratum for a in records}
+    return None if not fam or any(f is None for f in fam.values()) else fam   # type: ignore[return-value]
+
+
+def target_composition(records: Sequence[ArrangementRecord], family_of: Mapping[str, str]) -> list[dict[str, Any]]:
+    """[{"scope", "family", "n_arrangements", "targets": {target_id: n_arrangements}}] per split and family, read from
+    the manifest (the targets are assigned per slot within what each family supports, prereg section 2)."""
+    out = []
+    for scope in SCOPES:
+        recs = [a for a in records if a.split is scope]
+        for fam in sorted({family_of[a.arrangement_id] for a in recs}):
+            mine = [a for a in recs if family_of[a.arrangement_id] == fam]
+            out.append({"scope": scope.value, "family": fam, "n_arrangements": len(mine),
+                        "targets": dict(sorted(Counter(a.target_id for a in mine).items()))})
+    return out
+
+
+def family_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, records: Sequence[ArrangementRecord],
+                 primary_budget: int, B: int, seed: int,
+                 no_diagnostic: Mapping[str, bool] | None = None) -> dict[str, Any]:
+    """Per-family breakdowns (prereg section 9): compute_all per scope, lighting (L1, L2) and family for every policy
+    row in ORDER (S and FULL at their own effort, the others at the primary budget, uncapped and under every cap; not
+    the sensitivity, gate-off or sweep rows), each family's target composition, and on test the paired cluster
+    bootstrap of A - G per family and lighting (FAMILY_BOOTSTRAP_NOTE), skipped and listed for a family with fewer than
+    MIN_STRATUM_SIZE test arrangements. With a record that lacks its family nothing is computed ("ran" false)."""
+    family_of = family_of_records(records)
+    if family_of is None:
+        return {"ran": False, "note": FAMILY_SKIPPED_NOTE, "composition": [], "metrics": [], "bootstrap": [],
+                "bootstrap_skipped": []}
+    groups = group_results(logs)
+    seed_removed = _seed_removed(logs)
+    fams = sorted(set(family_of.values()))
+    keys = sorted((k for k in groups if k[0] in ORDER and (k[1] == primary_budget or k[0] in ("S", "FULL"))),
+                  key=lambda k: (k[0], k[1], _cap_key(k[2])))
+    metrics: list[dict[str, Any]] = []
+    for scope in SCOPES:
+        for key in keys:
+            res = [r for r in groups[key] if r.split is scope]
+            for fam in fams:
+                for light in Lighting:
+                    sub = [r for r in res if r.lighting is light and family_of[r.arrangement_id] == fam]
+                    if sub:
+                        metrics.append({"scope": scope.value, "lighting": light.value, "family": fam,
+                                        "policy": key[0], "budget": key[1], "travel_cap_cm": key[2],
+                                        "role": ROLE.get(key[0], ""),
+                                        **compute_all(sub, truth, no_diagnostic, seed_removed.get(key))})
+    fseed = family_bootstrap_seed(seed)
+    boots: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    ka, kg = ((p, primary_budget, None) for p in PRIMARY_PAIR)
+    if not any(a.split is Split.TEST for a in records):
+        how = NO_BOOTSTRAP_NOTE
+    elif ka not in groups or kg not in groups:
+        how = f"no per-family {' - '.join(PRIMARY_PAIR)} bootstrap: {PRIMARY_PAIR[0]} or {PRIMARY_PAIR[1]} did not run"
+    else:
+        how = FAMILY_BOOTSTRAP_NOTE
+        for light in Lighting:
+            for fam in fams:
+                a, g = ([r for r in groups[k] if r.split is Split.TEST and r.lighting is light
+                         and family_of[r.arrangement_id] == fam] for k in (ka, kg))
+                if not a or not g:
+                    continue
+                n_arr = len({r.arrangement_id for r in a})
+                if n_arr < MIN_STRATUM_SIZE:
+                    skipped.append({"scope": Split.TEST.value, "lighting": light.value, "family": fam,
+                                    "n_arrangements": n_arr, "reason": FAMILY_SINGLETON_REASON})
+                    continue
+                same = identical_runs(a, g)
+                for metric in BOOTSTRAP_METRICS:
+                    br = paired_diff(a, g, truth, metric, B=B, seed=fseed).to_dict()
+                    boots.append({"scope": Split.TEST.value, "lighting": light.value, "family": fam,
+                                  "travel_cap_cm": None, "budget": primary_budget, "identical_runs": same, **br,
+                                  "inconclusive": None if br["ci_lo"] is None else
+                                  bool(br["ci_lo"] <= 0.0 <= br["ci_hi"])})
+    return {"ran": True, "note": FAMILY_NOTE, "families": fams, "composition": target_composition(records, family_of),
+            "metrics": metrics, "bootstrap": boots, "bootstrap_skipped": skipped, "bootstrap_note": how,
+            "bootstrap_B": B, "bootstrap_seed": fseed}
+
+
+def tau_match_sweep_curves(metrics: Sequence[Mapping[str, Any]], th: Thresholds, grid: Sequence[float],
+                           primary_budget: int) -> list[dict[str, Any]]:
+    """Risk-coverage curves over tau_match (prereg section 9) from the scored metrics rows: per scope, lighting (L1,
+    L2, pooled) and policy in TM_SWEEP_POLICIES, one point per grid value, the frozen value being the policy's own
+    primary row ("frozen": true; S and FULL at their own effort). Each point has FRR, removal recall, coverage, resolved
+    accuracy and the false-present rate among removed episodes (confusion removed -> present over n_removed), with
+    counts. A policy with no sweep row has no curve."""
+    index = {(m["scope"], m["lighting"], m["policy"], m["budget"], m["travel_cap_cm"]): m for m in metrics}
+    scopes = [s.value for s in SCOPES if any(m["scope"] == s.value for m in metrics)]
+    out = []
+    for scope in scopes:
+        for light in (*REPORT_LIGHTINGS, POOLED):
+            for p in TM_SWEEP_POLICIES:
+                b = 0 if p == "S" else 4 if p == "FULL" else primary_budget
+                points = []
+                for v in grid:
+                    name = p if v == th.tau_match else f"{p}-{TM_SWEEP_PREFIX}{v:g}"
+                    m = index.get((scope, light, name, b, None))
+                    if m is None:
+                        continue
+                    o = m["overall"]
+                    fp = o["confusion"]["removed"][Decision.PRESENT.value]
+                    points.append({"tau_match": v, "frozen": v == th.tau_match, "row": name,
+                                   **{k: o[k] for k in ("false_removal_rate", "removal_recall", "coverage",
+                                                        "resolved_accuracy")},
+                                   "false_present_removed": fp, "false_present_rate_removed": ratio(fp, o["n_removed"]),
+                                   **{k: o[k] for k in ("n_present", "n_removed", "n_arrangements", "n_episodes")}})
+                if any(not x["frozen"] for x in points):
+                    out.append({"scope": scope, "lighting": light, "policy": p, "budget": b, "travel_cap_cm": None,
+                                "points": points})
+    return out
+
+
+def diagnostic_view_coverage(specs: Sequence[EpisodeSpec], labels: GeometricLabels, start_stop: int, k: int,
+                             family_of: Mapping[str, str] | None = None) -> list[dict[str, Any]]:
+    """Geometric diagnostic-view coverage (prereg section 10.3), from the sim view labels (scoring only): per scope,
+    lighting (L1, L2, pooled) and family (FAMILY_ALL, then each family when family_of is given), the occluded-present
+    episodes with at least one geometrically diagnostic stop other than the start stop, and the removed episodes with
+    at least k such stops, with counts."""
+    def non_start(eid: str) -> int:
+        return sum(1 for st, d in enumerate(labels.episodes[eid]) if d and st != start_stop)
+    fams = [FAMILY_ALL, *(sorted(set(family_of.values())) if family_of else ())]
+    out = []
+    for scope in SCOPES:
+        for light in (*REPORT_LIGHTINGS, POOLED):
+            for fam in fams:
+                eps = [s for s in specs if s.split is scope and (light == POOLED or s.lighting.value == light)
+                       and (fam == FAMILY_ALL or family_of[s.arrangement_id] == fam)]   # type: ignore[index]
+                if not eps:
+                    continue
+                occ = [non_start(s.episode_id) for s in eps if s.condition is Condition.OCCLUDED]
+                rem = [non_start(s.episode_id) for s in eps if s.condition is Condition.REMOVED]
+                xo, xr = sum(n >= 1 for n in occ), sum(n >= k for n in rem)
+                out.append({"scope": scope.value, "lighting": light, "family": fam,
+                            "n_arrangements": len({s.arrangement_id for s in eps}),
+                            "occluded_with_diagnostic_non_start": {"x": xo, "n": len(occ), "rate": ratio(xo, len(occ))},
+                            "removed_with_k_diagnostic_non_start": {"x": xr, "n": len(rem), "rate": ratio(xr, len(rem)),
+                                                                    "k": k}})
+    return out
+
+
+GATE_RATES = (("false_clear", "false-clear rate: views passing the tau_q / tau_occ gate", "non-diagnostic views of "
+               "occluded-present episodes"),
+              ("false_clear_miss", "false clear-miss rate", "diagnostic views of present episodes"),
+              ("clear_miss", "clear-miss rate", "diagnostic views of removed episodes"),
+              ("false_strong_match", "false strong-match rate", "diagnostic views of removed episodes"))
+
+
+def gate_view_rates(specs: Sequence[EpisodeSpec], store: EvidenceStore, labels: GeometricLabels, positions: Positions,
+                    th: Thresholds) -> list[dict[str, Any]]:
+    """The gate's per-view rates against the geometric labels (prereg section 10.4) at the run's thresholds: per scope
+    and lighting (L1, L2, pooled), verify.select's ViewRates (rates_by_lighting) on the rows labelled_view_rows builds
+    from the (unsealed, re-read) evidence store and the labels, the same populations and StoppingRule predicates as the
+    calibration. Every view of the manifest's episodes carries a label (load_geometric_labels and main_real check)."""
+    from verify.select import labelled_view_rows, rates_by_lighting   # heavy; as for --candidate
+    diagnostic = {(e, st): d for e, ds in labels.episodes.items() for st, d in enumerate(ds)}
+    rows = labelled_view_rows(specs, store, diagnostic, lambda _arr: positions)
+    out = []
+    for scope in SCOPES:
+        ids = {s.episode_id for s in specs if s.split is scope}
+        sub = [r for r in rows if r.episode_id in ids]
+        if not sub:
+            continue
+        for light, vr in rates_by_lighting(sub, th).items():
+            out.append({"scope": scope.value, "lighting": light,
+                        "n_views": sum(1 for r in sub if light == POOLED or r.lighting.value == light),
+                        "rates": vr.to_dict()})
+    return out
 
 
 # ---------------------------------------------------------------- diagnostics (no truth)
@@ -997,6 +1296,148 @@ def _rate_ci_line(results: dict[str, Any]) -> str | None:
             "seed-averaged decisions: arrangements are resampled, seeds are not (results.json `rate_ci95`).")
 
 
+FAMILY_HEAD = ("| policy | FRR | FRR per arrangement (x/n) | recall | coverage | resolved acc | mean views "
+               "| mean travel cm | n_arr/n_ep |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+CONTRAST_HEAD = "| metric | estimate | 95% CI | n_arr | n_ep | reading |\n| --- | --- | --- | --- | --- | --- |"
+
+
+def _xn(d: Mapping[str, Any]) -> str:
+    return f"{_cnt(d['x'])}/{d['n']}"
+
+
+def _gate_off_lines(results: dict[str, Any], light: str, lab, h: str) -> list[str]:
+    """The gate-off rows next to F and R across the caps, when the ablation ran."""
+    cfg, metrics = results["config"], results["metrics"]
+    pb, scope = cfg["primary_budget"], table_scope(metrics)
+    if not any(m["policy"].endswith(f"-{GATE_OFF_SUFFIX}") for m in metrics):
+        return []
+    lines = [f"{h} Occlusion-gate-off ablation, b = {pb} ({scope} split; F and R only; reported only, never selected)",
+             "", (f"tau_occ = {GATE_OFF_TAU_OCC:.1f}: no view is flagged occluded, so a clear miss needs only "
+                  "quality >= tau_q and a match below tau_match. G is not run this way: tau_occ is also G's "
+                  f"occlusion flag. The paired F - F-{GATE_OFF_SUFFIX} and R - R-{GATE_OFF_SUFFIX} contrasts (test, "
+                  f"b = {pb}, uncapped) are in the bootstrap table."), "", CURVE_HEAD]
+    for p in (x for g in GATE_OFF_POLICIES for x in (g, f"{g}-{GATE_OFF_SUFFIX}")):
+        for cap in cfg["travel_caps_cm"]:
+            m = _find(metrics, scope, p, pb, cap, light)
+            if m:
+                lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_row_cells(m)]))
+    return [*lines, ""]
+
+
+def _sweep_lines(results: dict[str, Any], light: str, h: str) -> list[str]:
+    """The tau_match risk-coverage curves of one lighting, frozen point marked."""
+    sw = results.get("tau_match_sweep")
+    scope = table_scope(results["metrics"])
+    curves = [c for c in (sw or {}).get("curves", []) if c["scope"] == scope and c["lighting"] == light]
+    if not curves:
+        return []
+    lines = [f"{h} Risk-coverage sweep of tau_match, b = {results['config']['primary_budget']}, uncapped ({scope} "
+             "split; reported only, never selected)", "",
+             (f"The frozen candidate's predeclared grid {', '.join(f'{v:g}' for v in sw['grid'])}, every other "
+              "threshold frozen. The frozen point (marked) is the policy's own primary row; S is at its actual "
+              "effort and FULL at all stops. False-present rate = removed episodes decided present (x/n removed)."),
+             "", "| policy | tau_match | FRR | recall | coverage | resolved acc | false-present rate among removed "
+             "(x/n) | n_arr/n_ep |", "| --- | --- | --- | --- | --- | --- | --- | --- |"]
+    for c in curves:
+        for x in c["points"]:
+            tm = f"**{x['tau_match']:g} (frozen)**" if x["frozen"] else f"{x['tau_match']:g}"
+            lines.append(_md([c["policy"], tm, fmt(x["false_removal_rate"]), fmt(x["removal_recall"]),
+                              fmt(x["coverage"]), fmt(x["resolved_accuracy"]),
+                              f"{fmt(x['false_present_rate_removed'])} ({_cnt(x['false_present_removed'])}/"
+                              f"{x['n_removed']})", f"{x['n_arrangements']}/{x['n_episodes']}"]))
+    return [*lines, ""]
+
+
+def _family_lines(results: dict[str, Any], light: str, h: str) -> list[str]:
+    """By family: the uncapped primary-budget rows of FAMILY_TABLE_POLICIES, the target composition and A - G."""
+    fam = results.get("by_family")
+    if not fam:
+        return []
+    cfg = results["config"]
+    pb, scope = cfg["primary_budget"], table_scope(results["metrics"])
+    head = f"{h} By family, b = {pb}, uncapped ({scope} split; descriptive, H3)"
+    if not fam["ran"]:
+        return [head, "", f"Not computed: {fam['note']}.", ""]
+    idx = {(m["scope"], m["lighting"], m["family"], m["policy"], m["budget"], m["travel_cap_cm"]): m
+           for m in fam["metrics"]}
+    comp = {(c["scope"], c["family"]): c for c in fam["composition"]}
+    lines = [head, "", f"{fam['note']}. Every cap is in results.json (`by_family`).", ""]
+    boot_note = fam.get("bootstrap_note", "")
+    if scope == Split.TEST.value:
+        lines += [f"A - G per family: {boot_note}.", ""]
+    for f in fam["families"]:
+        c = comp.get((scope, f))
+        if c is None:
+            continue
+        lines += [f"**{f}** ({c['n_arrangements']} {scope} arrangements; targets: "
+                  + ", ".join(f"{t} {n}" for t, n in c["targets"].items()) + ")", "", FAMILY_HEAD]
+        for p in FAMILY_TABLE_POLICIES:
+            b = 4 if p == "FULL" else pb
+            m = idx.get((scope, light, f, p, b, None))
+            if m:
+                lines.append(_md([p, *_cells(m["overall"])]))
+        lines.append("")
+        if scope != Split.TEST.value:
+            continue
+        rows = [r for r in fam["bootstrap"] if r["lighting"] == light and r["family"] == f]
+        skip = [r for r in fam["bootstrap_skipped"] if r["lighting"] == light and r["family"] == f]
+        if rows:
+            lines += [f"{' - '.join(PRIMARY_PAIR)} on {f}, {light} queries (B = {rows[0]['B']}, unstratified within "
+                      "the family):", "", CONTRAST_HEAD]
+            for r in rows:
+                note = " (identical runs)" if r.get("identical_runs") else ""
+                lines.append(f"| {r['metric']} | {fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | "
+                             f"{r['n_arrangements']} | {r['n_episodes']} | {_reading(r)}{note} |")
+            lines.append("")
+        for r in skip:
+            lines += [f"{' - '.join(PRIMARY_PAIR)} on {f}, {light} queries: not bootstrapped ({r['n_arrangements']} "
+                      f"test arrangement): {r['reason']}.", ""]
+    return lines
+
+
+def _view_diagnostic_lines(results: dict[str, Any], light: str, h: str) -> list[str]:
+    """Geometric diagnostic-view coverage (prereg 10.3) and the gate's per-view rates (10.4) for one lighting."""
+    cov, rates = results.get("diagnostic_view_coverage"), results.get("gate_view_rates")
+    if not cov or not rates:
+        return []
+    scope = table_scope(results["metrics"])
+    start = results["positions"]["start_stop"]
+    head1 = f"{h} Geometric diagnostic-view coverage ({scope} split)"
+    head2 = f"{h} Gate per-view rates against the geometric labels ({scope} split)"
+    if not cov["ran"]:
+        return [head1, "", f"Not computed: {cov['note']}.", "", head2, "", f"Not computed: {rates['note']}.", ""]
+    k = cov["k"]
+    lines = [head1, "",
+             (f"Occluded (present) episodes with at least one geometrically diagnostic stop other than the start stop "
+              f"{start}, and removed episodes with at least k = {k} such stops, from the view labels (geometric "
+              "labels, not recognisability; context, not a ceiling)."), "",
+             f"| family | n_arr | occluded: >= 1 diagnostic non-start stop (x/n) | share | removed: >= {k} diagnostic "
+             "non-start stops (x/n) | share |", "| --- | --- | --- | --- | --- | --- |"]
+    for r in cov["rows"]:
+        if r["scope"] == scope and r["lighting"] == light:
+            o, m = r["occluded_with_diagnostic_non_start"], r["removed_with_k_diagnostic_non_start"]
+            lines.append(_md([r["family"], str(r["n_arrangements"]), _xn(o), fmt(o["rate"]), _xn(m), fmt(m["rate"])]))
+    th = rates["thresholds"]
+    lines += ["", head2, "",
+              (f"At the run's thresholds (tau_match {th['tau_match']:g}, tau_q {th['tau_q']:g}, tau_occ "
+               f"{th['tau_occ']:g}), with the calibration's view populations and StoppingRule predicates "
+               "(verify.select ViewRates). Per view: the views of one arrangement are correlated."), "",
+              "| rate | views | x/n | rate |", "| --- | --- | --- | --- |"]
+    for r in rates["rows"]:
+        if r["scope"] == scope and r["lighting"] == light:
+            for name, what, pop in GATE_RATES:
+                d = r["rates"][name]
+                lines.append(_md([what, pop, _xn(d), fmt(d["rate"])]))
+    return [*lines, ""]
+
+
+def _test_analysis_lines(results: dict[str, Any], light: str, lab) -> list[str]:
+    """The real-v6 sections of one lighting: gate-off ablation, tau_match sweep, by family, view diagnostics."""
+    h = f"## {light} queries -"
+    return [*_gate_off_lines(results, light, lab, h), *_sweep_lines(results, light, h),
+            *_family_lines(results, light, h), *_view_diagnostic_lines(results, light, h)]
+
+
 def render_table(results: dict[str, Any]) -> str:
     cfg, metrics = results["config"], results["metrics"]
     pb, scope = cfg["primary_budget"], table_scope(metrics)
@@ -1027,6 +1468,7 @@ def render_table(results: dict[str, Any]) -> str:
     lines.append("")
     for light in lights:
         lines += _lighting_lines(results, light, lab)
+        lines += _test_analysis_lines(results, light, lab)
     lines += _pooled_lines(results, lab)
     lines += [f"_{results['label']}._", ""]
     return "\n".join(lines)
@@ -1139,7 +1581,9 @@ def main(argv: list[str] | None = None) -> int:
         print("need --n-arr >= 2, --r-seeds >= 1, --bootstrap-B >= 1", file=sys.stderr)
         return 2
     given = [f for f, v in (("--candidate", args.candidate), ("--placeholder-thresholds", args.placeholder_thresholds),
-                            ("--side", args.side), ("--model", args.model)) if v]
+                            ("--side", args.side), ("--model", args.model),
+                            ("--gate-off-ablation", args.gate_off_ablation),
+                            ("--tau-match-sweep", args.tau_match_sweep)) if v]
     if given:   # the synthetic path never reads them: refuse instead of silently ignoring them
         print(f"{', '.join(given)}: real/sim data only, not --synthetic", file=sys.stderr)
         return 2
@@ -1190,7 +1634,8 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-REAL_CONFIG_VERSION = "real-v5"
+REAL_CONFIG_VERSION = "real-v6"
+# v6 (2026-11-05): multi-view policies vs S, by-family breakdowns, gate-off ablation, tau_match sweep, view diagnostics
 # v5 (2026-11-05): frozen candidate thresholds (--candidate), side descriptors, Dir and frozen rankers (--side,
 # --model), the primary contrast and the common-target secondary analysis
 # v4 (2026-11-03): bootstrap_stratified is what the test bootstrap uses (singleton strata fall back); single-rate CIs;
@@ -1208,7 +1653,9 @@ def main_real(args: argparse.Namespace) -> int:
     """Run S/FULL/F/R/G/G-lookahead/G-myopic, with --side also Dir and with --model the frozen rankers, on real or
     simulated evidence: same run and score stages as --synthetic.
     A manifest with "simulation": true is labelled SIMULATION (config.json, results.json, table.md); the bootstrap
-    is stratified by the manifest's quota slot classes when every arrangement has one."""
+    is stratified by the manifest's quota slot classes when every arrangement has one. After the run it adds the
+    declared test analyses (real-v6): by_family, tau_match_sweep (with --tau-match-sweep), diagnostic_view_coverage
+    and gate_view_rates (with --view-labels; otherwise "ran": false and a note)."""
     if args.primary_budget not in args.budgets or args.r_seeds < 1 or args.bootstrap_B < 1:
         print("need --primary-budget in --budgets, --r-seeds >= 1, --bootstrap-B >= 1", file=sys.stderr)
         return 2
@@ -1262,8 +1709,13 @@ def main_real(args: argparse.Namespace) -> int:
     if args.model and (args.side is None or args.candidate is None):
         print("--model needs --side (the rankers read the descriptor) and --candidate", file=sys.stderr)
         return 2
+    if args.tau_match_sweep and args.candidate is None:
+        print("--tau-match-sweep needs --candidate: it sweeps the frozen candidate's predeclared tau_match grid",
+              file=sys.stderr)
+        return 2
     th = Thresholds()
     cand_doc = None
+    tm_grid: tuple[float, ...] = ()
     side_data: SideData | None = None
     rankers: list[Ranker] = []
     models: dict[str, dict[str, str]] = {}
@@ -1278,6 +1730,11 @@ def main_real(args: argparse.Namespace) -> int:
                 raise ValueError(f"the candidate says simulation={cand_doc.get('simulation')} but the manifest says "
                                  f"simulation={info.simulation}")
             th = candidate_thresholds(cand_doc)
+            if args.tau_match_sweep:
+                try:
+                    tm_grid = tau_match_grid_of(cand_doc, th)
+                except SweepRefused as e:
+                    raise ValueError(f"--tau-match-sweep refused: {e}") from e
         if args.side is not None:
             side_data = SideData.from_store(SideStore.from_jsonl(args.side, positions.n_stops,
                                                                  episode_ids=[s.episode_id for s in specs]),
@@ -1327,7 +1784,25 @@ def main_real(args: argparse.Namespace) -> int:
               "ranker_models": models, "primary_contrast": list(PRIMARY_PAIR),
               "sensitivity": {"k": list(args.k_sensitivity), "lam": list(args.lam_sensitivity),
                               "note": "reported only, never selected; primary budget, every cap"},
-              "common_targets": list(COMMON_TARGETS)}
+              "common_targets": list(COMMON_TARGETS),
+              # real-v6: the declared test analyses (prereg sections 1, 4, 9 and 10)
+              "bootstrap_pairs": [list(x) for x in BOOTSTRAP_PAIRS],
+              "by_family": {"family": "quota slot class (verify.manifest ArrangementRecord.stratum)",
+                            "lightings": list(REPORT_LIGHTINGS), "bootstrap_pair": list(PRIMARY_PAIR),
+                            "bootstrap_seed": family_bootstrap_seed(args.seed),
+                            "bootstrap_min_arrangements": MIN_STRATUM_SIZE,
+                            "note": "descriptive (H3), not a new primary"},
+              "gate_off_ablation": None if not args.gate_off_ablation else {
+                  "policies": list(GATE_OFF_POLICIES), "tau_occ": GATE_OFF_TAU_OCC,
+                  "pairs": [list(x) for x in GATE_OFF_PAIRS],
+                  "note": "reported only, never selected; primary budget, every cap; contrasts at the primary setting"},
+              "tau_match_sweep": None if not args.tau_match_sweep else {
+                  "grid": list(tm_grid), "frozen_tau_match": th.tau_match,
+                  "values_run": [t.tau_match for _, t in tau_match_sweep_settings(th, tm_grid)],
+                  "policies": list(TM_SWEEP_POLICIES),
+                  "note": "reported only, never selected; primary budget, uncapped; other thresholds frozen"},
+              "view_diagnostics": {"start_stop": positions.start_index, "k": th.k,
+                                   "source": "view labels and evidence file, read after the run"}}
     if cand_doc is not None:
         label = SIM_FROZEN_LABEL if info.simulation else REAL_FROZEN_LABEL
     sha = config_sha256(config)
@@ -1336,14 +1811,17 @@ def main_real(args: argparse.Namespace) -> int:
                          synthetic=False)
     logs = run_stage(specs, store, positions, th, args.budgets, config["travel_caps_cm"], config["r_seeds"], context,
                      side=side_data, rankers=rankers,
-                     sensitivity=sensitivity_settings(th, args.k_sensitivity, args.lam_sensitivity),
-                     primary_budget=args.primary_budget)
+                     sensitivity=[*sensitivity_settings(th, args.k_sensitivity, args.lam_sensitivity),
+                                  *((gate_off_setting(th),) if args.gate_off_ablation else ())],
+                     primary_budget=args.primary_budget,
+                     tau_match_sweep=tau_match_sweep_settings(th, tm_grid) if args.tau_match_sweep else ())
     del store
     sim_label = label if info.simulation else None   # every output of a simulation manifest is labelled SIMULATION
     write_logs(out / "logs.jsonl", logs, simulation_label=sim_label)
     _, truth = episodes_from_arrangements(load_manifest_info(args.manifest).arrangements)
     save_truth(out / "ground_truth.json", truth, simulation_label=sim_label)
     no_diag = None
+    labels: GeometricLabels | None = None
     if args.view_labels is not None:   # scoring context only, read after every policy has run
         try:
             if file_sha256(args.view_labels) != config["view_labels_sha256"]:
@@ -1359,6 +1837,13 @@ def main_real(args: argparse.Namespace) -> int:
             print(f"bad --view-labels: {e}", file=sys.stderr)
             return 2
         no_diag = labels.no_diagnostic_view()
+        try:   # the gate's per-view rates read the evidence again, after the run, from the same (unchanged) file
+            if file_sha256(args.evidence) != config["evidence_sha256"]:
+                raise ValueError(f"{args.evidence} changed during the run")
+            view_store = EvidenceStore.from_jsonl(args.evidence, positions.n_stops)
+        except (OSError, ValueError, KeyError) as e:
+            print(f"bad --evidence after the run: {e}", file=sys.stderr)
+            return 2
     common = ({a.arrangement_id: (a.occluder_family, a.target_id) for a in info.arrangements}
               if all(a.occluder_family is not None for a in info.arrangements) else None)
     scored = score_stage(logs, truth, args.primary_budget, args.bootstrap_B, args.seed, strata=strata,
@@ -1366,11 +1851,29 @@ def main_real(args: argparse.Namespace) -> int:
     if common is None and any(m["policy"] == PRIMARY_PAIR[0] for m in scored["metrics"]):
         scored["common_target_skipped"] = ("the manifest lacks occluder_family for some arrangement, so the "
                                            "predeclared common-target analysis could not run")
+    # real-v6: the declared test analyses, all after the run (truth, labels and evidence re-read from disk)
+    analyses: dict[str, Any] = {
+        "by_family": family_stage(logs, truth, info.arrangements, args.primary_budget, args.bootstrap_B, args.seed,
+                                  no_diag)}
+    if args.tau_match_sweep:
+        analyses["tau_match_sweep"] = {**config["tau_match_sweep"], "curves": tau_match_sweep_curves(
+            scored["metrics"], th, tm_grid, args.primary_budget)}
+    view_diag = {"start_stop": positions.start_index, "k": th.k}
+    if labels is None:
+        analyses["diagnostic_view_coverage"] = {"ran": False, "note": NO_LABELS_NOTE, **view_diag, "rows": []}
+        analyses["gate_view_rates"] = {"ran": False, "note": NO_LABELS_NOTE, "thresholds": th.to_dict(), "rows": []}
+    else:
+        analyses["diagnostic_view_coverage"] = {
+            "ran": True, **view_diag,
+            "rows": diagnostic_view_coverage(specs, labels, positions.start_index, th.k,
+                                             family_of_records(info.arrangements))}
+        analyses["gate_view_rates"] = {"ran": True, "thresholds": th.to_dict(),
+                                       "rows": gate_view_rates(specs, view_store, labels, positions, th)}
     results = {"label": label, "synthetic": False, "simulation": info.simulation, "config": config,
                "config_sha256": sha, "positions": positions.to_dict(), "thresholds": th.to_dict(),
                "files": {n: file_sha256(out / n) for n in ("ground_truth.json", "logs.jsonl")},
                "n_logs": len(logs), **scored,
-               "diagnostics": diagnostics_stage(logs, positions, args.budgets, config["travel_caps_cm"])}
+               "diagnostics": diagnostics_stage(logs, positions, args.budgets, config["travel_caps_cm"]), **analyses}
     write_json(out / "results.json", results)
     (out / "table.md").write_text(render_table(results))
     print(f"{label}: wrote {out}")

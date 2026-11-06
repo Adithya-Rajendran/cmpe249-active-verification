@@ -1182,13 +1182,23 @@ def view_rows(dev: DevData) -> list[ViewRow]:
     """Every dev view with its label (offline dev analysis, read from a fresh unsealed store)."""
     store = dev.store_factory()
     lab = {(l.episode_id, l.stop): l.diagnostic for l in dev.view_labels}
+    return labelled_view_rows(dev.specs, store, lab, dev.positions_of)
+
+
+def labelled_view_rows(specs: Iterable[EpisodeSpec], store: EvidenceStore, diagnostic: Mapping[tuple[str, int], bool],
+                       positions_of: Callable[[str], Positions]) -> list[ViewRow]:
+    """Every view of the given specs (spec order, then stop order) with its geometric label, read from an unsealed
+    store: diagnostic maps (episode_id, stop) to the label (KeyError for a view without one), positions_of an
+    arrangement id to its positions. view_rows builds the dev rows with it; verify.run builds the rows of its scored
+    split with it after the run (scoring only, never a policy input)."""
     rows = []
-    for s in dev.specs:
+    for s in specs:
         for stop in range(store.n_stops):
             # step is read by no per-view predicate; 0 marks "a view on its own"
-            obs = Observation.from_record(store.get(s.episode_id, stop), step=0, positions=dev.positions_of(s.arrangement_id))
+            obs = Observation.from_record(store.get(s.episode_id, stop), step=0,
+                                          positions=positions_of(s.arrangement_id))
             rows.append(ViewRow(s.arrangement_id, s.episode_id, s.condition, s.lighting,
-                                lab[(s.episode_id, stop)], obs))
+                                diagnostic[(s.episode_id, stop)], obs))
     return rows
 
 
