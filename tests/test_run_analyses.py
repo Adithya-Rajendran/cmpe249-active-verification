@@ -18,7 +18,7 @@ from unittest import mock
 
 from analysis.bootstrap import ZERO_WIDTH_TOL, paired_diff
 from analysis.metrics import compute_all
-from tests.test_bootstrap import correct, make, noisy, truth_for, with_effort
+from tests.test_bootstrap import U, correct, make, noisy, truth_for, with_effort
 from tests.test_ranker_side import write_side
 from tests.test_run_freeze import DEV_SLOTS, RUN_QUICK, SELECT_QUICK, TEST_SLOTS, quiet, retarget
 from tests.test_select_sim import SLOTS, write_sim_set
@@ -471,12 +471,13 @@ class AnalysesRunTest(unittest.TestCase):
                 self.assertEqual((r["estimate"], r["ci_lo"], r["ci_hi"]), (0.0, 0.0, 0.0))
                 self.assertIn("no discordant episode", r["degenerate_note"])
         self.assertTrue(any(r["zero_width"] for r in rows) and not all(r["zero_width"] for r in rows))
-        for r in paired:
+        for r in [*paired, *self.res["common_target"]]:          # every row with its runs' flags
             if r["identical_runs"]:
                 self.assertTrue(r["same_decisions"])
             self.assertEqual(bool(r["effort_note"]), r["same_decisions"] and not r["identical_runs"])
             if r["same_decisions"]:
                 self.assertTrue(r["zero_width"] and r["n_discordant_episodes"] == 0)
+        self.assertTrue(self.res["common_target"])
         rates = [m["rate_ci95"][k] for m in self.res["metrics"] if m.get("rate_ci95") for k in run.RATE_CI_METRICS]
         self.assertTrue(rates)
         for x in rates:
@@ -531,6 +532,24 @@ class ZeroWidthReportTest(unittest.TestCase):
                                             "interval, no discordant episode: not evidence of equivalence or of zero "
                                             "risk")
         self.assertEqual(run._run_notes(row), [flags["effort_note"], "ZERO-WIDTH interval, no discordant episode"])
+
+    def test_the_tables_show_the_run_level_note_beside_the_reading(self) -> None:
+        a = with_effort(make(10, noisy, "A"), 156.0, 2.14)
+        d = with_effort(make(10, noisy, "Dir"), 93.5, 2.24)
+        row = {**paired_diff(a, d, truth_for(a), "coverage", B=200, seed=0).to_dict(), "identical_runs": False,
+               **run.run_flags(a, d)}
+        self.assertEqual(run._run_level(row), [row["effort_note"]])
+        self.assertEqual(run._run_level({**row, "identical_runs": True}), ["identical: A == B on every episode"])
+        self.assertEqual(run._run_level({**row, "effort_note": ""}), [])
+
+    def test_a_constant_nonzero_difference_reads_as_no_variation(self) -> None:
+        g, f = make(5, correct, "G"), make(5, lambda i, c, l: U if (c.value, l.value) == ("visible", "L1")
+                                           else correct(i, c, l), "F")
+        row = paired_diff(g, f, truth_for(g), "coverage", B=200, seed=0).to_dict()
+        self.assertTrue(row["zero_width"])
+        self.assertEqual(run._reading(row), "first policy higher (the interval excludes 0); ZERO-WIDTH interval, 5 "
+                                            "discordant episodes, one value in every replicate: no sampling "
+                                            "variation, not a measure of uncertainty")
 
     def test_different_decisions_are_not_flagged(self) -> None:
         a, g = make(10, noisy, "A"), make(10, correct, "G")

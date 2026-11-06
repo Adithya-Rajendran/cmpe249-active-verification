@@ -61,6 +61,19 @@ The slot list is not test geometry. It is a deterministic function of the frozen
 the quota table, primary seed 100000 + *i*, and the seeded target lists. `sim/README.md` allows inspecting it before the
 freeze.
 
+**What the test suite itself does with the slot lists, by design.** This is part of the record for completeness; none
+of it is an incident.
+- Every run of the suite computes the shelf test slot list in memory:
+  - `tests/test_sim_arrange.py` checks its length, its seed range, and that generating from it is refused;
+  - the shelf goldens pin its sha256 (`tests/shelf_golden.py`, `slot_list_hashes`).
+- Two tests move the test block's seeds to the synthetic range, 900000+, and keep the permutation and target seeds:
+  - `tests/test_freeze_gate.py` generates a synthetic arrangement for slot 0;
+  - `tests/test_test_validity.py` generates synthetic arrangements for slots 0 and 1, and writes them with a
+    `slots.json` into a temporary directory.
+- So those slot lists carry the study's family, M16 side and target sequence, while the seeds, and so the placements,
+  are synthetic. No study seed's geometry is generated.
+- None of these tests prints a slot or an arrangement.
+
 ## How it was found and how the gate was repaired
 
 1. **Found.** At 18:21:45 PST I printed the configs' test seed blocks (shelf primary 100000–100099, reserves

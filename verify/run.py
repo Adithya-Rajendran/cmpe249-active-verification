@@ -37,7 +37,8 @@ Every interval is pointwise and unadjusted for the number of comparisons (INTERV
 "interval_note"). Since real-v7 / synthetic-v9 every paired row and single rate also carries `zero_width` and a
 `degenerate_note` when its interval has zero width (analysis.bootstrap, "Zero-width intervals"), and every paired
 bootstrap row (overall, primary and per family) carries `same_decisions` and an `effort_note`, so equal decisions with
-different effort are flagged even when the runs are not identical. A zero-width interval is not evidence of zero risk, of a perfect rate or of equivalence.
+different effort are flagged even when the runs are not identical. A zero-width interval is not evidence of zero risk,
+of a perfect rate or of equivalence.
 
 Declared test analyses (since real-v6; docs/SIM_PREREGISTRATION.md sections 1, 4, 9 and 10), all reported, none
 selected: each multi-view policy against S (BOOTSTRAP_PAIRS); per-family breakdowns at two levels, the occluder family
@@ -632,9 +633,11 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
             if ka is None or kb is None or not sub[ka] or not sub[kb] or \
                     not any(common_target[r.arrangement_id][1] in COMMON_TARGETS for r in sub[ka]):
                 continue
+            ca, cb = ([r for r in sub[k] if common_target[r.arrangement_id][1] in COMMON_TARGETS] for k in (ka, kb))
+            runs = {"identical_runs": identical_runs(ca, cb), **run_flags(ca, cb)}   # on the common-target episodes
             for metric in BOOTSTRAP_METRICS:
                 common.append({"scope": Split.TEST.value, "lighting": light.value, "budget": primary_budget,
-                               "travel_cap_cm": None, **common_target_diff(
+                               "travel_cap_cm": None, **runs, **common_target_diff(
                                    sub[ka], sub[kb], truth, {a: f for a, (f, _) in common_target.items()},
                                    {a: t for a, (_, t) in common_target.items()}, metric, B=B, seed=seed,
                                    strata=strata)})
@@ -1221,11 +1224,12 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
                    "as equivalence, and no equivalence margin is declared. Every other row below is secondary. Each "
                    "interval is pointwise and unadjusted across the environments, lightings and metrics: each cell is "
                    "read on its own, and no claim is made for some cell or for all cells. A ZERO-WIDTH interval "
-                   "(no discordant episode) is not evidence of equivalence."), "",
+                   "(no sampling variation, e.g. no discordant episode) is not evidence of equivalence or of zero "
+                   "risk."), "",
                   "| metric | estimate | 95% CI | n_arr | n_ep | reading |", "| --- | --- | --- | --- | --- | --- |"]
         for r in prim:
             lines.append(f"| {r['metric']} | {fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | "
-                         f"{r['n_arrangements']} | {r['n_episodes']} | {_reading(r)} |")
+                         f"{r['n_arrangements']} | {r['n_episodes']} | {'; '.join([_reading(r), *_run_level(r)])} |")
         lines.append("")
     for cap in caps:
         lines += [f"{h} Primary table: b = {pb} additional views, {lab(cap)}", "", HEAD]
@@ -1324,7 +1328,7 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
             lines.append(f"| {r['metric']} | {fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | "
                          f"{r['n_arrangements']} | {r['n_episodes']} | "
                          f"{', '.join(r['single_target_families']) or '-'} | "
-                         f"{_reading(r)} |")
+                         f"{'; '.join([_reading(r), *_run_level(r)])} |")
         lines.append("")
     diag = results.get("diagnostics")
     if diag:
@@ -1346,11 +1350,15 @@ def _zero_width_text(r: Mapping[str, Any]) -> str:
             else f"ZERO-WIDTH interval, {n} discordant episodes, one value in every replicate")
 
 
+def _run_level(r: Mapping[str, Any]) -> list[str]:
+    """The run-level flag of a paired row: identical runs, or the same decisions with different effort."""
+    return (["identical: A == B on every episode"] if r.get("identical_runs")
+            else [r["effort_note"]] if r.get("effort_note") else [])
+
+
 def _run_notes(r: Mapping[str, Any]) -> list[str]:
     """The run-level and metric-level flags of a paired row, for the note column."""
-    notes = (["identical: A == B on every episode"] if r.get("identical_runs")
-             else [r["effort_note"]] if r.get("effort_note") else [])
-    return notes + ([_zero_width_text(r)] if r.get("zero_width") else [])
+    return _run_level(r) + ([_zero_width_text(r)] if r.get("zero_width") else [])
 
 
 def _reading(r: Mapping[str, Any]) -> str:
@@ -1363,7 +1371,9 @@ def _reading(r: Mapping[str, Any]) -> str:
     else:
         text = ("first policy higher" if r["estimate"] > 0 else "first policy lower") + " (the interval excludes 0)"
     if r.get("zero_width"):
-        text += f"; {_zero_width_text(r)}: not evidence of equivalence or of zero risk"
+        text += f"; {_zero_width_text(r)}: " + ("not evidence of equivalence or of zero risk"
+                                               if r["ci_lo"] <= 0.0 <= r["ci_hi"] else
+                                               "no sampling variation, not a measure of uncertainty")
     return text
 
 

@@ -410,8 +410,9 @@ nothing about the test: new arrangements can move every number below, and A may 
 - **Resolution at the test size.** If test arrangements disagree like development ones, the SD of A − G removal recall
   at 100 test arrangements per environment is 0.012-0.017. So an inconclusive primary is likely. This is conditional
   on the sparse development disagreements (5 discordant episodes in 4 arrangements). Tabletop L1 had no discordant
-  episode, so its SD of 0 reflects that sample, not perfect precision. The 2.8 SD figure is a normal-approximation
-  heuristic, not a verified power for rare, discrete paired differences.
+  episode, so its SD of 0 reflects that sample, not perfect precision. The precision note's "2.8 SD" column (about
+  80 % power, two-sided 5 %) is a normal-approximation heuristic, not a verified power for rare, discrete paired
+  differences.
 - **Limitations kept visible, not retuned.**
   - The shelf L1 subgroup's gate false-clear rate is 21 / 176 (0.119), above alpha_clear 0.10. The declared
     constraint is on the pooled views (50 / 632), §7.
@@ -425,8 +426,9 @@ nothing about the test: new arrangements can move every number below, and A may 
 - **The test-seed incident** (`notes/2026-11-06-test-seed-incident.md`). On 2026-11-05 at 18:21 PST a unit test,
   under a mocked freeze, generated the shelf test arrangement of slot 0 (primary seed 100000) in a temporary
   directory. It read four fields (split, seed range, id format, freeze record), printed nothing, and the directory was
-  deleted. Nothing was rendered, scored or viewed. Three runs of the rewritten test wrote the shelf test slot list,
-  unread, to temporary directories. The gate was repaired the same evening (12b56f5, 28c7e96). The seed schedule is
+  deleted. Nothing was rendered, scored or viewed. That run and three runs of the rewritten test wrote the shelf test
+  slot list, unread, to temporary directories: four writes in all. The test suite also uses the slot lists by design,
+  with synthetic seeds; the record lists how. The gate was repaired the same evening (12b56f5, 28c7e96). The seed schedule is
   kept (the researcher, 2026-11-06).
 
 None of this changes the design. The primary endpoint, k, λ, the caps, A's pinned design and the analysis rules stand
