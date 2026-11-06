@@ -1,0 +1,102 @@
+{
+ "run_id": "shelf_test",
+ "note": "The frozen shelf TEST set: the 100 test slots of configs/sim/arrange_shelf_v3.json, generated only after the freeze by python -m sim.testsplit --freeze docs/FREEZE.md (runbook in docs/FREEZE.md) into /mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_test_geometry/arr and copied to the GB10 run dir as arr_shelf_test. Rendered through sim/render_test.py (sim/run_render_test.sh, with the run dir's copy of FREEZE.md); episodes with --freeze; then the unchanged C0 evidence of record (perception.evidence_v03 --align image, with the v021_image ablation from the same pass), the harness C0 beside it for evaluation-only geometry, and the left/right descriptor, exactly as for the development sets. No select and no summary: the frozen thresholds and models are applied by verify.run (runbook).",
+ "remote": "configs/pipeline/remote.local.json",
+ "freeze": "docs/FREEZE.md",
+ "render": {
+  "script": "render_test.py",
+  "launch_script": "run_render_test.sh arr_shelf_test /mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_test shelf_test.log shelf_test.rc FREEZE.md",
+  "arrangements_dir": "arr_shelf_test",
+  "log": "shelf_test.log",
+  "rc_file": "shelf_test.rc",
+  "expected": 100
+ },
+ "set_root": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_test",
+ "generation_log": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_test_geometry/arr/index/generation_log.json",
+ "local_python": [
+  "uv",
+  "run",
+  "--offline",
+  "--no-project",
+  "--python",
+  "3.13.5",
+  "--with",
+  "numpy==2.5.3",
+  "--with",
+  "opencv-python-headless==5.0.0.93",
+  "python"
+ ],
+ "poll_seconds": 60,
+ "heartbeat_seconds": 600,
+ "stall_minutes": 10,
+ "slow_factor": 2.5,
+ "evidence": {
+  "out_dir": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_test/evidence",
+  "jobs": [
+   "jobs_refL1.json"
+  ],
+  "step_alert_minutes": 60,
+  "variants": {
+   "v03_image": {
+    "args": [
+     "-m",
+     "perception.evidence_v03",
+     "--align",
+     "image",
+     "--jobs",
+     "{jobs}",
+     "--out",
+     "{out}/v03_image_{part}.jsonl",
+     "--out-v021-aligned",
+     "{out}/v021_image_{part}.jsonl",
+     "--diag",
+     "{out}/v03_image_{part}.diag.jsonl"
+    ],
+    "outputs": [
+     "{out}/v03_image_{part}.jsonl",
+     "{out}/v021_image_{part}.jsonl",
+     "{out}/v03_image_{part}.diag.jsonl"
+    ]
+   },
+   "c0": {
+    "args": [
+     "-m",
+     "perception.registration_v032",
+     "--candidate",
+     "C0",
+     "--jobs",
+     "{jobs}",
+     "--out",
+     "{out}/c0_{part}.jsonl",
+     "--diag",
+     "{out}/c0_{part}.diag.jsonl",
+     "--workers",
+     "10",
+     "--torch-threads",
+     "1",
+     "--timing",
+     "{out}/c0_{part}.timing.json"
+    ],
+    "outputs": [
+     "{out}/c0_{part}.jsonl",
+     "{out}/c0_{part}.diag.jsonl"
+    ]
+   },
+   "side": {
+    "args": [
+     "-m",
+     "perception.side_descriptor",
+     "--jobs",
+     "{jobs}",
+     "--out",
+     "{out}/side_{part}.jsonl",
+     "--workers",
+     "10"
+    ],
+    "outputs": [
+     "{out}/side_{part}.jsonl"
+    ]
+   }
+  }
+ }
+}

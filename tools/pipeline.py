@@ -24,7 +24,10 @@ Stages:
               is retried like any ssh failure (5 in a row is a terminal alert) and never launches or reports "gone".
               Only STOPPED with no rc file, confirmed by a second probe 10 s later, is "gone without an rc file". After
               --launch the driver waits up to render.launch_wait_seconds (default 60) for the process or an rc file.
-    episodes  python -m sim.episodes --root SET --contact-sheets --generation-log GENLOG
+              The render process is render.script (default isaac_batch.py, launched by sim/run_render.sh); a frozen
+              test set renders through render_test.py (sim/run_render_test.sh), the freeze gate around it.
+    episodes  python -m sim.episodes --root SET --contact-sheets --generation-log GENLOG [--freeze FREEZE], with
+              --freeze the spec's "freeze" (the committed docs/FREEZE.md) for a test set
     check     python -m sim.check_batch --root SET. Any non-zero exit is a terminal failure: 1 label sanity, and for
               tabletop sets 4 table clipping FAIL or 8 table clipping INCOMPLETE (OR-ed; sim/check_batch.py docstring).
     evidence  ship `git archive` of the last commit that changed the GB10's code (evidence.code_paths, default
@@ -55,6 +58,7 @@ A stage whose spec section is missing is skipped. Stdlib only. Usage:
     python tools/pipeline.py configs/pipeline/shelf_dev_v3.json [--launch] [--from-stage episodes]
     python tools/pipeline.py configs/pipeline/shelf_dev_v3_evidence.json --from-stage evidence [--to-stage select]
     python tools/pipeline.py configs/pipeline/shelf_dev_v3_truealign.json --from-stage evidence  (after the above)
+    python tools/pipeline.py configs/pipeline/shelf_test.json --launch  (only after the freeze: docs/FREEZE.md)
 """
 from __future__ import annotations
 
@@ -140,9 +144,24 @@ RUNNING, STOPPED, PROBE_FAILED = "RUNNING", "STOPPED", "PROBE_FAILED"
 _BRACKETABLE = re.compile(r"[A-Za-z0-9_./: =-]")
 
 
+RENDER_SCRIPTS = ("isaac_batch.py", "render_test.py")   # dev sets; frozen test sets (sim/render_test.py)
+
+
 def render_pattern(render: dict) -> str:
-    """The pgrep -f pattern (an extended regex) of the render process: its isaac_batch command line."""
-    return f"isaac_batch.py --arrangements {render['arrangements_dir']}/"
+    """The pgrep -f pattern (an extended regex) of the render process: its command line, render.script (default
+    isaac_batch.py; render_test.py, the freeze gate around it, for a test set) followed by --arrangements."""
+    script = render.get("script", RENDER_SCRIPTS[0])
+    if script not in RENDER_SCRIPTS:
+        raise ValueError(f"render.script {script!r} is not one of {RENDER_SCRIPTS}")
+    return f"{script} --arrangements {render['arrangements_dir']}/"
+
+
+def episodes_args(spec: dict) -> list[str]:
+    """sim.episodes for the spec's set; a test set's spec names the committed FREEZE.md its arrangements record
+    ("freeze", repo-relative), which sim.episodes checks with sim/freeze.py before it reads any arrangement."""
+    args = ["-m", "sim.episodes", "--root", spec["set_root"], "--contact-sheets", "--generation-log",
+            spec["generation_log"]]
+    return args + (["--freeze", spec["freeze"]] if spec.get("freeze") else [])
 
 
 def self_excluding(pattern: str) -> str:
@@ -597,8 +616,7 @@ def run_stages(run: Run, spec: dict, args: argparse.Namespace) -> None:
     if "render" in todo:
         stage_render(run, args.launch)
     if "episodes" in todo:
-        stage_local(run, "episodes", ["-m", "sim.episodes", "--root", root, "--contact-sheets",
-                                      "--generation-log", spec["generation_log"]])
+        stage_local(run, "episodes", episodes_args(spec))
     if "check" in todo:
         stage_local(run, "check", ["-m", "sim.check_batch", "--root", root])
     for stage, fn in (("evidence", lambda r: stage_evidence(r, args.retry)), ("select", stage_select)):

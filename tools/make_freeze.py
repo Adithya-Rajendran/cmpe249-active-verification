@@ -1,11 +1,11 @@
 """Write the machine-readable record of docs/FREEZE.md (SIM_PREREGISTRATION §12): sha256 of every frozen file.
 
 The record is the one fenced JSON block sim/freeze.py reads: {"schema", "freeze_id", "commit", "files": {path: sha256}}.
-FROZEN lists the repository files the test path runs or reads (generator, renderer, episodes, evidence, descriptor,
-policies, selection and analysis code, configs, geometry, the preregistration and the pinned notes); --extra adds more
-(the frozen candidate and the A / A-nocue model files, copied into the repository first). The tracked tree must be
-clean, so the commit names exactly what is frozen. This tool only prints the block; the freeze is the commit of
-docs/FREEZE.md that contains it, after the researcher's review.
+FROZEN lists the repository files the test path runs or reads (generator, renderer and its test-set launcher,
+episodes, evidence, descriptor, policies, selection and analysis code, the run driver and its test specs, configs,
+geometry, the frozen candidate and the A / A-nocue model files in frozen/, the preregistration and the pinned notes);
+--extra adds more. The tracked tree must be clean, so the commit names exactly what is frozen. This tool only prints
+the block; the freeze is the commit of docs/FREEZE.md that contains it, after the researcher's review.
 
     uv run --no-sync python tools/make_freeze.py --freeze-id simulation-freeze-1 [--extra PATH ...] > record.json
 """
@@ -23,8 +23,8 @@ FREEZE_SCHEMA = "cmpe249.freeze.v1"   # = sim/freeze.py
 FROZEN = (
     "pyproject.toml", "uv.lock",
     "sim/arrange.py", "sim/rig.py", "sim/tabletop.py", "sim/freeze.py", "sim/testsplit.py", "sim/episodes.py",
-    "sim/isaac_batch.py", "sim/isaac_rig.py", "sim/render_test.py", "sim/run_render.sh", "sim/alignment.py",
-    "sim/check_batch.py", "sim/true_align_evidence.py",
+    "sim/isaac_batch.py", "sim/isaac_rig.py", "sim/render_test.py", "sim/run_render.sh", "sim/run_render_test.sh",
+    "sim/alignment.py", "sim/check_batch.py", "sim/true_align_evidence.py",
     "perception/evidence.py", "perception/evidence_v03.py", "perception/side_descriptor.py",
     "perception/registration_v032.py",
     "verify/schema.py", "verify/manifest.py", "verify/replay.py", "verify/stopping.py", "verify/policies.py",
@@ -34,9 +34,14 @@ FROZEN = (
     "tools/registration_compare.py", "tools/evidence_summary.py",
     "configs/sim/arrange_shelf_v3.json", "configs/sim/arrange_tabletop_v1.json", "configs/rig_geometry.json",
     "configs/sim/tabletop_geometry.json", "configs/sim/positions_shelf_A.json", "configs/sim/positions_tabletop_A.json",
-    "configs/sim/ycbv_hulls.json",
+    "configs/sim/ycbv_hulls.json", "configs/sim/tabletop_dev49.json",
+    "configs/pipeline/shelf_test.json", "configs/pipeline/tabletop_test.json",
+    "configs/pipeline/tabletop_dev49_evidence.json",
+    "frozen/frozen_candidate.json", "frozen/frozen_candidate.json.sha256", "frozen/model_A.json",
+    "frozen/model_A-nocue.json", "frozen/README.md",
     "docs/SIM_PREREGISTRATION.md", "notes/2026-11-04-registration-repair-plan.md",
     "notes/2026-11-05-side-descriptor.md", "notes/2026-11-05-ranker-a-design.md",
+    "notes/2026-11-06-tabletop-dev49-transfer.md", "notes/2026-11-06-pooled-calibration.md",
 )
 
 
