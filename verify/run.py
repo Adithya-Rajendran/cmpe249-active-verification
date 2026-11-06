@@ -53,6 +53,7 @@ from pathlib import Path
 from typing import Any
 
 from analysis.bootstrap import paired_diff, rate_intervals, resolve_strata
+from analysis.common_target import COMMON_TARGETS, common_target_diff
 from analysis.metrics import NO_DIAG_SOURCE_LABELS, compute_all, seed_decisions
 from verify.manifest import (
     UNSTRATIFIED_NOTE,
@@ -63,16 +64,19 @@ from verify.manifest import (
 from verify.policies import (
     DEFAULT_R_SEEDS,
     GMYOPIC_LAM_DEG,
+    Dir,
     F,
     FullSweep,
     G,
     GMyopic,
+    Ranker,
     S,
     r_seed_salt,
     run_episode,
     run_r_seeds,
 )
 from verify.replay import ReplayEnv
+from verify.side import SideData, SideEnv, SideStore
 from verify.schema import (
     CAP_STEPS_DEFAULT,
     DEFAULT_POSITIONS_PATH,
@@ -108,14 +112,22 @@ CONFIG_VERSION = "synthetic-v7"   # v7 (2026-11-03): single-rate CIs; singleton 
 MODEL_ID = "synthetic-no-model"
 # G is primary G (D-norm, lookahead off; DECISIONS 2026-10-12). G-lookahead is the same scorer with the
 # reachability lookahead, so G - G-lookahead isolates the lookahead. G-myopic is the legacy pre-D-G ablation.
-MULTI_VIEW = ("F", "R", "G", "G-lookahead", "G-myopic")
+# Dir (the direction-rule control) runs with side descriptors (--side); A and A-nocue with their frozen model files
+# (--model). A pair or row whose policy did not run is skipped.
+MULTI_VIEW = ("F", "R", "G", "G-lookahead", "G-myopic", "Dir", "A", "A-nocue")
+OPTIONAL_POLICIES = ("Dir", "A", "A-nocue")   # run only with --side / --model
 G_LOOKAHEAD = {"G": False, "G-lookahead": True}   # recorded in the config (and its hash)
-BOOTSTRAP_PAIRS = (("G", "F"), ("G", "R"), ("G", "S"), ("F", "S"), ("R", "S"), ("G", "G-lookahead"),
+# A - G at the primary budget, uncapped, is THE primary contrast (SIM_PREREGISTRATION section 1); every other pair and
+# every capped setting is secondary. A - G-lookahead across the caps: researcher's decision 2026-11-05 item 4. A - Dir:
+# explanatory (post-hoc development origin, notes/2026-11-05-side-descriptor.md).
+PRIMARY_PAIR = ("A", "G")
+BOOTSTRAP_PAIRS = (PRIMARY_PAIR, ("A", "F"), ("A", "R"), ("A", "A-nocue"), ("A", "G-lookahead"), ("A", "Dir"),
+                   ("G", "F"), ("G", "R"), ("G", "S"), ("F", "S"), ("R", "S"), ("G", "G-lookahead"),
                    ("G", "G-myopic"))
 # H1 (prereg sec. 10): the same selector with the k-distinct rule vs the first-clear-miss rule (k = 1).
 H1_PAIRS = tuple((x, f"{x}-fcm") for x in MULTI_VIEW)
 # "selection can matter" diagnostics (lit report sec. 4): G's path against these, per budget and cap
-DISAGREE_PAIRS = (("G", "F"), ("G", "R"), ("G", "G-lookahead"), ("G", "G-myopic"), ("G-myopic", "F"))
+DISAGREE_PAIRS = (("G", "F"), ("G", "R"), ("G", "G-lookahead"), ("G", "G-myopic"), ("G-myopic", "F"), ("A", "G"))
 BOOTSTRAP_METRICS = ("false_removal_rate", "removal_recall", "coverage")
 RATE_CI_METRICS = BOOTSTRAP_METRICS   # single rates with a percentile 95% interval (prereg section 8), test rows only
 SCOPES = (Split.TEST, Split.DEV)
@@ -195,6 +207,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--tag", default=None, help="run tag (default n<N>-s<seed>)")
     p.add_argument("--out", default=None, help="output dir (default runs/synthetic-<tag>/ or runs/real-<tag>/)")
     p.add_argument("--model-id", default="perception.evidence-v0", help="real data: perception model id for the logs")
+    p.add_argument("--candidate", default=None,
+                   help="real/sim data: frozen_candidate.json from verify.select, read only through "
+                        "require_freeze_eligible (its .sha256 sidecar must match and it must be eligible); its "
+                        "thresholds replace the placeholders. Required for a simulation manifest with test arrangements")
+    p.add_argument("--placeholder-thresholds", action="store_true",
+                   help="real/sim data: allow a simulation manifest with test arrangements to run on the placeholder "
+                        "thresholds (pipeline tests on hand-built sets only; every output stays labelled 'placeholder "
+                        "thresholds, not frozen')")
+    p.add_argument("--side", default=None,
+                   help="real/sim data: side descriptors (perception/side_descriptor.py rows on the same jobs): every "
+                        "env then reveals each requested view's own descriptor, and the direction-rule control Dir runs")
+    p.add_argument("--model", action="append", default=None,
+                   help="real/sim data: NAME=PATH, a frozen ranker model file (verify/ranker.py save_model), e.g. "
+                        "A=model_A.json; needs --side and --candidate (the model's thresholds must be the candidate's); "
+                        "repeatable")
     return p
 
 
@@ -266,22 +293,30 @@ def write_scoring_files(n_arr: int, seed: int, params: SyntheticParams, position
 
 def run_stage(specs: Sequence[EpisodeSpec], store: EvidenceStore, positions: Positions, th: Thresholds,
               budgets: Sequence[int], caps: Sequence[float | None], r_seeds: Sequence[int],
-              context: RunContext) -> list[EpisodeLog]:
+              context: RunContext, side: SideData | None = None,
+              rankers: Sequence[Ranker] = ()) -> list[EpisodeLog]:
     """Every policy x budget x cap on every episode, each run on a fresh ReplayEnv.
 
     Envs are built from opaque ReplayKeys (minted here, before the store is sealed), never from
-    the spec; the log header is joined onto each header-free run afterwards.
+    the spec; the log header is joined onto each header-free run afterwards. With side descriptors every env is a
+    SideEnv (each revealed view carries its own stop's descriptor, nothing else), and Dir runs; each frozen ranker
+    (A, A-nocue) runs like G, with the same rules, budgets and caps.
     """
+    if rankers and side is None:
+        raise ValueError("the rankers read the side descriptor: pass side descriptors with ranker models")
     rule = StoppingRule(th)
     fcm = StoppingRule.first_clear_miss(th)  # F/G/R-fcm, and S (one view, removed on a single clear miss)
     keys = store.replay_keys()
+    side_store = side() if side is not None else None
     logs: list[EpisodeLog] = []
 
     for spec in specs:
         key = keys[spec.episode_id]
+        reveal = side_store.bind(spec.episode_id) if side_store is not None else None
 
-        def env(budget: Budget, key=key) -> ReplayEnv:
-            return ReplayEnv(key, store, positions, budget, context)
+        def env(budget: Budget, key=key, reveal=reveal) -> ReplayEnv | SideEnv:
+            e = ReplayEnv(key, store, positions, budget, context)
+            return e if reveal is None else SideEnv(e, reveal)
 
         logs.append(EpisodeLog.from_run(spec, run_episode(S(), env(Budget(0)), fcm)))
         logs.append(EpisodeLog.from_run(spec, run_episode(FullSweep(), env(Budget(4)), rule)))
@@ -291,7 +326,8 @@ def run_stage(specs: Sequence[EpisodeSpec], store: EvidenceStore, positions: Pos
                 for r in (rule, fcm):
                     for pol in (F(), G.from_thresholds(th, lookahead=G_LOOKAHEAD["G"]),
                                 G.from_thresholds(th, lookahead=G_LOOKAHEAD["G-lookahead"]),
-                                GMyopic.from_thresholds(th)):
+                                GMyopic.from_thresholds(th),
+                                *((Dir.from_thresholds(th),) if side_store is not None else ()), *rankers):
                         logs.append(EpisodeLog.from_run(spec, run_episode(pol, env(budget), r)))
                     seed_logs, _ = run_r_seeds(lambda bu=budget, e=env: e(bu), r, r_seeds, r_seed_salt(spec),
                                                spec=spec)
@@ -342,7 +378,8 @@ def stratification_info(strata: Mapping[str, str] | None, arrangement_ids: Seque
 
 def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: int,
                 B: int, seed: int, *, strata: Mapping[str, str] | None = None,
-                no_diagnostic: Mapping[str, bool] | None = None) -> dict[str, Any]:
+                no_diagnostic: Mapping[str, bool] | None = None,
+                common_target: Mapping[str, tuple[str, str]] | None = None) -> dict[str, Any]:
     """Metrics per (scope, lighting, policy, budget, cap) and paired bootstraps at the primary budget, per lighting.
 
     lighting is the query's lighting (the episode's). The "L1" and "L2" rows are the primary report
@@ -359,6 +396,10 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
     spread), and R's episodes that share a random stream (one per arrangement and lighting) stay together.
     no_diagnostic (episode_id -> no diagnostic stop, from the view labels) feeds the geometric no-diagnostic-view
     share; None falls back to the predeclared indistinguishable flag (analysis.metrics).
+    "primary" lists the primary contrast's rows (PRIMARY_PAIR at the primary budget, uncapped, per lighting) with
+    "inconclusive" = the 95% interval contains 0 (never read as equivalence). common_target ({arrangement_id: (occluder
+    family, target id)}) adds the predeclared secondary A - G on common targets (analysis.common_target) at the same
+    setting, per lighting.
     """
     groups = group_results(logs)
     # R's per-seed decisions, for its per-arrangement FRR (computed per base seed: R's condition-free salt makes the
@@ -401,7 +442,24 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
                     boots.append({"scope": Split.TEST.value, "lighting": light.value, "travel_cap_cm": cap,
                                   "budget": primary_budget, "identical_runs": same, **br.to_dict()})
     test_arrs = sorted({r.arrangement_id for v in test.values() for r in v})
-    return {"metrics": metrics, "bootstrap": boots,
+    primary = [{**r, "inconclusive": None if r["ci_lo"] is None else bool(r["ci_lo"] <= 0.0 <= r["ci_hi"])}
+               for r in boots if (r["policy_a"], r["policy_b"]) == PRIMARY_PAIR and r["travel_cap_cm"] is None]
+    common: list[dict[str, Any]] = []
+    if common_target is not None:
+        for light in Lighting:
+            sub = {k: [r for r in v if r.lighting is light] for k, v in test.items()}
+            ka = _lookup(sub, PRIMARY_PAIR[0], primary_budget, None)
+            kb = _lookup(sub, PRIMARY_PAIR[1], primary_budget, None)
+            if ka is None or kb is None or not sub[ka] or not sub[kb] or \
+                    not any(common_target[r.arrangement_id][1] in COMMON_TARGETS for r in sub[ka]):
+                continue
+            for metric in BOOTSTRAP_METRICS:
+                common.append({"scope": Split.TEST.value, "lighting": light.value, "budget": primary_budget,
+                               "travel_cap_cm": None, **common_target_diff(
+                                   sub[ka], sub[kb], truth, {a: f for a, (f, _) in common_target.items()},
+                                   {a: t for a, (_, t) in common_target.items()}, metric, B=B, seed=seed,
+                                   strata=strata)})
+    return {"metrics": metrics, "bootstrap": boots, "primary": primary, "common_target": common,
             "bootstrap_stratification": stratification_info(strata, test_arrs)}
 
 
@@ -685,6 +743,17 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
     pb, scope, caps = cfg["primary_budget"], table_scope(metrics), cfg["travel_caps_cm"]
     h = f"## {light} queries -"
     lines: list[str] = []
+    prim = [r for r in results.get("primary", []) if r["lighting"] == light]
+    if prim:
+        lines += [f"{h} PRIMARY CONTRAST: {' - '.join(PRIMARY_PAIR)} at b = {pb}, uncapped ({scope} split)", "",
+                  ("The preregistered primary comparison (SIM_PREREGISTRATION section 1), paired arrangement-level "
+                   "cluster bootstrap. A contrast whose 95% interval contains 0 is INCONCLUSIVE: it is never reported "
+                   "as equivalence, and no equivalence margin is declared. Every other row below is secondary."), "",
+                  "| metric | estimate | 95% CI | n_arr | n_ep | reading |", "| --- | --- | --- | --- | --- | --- |"]
+        for r in prim:
+            lines.append(f"| {r['metric']} | {fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | "
+                         f"{r['n_arrangements']} | {r['n_episodes']} | {_reading(r)} |")
+        lines.append("")
     for cap in caps:
         lines += [f"{h} Primary table: b = {pb} additional views, {lab(cap)}", "", HEAD]
         for p in ORDER:
@@ -755,10 +824,32 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
                          f"{fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | {r['n_arrangements']} | "
                          f"{r['n_episodes']} | {r['B']} | {r['n_undefined']} | {'; '.join(notes)} |")
         lines.append("")
+    ct = [r for r in results.get("common_target", []) if r["lighting"] == light]
+    if ct:
+        lines += [f"{h} Secondary (predeclared): {' - '.join(PRIMARY_PAIR)} on common targets, b = {pb}, uncapped", "",
+                  (f"Episodes of {', '.join(ct[0]['targets'])} only; within each occluder family these targets carry "
+                   "equal weight, recomputed on every bootstrap replicate (analysis/common_target.py). Secondary: it "
+                   "does not replace the primary contrast."), "",
+                  "| metric | estimate | 95% CI | n_arr | n_ep | single-target families | reading |",
+                  "| --- | --- | --- | --- | --- | --- | --- |"]
+        for r in ct:
+            lines.append(f"| {r['metric']} | {fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | "
+                         f"{r['n_arrangements']} | {r['n_episodes']} | {', '.join(r['single_target_families']) or '-'} | "
+                         f"{_reading(r)} |")
+        lines.append("")
     diag = results.get("diagnostics")
     if diag:
         lines += _diagnostic_lines(diag, cfg, lab, light, f"{h} Diagnostic:", scope)
     return lines
+
+
+def _reading(r: Mapping[str, Any]) -> str:
+    """The declared reading of one contrast row: inconclusive when its 95% interval contains 0, never equivalence."""
+    if r.get("ci_lo") is None or r.get("estimate") is None:
+        return "undefined"
+    if r["ci_lo"] <= 0.0 <= r["ci_hi"]:
+        return "inconclusive (the interval contains 0; not equivalence)"
+    return ("first policy higher" if r["estimate"] > 0 else "first policy lower") + " (the interval excludes 0)"
 
 
 def _pooled_lines(results: dict[str, Any], lab) -> list[str]:
@@ -870,13 +961,18 @@ def render_table(results: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-USED_COLS = ("F", "G", "G-lookahead", "G-myopic", "R")
+USED_COLS = ("F", "G", "G-lookahead", "G-myopic", "R", "Dir", "A", "A-nocue")
 
 
 def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str, scope: str = "test") -> list[str]:
     """The two 'can selection matter?' tables for one query lighting ("L1", "L2", or POOLED_DIAGNOSTIC in the
     secondary section); head starts each heading."""
     caps, budgets = cfg["travel_caps_cm"], cfg["budgets"]
+    # columns only for the policies and pairs that ran (A and Dir need --model / --side), the same in every table
+    ran = {u["policy"] for u in diag["used_view_sets"]}
+    used_cols = [p for p in USED_COLS if p in ran or p not in OPTIONAL_POLICIES]
+    pairs_ran = {(d["policy_a"], d["policy_b"]) for d in diag["disagreement"]}
+    disagree_pairs = [p for p in DISAGREE_PAIRS if p in pairs_ran or not set(p) & set(OPTIONAL_POLICIES)]
     eps = f"{scope} episodes of both lightings" if light == POOLED_DIAGNOSTIC else f"{scope} episodes with {light} queries"
     used = {(u["policy"], u["budget"], u["travel_cap_cm"]): u["n_view_sets"]
             for u in diag["used_view_sets"] if u["scope"] == scope and u["lighting"] == light}
@@ -886,12 +982,12 @@ def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str, scope: 
               f"size exist. *Used* counts the distinct view sets each policy actually ended with on the {eps} "
               "(early stopping included). This table describes paths only."),
              "", "| travel cap | b | max views | reachable sets at max | "
-             + " | ".join(f"used: {p}" for p in USED_COLS) + " |",
-             "| --- | --- | --- | --- | " + " | ".join("---" for _ in USED_COLS) + " |"]
+             + " | ".join(f"used: {p}" for p in used_cols) + " |",
+             "| --- | --- | --- | --- | " + " | ".join("---" for _ in used_cols) + " |"]
     for r in diag["reachable_view_sets"]:
         cap, b = r["travel_cap_cm"], r["budget"]
         lines.append(_md([lab(cap).replace("travel cap ", ""), str(b), str(r["max_views"]), str(r["n_max_view_sets"]),
-                          *(str(used.get((p, b, cap), "-")) for p in USED_COLS)]))
+                          *(str(used.get((p, b, cap), "-")) for p in used_cols)]))
     # Review: "the diagnostics describe paths, not outcomes" was wrong for the decision column, which compares
     # outcomes (without truth: it says how often two policies decide differently, not which one is right).
     lines += ["", f"{head} path and decision disagreement ({scope} split, k-rule policies)", "",
@@ -900,8 +996,8 @@ def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str, scope: 
                "policies looked; decision disagreement compares what they decided, an outcome (read without truth, "
                "so it does not say which decision was right). 0 means the two policies are indistinguishable at "
                "that setting, so any paired difference there is degenerate. Counts are in results.json."), "",
-              "| travel cap | b | " + " | ".join(f"{a} vs {b} path / decision" for a, b in DISAGREE_PAIRS) + " |",
-              "| --- | --- | " + " | ".join("---" for _ in DISAGREE_PAIRS) + " |"]
+              "| travel cap | b | " + " | ".join(f"{a} vs {b} path / decision" for a, b in disagree_pairs) + " |",
+              "| --- | --- | " + " | ".join("---" for _ in disagree_pairs) + " |"]
     dis = {(d["policy_a"], d["policy_b"], d["budget"], d["travel_cap_cm"]): d
            for d in diag["disagreement"] if d["scope"] == scope and d["lighting"] == light}
     for cap in caps:
@@ -909,7 +1005,7 @@ def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str, scope: 
             if b == 0:
                 continue
             cells = []
-            for a, bb in DISAGREE_PAIRS:
+            for a, bb in disagree_pairs:
                 d = dis.get((a, bb, b, cap))
                 cells.append("-" if d is None else
                              f"{d['path_disagreement_rate']:.2f} / {d['decision_disagreement_rate']:.2f}")
@@ -1018,13 +1114,17 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-REAL_CONFIG_VERSION = "real-v4"   # v4 (2026-11-03): bootstrap_stratified is what the test bootstrap uses (singleton
+REAL_CONFIG_VERSION = "real-v5"   # v5 (2026-11-05): frozen candidate thresholds (--candidate), side descriptors, Dir and
+# frozen rankers (--side, --model), the primary contrast and the common-target secondary analysis
+# real-v4   # v4 (2026-11-03): bootstrap_stratified is what the test bootstrap uses (singleton
 # strata fall back); single-rate CIs; SIMULATION-labelled logs and truth
 # v3 (2026-11-03): simulation flag, view labels file and bootstrap strata hashed
 # v2 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
 # v1 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
 REAL_LABEL = "REAL PILOT - placeholder thresholds, not frozen"
 SIM_LABEL = "SIMULATION - placeholder thresholds, not frozen"
+REAL_FROZEN_LABEL = "REAL PILOT - frozen candidate thresholds"
+SIM_FROZEN_LABEL = "SIMULATION - frozen candidate thresholds"
 
 
 def main_real(args: argparse.Namespace) -> int:
@@ -1068,7 +1168,55 @@ def main_real(args: argparse.Namespace) -> int:
     # the stratification the test bootstrap will use, from the manifest's splits and families (no truth): singleton
     # strata fall back to unstratified, and with no test arrangement no bootstrap runs
     planned = stratification_info(strata, [s.arrangement_id for s in specs if s.split is Split.TEST])
+    has_test = any(s.split is Split.TEST for s in specs)
+    if info.simulation and has_test and args.candidate is None and not args.placeholder_thresholds:
+        print("a simulation manifest with test arrangements needs --candidate: test is scored only with frozen "
+              "thresholds, never with the placeholders (--placeholder-thresholds: pipeline tests only)", file=sys.stderr)
+        return 2
+    if args.candidate is not None and args.placeholder_thresholds:
+        print("--candidate and --placeholder-thresholds exclude each other", file=sys.stderr)
+        return 2
+    if args.model and (args.side is None or args.candidate is None):
+        print("--model needs --side (the rankers read the descriptor) and --candidate", file=sys.stderr)
+        return 2
     th = Thresholds()
+    cand_doc = None
+    side_data: SideData | None = None
+    rankers: list[Ranker] = []
+    models: dict[str, dict[str, str]] = {}
+    try:
+        if args.candidate is not None:
+            from verify.select import NotEligibleForFreeze, require_freeze_eligible   # heavy: only when asked
+            try:
+                cand_doc = require_freeze_eligible(args.candidate)
+            except NotEligibleForFreeze as e:
+                raise ValueError(f"--candidate refused: {e}") from e
+            if bool(cand_doc.get("simulation")) != info.simulation:
+                raise ValueError(f"the candidate says simulation={cand_doc.get('simulation')} but the manifest says "
+                                 f"simulation={info.simulation}")
+            th = Thresholds(**{k: cand_doc["thresholds"][k] for k in ("tau_match", "tau_q", "tau_occ", "k", "lam",
+                                                                       "travel_norm_cm")})
+        if args.side is not None:
+            side_data = SideData.from_store(SideStore.from_jsonl(args.side, positions.n_stops,
+                                                                 episode_ids=[s.episode_id for s in specs]),
+                                            [s.episode_id for s in specs], source=_rel(Path(args.side)))
+        for item in args.model or ():
+            name, sep, path = item.partition("=")
+            if not sep or not name or not path or name in models:
+                raise ValueError(f"--model takes NAME=PATH once per name, got {item!r}")
+            from verify.ranker import load_model
+            doc = json.loads(Path(path).read_text())
+            if doc.get("thresholds") != th.to_dict():
+                raise ValueError(f"model {path} was trained with thresholds {doc.get('thresholds')}, not the "
+                                 f"candidate's {th.to_dict()}")
+            r = load_model(path)
+            if r.name != name:
+                raise ValueError(f"model {path} is {r.name!r}, not {name!r}")
+            rankers.append(r)
+            models[name] = {"file": _rel(Path(path)), "sha256": file_sha256(path)}
+    except (OSError, ValueError, KeyError) as e:
+        print(f"bad real-data input: {e}", file=sys.stderr)
+        return 2
     config = {"config_version": REAL_CONFIG_VERSION, "model_id": args.model_id, "synthetic": False,
               "simulation": info.simulation,
               "positions_file": _rel(Path(pos_path)), "positions_file_sha256": file_sha256(pos_path),
@@ -1085,12 +1233,22 @@ def main_real(args: argparse.Namespace) -> int:
               "g_myopic": {"lam_deg": GMYOPIC_LAM_DEG, "travel_norm_cm": th.travel_norm_cm},
               "r_seeds": list(range(args.r_seeds)), "bootstrap_B": args.bootstrap_B,
               "primary_budget": args.primary_budget, "thresholds": th.to_dict(), "positions": positions.to_dict(),
-              "scoring_split": Split.TEST.value}
+              "scoring_split": Split.TEST.value,
+              "thresholds_source": "frozen candidate" if cand_doc is not None else "placeholders",
+              "candidate_file": None if args.candidate is None else _rel(Path(args.candidate)),
+              "candidate_sha256": None if args.candidate is None else file_sha256(args.candidate),
+              "side_file": None if args.side is None else _rel(Path(args.side)),
+              "side_sha256": None if args.side is None else file_sha256(args.side),
+              "ranker_models": models, "primary_contrast": list(PRIMARY_PAIR),
+              "common_targets": list(COMMON_TARGETS)}
+    if cand_doc is not None:
+        label = SIM_FROZEN_LABEL if info.simulation else REAL_FROZEN_LABEL
     sha = config_sha256(config)
     write_json(out / "config.json", {"label": label, "config": config, "config_sha256": sha})
     context = RunContext(model_id=args.model_id, config_version=REAL_CONFIG_VERSION, config_sha256=sha,
                          synthetic=False)
-    logs = run_stage(specs, store, positions, th, args.budgets, config["travel_caps_cm"], config["r_seeds"], context)
+    logs = run_stage(specs, store, positions, th, args.budgets, config["travel_caps_cm"], config["r_seeds"], context,
+                     side=side_data, rankers=rankers)
     del store
     sim_label = label if info.simulation else None   # every output of a simulation manifest is labelled SIMULATION
     write_logs(out / "logs.jsonl", logs, simulation_label=sim_label)
@@ -1112,8 +1270,10 @@ def main_real(args: argparse.Namespace) -> int:
             print(f"bad --view-labels: {e}", file=sys.stderr)
             return 2
         no_diag = labels.no_diagnostic_view()
+    common = ({a.arrangement_id: (a.occluder_family, a.target_id) for a in info.arrangements}
+              if all(a.occluder_family is not None for a in info.arrangements) else None)
     scored = score_stage(logs, truth, args.primary_budget, args.bootstrap_B, args.seed, strata=strata,
-                         no_diagnostic=no_diag)
+                         no_diagnostic=no_diag, common_target=common)
     results = {"label": label, "synthetic": False, "simulation": info.simulation, "config": config,
                "config_sha256": sha, "positions": positions.to_dict(), "thresholds": th.to_dict(),
                "files": {n: file_sha256(out / n) for n in ("ground_truth.json", "logs.jsonl")},
