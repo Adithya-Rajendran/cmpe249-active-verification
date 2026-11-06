@@ -1,6 +1,13 @@
 # Pre-registration: the simulation study (draft for final review)
 
-**Status: DRAFT. The design choices were confirmed by the student on 2026-11-02 / 11-03. The whole document gets one final review after the development loop, including A, is finished. It is then frozen with FREEZE.md before any test scene is generated.** It succeeds the earlier physical-study draft, which was never confirmed and is archived in the student's local progress folder.
+**Status: REVIEW DRAFT (2026-11-06).**
+- The design choices were confirmed by the researcher on 2026-11-02 / 11-03.
+- The development loop, including A, is finished. Its record is §14 and the notes cited there.
+- The whole document now gets its one final review. It is then frozen with FREEZE.md before any test scene is
+  generated. The slots marked `[ ]` are the researcher's to confirm or edit in that review.
+
+It succeeds the earlier physical-study draft, which was never confirmed and is archived in the researcher's local
+progress folder.
 - [`EXPERIMENT_PLAN.md`](EXPERIMENT_PLAN.md) holds the design.
 - [`SIMULATION_STUDY.md`](SIMULATION_STUDY.md) is the amendment.
 - This document fixes the analysis rules. Slots still marked `[ ]` are open until the final review.
@@ -15,7 +22,21 @@
 - *Simulated* means images rendered by Isaac Sim from the rig replica (`sim/`); every course result is a simulation result.
 - `verify.run --synthetic` means randomly generated evidence with no images. It is used only for pipeline tests and never appears in results.
 
-## Decisions in force (the student, 2026-11-02 / 11-03; also in the amendment and DECISIONS)
+## Decisions in force (the researcher, 2026-11-02 / 11-03 / 11-05; also in the amendment and DECISIONS)
+
+- **Bounded completion** (2026-11-05):
+  - The study is finished as declared and is not expanded to make A beat G.
+  - A - G stays the primary at b = 3, uncapped, k = 2, lam = 0.
+  - A - G-lookahead is reported across the caps.
+  - A deterministic direction rule Dir, built on the same descriptor as A, is an explanatory control. Its origin as
+    a post-hoc development idea is documented (`notes/2026-11-05-side-descriptor.md`).
+  - No favourable cap or subgroup is promoted to the primary endpoint.
+  - New models, registration methods, scene redesigns and physical studies are outside this study.
+- **Registration** (Amendment 2 of `notes/2026-11-04-registration-repair-plan.md`, 2026-11-05):
+  - The registration search is closed, and development continued with C0 unchanged in both environments.
+  - C0's failure of its own tabletop refusal criterion stands: 12 / 165 views refused in L1 and 9 / 165 in L2 on the
+    first 11 arrangements.
+  - A refused view cannot give a clear miss, but it can still give PRESENT through the strong-match rule.
 
 - **Simulator:** Isaac Sim 6.2 on the GB10 is the single simulator; MuJoCo is a geometry cross-check only.
 - **Environments:** shelf (the measured rig replica), then tabletop. **No third environment.** Claims concern **new arrangements within these two environments**, not generalisation to unseen environment types.
@@ -65,7 +86,13 @@
 ## 1. Questions and hypotheses
 
 - **Primary question.** Under view-budgeted verification (b = 3, uncapped), does the learned ranker **A** improve on the geometric selector **G** in FRR, removal recall and coverage? The primary contrast is A − G on test, reported separately for L1 and L2 and for each environment. `[ ] confirm / edit:`
-- **Baselines.** A − F, A − R, G − F, G − R, and each multi-view policy against S (at its actual effort). `[ ] confirm / edit:`
+- **Baselines.** A − F, A − R, G − F, G − R, and each multi-view policy against S (at its actual effort).
+- **Added 2026-11-05 (secondary):**
+  - A − G-lookahead along the travel caps;
+  - A − A-nocue (does the occlusion cue matter);
+  - A − Dir (explanatory: does learning add anything over the deterministic rule on the same descriptor).
+
+  None of them replaces the primary. `[ ] confirm / edit:`
 - **Hypotheses:**
   - **H1:** for the same selector, k = 2 gated removal gives lower FRR than first-clear-miss removal (`-fcm`), possibly at lower coverage.
   - **H2:** A improves the error / coverage / effort trade-off over F and R.
@@ -87,8 +114,8 @@
   - **Slot list.** Before rendering, a fixed slot list per split and environment assigns every arrangement its occluder family, and its M16 side. The list comes from a seeded permutation of the quota table above.
   - **Retries and replacements.** If a seed's placement fails, the generator retries deterministically within the same family: seed, attempt 1, 2, …, up to a fixed maximum. After that it takes the next seed from that family's reserve list. **It never falls back to another family.**
   - **Retry maximum: 20** attempts per seed, as proposed (generator config, 2026-11-03). Each family has its own reserve seed list; a replacement never changes the family, the M16 side or the target.
-  - **M16 is placed asymmetrically.** M16 is the physical board, 16 cm wide and 12 cm tall (`configs/sim/arrange_shelf_v3.json`; a taller simulation-only variant, v2, was tried and dropped on 2026-11-03). The board is shifted to one side of the target's P3 sight line, with left and right balanced across arrangements (dev 9 + 9, test 15 + 15). **Side rule (v3):** the P3 view is hidden, the adjacent same-side stop is covered ≥ 0.95, the nearest opposite-side stop is covered ≤ 0.10, and at least 2 stops are clear. The far same-side stop is unrestricted, so partial patterns such as pHHCC and CCHHp are accepted (student, 2026-11-03). Pure patterns are CHHCC (left) and CCHHC (right).
-  - **Targets are slots too** (student, 2026-11-03). Within each slot class (and each M16 side) the targets come from a seeded, balanced list, fixed per slot through every retry and replacement. A (target, family) pair is left out of a class's list only when **no valid placement was found in the tested generator search** (0 of 100 tries; not a proof that none exists). Under v3 that leaves: S8 without the tomato can; M16 (both sides) and the YCB box with the foam brick and tuna can only; IND28 and the white box with all five. The target composition per class is reported with every result (§9).
+  - **M16 is placed asymmetrically.** M16 is the physical board, 16 cm wide and 12 cm tall (`configs/sim/arrange_shelf_v3.json`; a taller simulation-only variant, v2, was tried and dropped on 2026-11-03). The board is shifted to one side of the target's P3 sight line, with left and right balanced across arrangements (dev 9 + 9, test 15 + 15). **Side rule (v3):** the P3 view is hidden, the adjacent same-side stop is covered ≥ 0.95, the nearest opposite-side stop is covered ≤ 0.10, and at least 2 stops are clear. The far same-side stop is unrestricted, so partial patterns such as pHHCC and CCHHp are accepted (researcher, 2026-11-03). Pure patterns are CHHCC (left) and CCHHC (right).
+  - **Targets are slots too** (researcher, 2026-11-03). Within each slot class (and each M16 side) the targets come from a seeded, balanced list, fixed per slot through every retry and replacement. A (target, family) pair is left out of a class's list only when **no valid placement was found in the tested generator search** (0 of 100 tries; not a proof that none exists). Under v3 that leaves: S8 without the tomato can; M16 (both sides) and the YCB box with the foam brick and tuna can only; IND28 and the white box with all five. The target composition per class is reported with every result (§9).
   - **Logging.** Retries and replacements are logged.
 
 ## 3. Conditions, occluders and geometric labels
@@ -117,13 +144,37 @@
 | G-lookahead | the same scorer plus the reachability filter | ablation |
 | G-myopic | the pre-revision G (different normalisation) | legacy ablation |
 | A | learned informativeness; same λ (= 0) and candidate set as G | proposed; **built during dev** |
-| A-nocue | A without the occlusion cue | ablation |
+| A-nocue | A without the side descriptor and every other obstruction-derived feature | ablation |
+| Dir | direction rule on P3's left/right descriptor (below); G when the descriptor is missing or 0 | explanatory control (post-hoc development origin) |
 | FULL | all stops, uncapped | higher-effort reference, not an upper bound |
 | `X-fcm` | same selector, k = 1 | H1 ablation |
 
 - **A.** A regularised logistic regression on observed evidence and candidate geometry, never on unrequested images.
   - **Training:** grouped (by arrangement) CV on dev only, with geometric diagnostic labels (§3) as training targets.
   - **Freeze:** features and regularisation grid are fixed in FREEZE.md.
+  - **Pinned design** (`notes/2026-11-05-ranker-a-design.md`, f4d4fe5, fixed before any fit on rendered evidence):
+    - Model: L2 logistic regression, fit by Newton's method, with C in {0.01, 0.1, 1, 10}. C is chosen by five
+      inner arrangement folds on the training label's log-loss, never on a policy outcome.
+    - Rows: every state after the start view and 0-2 further stops at which the stopping rule continues. Each
+      arrangement carries weight 1.
+    - Eight features: az_from_start, sep_visited, sep_occluded, obstruction_start, side_toward, side_missing,
+      match_max and quality_min. A-nocue drops sep_occluded, obstruction_start, side_toward and side_missing.
+    - Selection: G's candidate set and tie-break.
+  - **Frozen models.** `frozen/model_A.json` and `frozen/model_A-nocue.json`, trained on all 120 development
+    arrangements with the frozen thresholds (`python -m verify.ranker`).
+  - **Isolation.** In the held-out check, each fold trains its own A and A-nocue in its own process on that fold's
+    training arrangements.
+- **The left/right descriptor** (`notes/2026-11-05-side-descriptor.md`, c41ecff):
+  - Definition: d = u_left − u_right of v0.3's own obstruction map, over the target's context window split at the box
+    centre. d > 0 points to larger azimuth.
+  - It is missing on a refused registration or when either half has less than half its pixels valid.
+  - Each requested view reveals only its own stop's value (`verify/side.py`).
+- **Dir.**
+  - If P3's descriptor is missing or 0, Dir is primary G at every step.
+  - Otherwise, at each choice, it takes the affordable unvisited stop on the descriptor's side of the start stop that
+    is nearest the current stop (ties: lower stop index). When there is none, it chooses as primary G.
+  - Dir has no fitted parameter. It was defined after the headroom analysis of 2026-11-05, as a control for what A
+    can gain from the descriptor alone.
 
   `[ ] confirm / edit:`
 - **τ_occ** is both the clear-miss gate and G's occlusion flag. So the occlusion-gate-off ablation (τ_occ = 1.0) is **reported for F and R only**, where it changes the gate and nothing else.
@@ -180,6 +231,14 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
   - **Freeze check:** the freeze step accepts a candidate only through `require_freeze_eligible`. It takes the candidate file only, checked against its `.sha256` sidecar, and refuses ineligible and unmarked candidates. It refuses a synthetic one if any mark says so: the flag, the label or the synthetic provenance.
   - **Not required:** every held-out arrangement meeting α. Those held-out rates are reported checks.
 - **Flat threshold curves are acceptable.** Both the correct and the false clear-miss curves over the grid are inspected and reported. The declared tie-break is kept when it decides, and no variation is forced.
+- **Result (2026-11-06; `notes/2026-11-06-pooled-calibration.md`).** The final shared calibration ran on both
+  environments' 120 development arrangements: shelf 60, and tabletop 60 = the first 11 plus the 49 of Amendment 2. The
+  held-out check included A, A-nocue and Dir.
+  - **Eligible:** calibration succeeded on all development data and in all 120 folds.
+  - **Thresholds:** tau_q 0.3, tau_occ 0.4, tau_match 0.7, k 2, lam 0. The candidate is `frozen/frozen_candidate.json`,
+    sha256 3a45b23c...
+  - **Subgroups** (reported, not adjusted): the gate's false-clear rate on shelf L1 views is 21 / 176. The pooled rate
+    is 50 / 632, which meets alpha_clear.
 
 `[ ] confirm after inspecting the implemented select-v4 / edit:`
 
@@ -209,7 +268,17 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
   - `X` vs `X-fcm`.
 
   Identical-run contrasts are flagged.
-- **Secondary, predeclared: A − G on common targets.** This is the A − G contrast restricted to the foam brick and tuna can episodes, the two targets every family supports, across all families. It uses consistent target weighting: within each family the two targets carry equal weight, so the comparison across families is not a difference in target mix. It is reported per lighting and environment, with the same stratified paired cluster bootstrap (§8). This addresses the target–family confound (2026-11-03); it is secondary and does not replace the primary A − G. `[ ] implementation pending (before the freeze)`
+- **Secondary, predeclared: A − G on common targets.** This is the A − G contrast restricted to the foam brick and tuna can episodes, the two targets every family supports, across all families. It uses consistent target weighting: within each family the two targets carry equal weight, so the comparison across families is not a difference in target mix. It is reported per lighting and environment, with the same stratified paired cluster bootstrap (§8). This addresses the target–family confound (2026-11-03); it is secondary and does not replace the primary A − G. Implemented in `analysis/common_target.py` and `verify/run.py` (abd99d6). `[ ] confirm / edit:`
+- **View level, on test (Amendment 2).**
+  - Reported by environment and lighting:
+    - refusals;
+    - both per-view error directions: present-labelled clear misses and removed-labelled strong matches;
+    - the plane geometry of accepted views: on the shelf the target plane, with the front plane beside it; on the
+      tabletop the horizontal plane through the target's centre, a proxy, with the table plane beside it;
+    - target-alone silhouette IoU.
+  - It uses `tools/registration_compare.py --report-only` with the frozen thresholds.
+  - The first 11 tabletop arrangements, the remaining 49 and the test are kept apart.
+  - A plane disagreement is not an error against a true whole-scene alignment.
 - **Labels and the real-photo check.** Every result is labelled "simulation". Pilots 1–2 (real photos) are a separate sim-to-real check of score ranges and are never pooled.
 
 `[ ] confirm / edit:`
@@ -253,7 +322,48 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 
 **Produced after test rendering, by the frozen procedure:** the mask-derived geometric labels, the visible fractions, and the no-diagnostic-view flags. They are outputs of the frozen code, not inputs to the freeze.
 
+**How (2026-11-06).**
+- `docs/FREEZE.md` carries one machine-readable record (`tools/make_freeze.py`): the frozen commit and the sha256 of
+  every file the test path runs or reads, including `frozen/` (the candidate and the A / A-nocue model files) and the
+  test pipeline specs.
+- It also gives the runbook and the validity requirements that are checked before any outcome is read.
+- Test seeds open only against that committed file (`sim/freeze.py`):
+  - generation through `sim/testsplit.py`, with `sim/arrange.py` byte-identical;
+  - episodes through `sim/episodes.py --freeze`;
+  - rendering through `sim/render_test.py`, with `sim/isaac_batch.py` byte-identical, in a GB10 run directory of its
+    own.
+
 ## 13. Deviations
 
 - **Dated addenda.** Any change after the freeze is a dated addendum: what changed, why, and whether any test result had been seen. Earlier text is never edited.
 - **Changes after test rendering** are reported as deviations next to the results they affect, with the pre-registered analysis alongside where feasible.
+
+## 14. Development record before the freeze (CONDITIONAL DEVELOPMENT DIAGNOSTICS)
+
+These findings come from development data. Several come from analyses chosen after looking at that data. They are
+recorded before any test scene exists so that the test cannot be read in their light afterwards. They predict nothing
+about the test: new arrangements can move every number below, and A may tie with or lose to G.
+
+- **Headroom** (2026-11-05, as Amendment 2 lists it):
+  - On shelf dev at b = 3 uncapped, G removes 45 / 60 (L1) and 43 / 60 (L2) against any-order ceilings of 46 and
+    44, and the present episodes are at their ceiling.
+  - G's choices equal the fixed route P3, P1, P5, P4, P2 on all 360 shelf episodes.
+  - Under the two-step cap, the any-order ceiling (25 and 24) exceeds the best one-side route (15 and 13). 18 of those
+    ceiling removals are M16 arrangements, each resolvable only on the side away from its designed board offset
+    (`runs/2026-11-05-headroom-check/side_audit.txt`, untracked).
+  - The ceilings use views no policy may see.
+- **The 49 tabletop arrangements** at the fixed shelf thresholds: `notes/2026-11-06-tabletop-dev49-transfer.md`.
+- **The pooled calibration and its held-out check:** `notes/2026-11-06-pooled-calibration.md`. Held out, with no false
+  removal anywhere:
+  - At b = 3 uncapped, A and G differ on 5 of 240 removed episodes: A gains 3 and loses 2.
+  - A's decisions equal Dir's in every held-out episode, and A-nocue's equal G's.
+  - Under the 3- and 4-step caps, A (= Dir) removes 28 / 26 / 44 / 41 (shelf L1 / L2, tabletop L1 / L2) against G's
+    15 / 15 / 28 / 29.
+  - Under the 2-step cap A removes 0, as G does.
+- **Resolution at the test size.** If test arrangements disagree like development ones, the SD of A − G removal recall
+  at 100 test arrangements per environment is 0.012-0.017. So an inconclusive primary is likely.
+- **The renderer check** in FREEZE.md: the current renderer reproduces the shelf development renders within
+  run-to-run render noise.
+
+None of this changes the design. The primary endpoint, k, λ, the caps, A's pinned design and the analysis rules stand
+as written above.
