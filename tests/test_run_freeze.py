@@ -212,3 +212,27 @@ class CommonTargetTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FrozenModelCliTest(unittest.TestCase):
+    def test_trains_on_the_candidates_dev_data_only(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            args = write_sim_set(d / "dev", DEV_SLOTS)
+            side = write_side(d / "dev", DEV_SLOTS)
+            with quiet():
+                self.assertEqual(sel.main([*args, "--side", str(side), *SELECT_QUICK, "--out", str(d / "c")]), 0)
+                rc = rk.main([*args, "--side", str(side), "--candidate", str(d / "c" / "frozen_candidate.json"),
+                              "--name", "A", "--out", str(d / "A.json")])
+            self.assertEqual(rc, 0)
+            doc = json.loads((d / "A.json").read_text())
+            self.assertEqual(doc["name"], "A")
+            self.assertEqual(doc["provenance"]["dev_arrangements"], sorted(a for a, _, _ in DEV_SLOTS))
+            self.assertEqual(rk.load_model(d / "A.json").features, RANKER_FEATURES)
+            # other dev data than the candidate's are refused
+            other = write_sim_set(d / "other", DEV_SLOTS, l2_quality=0.7)
+            with quiet():
+                rc = rk.main([*other, "--side", str(write_side(d / "other", DEV_SLOTS)), "--candidate",
+                              str(d / "c" / "frozen_candidate.json"), "--name", "A", "--out", str(d / "B.json")])
+            self.assertEqual(rc, 2)
+            self.assertFalse((d / "B.json").exists())

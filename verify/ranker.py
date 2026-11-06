@@ -18,6 +18,7 @@ held-out policy check builds A afresh in every fold's own process on dev.subset(
 """
 from __future__ import annotations
 
+import hashlib
 import itertools
 import json
 from collections.abc import Callable, Sequence
@@ -245,3 +246,54 @@ def load_model(path: str | Path) -> Ranker:
     if doc.get("schema") != MODEL_SCHEMA:
         raise ValueError(f"{path}: schema {doc.get('schema')!r}, expected {MODEL_SCHEMA!r}")
     return Ranker(doc["name"], doc["features"], doc["mean"], doc["scale"], doc["coef"], doc["intercept"], doc["tau_occ"])
+
+
+# ---------------------------------------------------------------- the frozen model (FREEZE.md)
+
+def train_frozen(dev: Any, candidate: str | Path, name: str) -> tuple[Fitted, Thresholds, dict[str, Any]]:
+    """The frozen ranker: trained once on every development arrangement with the frozen candidate's thresholds, by the
+    same procedure as in each fold. The candidate is read only through require_freeze_eligible, and the dev data must
+    be the data it was calibrated on (its evidence and label hashes)."""
+    from verify.select import require_freeze_eligible   # select imports this module's caller, not this module
+    doc = require_freeze_eligible(candidate)
+    if (doc.get("dev_evidence_sha256"), doc.get("view_labels_sha256")) != (dev.evidence_sha256, dev.view_labels_sha256):
+        raise ValueError("these dev data are not the candidate's: its dev_evidence_sha256 / view_labels_sha256 differ")
+    th = Thresholds(**{k: doc["thresholds"][k] for k in ("tau_match", "tau_q", "tau_occ", "k", "lam", "travel_norm_cm")})
+    fitted = fit_with_selection(training_rows(dev, th, RANKERS[name].features))
+    prov = {"candidate_sha256": hashlib.sha256(Path(candidate).read_bytes()).hexdigest(),
+            "dev_evidence_sha256": dev.evidence_sha256, "view_labels_sha256": dev.view_labels_sha256,
+            "side_sha256": dev.side.sha256(), "dev_arrangements": list(dev.arrangements),
+            "ranker_module_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "design": "notes/2026-11-05-ranker-a-design.md"}
+    return fitted, th, prov
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import sys
+    from verify import select as sel
+    ap = argparse.ArgumentParser(prog="verify.ranker", description="Train the frozen ranker A or A-nocue on every dev "
+                                 "arrangement with the frozen candidate's thresholds (FREEZE.md).")
+    for flag in ("--manifest", "--evidence", "--view-labels", "--positions", "--side"):
+        ap.add_argument(flag, action="append", required=True, help="once per dev set, in the same order")
+    ap.add_argument("--candidate", required=True, help="the frozen candidate (frozen_candidate.json)")
+    ap.add_argument("--name", required=True, choices=sorted(RANKERS))
+    ap.add_argument("--out", required=True, help="the model file (JSON)")
+    a = ap.parse_args(argv)
+    sets = list(zip(a.manifest, a.evidence, a.view_labels, a.positions, a.side))
+    if len({len(x) for x in (a.manifest, a.evidence, a.view_labels, a.positions, a.side)}) != 1:
+        print("give every file once per dev set", file=sys.stderr)
+        return 2
+    try:
+        dev = sel.sim_dev_data(*sets[0]) if len(sets) == 1 else sel.sim_dev_data_pooled(sets)
+        fitted, th, prov = train_frozen(dev, a.candidate, a.name)
+    except (OSError, ValueError, KeyError, sel.NotEligibleForFreeze) as e:
+        print(f"refused: {type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+    save_model(a.out, a.name, fitted, th, prov)
+    print(f"{a.name}: C {fitted.C:g}, {fitted.n_rows} rows from {fitted.n_arrangements} arrangements; wrote {a.out}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
