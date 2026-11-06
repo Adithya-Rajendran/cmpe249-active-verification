@@ -685,10 +685,13 @@ def run_flags(a: Sequence[EpisodeResult], b: Sequence[EpisodeResult]) -> dict[st
     same = same_decisions(a, b)
     note = ""
     if same and not identical_runs(a, b):
+        db = {r.episode_id: r for r in b}
+        n = sum(1 for r in a if (r.mean_travel_cm, r.mean_views) != (db[r.episode_id].mean_travel_cm,
+                                                                    db[r.episode_id].mean_views))
         ta, tb = (sum(r.mean_travel_cm for r in x) / len(x) for x in (a, b))
         va, vb = (sum(r.mean_views for r in x) / len(x) for x in (a, b))
-        note = (f"same decisions on every episode, different effort: mean travel {ta:.1f} vs {tb:.1f} cm, mean views "
-                f"{va:.2f} vs {vb:.2f} ({a[0].policy} vs {b[0].policy})")
+        note = (f"same decisions on every episode, different effort on {n} of {len(a)} episodes: mean travel "
+                f"{ta:.1f} vs {tb:.1f} cm, mean views {va:.2f} vs {vb:.2f} ({a[0].policy} vs {b[0].policy})")
     return {"same_decisions": same, "effort_note": note}
 
 

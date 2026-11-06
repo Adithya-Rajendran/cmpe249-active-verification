@@ -522,8 +522,8 @@ class ZeroWidthReportTest(unittest.TestCase):
         self.assertTrue(run.same_decisions(a, d))
         flags = run.run_flags(a, d)
         self.assertEqual(flags, {"same_decisions": True, "effort_note": (
-            "same decisions on every episode, different effort: mean travel 156.0 vs 93.5 cm, mean views 2.14 vs "
-            "2.24 (A vs Dir)")})
+            "same decisions on every episode, different effort on 60 of 60 episodes: mean travel 156.0 vs 93.5 cm, "
+            "mean views 2.14 vs 2.24 (A vs Dir)")})
         self.assertEqual(run.run_flags(a, a), {"same_decisions": True, "effort_note": ""})   # identical runs
         row = {**paired_diff(a, d, truth_for(a), "removal_recall", B=200, seed=0).to_dict(), "identical_runs": False,
                **flags}
@@ -541,6 +541,11 @@ class ZeroWidthReportTest(unittest.TestCase):
         self.assertEqual(run._run_level(row), [row["effort_note"]])
         self.assertEqual(run._run_level({**row, "identical_runs": True}), ["identical: A == B on every episode"])
         self.assertEqual(run._run_level({**row, "effort_note": ""}), [])
+        # equal mean effort, different per-episode effort: the count says so
+        b = [dataclasses.replace(x, mean_travel_cm=x.mean_travel_cm + (10.0 if i % 2 else -10.0))
+             for i, x in enumerate(sorted(a, key=lambda r: r.episode_id))]
+        note = run.run_flags(a, b)["effort_note"]
+        self.assertIn("different effort on 60 of 60 episodes: mean travel 156.0 vs 156.0 cm", note)
 
     def test_a_constant_nonzero_difference_reads_as_no_variation(self) -> None:
         g, f = make(5, correct, "G"), make(5, lambda i, c, l: U if (c.value, l.value) == ("visible", "L1")
