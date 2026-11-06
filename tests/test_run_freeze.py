@@ -149,6 +149,18 @@ class FrozenRunTest(unittest.TestCase):
         self.assertEqual(caps, set(self.res["config"]["travel_caps_cm"]))
         self.assertTrue([r for r in self.res["bootstrap"] if (r["policy_a"], r["policy_b"]) == ("A", "Dir")])
 
+    def test_sensitivity_runs(self) -> None:
+        pols = {m["policy"] for m in self.res["metrics"]}
+        for p in ("G-k3", "A-k3", "Dir-k3", "R-k3", "G-lam0.7", "G-lookahead-lam1.2"):
+            self.assertIn(p, pols)
+        self.assertNotIn("A-lam0.7", pols)                      # lam is G's weight; A and Dir do not read it
+        self.assertEqual({m["budget"] for m in self.res["metrics"] if m["policy"] == "G-k3"}, {3})
+        self.assertEqual(self.res["config"]["sensitivity"]["k"], [3])
+        table = (self.out / "table.md").read_text()
+        self.assertIn("Sensitivity runs, b = 3", table)
+        self.assertIn("| A-k3 |", table)
+        self.assertFalse(run._is_sensitivity("A-nocue") or run._is_sensitivity("G-lookahead"))
+
     def test_every_policy_has_table_rows(self) -> None:
         table = (self.out / "table.md").read_text()
         for p in ("A", "A-nocue", "Dir", "A-fcm", "G"):

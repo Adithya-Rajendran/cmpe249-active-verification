@@ -225,6 +225,12 @@ def build_parser() -> argparse.ArgumentParser:
                         "require_freeze_eligible (its .sha256 sidecar must match and it must be eligible); its "
                         "thresholds replace the placeholders. Required for a simulation manifest with test "
                         "arrangements")
+    p.add_argument("--k-sensitivity", type=lambda x: () if x == "none" else tuple(int(v) for v in x.split(",")),
+                   default=(3,), help="real/sim data: k values of the declared sensitivity runs (default 3, or none)")
+    p.add_argument("--lam-sensitivity", type=lambda x: () if x == "none" else tuple(float(v) for v in x.split(",")),
+                   default=(0.7, 0.9, 1.2),
+                   help="real/sim data: lam values of the declared sensitivity runs for G and G-lookahead "
+                        "(default 0.7,0.9,1.2, or none)")
     p.add_argument("--placeholder-thresholds", action="store_true",
                    help="real/sim data: allow a simulation manifest with test arrangements to run on the placeholder "
                         "thresholds (pipeline tests on hand-built sets only; every output stays labelled 'placeholder "
@@ -310,13 +316,16 @@ def write_scoring_files(n_arr: int, seed: int, params: SyntheticParams, position
 def run_stage(specs: Sequence[EpisodeSpec], store: EvidenceStore, positions: Positions, th: Thresholds,
               budgets: Sequence[int], caps: Sequence[float | None], r_seeds: Sequence[int],
               context: RunContext, side: SideData | None = None,
-              rankers: Sequence[Ranker] = ()) -> list[EpisodeLog]:
+              rankers: Sequence[Ranker] = (), sensitivity: Sequence[tuple[str, Thresholds]] = (),
+              primary_budget: int | None = None) -> list[EpisodeLog]:
     """Every policy x budget x cap on every episode, each run on a fresh ReplayEnv.
 
     Envs are built from opaque ReplayKeys (minted here, before the store is sealed), never from
     the spec; the log header is joined onto each header-free run afterwards. With side descriptors every env is a
     SideEnv (each revealed view carries its own stop's descriptor, nothing else), and Dir runs; each frozen ranker
-    (A, A-nocue) runs like G, with the same rules, budgets and caps.
+    (A, A-nocue) runs like G, with the same rules, budgets and caps. sensitivity: (suffix, thresholds) pairs run at the
+    primary budget under every cap and logged as "<policy>-<suffix>" (SENSITIVITY_SUFFIX): a k value runs every
+    multi-view policy with that k-rule; a lam value runs G and G-lookahead with that weight (reported only).
     """
     if rankers and side is None:
         raise ValueError("the rankers read the side descriptor: pass side descriptors with ranker models")
@@ -348,7 +357,29 @@ def run_stage(specs: Sequence[EpisodeSpec], store: EvidenceStore, positions: Pos
                     seed_logs, _ = run_r_seeds(lambda bu=budget, e=env: e(bu), r, r_seeds, r_seed_salt(spec),
                                                spec=spec)
                     logs.extend(seed_logs)
+        for suffix, t in sensitivity:
+            k_run = suffix.startswith("k")
+            r = StoppingRule(t)
+            for cap in caps:
+                budget = Budget(primary_budget, cap)
+                pols = ((F(), G.from_thresholds(t, lookahead=False), G.from_thresholds(t, lookahead=True),
+                         GMyopic.from_thresholds(t), *((Dir.from_thresholds(t),) if side_store is not None else ()),
+                         *rankers) if k_run
+                        else (G.from_thresholds(t, lookahead=False), G.from_thresholds(t, lookahead=True)))
+                for pol in pols:
+                    run = run_episode(pol, env(budget), r, name=f"{pol.name}-{suffix}")
+                    logs.append(EpisodeLog.from_run(spec, run))
+                if k_run:
+                    seed_logs, _ = run_r_seeds(lambda bu=budget, e=env: e(bu), r, r_seeds, r_seed_salt(spec),
+                                               spec=spec, name=f"R-{suffix}")
+                    logs.extend(seed_logs)
     return logs
+
+
+def sensitivity_settings(th: Thresholds, ks: Sequence[int], lams: Sequence[float]) -> list[tuple[str, Thresholds]]:
+    """The declared sensitivity runs (SIM_PREREGISTRATION §0, §7): k in ks with lam fixed, lam in lams with k fixed."""
+    return ([(f"k{k}", dataclasses.replace(th, k=k)) for k in ks]
+            + [(f"lam{lam:g}", dataclasses.replace(th, lam=lam)) for lam in lams])
 
 
 # ---------------------------------------------------------------- stage 3: score
@@ -817,6 +848,18 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
             m = _find(metrics, scope, p, pb, cap, light)
             if m:
                 lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_row_cells(m)]))
+    sens = cfg.get("sensitivity") or {}
+    sens_pols = sorted({m["policy"] for m in metrics if _is_sensitivity(m["policy"])})
+    if sens_pols:
+        lines += ["", f"{h} Sensitivity runs, b = {pb} ({scope} split; reported only, never selected)", "",
+                  (f"k = {', '.join(map(str, sens.get('k', [])))} with lam fixed (every multi-view policy, '-k<k>'); "
+                   f"lam = {', '.join(f'{x:g}' for x in sens.get('lam', []))} with k fixed (G and G-lookahead, "
+                   "'-lam<lam>'). The primary setting is k = 2, lam = 0."), "", CURVE_HEAD]
+        for p in sens_pols:
+            for cap in caps:
+                m = _find(metrics, scope, p, pb, cap, light)
+                if m:
+                    lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_row_cells(m)]))
     strat = _stratification(results)
     lines += ["", f"{h} Paired arrangement-level bootstrap, b = {pb} (test split)", ""]
     if not strat.get("ran", True):
@@ -858,6 +901,13 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
     if diag:
         lines += _diagnostic_lines(diag, cfg, lab, light, f"{h} Diagnostic:", scope)
     return lines
+
+
+SENSITIVITY_SUFFIX = ("-k", "-lam")   # run_stage's log names for the declared sensitivity runs
+
+
+def _is_sensitivity(policy: str) -> bool:
+    return any(s in policy and policy.rsplit(s, 1)[1][:1].isdigit() for s in SENSITIVITY_SUFFIX)
 
 
 def _reading(r: Mapping[str, Any]) -> str:
@@ -1275,6 +1325,8 @@ def main_real(args: argparse.Namespace) -> int:
               "side_file": None if args.side is None else _rel(Path(args.side)),
               "side_file_sha256": None if args.side is None else file_sha256(args.side),
               "ranker_models": models, "primary_contrast": list(PRIMARY_PAIR),
+              "sensitivity": {"k": list(args.k_sensitivity), "lam": list(args.lam_sensitivity),
+                              "note": "reported only, never selected; primary budget, every cap"},
               "common_targets": list(COMMON_TARGETS)}
     if cand_doc is not None:
         label = SIM_FROZEN_LABEL if info.simulation else REAL_FROZEN_LABEL
@@ -1283,7 +1335,9 @@ def main_real(args: argparse.Namespace) -> int:
     context = RunContext(model_id=args.model_id, config_version=REAL_CONFIG_VERSION, config_sha256=sha,
                          synthetic=False)
     logs = run_stage(specs, store, positions, th, args.budgets, config["travel_caps_cm"], config["r_seeds"], context,
-                     side=side_data, rankers=rankers)
+                     side=side_data, rankers=rankers,
+                     sensitivity=sensitivity_settings(th, args.k_sensitivity, args.lam_sensitivity),
+                     primary_budget=args.primary_budget)
     del store
     sim_label = label if info.simulation else None   # every output of a simulation manifest is labelled SIMULATION
     write_logs(out / "logs.jsonl", logs, simulation_label=sim_label)
