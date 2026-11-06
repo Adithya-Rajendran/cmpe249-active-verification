@@ -283,6 +283,24 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
   - The first 11 tabletop arrangements, the remaining 49 and the test are kept apart.
   - A plane disagreement is not an error against a true whole-scene alignment.
 - **Labels and the real-photo check.** Every result is labelled "simulation". Pilots 1–2 (real photos) are a separate sim-to-real check of score ranges and are never pooled.
+- **As implemented (verify.run real-v6, 2026-11-06; for confirmation in the final review).**
+  - **Families.** The breakdowns use two levels:
+    - the occluder family (S8, M16, IND28, white box, YCB box), with M16's two sides pooled;
+    - the quota slot class, which splits M16 into M16-left and M16-right.
+
+    Each level gives every policy's metrics per lighting, at the primary budget, uncapped and under every cap, with
+    the family's target composition. On test, A − G per family and lighting is computed at b = 3 uncapped with the
+    paired cluster bootstrap (B as §8). Within an occluder family the bootstrap is stratified by slot class: for M16
+    that is by side; the other families are a single stratum. Each family and lighting has its own derived seed. A
+    family with fewer than 2 arrangements gets no interval. These intervals are descriptive evidence for H3, not new
+    endpoints.
+  - **Each multi-view policy against S:** A, A-nocue, Dir, F, R, G, G-lookahead and G-myopic minus S, at S's actual
+    effort (one view).
+  - **The τ_match risk-coverage sweep.** It is run at b = 3, uncapped, with the other thresholds frozen, for every
+    multi-view policy, S and FULL. The values are the calibration grid below the frozen value (0.4-0.65) and a
+    predeclared extension above it (0.75, 0.8, 0.85, 0.9), so the curves show both sides of the frozen point at 0.7.
+    Each curve gives FRR, removal recall, coverage, resolved accuracy and the false-present rate per lighting. It is
+    reported only, never selected.
 
 `[ ] confirm / edit:`
 
@@ -290,9 +308,14 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 
 1. Distinct view sets reachable and used per (b, cap).
 2. Path and decision disagreement: A vs G, G vs G-lookahead.
-3. Geometric diagnostic-view coverage: occluded episodes with at least one geometrically diagnostic non-start view, and removed episodes with at least k such stops.
-4. Occlusion-cue false-clear rate against the geometric labels, with counts.
-5. The occlusion-gate-off ablation for F and R (§4).
+3. Geometric diagnostic-view coverage: occluded episodes with at least one geometrically diagnostic non-start view, and removed episodes with at least k such stops. As implemented: occluded-present episodes, k = 2, per lighting, at both family levels.
+4. Occlusion-cue false-clear rate against the geometric labels, with counts. As implemented, at the frozen thresholds and with verify.select's definitions, it comes with three more per-view counts:
+   - the false clear-miss rate on diagnostic present views;
+   - the clear-miss rate on diagnostic removed views;
+   - the false strong-match rate on diagnostic removed views.
+
+   Beside these sits the strong-match count over all views of removed episodes, since each of those decides PRESENT.
+5. The occlusion-gate-off ablation for F and R (§4). As implemented: F-gateoff and R-gateoff (τ_occ = 1.0, so the gate keeps only the quality cut) at b = 3, uncapped and under every cap, with the paired contrasts F − F-gateoff and R − R-gateoff at b = 3 uncapped.
 
 ## 11. Exclusions, retries and failed renders
 

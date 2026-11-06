@@ -542,7 +542,7 @@ def load_geometric_labels(path, n_stops=None) -> GeometricLabels: ...   # cmpe24
   episode's arrangement, condition, lighting and truth agree with its id and that it lists stops 0..n-1 with boolean
   `diagnostic` flags. The labels are development analysis and scoring inputs only, never a policy input.
 
-- **Tabletop wave, step 9 (DEV, not frozen).** `environment` is optional: a record without it (every manifest
+- **Tabletop wave, step 9 (2026-11-04).** `environment` is optional: a record without it (every manifest
   before the tabletop, and every shelf row sim/episodes.py writes) reads as the shelf, and `to_dict` writes it only
   when set, so shelf manifests keep their bytes. Tabletop rows carry `"environment": "tabletop"`; their strata are
   prefixed `tabletop:` (shelf strata unchanged), so a bootstrap over both environments keeps each one's quota counts.
