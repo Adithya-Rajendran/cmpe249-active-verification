@@ -820,8 +820,8 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   - **Simulation flag.** A view-labels file whose `simulation` flag disagrees with the manifest's is refused (exit 2),
     as verify.select refuses it. On a simulation manifest every line of logs.jsonl and ground_truth.json carries
     `"label": SIM_LABEL` and `"simulation": true` (`EpisodeLog.from_dict` and `GroundTruth.load` ignore both keys).
-  - Config versions at checkpoint 2 (historical): `synthetic-v7` and `real-v5`. Current: `synthetic-v8` and
-    `real-v6` (below).
+  - Config versions at checkpoint 2 (historical): `synthetic-v7` and `real-v5`. Then `synthetic-v8` and `real-v6`
+    (below). Current: `synthetic-v9` and `real-v7`, which add the zero-width flags and the interval note (below).
 - **Declared sensitivity runs (real-v5, ee2c4fa, 2026-11-05; real/sim data only).** `--k-sensitivity` (default `3`,
   or `none`) and `--lam-sensitivity` (default `0.7,0.9,1.2`, or `none`) run at the primary budget under every cap
   (`sensitivity_settings`, through `run_stage`'s `sensitivity`): each k value runs every multi-view policy (F, R, G,
@@ -829,6 +829,26 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   `R-k3` over the R seeds); each lam value runs G and G-lookahead with that weight, logged as `<policy>-lam<lam>`
   (e.g. `G-lam0.7`, `G-lookahead-lam1.2`). The primary setting is k = 2, lam = 0. They are recorded in the hashed
   config (`sensitivity`), reported in a "Sensitivity runs" table per lighting, and never selected.
+- **Zero-width flags and the interval note (real-v7 / synthetic-v9, 2026-11-06, the freeze review; no estimate or
+  interval changes).** analysis/bootstrap.py, "Zero-width intervals".
+  - **Every interval is pointwise and unadjusted.** It covers one metric of one policy or pair in one environment,
+    lighting and setting. None is adjusted for the number of comparisons, and no simultaneous coverage is claimed.
+    `results.json` carries this as `interval_note`, and `table.md` as a header bullet and in the primary section.
+  - **Zero-width intervals are flagged.**
+    - Every paired row (bootstrap, primary, per family, common target) carries `zero_width` (ci_hi - ci_lo <= 1e-12),
+      `n_discordant_episodes` and `n_discordant_arrangements`, and a `degenerate_note` when the interval is
+      zero-width. A discordant episode is one where A's and B's terms for that metric differ; with none, every
+      replicate gives 0.
+    - Every single rate in `rate_ci95` carries `zero_width` and a `degenerate_note`: no observed event, every episode
+      an event, or the same rate in every arrangement.
+    - `table.md` marks such a rate `(zero-width)`. A contrast gets a ZERO-WIDTH note and reading.
+  - **Same decisions with different effort.** Every paired bootstrap row carries `same_decisions`, and an
+    `effort_note` with both runs' mean travel and views when the decisions are equal on every episode but the effort
+    differs. Such a pair is not `identical_runs`, but its decision metrics are [0, 0]. The development case was A and
+    Dir.
+  - A zero-width interval is not evidence of zero risk, of a perfect rate or of equivalence.
+  - On identical inputs every value of a real-v6 / synthetic-v8 run is reproduced; only these keys and lines are
+    added (`wt/tabletop/runs/2026-11-06-zero-width-check/old_vs_new.txt`, untracked).
 - **Declared test analyses (real-v6, 2026-11-05, with the review fixes of 2026-11-06; docs/SIM_PREREGISTRATION.md
   sections 1, 4, 9 and 10).** Additions only: the primary contrast, the metrics, the bootstrap, the stopping rule,
   the calibration and the k / lam sensitivity runs are unchanged, and every row of a real-v5 run is reproduced
@@ -991,7 +1011,7 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   "pooled". The `config` dict (thresholds, positions,
   budgets, `cap_steps`, `travel_caps_cm`, `nominal_step_cm`, `travel_tol_cm`, `g_lookahead`
   {"G": false, "G-lookahead": true}, `g_myopic` {lam_deg, travel_norm_cm}, r_seeds, generator
-  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v8`; `real-v6`
+  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v9`; `real-v7`
   for real data), `simulation`, `bootstrap_stratified`, model_id, positions file path and sha256) is hashed with `config_sha256`, and
   the same hash is in every log line. `cap_steps` is hashed as floats (`[null, 1.0, 2.0, ...]`),
   so the default caps and an explicit `--cap-steps 1,2,3,4,6` give the same hash. v4 (real-v1)

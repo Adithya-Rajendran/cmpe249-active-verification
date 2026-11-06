@@ -24,6 +24,19 @@ same draws (same sorted arrangement ids, B, seed and strata give the same draws 
 seed-averaged decision fractions, as in the point estimate: arrangements are resampled, seeds are not, so the
 interval is for R's expected rate over its own randomisation (seeds add no samples), and R's common-random-number
 episodes (one stream per arrangement and lighting, verify.policies.r_seed_salt) stay together in every draw.
+
+Every interval here is pointwise: one metric, one pair or policy, one sample. Nothing adjusts it for the number of
+comparisons reported beside it.
+
+Zero-width intervals (review, 2026-11-06). A percentile interval has zero width when the central 95 % of the replicates
+give one value. That happens when the sample has no variation to resample, never because the risk is known: a single
+rate with no observed event (0 false removals, so 0 in every replicate) or with every episode an event, and a contrast
+with no discordant episode, i.e. no episode where the two policies' terms for that metric differ. The last can hold
+while the two runs differ in effort or on episodes outside the metric (two policies with the same decisions but
+different routes give [0, 0] on FRR, recall and coverage). Each result therefore carries `zero_width` and a
+`degenerate_note` saying why, and a paired result also carries its discordant episode and arrangement counts. The
+estimates and intervals themselves are unchanged. A zero-width interval is not evidence of zero risk, of a perfect rate
+or of equivalence.
 """
 from __future__ import annotations
 
@@ -41,6 +54,7 @@ from analysis.metrics import (
     check_truth,
     episode_terms,
     metrics_on,
+    ratio,
 )
 from verify.schema import (
     EPS,
@@ -69,6 +83,10 @@ class BootstrapResult:
     stratified: bool = False   # True: arrangements resampled within strata (stratified_arrangement_draws)
     singleton_strata: tuple[str, ...] = ()   # strata given but with < MIN_STRATUM_SIZE arrangements: fell back
     stratification_note: str = ""            # "unstratified: singleton strata ..." when it fell back, else ""
+    zero_width: bool = False                 # ci_hi - ci_lo <= ZERO_WIDTH_TOL (zero_width): no sampling variation
+    n_discordant_episodes: int = 0           # episodes whose terms for this metric differ between A and B
+    n_discordant_arrangements: int = 0       # arrangements with at least one discordant episode
+    degenerate_note: str = ""                # why the interval has zero width (paired_note); "" when it has not
 
     def to_dict(self) -> dict[str, Any]:
         d = dataclasses.asdict(self)
@@ -96,6 +114,8 @@ class RateInterval:
     stratified: bool = False
     singleton_strata: tuple[str, ...] = ()
     stratification_note: str = ""
+    zero_width: bool = False                 # as BootstrapResult.zero_width
+    degenerate_note: str = ""                # why the interval has zero width (rate_note); "" when it has not
 
     def to_dict(self) -> dict[str, Any]:
         d = dataclasses.asdict(self)
@@ -103,6 +123,54 @@ class RateInterval:
         if self.synthetic:
             d["label"] = SYNTHETIC_LABEL
         return d
+
+
+ZERO_WIDTH_TOL = 1e-12   # a percentile interval no wider than this has zero width
+# per single rate: (the event, the episodes it is counted over), for the zero-width notes
+RATE_EVENTS = {"false_removal_rate": ("false removal", "present-truth episodes"),
+               "removal_recall": ("correct removal", "removed-truth episodes"),
+               "coverage": ("resolved decision", "episodes")}
+NOT_EVIDENCE_RATE = "not evidence of zero risk or of a perfect rate"
+NOT_EVIDENCE_CONTRAST = "not evidence of equivalence or of zero risk"
+
+
+def zero_width(lo: float | None, hi: float | None) -> bool:
+    """True when a defined percentile interval has zero width (within ZERO_WIDTH_TOL): the central 95 % of the
+    replicates give one value, so the interval shows no sampling variation."""
+    return lo is not None and hi is not None and hi - lo <= ZERO_WIDTH_TOL
+
+
+def _count(x: float) -> str:
+    return f"{x:g}" if float(x).is_integer() else f"{x:.2f}"
+
+
+def rate_note(metric: str, num: float, den: float, lo: float | None, hi: float | None) -> str:
+    """The zero-width warning of a single rate with num events over den episodes (its full-sample sums; R's are
+    seed-averaged), or "" when the interval is not zero-width."""
+    if not zero_width(lo, hi):
+        return ""
+    event, over = RATE_EVENTS.get(metric, ("event", "episodes"))
+    seen = f"{_count(num)} {event}s in {_count(den)} {over}"
+    rate = ratio(num, den)
+    if rate is not None and rate <= EPS:
+        why = f"no observed {event} ({seen}), so every replicate gives 0"
+    elif rate is not None and rate >= 1.0 - EPS:
+        why = f"every one of the {over} has a {event} ({seen}), so every replicate gives 1"
+    else:
+        why = f"every replicate gives the same rate ({seen})"
+    return f"zero-width interval: {why}; {NOT_EVIDENCE_RATE}"
+
+
+def paired_note(metric: str, n_discordant: int, lo: float | None, hi: float | None) -> str:
+    """The zero-width warning of a paired contrast, or "" when its interval is not zero-width."""
+    if not zero_width(lo, hi):
+        return ""
+    if n_discordant == 0:
+        why = (f"no discordant episode (the two policies' {metric} terms are equal on every episode), so every "
+               "replicate gives 0; the runs may still differ in effort or on other metrics")
+    else:
+        why = f"every replicate gives the same difference ({n_discordant} discordant episodes)"
+    return f"zero-width interval: {why}; {NOT_EVIDENCE_CONTRAST}"
 
 
 MIN_STRATUM_SIZE = 2   # a stratum of one always redraws itself: it adds no variance (falls back to unstratified)
@@ -175,6 +243,20 @@ def pair(results_a: Iterable[EpisodeLog | EpisodeResult], results_b: Iterable[Ep
     arr_ids = tuple(sorted({r.arrangement_id for r in ra}))
     groups = tuple(tuple(i for i, r in enumerate(ra) if r.arrangement_id == a) for a in arr_ids)
     return PairedSample(arr_ids, groups, tuple(ra), tuple(rb))
+
+
+def discordance(sample: PairedSample, truth: GroundTruth, metric: str) -> tuple[int, int]:
+    """(episodes, arrangements) where A's and B's (numerator, denominator) terms for the metric differ
+    (analysis.metrics.episode_terms): the only episodes a paired replicate's difference can come from."""
+    n_ep, arrs = 0, set()
+    for g, idx in enumerate(sample.groups):
+        for i in idx:
+            ta = episode_terms(sample.results_a[i], truth)[metric]
+            tb = episode_terms(sample.results_b[i], truth)[metric]
+            if abs(ta[0] - tb[0]) > EPS or abs(ta[1] - tb[1]) > EPS:
+                n_ep += 1
+                arrs.add(g)
+    return n_ep, len(arrs)
 
 
 def arrangement_draws(n_arrangements: int, B: int, seed: int) -> np.ndarray:
@@ -260,11 +342,14 @@ def paired_diff(results_a: Iterable[EpisodeLog | EpisodeResult], results_b: Iter
     lo = hi = None
     if ok.size:
         lo, hi = (float(x) for x in np.percentile(ok, [2.5, 97.5]))
+    n_disc, n_disc_arr = discordance(sample, truth, metric)
     return BootstrapResult(metric=metric, policy_a=ma["policy"], policy_b=mb["policy"], estimate=estimate,
                            ci_lo=lo, ci_hi=hi, n_arrangements=len(sample.arrangement_ids),
                            n_episodes=sample.n_episodes, B=B, n_undefined=int(diffs.size - ok.size),
                            seed=seed, synthetic=bool(ma["synthetic"] or mb["synthetic"]), stratified=used is not None,
-                           singleton_strata=singles, stratification_note=note)
+                           singleton_strata=singles, stratification_note=note, zero_width=zero_width(lo, hi),
+                           n_discordant_episodes=n_disc, n_discordant_arrangements=n_disc_arr,
+                           degenerate_note=paired_note(metric, n_disc, lo, hi))
 
 
 @functools.lru_cache(maxsize=16)
@@ -318,5 +403,6 @@ def rate_intervals(results: Iterable[EpisodeLog | EpisodeResult], truth: GroundT
         out[m] = RateInterval(metric=m, policy=policy, estimate=full[m], ci_lo=lo, ci_hi=hi,
                               n_arrangements=len(arr_ids), n_episodes=len(res), B=B, n_undefined=int((~ok).sum()),
                               seed=seed, synthetic=bool(full["synthetic"]), stratified=used is not None,
-                              singleton_strata=singles, stratification_note=note)
+                              singleton_strata=singles, stratification_note=note, zero_width=zero_width(lo, hi),
+                              degenerate_note=rate_note(m, float(num.sum()), float(den.sum()), lo, hi))
     return out

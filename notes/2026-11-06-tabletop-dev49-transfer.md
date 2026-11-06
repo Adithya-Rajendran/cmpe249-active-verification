@@ -71,8 +71,11 @@ The first 11's column is the C0 arm of the repair experiment (`runs/regrepair_c2
   - 0 refused; 0 / 40 present-labelled clear misses; 0 / 20 removed-labelled strong matches;
   - removal yield 10 / 10;
   - plane disagreement at most 3.47 px.
-  - **In L2, 0 / 20 visible-phase views pass the gate, against 20 / 20 in L1.** At these thresholds no L2 design-case
-    view could give a clear miss. This is a lighting effect on the gate and is recorded here as an observation.
+  - **In L2, 0 / 20 visible-phase views pass the gate, against 20 / 20 in L1.** At these thresholds no L2 visible-phase
+    design-case view could give a clear miss. The removed-phase diagnostic views still did (the removal yield above,
+    10 / 10 in each lighting). This is a lighting effect on the gate and is recorded here as an observation. At the
+    frozen pooled thresholds, 1 / 20 L2 visible-phase views pass (`regcompare_design_frozen/`, untracked; corrected
+    wording, 2026-11-06, before the freeze).
 
 ## Decisions at b = 3, by lighting
 

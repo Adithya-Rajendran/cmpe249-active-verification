@@ -260,8 +260,10 @@ class SimRunTest(unittest.TestCase):
         for metric in ("false_removal_rate", "removal_recall", "coverage"):
             self.assertEqual(ci[metric]["estimate"], o[metric])
         self.assertEqual((ci["B"], ci["seed"], ci["n_arrangements"], ci["n_episodes"]), (50, 0, len(SLOTS), 21))
-        cell = (f"| G | {run.fmt(o['false_removal_rate'])} [{run.fmt(ci['false_removal_rate']['ci_lo'])}, "
-                f"{run.fmt(ci['false_removal_rate']['ci_hi'])}] |")
+        frr = ci["false_removal_rate"]
+        cell = (f"| G | {run.fmt(o['false_removal_rate'])} [{run.fmt(frr['ci_lo'])}, {run.fmt(frr['ci_hi'])}]"
+                + (f" {run.ZERO_WIDTH_MARK}" if frr["zero_width"] else "") + " |")   # real-v7: zero-width marked
+        self.assertEqual(frr["zero_width"], frr["ci_hi"] - frr["ci_lo"] <= 1e-12)
         self.assertIn(cell, self.table)
         self.assertIn("**Single-rate intervals.**", self.table)
         self.assertIn("seeds are not", self.table)

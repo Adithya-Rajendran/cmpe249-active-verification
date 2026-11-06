@@ -115,7 +115,7 @@ class TestEndToEnd(unittest.TestCase):
         # DECISIONS 2026-10-12: "G" is primary G (lookahead off) and "G-lookahead" the ablation, both run
         cfg = json.loads((self.out / "config.json").read_text())["config"]
         self.assertEqual(cfg["g_lookahead"], {"G": False, "G-lookahead": True})
-        self.assertEqual(cfg["config_version"], "synthetic-v8")
+        self.assertEqual(cfg["config_version"], "synthetic-v9")
         self.assertIn("G-lookahead", run.MULTI_VIEW)
         self.assertIn(("G", "G-lookahead"), run.BOOTSTRAP_PAIRS)
         self.assertIn(("G", "G-lookahead"), run.DISAGREE_PAIRS)

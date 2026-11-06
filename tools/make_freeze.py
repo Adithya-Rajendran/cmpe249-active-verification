@@ -3,7 +3,8 @@
 The record is the one fenced JSON block sim/freeze.py reads: {"schema", "freeze_id", "commit", "files": {path: sha256}}.
 FROZEN lists the repository files the test path runs or reads (generator, renderer and its test-set launcher,
 episodes, evidence, descriptor, policies, selection and analysis code, the run driver and its test specs, configs,
-geometry, the frozen candidate and the A / A-nocue model files in frozen/, the preregistration and the pinned notes);
+geometry, the frozen candidate and the A / A-nocue model files in frozen/, the preregistration, the pinned notes and the
+test-seed incident record);
 --extra adds more. The tracked tree must be clean, so the commit names exactly what is frozen. This tool only prints
 the block; the freeze is the commit of docs/FREEZE.md that contains it, after the researcher's review.
 
@@ -45,6 +46,7 @@ FROZEN = (
     "notes/2026-11-02-simulation.md", "notes/2026-11-04-registration-repair-plan.md",
     "notes/2026-11-05-side-descriptor.md", "notes/2026-11-05-ranker-a-design.md",
     "notes/2026-11-06-tabletop-dev49-transfer.md", "notes/2026-11-06-pooled-calibration.md",
+    "notes/2026-11-06-test-seed-incident.md",
 )
 
 

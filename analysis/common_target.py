@@ -12,7 +12,9 @@ and a metric is sum(w * numerator) / sum(w * denominator) over the drawn episode
 weights are recomputed on every bootstrap replicate from that replicate's arrangements: the estimator is applied to the
 replicate. The resampling is analysis.bootstrap's paired arrangement-level cluster bootstrap with the same strata rule
 and the same draws as paired_diff for the same arrangements, B and seed. A family that has only one of the targets in
-the sample is listed under `single_target_families`: its weight then rests on that target alone.
+the sample is listed under `single_target_families`: its weight then rests on that target alone. Like paired_diff, the
+result carries `zero_width`, the discordant episode and arrangement counts and a `degenerate_note`
+(analysis.bootstrap, "Zero-width intervals").
 """
 from __future__ import annotations
 
@@ -23,7 +25,7 @@ import numpy as np
 
 # _terms: the per-arrangement (numerator, denominator) sums analysis.bootstrap itself uses, reused so both analyses add
 # the episode terms the same way
-from analysis.bootstrap import _terms, pair, resolve_strata, sample_draws
+from analysis.bootstrap import _terms, discordance, pair, paired_note, resolve_strata, sample_draws, zero_width
 from analysis.metrics import METRICS
 from verify.schema import EPS, EpisodeLog, EpisodeResult, GroundTruth, as_results
 
@@ -82,6 +84,7 @@ def common_target_diff(results_a: Iterable[EpisodeLog | EpisodeResult], results_
     lo = hi = None
     if ok.size:
         lo, hi = (float(x) for x in np.percentile(ok, [2.5, 97.5]))
+    n_disc, n_disc_arr = discordance(sample, truth, metric)
     cells = {f"{f}|{t}": int((cell == keys.index((f, t))).sum()) for f, t in keys}
     single = sorted(f for f in set(fam) if sum(1 for ff, _ in keys if ff == f) < len(keep))
     return {"metric": metric, "policy_a": sample.results_a[0].policy, "policy_b": sample.results_b[0].policy,
@@ -90,4 +93,6 @@ def common_target_diff(results_a: Iterable[EpisodeLog | EpisodeResult], results_
             "n_arrangements": len(arrs), "n_episodes": sample.n_episodes, "arrangements_per_family_target": cells,
             "single_target_families": single, "B": B, "seed": seed, "n_undefined": int(diffs.size - ok.size),
             "stratified": used is not None, "singleton_strata": list(singles), "stratification_note": note,
+            "zero_width": zero_width(lo, hi), "n_discordant_episodes": n_disc, "n_discordant_arrangements": n_disc_arr,
+            "degenerate_note": paired_note(metric, n_disc, lo, hi),
             "weighting": "within each family the common targets carry equal weight; weights recomputed per replicate"}

@@ -1,8 +1,8 @@
-"""verify.run's declared test analyses (real-v6): each multi-view policy against S, the per-family breakdowns with their
-target composition and A - G per family, the occlusion-gate-off ablation (F and R, tau_occ = 1.0), the tau_match
-risk-coverage sweep over the frozen candidate's grid, the geometric diagnostic-view coverage and the gate's per-view
-rates against the geometric labels (verify.select's definitions). Hand-built sets and synthetic evidence only; no number
-here is a result."""
+"""verify.run's declared test analyses (real-v6, kept in real-v7): each multi-view policy against S, the per-family
+breakdowns with their target composition and A - G per family, the occlusion-gate-off ablation (F and R, tau_occ = 1.0),
+the tau_match risk-coverage sweep over the frozen candidate's grid, the geometric diagnostic-view coverage and the
+gate's per-view rates against the geometric labels (verify.select's definitions); and real-v7's zero-width flags and
+interval labels. Hand-built sets and synthetic evidence only; no number here is a result."""
 from __future__ import annotations
 
 import contextlib
@@ -16,8 +16,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from analysis.bootstrap import paired_diff
+from analysis.bootstrap import ZERO_WIDTH_TOL, paired_diff
 from analysis.metrics import compute_all
+from tests.test_bootstrap import correct, make, noisy, truth_for, with_effort
 from tests.test_ranker_side import write_side
 from tests.test_run_freeze import DEV_SLOTS, RUN_QUICK, SELECT_QUICK, TEST_SLOTS, quiet, retarget
 from tests.test_select_sim import SLOTS, write_sim_set
@@ -103,7 +104,7 @@ class AnalysesRunTest(unittest.TestCase):
         for p in ("G", "F", "R", "A", "A-nocue", "Dir", "G-lookahead", "G-myopic"):
             for v in ("", "-fcm"):
                 self.assertIn((p + v, "S"), self.pairs(), p + v)
-        self.assertEqual(self.res["config"]["config_version"], "real-v6")
+        self.assertEqual(self.res["config"]["config_version"], "real-v7")
         # the analysis code the run loaded, by sha256 (tools/test_validity.py compares it with the freeze record)
         code = self.res["config"]["code_sha256"]
         repo = Path(run.__file__).resolve().parents[1]
@@ -452,6 +453,50 @@ class AnalysesRunTest(unittest.TestCase):
         self.assertIn("changed during the run", err.getvalue())
         self.assertFalse((d / "o" / "results.json").exists())
 
+    # ------------------------------------------------------------ real-v7: zero-width flags and the interval labels
+
+    def test_every_interval_carries_its_zero_width_flag(self) -> None:
+        paired = [*self.res["bootstrap"], *self.res["by_family"]["bootstrap"],
+                  *self.res["by_occluder_family"]["bootstrap"]]
+        rows = [*paired, *self.res["primary"], *self.res["common_target"]]
+        self.assertTrue(paired and self.res["primary"])
+        for r in rows:
+            for k in ("zero_width", "n_discordant_episodes", "n_discordant_arrangements", "degenerate_note"):
+                self.assertIn(k, r)
+            if r["ci_lo"] is None:
+                continue
+            self.assertEqual(r["zero_width"], r["ci_hi"] - r["ci_lo"] <= ZERO_WIDTH_TOL, r)
+            self.assertEqual(bool(r["degenerate_note"]), r["zero_width"])
+            if r["n_discordant_episodes"] == 0:          # no discordant episode: [0, 0], always flagged
+                self.assertEqual((r["estimate"], r["ci_lo"], r["ci_hi"]), (0.0, 0.0, 0.0))
+                self.assertIn("no discordant episode", r["degenerate_note"])
+        self.assertTrue(any(r["zero_width"] for r in rows) and not all(r["zero_width"] for r in rows))
+        for r in paired:
+            if r["identical_runs"]:
+                self.assertTrue(r["same_decisions"])
+            self.assertEqual(bool(r["effort_note"]), r["same_decisions"] and not r["identical_runs"])
+            if r["same_decisions"]:
+                self.assertTrue(r["zero_width"] and r["n_discordant_episodes"] == 0)
+        rates = [m["rate_ci95"][k] for m in self.res["metrics"] if m.get("rate_ci95") for k in run.RATE_CI_METRICS]
+        self.assertTrue(rates)
+        for x in rates:
+            if x["ci_lo"] is not None:
+                self.assertEqual(x["zero_width"], x["ci_hi"] - x["ci_lo"] <= ZERO_WIDTH_TOL)
+                self.assertEqual(bool(x["degenerate_note"]), x["zero_width"])
+
+    def test_the_table_labels_the_intervals(self) -> None:
+        self.assertEqual(self.res["interval_note"], run.INTERVAL_NOTE)
+        self.assertIn("**Intervals are pointwise and unadjusted.**", self.table)
+        self.assertIn("pointwise and unadjusted across the environments, lightings and metrics", self.table)
+        for m in self.res["metrics"]:
+            for k in (run.RATE_CI_METRICS if m.get("rate_ci95") else ()):
+                cell = run._with_ci(m["overall"], k, m["rate_ci95"])
+                self.assertEqual(cell.endswith(run.ZERO_WIDTH_MARK), m["rate_ci95"][k]["zero_width"], cell)
+        if any(x["zero_width"] for x in self.res["bootstrap"]):
+            self.assertIn("ZERO-WIDTH interval, no discordant episode", self.table)
+        for r in self.res["primary"]:
+            self.assertEqual("ZERO-WIDTH" in run._reading(r), r["zero_width"])
+
     def test_no_view_labels_no_view_diagnostics(self) -> None:
         args = [*self.test_args[:4], *self.test_args[6:]]   # the same set without --view-labels
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -463,6 +508,45 @@ class AnalysesRunTest(unittest.TestCase):
             self.assertIn("--view-labels", res[key]["note"])
         self.assertIn("Geometric diagnostic-view coverage (test split)\n\nNot computed",
                       (self.d / "o4" / "table.md").read_text())
+
+
+class ZeroWidthReportTest(unittest.TestCase):
+    """The freeze review's development case (2026-11-06): A and Dir made the same decisions on every held-out episode
+    with different travel, and A - Dir removal recall printed [0, 0] with identical_runs False. Hand-built results."""
+
+    def test_same_decisions_with_different_effort(self) -> None:
+        a = with_effort(make(10, noisy, "A"), 156.0, 2.14)
+        d = with_effort(make(10, noisy, "Dir"), 93.5, 2.24)
+        self.assertFalse(run.identical_runs(a, d))
+        self.assertTrue(run.same_decisions(a, d))
+        flags = run.run_flags(a, d)
+        self.assertEqual(flags, {"same_decisions": True, "effort_note": (
+            "same decisions on every episode, different effort: mean travel 156.0 vs 93.5 cm, mean views 2.14 vs "
+            "2.24 (A vs Dir)")})
+        self.assertEqual(run.run_flags(a, a), {"same_decisions": True, "effort_note": ""})   # identical runs
+        row = {**paired_diff(a, d, truth_for(a), "removal_recall", B=200, seed=0).to_dict(), "identical_runs": False,
+               **flags}
+        self.assertEqual((row["ci_lo"], row["ci_hi"], row["zero_width"]), (0.0, 0.0, True))
+        self.assertEqual(run._reading(row), "inconclusive (the interval contains 0; not equivalence); ZERO-WIDTH "
+                                            "interval, no discordant episode: not evidence of equivalence or of zero "
+                                            "risk")
+        self.assertEqual(run._run_notes(row), [flags["effort_note"], "ZERO-WIDTH interval, no discordant episode"])
+
+    def test_different_decisions_are_not_flagged(self) -> None:
+        a, g = make(10, noisy, "A"), make(10, correct, "G")
+        self.assertEqual(run.run_flags(a, g), {"same_decisions": False, "effort_note": ""})
+        row = {**paired_diff(a, g, truth_for(a), "removal_recall", B=200, seed=0).to_dict(), "identical_runs": False,
+               **run.run_flags(a, g)}
+        self.assertFalse(row["zero_width"])
+        self.assertNotIn("ZERO-WIDTH", run._reading(row))
+        self.assertEqual(run._run_notes(row), [])
+
+    def test_a_zero_width_rate_is_marked(self) -> None:
+        ci = {"false_removal_rate": {"ci_lo": 0.0, "ci_hi": 0.0, "zero_width": True}}
+        self.assertEqual(run._with_ci({"false_removal_rate": 0.0}, "false_removal_rate", ci),
+                         "0.000 [0.000, 0.000] (zero-width)")
+        ci = {"false_removal_rate": {"ci_lo": 0.0, "ci_hi": 0.05, "zero_width": False}}
+        self.assertEqual(run._with_ci({"false_removal_rate": 0.02}, "false_removal_rate", ci), "0.020 [0.000, 0.050]")
 
 
 class GateOffStageTest(unittest.TestCase):

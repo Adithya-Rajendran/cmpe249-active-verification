@@ -33,9 +33,14 @@ are stratified by quota slot class (occluder family, M16 split by side) when eve
 carries its family and every stratum holds at least two test arrangements; otherwise (the synthetic generator,
 legacy pilot manifests, singleton strata) they are unstratified and flagged as such. With no test arrangement no
 bootstrap runs, and the outputs say so. FRR is reported per episode and per arrangement (any false removal).
+Every interval is pointwise and unadjusted for the number of comparisons (INTERVAL_NOTE, results.json
+"interval_note"). Since real-v7 / synthetic-v9 every paired row and single rate also carries `zero_width` and a
+`degenerate_note` when its interval has zero width (analysis.bootstrap, "Zero-width intervals"), and every paired
+bootstrap row (overall, primary and per family) carries `same_decisions` and an `effort_note`, so equal decisions with
+different effort are flagged even when the runs are not identical. A zero-width interval is not evidence of zero risk, of a perfect rate or of equivalence.
 
-Declared test analyses (real-v6; docs/SIM_PREREGISTRATION.md sections 1, 4, 9 and 10), all reported, none selected:
-each multi-view policy against S (BOOTSTRAP_PAIRS); per-family breakdowns at two levels, the occluder family
+Declared test analyses (since real-v6; docs/SIM_PREREGISTRATION.md sections 1, 4, 9 and 10), all reported, none
+selected: each multi-view policy against S (BOOTSTRAP_PAIRS); per-family breakdowns at two levels, the occluder family
 (`by_occluder_family`, M16's sides pooled) and the quota slot class (`by_family`), each with metrics, the target
 composition and A - G per family on test; the occlusion-gate-off ablation (--gate-off-ablation: F and R with
 tau_occ = 1.0, logged as F-gateoff / R-gateoff, with F - F-gateoff and R - R-gateoff on test at the primary setting);
@@ -133,7 +138,8 @@ from verify.side import SideData, SideEnv, SideStore
 from verify.stopping import StoppingRule
 from verify.synthetic import SyntheticParams, generate
 
-CONFIG_VERSION = "synthetic-v8"   # v8 (2026-11-06): the new pairs against S (G-lookahead - S, G-myopic - S)
+CONFIG_VERSION = "synthetic-v9"   # v9 (2026-11-06, before the freeze): zero-width flags and the interval note
+# v8 (2026-11-06): the new pairs against S (G-lookahead - S, G-myopic - S)
 # v7 (2026-11-03): single-rate CIs; singleton strata fall back to unstratified
 # v6 (2026-11-03): simulation flag hashed; stratified-bootstrap flag; FRR per arr.
 # v5 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
@@ -519,6 +525,13 @@ NO_BOOTSTRAP_REASON = ("this run has no test arrangement, and the paired and sin
 NO_BOOTSTRAP_NOTE = f"no bootstrap ran: {NO_BOOTSTRAP_REASON}"
 STRATIFIED_NOTE = ("stratified by quota slot class (occluder family, M16 split by side; design cases apart): each "
                    "replicate resamples arrangements within every stratum and keeps its count")
+INTERVAL_NOTE = ("Every interval is a pointwise percentile 95 % interval for one metric of one policy or policy pair, "
+                 "in one environment, lighting and setting. None is adjusted for the number of comparisons reported, "
+                 "and no simultaneous coverage is claimed: a conclusion holds only for the environment, lighting and "
+                 "metric it is reported for. A zero-width interval (zero_width) shows no sampling variation, e.g. no "
+                 "observed false removal, or no discordant episode between two policies (which can hold while their "
+                 "effort differs: same_decisions, effort_note). It is not evidence of zero risk, of a perfect rate or "
+                 "of equivalence.")
 
 
 def stratification_info(strata: Mapping[str, str] | None, arrangement_ids: Sequence[str]) -> dict[str, Any]:
@@ -602,10 +615,11 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
                 if ka is None or kb is None or not sub[ka] or not sub[kb]:
                     continue
                 same = identical_runs(sub[ka], sub[kb])
+                runs = run_flags(sub[ka], sub[kb])
                 for metric in BOOTSTRAP_METRICS:
                     br = paired_diff(sub[ka], sub[kb], truth, metric, B=B, seed=seed, strata=strata)
                     boots.append({"scope": Split.TEST.value, "lighting": light.value, "travel_cap_cm": cap,
-                                  "budget": primary_budget, "identical_runs": same, **br.to_dict()})
+                                  "budget": primary_budget, "identical_runs": same, **runs, **br.to_dict()})
     test_arrs = sorted({r.arrangement_id for v in test.values() for r in v})
     primary = [{**r, "inconclusive": None if r["ci_lo"] is None else bool(r["ci_lo"] <= 0.0 <= r["ci_hi"])}
                for r in boots if (r["policy_a"], r["policy_b"]) == PRIMARY_PAIR and r["travel_cap_cm"] is None]
@@ -625,7 +639,7 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
                                    {a: t for a, (_, t) in common_target.items()}, metric, B=B, seed=seed,
                                    strata=strata)})
     return {"metrics": metrics, "bootstrap": boots, "primary": primary, "common_target": common,
-            "bootstrap_stratification": stratification_info(strata, test_arrs)}
+            "bootstrap_stratification": stratification_info(strata, test_arrs), "interval_note": INTERVAL_NOTE}
 
 
 def _rate_ci(results: Sequence[EpisodeResult], truth: GroundTruth, B: int, seed: int,
@@ -634,7 +648,8 @@ def _rate_ci(results: Sequence[EpisodeResult], truth: GroundTruth, B: int, seed:
     "stratified", "singleton_strata", "stratification_note"} for one policy row (rate_intervals)."""
     iv = rate_intervals(results, truth, RATE_CI_METRICS, B=B, seed=seed, strata=strata)
     one = next(iter(iv.values()))
-    return {**{m: {"estimate": r.estimate, "ci_lo": r.ci_lo, "ci_hi": r.ci_hi, "n_undefined": r.n_undefined}
+    return {**{m: {"estimate": r.estimate, "ci_lo": r.ci_lo, "ci_hi": r.ci_hi, "n_undefined": r.n_undefined,
+                   "zero_width": r.zero_width, "degenerate_note": r.degenerate_note}
                for m, r in iv.items()},
             "B": B, "seed": seed, "n_arrangements": one.n_arrangements, "n_episodes": one.n_episodes,
             "stratified": one.stratified, "singleton_strata": list(one.singleton_strata),
@@ -650,6 +665,28 @@ def identical_runs(a: Sequence[EpisodeResult], b: Sequence[EpisodeResult]) -> bo
     return all({d: da[e].frac(d) for d in Decision} == {d: db[e].frac(d) for d in Decision}
                and da[e].mean_travel_cm == db[e].mean_travel_cm and da[e].mean_views == db[e].mean_views
                for e in da)
+
+
+def same_decisions(a: Sequence[EpisodeResult], b: Sequence[EpisodeResult]) -> bool:
+    """True if A and B made the same decisions (decision fractions) on every episode, whatever their effort. Then every
+    metric's paired interval is [0, 0] although identical_runs may be False (review 2026-11-06: A and Dir)."""
+    da = {r.episode_id: r for r in a}
+    db = {r.episode_id: r for r in b}
+    return set(da) == set(db) and all({d: da[e].frac(d) for d in Decision} == {d: db[e].frac(d) for d in Decision}
+                                      for e in da)
+
+
+def run_flags(a: Sequence[EpisodeResult], b: Sequence[EpisodeResult]) -> dict[str, Any]:
+    """{"same_decisions", "effort_note"} of a paired row. effort_note gives both runs' mean travel and views when they
+    made the same decisions with different effort, else ""."""
+    same = same_decisions(a, b)
+    note = ""
+    if same and not identical_runs(a, b):
+        ta, tb = (sum(r.mean_travel_cm for r in x) / len(x) for x in (a, b))
+        va, vb = (sum(r.mean_views for r in x) / len(x) for x in (a, b))
+        note = (f"same decisions on every episode, different effort: mean travel {ta:.1f} vs {tb:.1f} cm, mean views "
+                f"{va:.2f} vs {vb:.2f} ({a[0].policy} vs {b[0].policy})")
+    return {"same_decisions": same, "effort_note": note}
 
 
 def _lookup(groups: dict[RunKey, list[EpisodeResult]], policy: str, budget: int,
@@ -799,11 +836,12 @@ def family_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, records: Sequen
                 strata = {x: slot_of[x] for x in arrs}   # type: ignore[index]
                 strata = strata if len(set(strata.values())) > 1 else None   # one slot class: unstratified
                 same = identical_runs(a, g)
+                runs = run_flags(a, g)
                 fseed = family_bootstrap_seed(seed, fam, light.value)
                 for metric in BOOTSTRAP_METRICS:
                     br = paired_diff(a, g, truth, metric, B=B, seed=fseed, strata=strata).to_dict()
                     boots.append({"scope": Split.TEST.value, "lighting": light.value, "family": fam,
-                                  "travel_cap_cm": None, "budget": primary_budget, "identical_runs": same, **br,
+                                  "travel_cap_cm": None, "budget": primary_budget, "identical_runs": same, **runs, **br,
                                   "inconclusive": None if br["ci_lo"] is None else
                                   bool(br["ci_lo"] <= 0.0 <= br["ci_hi"])})
         how = (FAMILY_BOOTSTRAP_NOTE.format(strata=FAMILY_STRATA_TEXT[level]) if boots or not skipped
@@ -1045,12 +1083,17 @@ def _arr_frr(o: dict) -> str:
     return f"{fmt(o['false_removal_rate_arrangement'])} ({'undef' if x is None else _cnt(x)}/{o['n_arr_with_present']})"
 
 
+ZERO_WIDTH_MARK = "(zero-width)"
+
+
 def _with_ci(o: dict, metric: str, ci: dict | None) -> str:
-    """The rate, then its percentile 95% interval when the row has one (test rows, per lighting)."""
+    """The rate, then its percentile 95% interval when the row has one (test rows, per lighting), marked when the
+    interval has zero width (not evidence of zero risk or of a perfect rate)."""
     if not ci:
         return fmt(o[metric])
     r = ci[metric]
-    return f"{fmt(o[metric])} [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}]"
+    mark = f" {ZERO_WIDTH_MARK}" if r.get("zero_width") else ""
+    return f"{fmt(o[metric])} [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}]{mark}"
 
 
 def _cells(o: dict, ci: dict | None = None) -> list[str]:
@@ -1175,7 +1218,10 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
         lines += [f"{h} PRIMARY CONTRAST: {' - '.join(PRIMARY_PAIR)} at b = {pb}, uncapped ({scope} split)", "",
                   ("The preregistered primary comparison (SIM_PREREGISTRATION section 1), paired arrangement-level "
                    "cluster bootstrap. A contrast whose 95% interval contains 0 is INCONCLUSIVE: it is never reported "
-                   "as equivalence, and no equivalence margin is declared. Every other row below is secondary."), "",
+                   "as equivalence, and no equivalence margin is declared. Every other row below is secondary. Each "
+                   "interval is pointwise and unadjusted across the environments, lightings and metrics: each cell is "
+                   "read on its own, and no claim is made for some cell or for all cells. A ZERO-WIDTH interval "
+                   "(no discordant episode) is not evidence of equivalence."), "",
                   "| metric | estimate | 95% CI | n_arr | n_ep | reading |", "| --- | --- | --- | --- | --- | --- |"]
         for r in prim:
             lines.append(f"| {r['metric']} | {fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | "
@@ -1250,15 +1296,18 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
         lines += [(f"Difference A - B on {light} queries only; percentile 95% CI over resampled arrangements (an "
                    f"arrangement's {light} episodes are kept together; {how})."),
                   ("A row marked *identical* means A and B made the same decisions with the same effort on every "
-                   "episode: its [0, 0] CI is degenerate and is not evidence of equal performance."),
+                   "episode: its [0, 0] CI is degenerate and is not evidence of equal performance. A row marked "
+                   "*same decisions* means the same decisions with different effort: its [0, 0] CIs are degenerate "
+                   "too. ZERO-WIDTH marks any interval whose replicates all give one value (no discordant episode "
+                   "for that metric, or one difference in every replicate): not evidence of zero risk or of "
+                   "equivalence. Every interval is pointwise and unadjusted."),
                   "", "| setting | A - B | metric | estimate | 95% CI | n_arr | n_ep | B | undefined draws | note |",
                   "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
         for r in results["bootstrap"]:
             if r["lighting"] != light:
                 continue
-            notes = (["identical: A == B on every episode"] if r.get("identical_runs") else []) + \
-                (["unstratified: singleton strata " + ", ".join(r["singleton_strata"])]
-                 if r.get("singleton_strata") else [])
+            notes = _run_notes(r) + (["unstratified: singleton strata " + ", ".join(r["singleton_strata"])]
+                                     if r.get("singleton_strata") else [])
             lines.append(f"| {lab(r['travel_cap_cm'])} | {r['policy_a']} - {r['policy_b']} | {r['metric']} | "
                          f"{fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | {r['n_arrangements']} | "
                          f"{r['n_episodes']} | {r['B']} | {r['n_undefined']} | {'; '.join(notes)} |")
@@ -1290,13 +1339,32 @@ def _is_sensitivity(policy: str) -> bool:
     return any(s in policy and policy.rsplit(s, 1)[1][:1].isdigit() for s in SENSITIVITY_SUFFIX)
 
 
+def _zero_width_text(r: Mapping[str, Any]) -> str:
+    """The short zero-width flag of a contrast row (its degenerate_note in results.json says more)."""
+    n = r.get("n_discordant_episodes") or 0
+    return ("ZERO-WIDTH interval, no discordant episode" if not n
+            else f"ZERO-WIDTH interval, {n} discordant episodes, one value in every replicate")
+
+
+def _run_notes(r: Mapping[str, Any]) -> list[str]:
+    """The run-level and metric-level flags of a paired row, for the note column."""
+    notes = (["identical: A == B on every episode"] if r.get("identical_runs")
+             else [r["effort_note"]] if r.get("effort_note") else [])
+    return notes + ([_zero_width_text(r)] if r.get("zero_width") else [])
+
+
 def _reading(r: Mapping[str, Any]) -> str:
-    """The declared reading of one contrast row: inconclusive when its 95% interval contains 0, never equivalence."""
+    """The declared reading of one contrast row: inconclusive when its 95% interval contains 0, never equivalence; a
+    zero-width interval is flagged as such (not evidence of equivalence or of zero risk)."""
     if r.get("ci_lo") is None or r.get("estimate") is None:
         return "undefined"
     if r["ci_lo"] <= 0.0 <= r["ci_hi"]:
-        return "inconclusive (the interval contains 0; not equivalence)"
-    return ("first policy higher" if r["estimate"] > 0 else "first policy lower") + " (the interval excludes 0)"
+        text = "inconclusive (the interval contains 0; not equivalence)"
+    else:
+        text = ("first policy higher" if r["estimate"] > 0 else "first policy lower") + " (the interval excludes 0)"
+    if r.get("zero_width"):
+        text += f"; {_zero_width_text(r)}: not evidence of equivalence or of zero risk"
+    return text
 
 
 def _pooled_lines(results: dict[str, Any], lab) -> list[str]:
@@ -1375,6 +1443,22 @@ def _rate_ci_line(results: dict[str, Any]) -> str | None:
             "`rate [2.5%, 97.5%]`: the percentile 95% interval of the same arrangement-level cluster bootstrap as "
             f"the paired rows ({how}; B = {results['config']['bootstrap_B']}). R's interval is over its "
             "seed-averaged decisions: arrangements are resampled, seeds are not (results.json `rate_ci95`).")
+
+
+def _interval_lines(results: dict[str, Any]) -> list[str]:
+    """The header bullets on reading the intervals: pointwise and unadjusted; zero-width intervals. Empty when the run
+    has no interval (no test arrangement)."""
+    if not results.get("bootstrap") and not any(m.get("rate_ci95") for m in results["metrics"]):
+        return []
+    return [("- **Intervals are pointwise and unadjusted.** Each 95 % interval covers one metric of one policy or pair "
+             "in one environment, lighting and setting; none is adjusted for the number of comparisons, and no "
+             "simultaneous coverage is claimed. Every cell is read on its own: no claim is made for some cell or for "
+             "all cells (results.json `interval_note`)."),
+            (f"- **{ZERO_WIDTH_MARK}** (single rates) and **ZERO-WIDTH** (contrasts) mark an interval whose bootstrap "
+             "replicates all give one value: a rate with no observed event (e.g. 0 false removals) or with every "
+             "episode an event, or a contrast with no discordant episode. That can hold while two runs differ in "
+             "effort or on other metrics (*same decisions* rows). It is not evidence of zero risk, of a perfect rate "
+             "or of equivalence; results.json gives each one's `degenerate_note` and the discordant counts.")]
 
 
 FAMILY_HEAD = ("| policy | FRR | FRR per arrangement (x/n) | recall | coverage | resolved acc | mean views "
@@ -1479,7 +1563,8 @@ def _family_lines(results: dict[str, Any], light: str, h: str, key: str, title: 
             lines += [f"{' - '.join(PRIMARY_PAIR)} on {f}, {light} queries (B = {rows[0]['B']}, {how}):", "",
                       CONTRAST_HEAD]
             for r in rows:
-                note = " (identical runs)" if r.get("identical_runs") else ""
+                note = (" (identical runs)" if r.get("identical_runs") else
+                        " (same decisions, different effort)" if r.get("effort_note") else "")
                 lines.append(f"| {r['metric']} | {fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | "
                              f"{r['n_arrangements']} | {r['n_episodes']} | {_reading(r)}{note} |")
             lines.append("")
@@ -1569,7 +1654,7 @@ def render_table(results: dict[str, Any]) -> str:
               "at the end."),
              *([_generator_caveat(cfg.get("generator", {}))] if results.get("synthetic") else []),
              *_cap_notes(cfg, Positions.from_dict(results["positions"])), _strat_line(results),
-             *(x for x in (_rate_ci_line(results),) if x)]
+             *(x for x in (_rate_ci_line(results),) if x), *_interval_lines(results)]
     for light in lights:
         ref = _find(metrics, scope, "S", pb, None, light)
         if ref:
@@ -1743,7 +1828,10 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-REAL_CONFIG_VERSION = "real-v6"
+REAL_CONFIG_VERSION = "real-v7"
+# v7 (2026-11-06, the freeze review, before any test run): metric-level zero-width flags (zero_width, discordant counts,
+#   degenerate_note; same_decisions and effort_note per paired row) and the pointwise / unadjusted interval note. No
+#   estimate, interval, setting or analysis changes.
 # v6 (2026-11-05): multi-view policies vs S, by-family breakdowns, gate-off ablation, tau_match sweep, view diagnostics
 #   (review 2026-11-06, before any v6 test run: occluder-family level, sweep extension, per-family seeds; code_sha256)
 ANALYSIS_CODE = ("verify/*.py", "analysis/*.py")   # every module this run can import from the repository

@@ -67,7 +67,7 @@ The simulated rig ([notes](../notes/2026-11-02-simulation.md), [`sim/`](../sim/R
 
 ## Design choices confirmed by the student (2026-11-02 / 11-03)
 
-The analysis rules are in [`SIM_PREREGISTRATION.md`](SIM_PREREGISTRATION.md). It gets a final review after the development loop (including A) and is frozen before any test scene is generated.
+The analysis rules are in [`SIM_PREREGISTRATION.md`](SIM_PREREGISTRATION.md). It gets a final review after the development loop (including A) and is frozen before any test scene is generated. (One shelf test arrangement was generated temporarily by a unit test on 2026-11-05 and deleted without being rendered, scored or viewed: [`notes/2026-11-06-test-seed-incident.md`](../notes/2026-11-06-test-seed-incident.md).)
 
 - **Counts:** 60 dev + 100 test random arrangements per environment (shelf and tabletop), with DES0–DES3 as separate dev checks. This is a practical allocation, not a power guarantee. Dev throughput is measured end to end before the counts are frozen.
 - **Occluder quotas:** S8 20 %, M16 30 % (left/right balanced), IND28 10 %, white box 20 %, YCB box 20 %. They are fixed as slot lists before rendering; retries and replacements stay within the family.

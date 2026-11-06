@@ -53,7 +53,7 @@ CHECKPOINTS = {"yolov8s-worldv2.pt": "9b2c17ab6124a913e9b3a5c170617920d91b0f0111
 EVIDENCE_FROZEN = ("perception/evidence_v03.py", "perception/evidence.py", "perception/common.py",
                    "perception/side_descriptor.py", "perception/registration_v032.py", "verify/schema.py",
                    "verify/stopping.py", "pyproject.toml", "uv.lock")   # = tools/pipeline.py EVIDENCE_FROZEN
-RUN_CONFIG_VERSION = "real-v6"   # = verify/run.py REAL_CONFIG_VERSION
+RUN_CONFIG_VERSION = "real-v7"   # = verify/run.py REAL_CONFIG_VERSION
 # The declared run settings (SIM_PREREGISTRATION §1, §4, §6, §8-§10; FREEZE.md runbook step 5), written out here so a
 # run with any other setting fails even if verify.run's own defaults moved.
 RUN_SETTINGS = {

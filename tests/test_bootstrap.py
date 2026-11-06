@@ -1,6 +1,7 @@
 """Tests for analysis/bootstrap.py: paired, arrangement-level resampling (inputs built with schema types)."""
 from __future__ import annotations
 
+import dataclasses
 import unittest
 from collections import Counter
 from unittest import mock
@@ -371,6 +372,118 @@ class TestRateIntervals(unittest.TestCase):
         self.assertEqual((fb.ci_lo, fb.ci_hi), (iv["false_removal_rate"].ci_lo, iv["false_removal_rate"].ci_hi))
         with self.assertRaises(ValueError):   # one result per episode
             rate_intervals(a + a[:1], truth, B=10)
+
+
+def with_effort(results: list[EpisodeResult], travel: float, views: float) -> list[EpisodeResult]:
+    return [dataclasses.replace(r, mean_travel_cm=travel, mean_views=views, mean_additional_views=views - 1)
+            for r in results]
+
+
+def no_false_removal(a, c, l) -> Decision:
+    """Never removes a present target; unknown on the visible L1 episode of every other arrangement, so coverage
+    varies between arrangements."""
+    return U if a % 2 == 0 and (c.value, l.value) == ("visible", "L1") else correct(a, c, l)
+
+
+class TestZeroWidth(unittest.TestCase):
+    """Metric-level zero-width flags (freeze review, 2026-11-06): an interval whose replicates all give one value is
+    flagged with why (no observed event, every episode an event, the same rate everywhere, no discordant episode), never
+    read as zero risk or as equivalence. The estimates and intervals are unchanged."""
+
+    def test_no_observed_false_removal(self) -> None:
+        a = make(8, no_false_removal, "A")
+        iv = rate_intervals(a, truth_for(a), B=300, seed=0)
+        frr = iv["false_removal_rate"]
+        self.assertEqual((frr.estimate, frr.ci_lo, frr.ci_hi), (0.0, 0.0, 0.0))
+        self.assertTrue(frr.zero_width)
+        self.assertIn("no observed false removal (0 false removals in 32 present-truth episodes)", frr.degenerate_note)
+        self.assertIn("not evidence of zero risk", frr.degenerate_note)
+        cov = iv["coverage"]                                     # the unknowns vary by arrangement: a real interval
+        self.assertLess(cov.ci_lo, cov.ci_hi)
+        self.assertFalse(cov.zero_width)
+        self.assertEqual(cov.degenerate_note, "")
+        d = frr.to_dict()
+        self.assertTrue(d["zero_width"])
+        self.assertEqual(d["degenerate_note"], frr.degenerate_note)
+
+    def test_every_episode_an_event(self) -> None:
+        a = make(6, correct, "A")
+        rec = rate_intervals(a, truth_for(a), B=200, seed=0)["removal_recall"]
+        self.assertEqual((rec.estimate, rec.ci_lo, rec.ci_hi), (1.0, 1.0, 1.0))
+        self.assertTrue(rec.zero_width)
+        self.assertIn("(12 correct removals in 12 removed-truth episodes), so every replicate gives 1",
+                      rec.degenerate_note)
+        self.assertIn("not evidence of zero risk or of a perfect rate", rec.degenerate_note)
+
+    def test_the_same_rate_in_every_arrangement(self) -> None:
+        # every arrangement removes on L1 and stays unknown on L2: recall 1/2 in every replicate, not at a boundary
+        a = make(6, lambda i, c, l: (R if l.value == "L1" else U) if c.value == "removed" else P, "A")
+        rec = rate_intervals(a, truth_for(a), ("removal_recall",), B=200, seed=0)["removal_recall"]
+        self.assertEqual((rec.ci_lo, rec.ci_hi), (0.5, 0.5))
+        self.assertTrue(rec.zero_width)
+        self.assertIn("every replicate gives the same rate (6 correct removals in 12 removed-truth episodes)",
+                      rec.degenerate_note)
+
+    def test_same_decisions_different_effort(self) -> None:
+        """The development case of the freeze review: A and Dir decided alike on every held-out episode but travelled
+        differently, and A - Dir removal recall printed [0, 0] with identical_runs False. Every decision metric is
+        flagged; the effort contrast is a real, constant difference and is flagged as such."""
+        a = with_effort(make(10, noisy, "A"), 156.0, 2.14)
+        d = with_effort(make(10, noisy, "Dir"), 93.5, 2.24)
+        truth = truth_for(a)
+        for metric in ("false_removal_rate", "removal_recall", "coverage"):
+            r = paired_diff(a, d, truth, metric, B=300, seed=0)
+            self.assertEqual((r.estimate, r.ci_lo, r.ci_hi), (0.0, 0.0, 0.0), metric)
+            self.assertTrue(r.zero_width, metric)
+            self.assertEqual((r.n_discordant_episodes, r.n_discordant_arrangements), (0, 0), metric)
+            self.assertIn("no discordant episode", r.degenerate_note)
+            self.assertIn("the runs may still differ in effort", r.degenerate_note)
+            self.assertIn("not evidence of equivalence", r.degenerate_note)
+        t = paired_diff(a, d, truth, "mean_travel_cm", B=300, seed=0)
+        self.assertAlmostEqual(t.estimate, 62.5)
+        self.assertTrue(t.zero_width)
+        self.assertEqual(t.n_discordant_episodes, 60)
+        self.assertIn("every replicate gives the same difference (60 discordant episodes)", t.degenerate_note)
+
+    def test_flagged_per_metric(self) -> None:
+        # G differs from A only on removed episodes: FRR has no discordant episode (zero-width), recall has some
+        a = make(10, noisy, "A")
+        g = make(10, lambda i, c, l: U if c.value == "removed" and i % 3 == 0 else noisy(i, c, l), "G")
+        truth = truth_for(a)
+        frr = paired_diff(a, g, truth, "false_removal_rate", B=300, seed=0)
+        rec = paired_diff(a, g, truth, "removal_recall", B=300, seed=0)
+        self.assertEqual(frr.n_discordant_episodes, 0)
+        self.assertTrue(frr.zero_width)
+        self.assertGreater(rec.n_discordant_episodes, 0)
+        self.assertEqual(rec.n_discordant_arrangements, len({e.arrangement_id for e in a
+                                                             if e.condition.value == "removed"
+                                                             and int(e.arrangement_id[1:]) % 3 == 0
+                                                             and noisy(int(e.arrangement_id[1:]), e.condition,
+                                                                       e.lighting) is R}))
+        self.assertLess(rec.ci_lo, rec.ci_hi)
+        self.assertFalse(rec.zero_width)
+        self.assertEqual(rec.degenerate_note, "")
+
+    def test_a_constant_difference_is_flagged_too(self) -> None:
+        a = make(5, correct, "G")
+        b = make(5, lambda i, c, l: U if (c.value, l.value) == ("visible", "L1") else correct(i, c, l), "F")
+        r = paired_diff(a, b, truth_for(a), "coverage", B=300, seed=0)
+        self.assertTrue(r.zero_width)
+        self.assertEqual((r.n_discordant_episodes, r.n_discordant_arrangements), (5, 5))
+        self.assertIn("every replicate gives the same difference (5 discordant episodes)", r.degenerate_note)
+
+    def test_the_flags_change_no_estimate_or_interval(self) -> None:
+        a, b = make(12, noisy, "G"), make(12, correct, "F")
+        truth = truth_for(a)
+        r = paired_diff(a, b, truth, "removal_recall", B=400, seed=7)
+        diffs = draw_diffs(pair(a, b, truth), truth, "removal_recall", arrangement_draws(12, 400, 7))
+        lo, hi = np.percentile(diffs[~np.isnan(diffs)], [2.5, 97.5])
+        self.assertEqual((r.ci_lo, r.ci_hi), (float(lo), float(hi)))
+        self.assertEqual(r.estimate, metrics_on(a, truth)["removal_recall"] - metrics_on(b, truth)["removal_recall"])
+        self.assertFalse(r.zero_width)
+        self.assertEqual(r.degenerate_note, "")
+        self.assertTrue(bootstrap.zero_width(0.25, 0.25) and not bootstrap.zero_width(0.25, 0.26))
+        self.assertFalse(bootstrap.zero_width(None, None))
 
 
 if __name__ == "__main__":

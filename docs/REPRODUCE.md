@@ -353,6 +353,8 @@ $UV_RUN -m verify.select --synthetic --n-arr 30 --seed 0 --bootstrap-B 200 --tag
 
 **No test seed is generated, rendered or scored before `docs/FREEZE.md` is committed.** [SIM_PREREGISTRATION.md](SIM_PREREGISTRATION.md) section 12 lists what the freeze records.
 
+One exception happened while the gate was being built. On 2026-11-05 a unit test, under a mocked freeze, generated the shelf test arrangement of slot 0 in a temporary directory and deleted it; it was not rendered, scored or viewed ([`notes/2026-11-06-test-seed-incident.md`](../notes/2026-11-06-test-seed-incident.md)). The gate now refuses that route: a study seed opens only against the committed `docs/FREEZE.md` itself.
+
 - Until the freeze, every route refuses test seeds (>= 100000):
   - `sim.arrange` exits 2 (`seed 100000 is in the reserved TEST range`);
   - `sim.isaac_batch` refuses any arrangement that is not a dev arrangement before Isaac starts;
@@ -368,7 +370,7 @@ $UV_RUN -m verify.select --synthetic --n-arr 30 --seed 0 --bootstrap-B 200 --tag
 
 ## 10. Known gaps: not yet reproducible
 
-- **The test has not run.** `docs/FREEZE.md` and the test sets do not exist until the researcher's final review of the preregistration.
+- **The test has not run.** `docs/FREEZE.md` is committed with the freeze (simulation-freeze-1, 2026-11-06, after the researcher's final review of the preregistration). The test sets are generated only after that, by its runbook.
 - **Development only.** Every number in this repository is a development (simulation) result:
   - the pooled calibration over both environments' 120 development arrangements, with A, A-nocue and Dir held out (`notes/2026-11-06-pooled-calibration.md`);
   - the tabletop transfer diagnostic (`notes/2026-11-06-tabletop-dev49-transfer.md`).

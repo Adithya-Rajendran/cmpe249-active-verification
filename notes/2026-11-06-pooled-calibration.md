@@ -116,7 +116,8 @@ removals among 60 removed episodes per environment and lighting. R is the expect
 Outputs: `runs/2026-11-06-pooled-dev120/summary/heldout_b3.txt` and `heldout_b3_caps1_6.txt` (from `heldout_table.py`
 there); disagreements from `discord.py`.
 
-- **Errors.** No false removal in any row (0 of 120 present-truth episodes per cell).
+- **Errors.** No false removal in any row (0 of 120 present-truth episodes per cell). Zero observed false removals
+  bound nothing by themselves: they are not evidence of zero risk.
   - There is one false present per tabletop lighting (TD5017, above) for every multi-view policy except R, uncapped
     and under the 2- to 6-step caps, and for FULL.
   - R has 0.25-0.60 in expectation.
@@ -131,10 +132,20 @@ there); disagreements from `discord.py`.
   episodes:
   - A removes and G stays unknown: SD1024-removed-L2 (white_box) and SD1047-removed-L1 and -L2 (M16-R);
   - G removes and A stays unknown: TD5006-removed-L2 and TD5053-removed-L2 (both ycb_box).
-- **What A does.** At the primary setting, A's held-out decision equals Dir's in every episode, and A-nocue's equals
-  G's in every episode. Under the 3- and 4-step caps, A again equals Dir in every episode. Under the 2-step cap A
-  fails like G, because it goes to a far stop first. Under the 6-step cap A equals G. Dir is never below A in removals
-  at any travel setting.
+- **What A does: the observed comparisons.**
+  - At the primary setting, A's held-out decision equals Dir's in every episode, and A-nocue's equals G's in every
+    episode. Under the 3- and 4-step caps, A again equals Dir in every episode
+    (`summary/discord_A_G_cap3_cap4_recount.txt`). Under the 2-step cap A fails like G, because it goes to a far stop
+    first. Under the 6-step cap A equals G. Dir is never below A in removals at any travel setting.
+  - **Same decisions, different routes.** Uncapped, A and Dir decide alike but travel differently: A 156 / 158 / 71 / 74
+    cm per episode on average, Dir 94 / 96 / 36 / 37 cm (shelf L1 / L2, tabletop L1 / L2). Their mean views are A 2.14
+    / 2.16 / 2.12 / 2.17 (as G) and Dir 2.24 / 2.26 / 2.15 / 2.17. Under the 3- and 4-step caps both take 2.03 views,
+    and A travels 85 / 85 / 40 / 40 cm against Dir's 51 / 51 / 25 / 25 cm.
+  - **Capped disagreements with G.** At each of the 3- and 4-step caps, A and G disagree on 58 removed episodes over the
+    four cells. A gains 55: 35 in M16 (all M16-left) and 20 outside M16 (S8 12, YCB box 8). It loses 3, all YCB box.
+  - **What the ablation does not isolate.** A-nocue drops four features together: sep_occluded, obstruction_start,
+    side_toward and side_missing. So the agreement of A with Dir, and of A-nocue with G, does not isolate a causal
+    contribution of the side descriptor alone.
 
 ## Resolution of the primary contrast at the test size
 
@@ -155,10 +166,20 @@ counts all three conditions. A difference of the size seen on dev is about the s
 test outcome for A - G at the primary setting is inconclusive in at least some cells.** Inconclusive is not
 equivalence (SIM_PREREGISTRATION §1).
 
+This estimate is conditional on the sparse development disagreements: 5 discordant episodes in 4 arrangements. The
+tabletop L1 row had no discordant episode, so its SD of 0 reflects that sample, not perfect precision; test
+arrangements can disagree where development ones did not. The 2.8 SD column is a normal-approximation heuristic,
+not a verified power for rare, discrete paired differences. Each test interval will be pointwise and unadjusted, and
+read per environment, lighting and metric (SIM_PREREGISTRATION §8).
+
 ## Reading
 
 - These are development results under the declared design. They do not change it: the endpoint, k, lam, the caps and
   A's design stay as pinned.
-- Two conditional development diagnostics. A's measured advantage on development data comes from the side
-  descriptor, and the deterministic rule Dir, built on the same descriptor, does at least as well at every travel
-  setting. They are recorded here before any test arrangement exists. The test may differ.
+- Two conditional development diagnostics, stated as observed comparisons. A's held-out decisions equal those of the
+  deterministic rule Dir, built on the same descriptor, at the primary setting and under the 3- and 4-step caps, with
+  more travel than Dir. Dir removes at least as many as A at every travel setting. A-nocue, which drops four features
+  together, decides like G. Which feature carries A's development gains is not isolated, and any mechanism is
+  exploratory. These diagnostics are recorded before any test arrangement was rendered or scored. One shelf test
+  arrangement was generated temporarily by a unit test and deleted unseen (`notes/2026-11-06-test-seed-incident.md`).
+  The test may differ.

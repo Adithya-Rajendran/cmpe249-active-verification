@@ -1,21 +1,25 @@
-# Pre-registration: the simulation study (draft for final review)
+# Pre-registration: the simulation study
 
-**Status: REVIEW DRAFT (2026-11-06).**
+**Status: FROZEN with docs/FREEZE.md (simulation-freeze-1, 2026-11-06).**
 - The design choices were confirmed by the researcher on 2026-11-02 / 11-03.
 - The development loop, including A, is finished. Its record is §14 and the notes cited there.
-- The whole document now gets its one final review. It is then frozen with FREEZE.md before any test scene is
-  generated. The slots marked `[ ]` are the researcher's to confirm or edit in that review.
+- The researcher confirmed this document in its final review on 2026-11-06: every open slot as recommended, with the
+  review's corrections (the test-seed incident record, the zero-width interval flags, pointwise and unadjusted
+  intervals, and the development record's wording). It is frozen with FREEZE.md before any test arrangement is
+  generated for the study.
+- One shelf test arrangement (slot 0) was generated temporarily by a unit test on 2026-11-05 and deleted unseen: it was
+  not rendered, scored or viewed (§14; `notes/2026-11-06-test-seed-incident.md`). The seed schedule is kept.
 
 It succeeds the earlier physical-study draft, which was never confirmed and is archived in the researcher's local
 progress folder.
 - [`EXPERIMENT_PLAN.md`](EXPERIMENT_PLAN.md) holds the design.
 - [`SIMULATION_STUDY.md`](SIMULATION_STUDY.md) is the amendment.
-- This document fixes the analysis rules. Slots still marked `[ ]` are open until the final review.
+- This document fixes the analysis rules.
 
 **Order of work:**
 1. Finish the development loop: generator quotas, dev renders, evidence, threshold calibration, the S/F/R/G replay, and building and training A. **Done (2026-11-06; §14).**
-2. Review this document.
-3. Freeze it (§12).
+2. Review this document. **Done (2026-11-06).**
+3. Freeze it (§12). **Done: docs/FREEZE.md (simulation-freeze-1).**
 4. Only then generate any test scene.
 
 **Naming.**
@@ -40,7 +44,7 @@ progress folder.
 
 - **Simulator:** Isaac Sim 6.2 on the GB10 is the single simulator; MuJoCo is a geometry cross-check only.
 - **Environments:** shelf (the measured rig replica), then tabletop. **No third environment.** Claims concern **new arrangements within these two environments**, not generalisation to unseen environment types.
-- **Cameras:** the option-A arc with per-stop pitch, so compartment #3 stays in frame. Extra cameras are allowed. The stop set per environment is fixed in FREEZE.md.
+- **Cameras:** the option-A arc with per-stop pitch, so compartment #3 stays in frame. The five-stop arc is kept in both environments; no extra cameras (confirmed by the researcher, 2026-11-06).
 - **No fiducials** (2026-11-03). The corner ArUco tags are removed from every simulated scene, dev and test, because a home robot's shelf has none.
   - Evidence must align each query view onto its reference from the images alone (evidence v0.3), with no masks, labels or poses.
   - Frozen v0.2.1, the baseline, then runs unaligned.
@@ -58,7 +62,7 @@ progress folder.
   - Per environment: **60 dev + 100 test random arrangements**, with DES0–DES3 as separate dev checks outside the 60.
   - This is a practical allocation, **not a power guarantee**.
   - **Render time.** The first planning estimate was about 5.4 h for the 320 random arrangements, at about 61 s each (`runs/2026-11-02-sim-prereg-review/planning_checks.json`). That was measured before the ghost fix, which renders every capture with fresh render products. With the fix, the same 10 shelf dev arrangements took 120.9–126.4 s each, median 124.4 s (`data/raw/2026-11-03_sim_pilot/set_checks.json`). That gives about 11 h of rendering for 320. With revisit noise (checkpoint 2), the 10-arrangement check batch took 124.5–130.6 s per arrangement, median 128.6 s, and 1300 s in all including boot and shader compile (`shelf_dev_v1_check/render_report_20261103T000139.json` on the share). That is about 2.2 h for 60 and about 11.6 h for 320.
-  - Neither figure includes inference, retries or any tabletop differences. Complete dev throughput is measured before the counts are frozen.
+  - **Measured development throughput** (median render time per arrangement): shelf 128.6 s (the check batch above) and 127.9 s (the renderer check of 2026-11-06, FREEZE.md §4), tabletop 176.0 s (the 49, `notes/2026-11-06-tabletop-dev49-transfer.md`). So 100 + 100 test arrangements take about 3.6 h + 4.9 h of rendering; evidence takes minutes. The counts stand (confirmed by the researcher, 2026-11-06).
 - **Occluder quotas** (fixed before rendering, §2):
 
   | Family | Share | Dev (per env.) | Test (per env.) |
@@ -79,27 +83,26 @@ progress folder.
   - **Recorded:** the ranges are documented in the generator config and in FREEZE.md.
   - **Labels:** geometric labels are computed from the actual perturbed renders.
   - **Checked first:** a small dev batch is checked before the full dev batch.
-- **Cameras:** the current five-stop set is kept for now. Extra cameras are decided only after inspecting the dev diagnostic-view patterns, and before the freeze.
 
 ---
 
 ## 1. Questions and hypotheses
 
-- **Primary question.** Under view-budgeted verification (b = 3, uncapped), does the learned ranker **A** improve on the geometric selector **G** in FRR, removal recall and coverage? The primary contrast is A − G on test, reported separately for L1 and L2 and for each environment. `[ ] confirm / edit:`
+- **Primary question.** Under view-budgeted verification (b = 3, uncapped), does the learned ranker **A** improve on the geometric selector **G** in FRR, removal recall and coverage? The primary contrast is A − G on test, reported separately for L1 and L2 and for each environment. Confirmed by the researcher, 2026-11-06.
 - **Baselines.** A − F, A − R, G − F, G − R, and each multi-view policy against S (at its actual effort).
 - **Added 2026-11-05 (secondary):**
   - A − G-lookahead along the travel caps;
   - A − A-nocue (does the occlusion cue matter);
   - A − Dir (explanatory: does learning add anything over the deterministic rule on the same descriptor).
 
-  None of them replaces the primary. `[ ] confirm / edit:`
+  None of them replaces the primary. Confirmed by the researcher, 2026-11-06.
 - **Hypotheses:**
   - **H1:** for the same selector, k = 2 gated removal gives lower FRR than first-clear-miss removal (`-fcm`), possibly at lower coverage.
   - **H2:** A improves the error / coverage / effort trade-off over F and R.
   - **H3:** any A − G advantage depends on the occlusion family and on lighting.
 
-  `[ ] confirm / edit:`
-- **Inconclusive.** A contrast is inconclusive when its 95 % paired cluster-bootstrap interval (§8) contains 0. Inconclusive is never reported as equivalent, and no equivalence margin is declared. `[ ] confirm / edit:`
+  Confirmed by the researcher, 2026-11-06.
+- **Inconclusive.** A contrast is inconclusive when its 95 % paired cluster-bootstrap interval (§8) contains 0. Inconclusive is never reported as equivalent, and no equivalence margin is declared. Each interval is pointwise and unadjusted (§8), so a conclusion is stated per environment, lighting and metric. Confirmed by the researcher, 2026-11-06.
 
 ## 2. Unit of analysis, seeds, quotas and split
 
@@ -110,7 +113,7 @@ progress folder.
   - **Test:** a contiguous block per environment: shelf from 100000, tabletop from 110000. Each has per-family reserve
     lists (shelf 101000+, tabletop 111000+), as in the generator configs.
 
-  No test seed is rendered, scored or viewed before the freeze.
+  No test seed is rendered, scored or viewed before the freeze. (A unit test generated the shelf test arrangement of slot 0 temporarily on 2026-11-05 and deleted it without rendering, scoring or viewing it: `notes/2026-11-06-test-seed-incident.md`. The seed schedule is kept.)
 - **Quotas are slots, not weights.**
   - **Slot list.** Before rendering, a fixed slot list per split and environment assigns every arrangement its occluder family, and its M16 side. The list comes from a seeded permutation of the quota table above.
   - **Retries and replacements.** If a seed's placement fails, the generator retries deterministically within the same family: seed, attempt 1, 2, …, up to a fixed maximum. After that it takes the next seed from that family's reserve list. **It never falls back to another family.**
@@ -122,16 +125,16 @@ progress folder.
 ## 3. Conditions, occluders and geometric labels
 
 - **Revisit frame check** (tag-free, 2026-11-03). A revisit pose draw is accepted only when compartment #3's outline and the target's projected hull both stay inside the frame (margin ≥ 0 px), at the nominal and the revisit pose; otherwise it is redrawn, deterministically, and the redraw is logged. Ranges: ±10 mm translation and ±0.5° rotation per axis.
-  - **Tabletop (DEV, not frozen; 2026-11-04 design).** The tabletop has no compartment: the outline is the **workspace outline** (24 points on the 0.20 m circle around the workspace centre, at z = 0 and z = 0.12 m) together with the **target's projected hull**. Both must stay inside the frame with margin ≥ 0 px under the cameras' fitted k1 distortion, at the nominal and the revisit pose; the same ranges, deterministic redraws and logging as the shelf. `[ ] confirm / edit before the freeze:`
-- **True alignment, evaluation only.** For every query view the simulator writes the exact query-to-reference homography at the shelf front plane and at the target's depth (`true_alignment.json`, `sim/alignment.py`); on the tabletop (DEV) at the table plane z = 0 and the horizontal plane through the target's centre. It scores the evidence step's image alignment and is never an input to evidence, calibration or a policy.
+  - **Tabletop (2026-11-04 design).** The tabletop has no compartment: the outline is the **workspace outline** (24 points on the 0.20 m circle around the workspace centre, at z = 0 and z = 0.12 m) together with the **target's projected hull**. Both must stay inside the frame with margin ≥ 0 px under the cameras' fitted k1 distortion, at the nominal and the revisit pose; the same ranges, deterministic redraws and logging as the shelf. Confirmed by the researcher, 2026-11-06.
+- **True alignment, evaluation only.** For every query view the simulator writes the exact query-to-reference homography at the shelf front plane and at the target's depth (`true_alignment.json`, `sim/alignment.py`); on the tabletop at the table plane z = 0 and the horizontal plane through the target's centre. It scores the evidence step's image alignment and is never an input to evidence, calibration or a policy.
 - **Matched occluder rule.** Occluded and removed share one occluder layout at both lightings. In the reference and visible phases the occluder is parked: present, but blocking nothing.
-- **Objects.** YCB-Video models first, with the target from a fixed list that fits the space, then Google Scanned Objects. The object list is frozen with its licences. `[ ] confirm / edit:`
+- **Objects.** YCB-Video models only (no Google Scanned Objects were needed), with the target from a fixed list that fits the space. The object list and its licence note are in the frozen generator configs. Confirmed by the researcher, 2026-11-06.
 - **Geometric diagnostic labels** (from the instance masks):
   - a view of a present target is *geometrically diagnostic* when its visible fraction is ≥ 0.90;
   - a removed-episode view is diagnostic when the occluder covers < 10 % of the target's region at that view's camera pose. Queries use revisit poses, so the region is the visible-phase target mask at the same revisit pose, not the nominal reference mask (2026-11-03). On the check batch this differs for one view: SD1000 P4, 0.088 against 0.225 with the reference mask.
   - **These are geometric labels, not recognisability.** A target with some visible pixels below 0.90 is labelled non-diagnostic even if a detector might still recognise it. SD0001 is such a case: occluded visible fraction 0.022 at P1 and 0.005 at P5 (`data/raw/2026-11-03_sim_pilot/set_checks.txt`).
 
-  `[ ] confirm the cut-offs / edit:`
+  Confirmed by the researcher, 2026-11-06.
 - **Intended-hidden subset.** The IND28 family and DES3 are *designed* to stay hidden. Episodes in which no stop is geometrically diagnostic are reported as a **geometric no-diagnostic-view share**, per split, environment and lighting. That share is context for coverage. **It is not a theoretical maximum coverage**, and coverage is never reported against it as a ceiling. The code reports it as `geometric_no_diagnostic_view_share`, computed per episode and lighting from the view labels. It was renamed from "max achievable coverage" on 2026-11-03.
 
 ## 4. Policies
@@ -144,7 +147,7 @@ progress folder.
 | **G** | D-norm parallax, lookahead **off** | geometric baseline (primary G) |
 | G-lookahead | the same scorer plus the reachability filter | ablation |
 | G-myopic | the pre-revision G (different normalisation) | legacy ablation |
-| A | learned informativeness; same λ (= 0) and candidate set as G | proposed; **built during dev** |
+| A | learned informativeness; same λ (= 0) and candidate set as G | proposed; built during dev; frozen model files in `frozen/` |
 | A-nocue | A without the side descriptor and every other obstruction-derived feature | ablation |
 | Dir | direction rule on P3's left/right descriptor (below); G when the descriptor is missing or 0 | explanatory control (post-hoc development origin) |
 | FULL | all stops, uncapped | higher-effort reference, not an upper bound |
@@ -179,7 +182,7 @@ progress folder.
   - Dir has no fitted parameter. It was defined after the headroom analysis of 2026-11-05, as a control for what A
     can gain from the descriptor alone.
 
-  `[ ] confirm / edit:`
+  Confirmed by the researcher, 2026-11-06.
 - **τ_occ** is both the clear-miss gate and G's occlusion flag. So the occlusion-gate-off ablation (τ_occ = 1.0) is **reported for F and R only**, where it changes the gate and nothing else.
 
 ## 5. Shared stopping rule
@@ -243,7 +246,7 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
   - **Subgroups** (reported, not adjusted): the gate's false-clear rate on shelf L1 views is 21 / 176. The pooled rate
     is 50 / 632, which meets alpha_clear.
 
-`[ ] confirm after inspecting the implemented select-v4 / edit:`
+Confirmed by the researcher, 2026-11-06.
 
 ## 8. Uncertainty
 
@@ -253,8 +256,10 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
   - Percentile 95 % intervals for contrasts and for single rates (FRR, removal recall and coverage, per lighting), from the same draws. For R, arrangements are resampled but its seeds are not, so R's interval is for its expected rate over its own randomisation.
 - **Secondary, descriptive only:** Clopper-Pearson and Jeffreys bounds on integer counts. They treat episodes as independent, which they are not. Integer counts do not remove the dependence between views and episodes of one arrangement.
 - **FRR** is reported per episode and per arrangement (any false removal). For R, "any false removal" is computed per seed and then averaged over seeds, because R's matched episodes share a random stream.
+- **Pointwise and unadjusted** (made explicit at the final review, 2026-11-06). Every interval is a pointwise 95 % interval for one metric of one policy or pair, in one environment, lighting and setting. None is adjusted for the number of comparisons, and no simultaneous coverage is claimed. A conclusion is stated only for the environment, lighting and metric it was computed for; there is no omnibus claim that A wins in some cell or in every cell.
+- **Zero-width intervals** (added at the final review, 2026-11-06; verify.run real-v7). An interval whose bootstrap replicates all give one value is flagged in results.json and table.md (`zero_width`, a `degenerate_note`, and the discordant episode and arrangement counts of a contrast), and so is a pair with the same decisions on every episode but different effort (`same_decisions`, `effort_note`). The typical cases are zero observed errors (an FRR of 0 [0, 0]) and two policies with the same decisions: on development data A and Dir gave an A − Dir removal recall of [0, 0] although their travel differs, so the runs were not identical. The declared bootstrap and the raw estimates are kept unchanged. Such an interval is never presented as evidence of zero risk, of a perfect rate or of equivalence; its counts are reported with it.
 
-`[ ] confirm / edit:`
+Confirmed by the researcher, 2026-11-06.
 
 ## 9. Metrics and reporting
 
@@ -270,8 +275,8 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
   - G − G-lookahead and G − G-myopic;
   - `X` vs `X-fcm`.
 
-  Identical-run contrasts are flagged.
-- **Secondary, predeclared: A − G on common targets.** This is the A − G contrast restricted to the foam brick and tuna can episodes, the two targets every family supports, across all families. It uses consistent target weighting: within each family the two targets carry equal weight, so the comparison across families is not a difference in target mix. It is reported per lighting and environment, with the same stratified paired cluster bootstrap (§8). This addresses the target–family confound (2026-11-03); it is secondary and does not replace the primary A − G. Implemented in `analysis/common_target.py` and `verify/run.py` (abd99d6). `[ ] confirm / edit:`
+  Identical-run contrasts are flagged, and so are contrasts with the same decisions but different effort and every zero-width interval (§8).
+- **Secondary, predeclared: A − G on common targets.** This is the A − G contrast restricted to the foam brick and tuna can episodes, the two targets every family supports, across all families. It uses consistent target weighting: within each family the two targets carry equal weight, so the comparison across families is not a difference in target mix. It is reported per lighting and environment, with the same stratified paired cluster bootstrap (§8). This addresses the target–family confound (2026-11-03); it is secondary and does not replace the primary A − G. Implemented in `analysis/common_target.py` and `verify/run.py` (abd99d6). Confirmed by the researcher, 2026-11-06.
 - **View level, on test (Amendment 2).**
   - Reported by environment and lighting:
     - refusals;
@@ -283,7 +288,7 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
   - The first 11 tabletop arrangements, the remaining 49 and the test are kept apart.
   - A plane disagreement is not an error against a true whole-scene alignment.
 - **Labels and the real-photo check.** Every result is labelled "simulation". Pilots 1–2 (real photos) are a separate sim-to-real check of score ranges and are never pooled.
-- **As implemented (verify.run real-v6, 2026-11-06; for confirmation in the final review).**
+- **As implemented (verify.run real-v6, 2026-11-06, with the zero-width flags of real-v7; confirmed by the researcher, 2026-11-06).**
   - **Families.** The breakdowns use two levels:
     - the occluder family (S8, M16, IND28, white box, YCB box), with M16's two sides pooled;
     - the quota slot class, which splits M16 into M16-left and M16-right.
@@ -294,16 +299,17 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
     bootstrap is stratified by slot class: for M16 that is by side; the other families are a single stratum. If one M16
     side has fewer than 2 arrangements, the M16 bootstrap is unstratified and flagged, as in §8. Each family and
     lighting has its own derived seed. A family with fewer than 2 arrangements gets no interval. These intervals are
-    descriptive evidence for H3, not new endpoints.
+    descriptive evidence for H3, not new endpoints. The occluder-family level, with M16's sides pooled, is secondary
+    reporting; the slot-class rows (M16-left and M16-right) and the side-stratified resampling are kept beside it.
   - **Each multi-view policy against S:** A, A-nocue, Dir, F, R, G, G-lookahead and G-myopic minus S, at S's actual
     effort (one view).
   - **The τ_match risk-coverage sweep.** It is run at b = 3, uncapped, with the other thresholds frozen, for every
     multi-view policy, S and FULL. The values are the calibration grid below the frozen value (0.4-0.65) and a
     predeclared extension above it (0.75, 0.8, 0.85, 0.9), so the curves show both sides of the frozen point at 0.7.
     Each curve gives FRR, removal recall, coverage, resolved accuracy and the false-present rate per lighting. It is
-    reported only, never selected.
+    reported only, never selected. The extension is fixed at those four values and is secondary reporting.
 
-`[ ] confirm / edit:`
+Confirmed by the researcher, 2026-11-06.
 
 ## 10. Predeclared diagnostics (reported whatever they show)
 
@@ -326,7 +332,7 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 - **No outcome-based exclusion.** Nothing is dropped for a wrong or UNKNOWN decision.
 - **Counts reported:** retries, replacements and exclusions, per split, environment and family.
 
-## 12. Freeze (`docs/FREEZE.md`, recorded with sha256 **before any test scene is generated**)
+## 12. Freeze (`docs/FREEZE.md`, recorded with sha256 **before any test scene is generated**; one exception, a unit test's temporary arrangement, is recorded in §14)
 
 **Frozen before test rendering:**
 - **Code and render setup:**
@@ -371,8 +377,9 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 ## 14. Development record before the freeze (CONDITIONAL DEVELOPMENT DIAGNOSTICS)
 
 These findings come from development data. Several come from analyses chosen after looking at that data. They are
-recorded before any test scene exists so that the test cannot be read in their light afterwards. They predict nothing
-about the test: new arrangements can move every number below, and A may tie with or lose to G.
+recorded before any test scene was rendered or scored, so that the test cannot be read in their light afterwards. (One
+shelf test arrangement was generated temporarily by a unit test and deleted unseen; see the last item.) They predict
+nothing about the test: new arrangements can move every number below, and A may tie with or lose to G.
 
 - **Headroom** (2026-11-05, as Amendment 2 lists it):
   - On shelf dev at b = 3 uncapped, G removes 45 / 60 (L1) and 43 / 60 (L2) against any-order ceilings of 46 and
@@ -386,14 +393,41 @@ about the test: new arrangements can move every number below, and A may tie with
 - **The pooled calibration and its held-out check:** `notes/2026-11-06-pooled-calibration.md`. Held out, with no false
   removal anywhere:
   - At b = 3 uncapped, A and G differ on 5 of 240 removed episodes: A gains 3 and loses 2.
-  - A's decisions equal Dir's in every held-out episode, and A-nocue's equal G's.
+  - **Decision agreement, at the stated settings.** A's held-out decisions equal Dir's in every episode at b = 3
+    uncapped and under the 3- and 4-step caps, and A-nocue's equal G's uncapped. This is an observed agreement, not
+    a causal attribution: A-nocue drops four features together (sep_occluded, obstruction_start, side_toward and
+    side_missing), so the side descriptor's own contribution is not isolated. Any mechanism is exploratory.
+  - **Same decisions, different effort.** Uncapped, mean travel per episode (shelf L1 / L2, tabletop L1 / L2) is A
+    156 / 158 / 71 / 74 cm, Dir 94 / 96 / 36 / 37 cm and G 145 / 146 / 68 / 69 cm, and mean views are A 2.14 / 2.16 /
+    2.12 / 2.17, Dir 2.24 / 2.26 / 2.15 / 2.17 and G as A. Under the 3- and 4-step caps both A and Dir take 2.03 views,
+    and A travels 85 / 85 / 40 / 40 cm against Dir's 51 / 51 / 25 / 25 cm
+    (`runs/2026-11-06-pooled-dev120/summary/heldout_b3.txt`, untracked).
   - Under the 3- and 4-step caps, A (= Dir) removes 28 / 26 / 44 / 41 (shelf L1 / L2, tabletop L1 / L2) against G's
-    15 / 15 / 28 / 29.
+    15 / 15 / 28 / 29. At each of these caps A and G disagree on 58 removed episodes over the four cells: A gains 55
+    (35 M16, all M16-left, and 20 outside M16: S8 12, YCB box 8) and loses 3 (YCB box)
+    (`runs/2026-11-06-pooled-dev120/summary/discord_A_G_cap3_cap4_recount.txt`, untracked).
   - Under the 2-step cap A removes 0, as G does.
 - **Resolution at the test size.** If test arrangements disagree like development ones, the SD of A − G removal recall
-  at 100 test arrangements per environment is 0.012-0.017. So an inconclusive primary is likely.
+  at 100 test arrangements per environment is 0.012-0.017. So an inconclusive primary is likely. This is conditional
+  on the sparse development disagreements (5 discordant episodes in 4 arrangements). Tabletop L1 had no discordant
+  episode, so its SD of 0 reflects that sample, not perfect precision. The 2.8 SD figure is a normal-approximation
+  heuristic, not a verified power for rare, discrete paired differences.
+- **Limitations kept visible, not retuned.**
+  - The shelf L1 subgroup's gate false-clear rate is 21 / 176 (0.119), above alpha_clear 0.10. The declared
+    constraint is on the pooled views (50 / 632), §7.
+  - In L2, the tabletop design cases TDES0-TDES3 fail the gate on their visible-phase views: 0 / 20 pass at the
+    fixed shelf thresholds and 1 / 20 at the frozen ones, against 20 / 20 in L1. Their removed-phase diagnostic views
+    still give clear misses, 10 / 10 in both lightings and at both threshold sets
+    (`notes/2026-11-06-tabletop-dev49-transfer.md`; `runs/2026-11-05-tabletop-dev49/transfer/regcompare_design/` and
+    `regcompare_design_frozen/`, untracked).
 - **The renderer check** in FREEZE.md: the current renderer reproduces the shelf development renders within
   run-to-run render noise.
+- **The test-seed incident** (`notes/2026-11-06-test-seed-incident.md`). On 2026-11-05 at 18:21 PST a unit test,
+  under a mocked freeze, generated the shelf test arrangement of slot 0 (primary seed 100000) in a temporary
+  directory. It read four fields (split, seed range, id format, freeze record), printed nothing, and the directory was
+  deleted. Nothing was rendered, scored or viewed. Three runs of the rewritten test wrote the shelf test slot list,
+  unread, to temporary directories. The gate was repaired the same evening (12b56f5, 28c7e96). The seed schedule is
+  kept (the researcher, 2026-11-06).
 
 None of this changes the design. The primary endpoint, k, λ, the caps, A's pinned design and the analysis rules stand
 as written above.
