@@ -107,6 +107,20 @@ def check_single_environment(rendered: Sequence[tuple[dict, dict, Path]]) -> str
     return next(iter(by)) if by else SHELF
 
 
+def check_split(arr: Mapping, freeze_sha256: str | None = None) -> None:
+    """A test arrangement (split "test") only with the freeze it records (freeze_sha256: the committed FREEZE.md's,
+    sim/freeze.py require_freeze) and a seed of the test range; anything else must pass check_dev."""
+    if arr.get("split") != "test":
+        check_dev(arr)
+        return
+    rec = arr.get("freeze") or {}
+    if freeze_sha256 is None or rec.get("sha256") != freeze_sha256:
+        raise A.SeedError(f"{arr.get('arrangement_id')}: a test arrangement needs --freeze with the FREEZE.md it records")
+    seed = arr.get("seed")
+    if arr.get("kind") != "random" or isinstance(seed, bool) or not isinstance(seed, int) or seed < A.TEST_SEED_MIN:
+        raise A.SeedError(f"{arr.get('arrangement_id')}: not a test-range random arrangement")
+
+
 def check_dev(arr: Mapping) -> None:
     """Integer seeds must be dev seeds (sim/arrange.py check_dev_seed); string seeds must be design seeds."""
     if arr.get("split") != "dev":
@@ -123,7 +137,7 @@ class IncompleteRender(RuntimeError):
     """A folder under the set root is a render that never finished (or is mixed): the set must not be built from it."""
 
 
-def load_rendered(root: str | Path) -> list[tuple[dict, dict, Path]]:
+def load_rendered(root: str | Path, freeze_sha256: str | None = None) -> list[tuple[dict, dict, Path]]:
     """(arrangement, labels, folder) for every rendered arrangement under root, sorted by id.
     Raises IncompleteRender, listing every offender, for a folder with arrangement.json but no labels.json (a crashed
     render), a leftover <ARR>.partial (an interrupted render), or labels.json without arrangement.json; raises ValueError
@@ -144,7 +158,7 @@ def load_rendered(root: str | Path) -> list[tuple[dict, dict, Path]]:
             arr_bytes = (d / "arrangement.json").read_bytes()
             arr = json.loads(arr_bytes)
             lab = json.loads((d / "labels.json").read_text())
-            check_dev(arr)
+            check_split(arr, freeze_sha256)
             if lab.get("schema") != LABELS_SCHEMA:
                 raise ValueError(f"{d}: labels schema {lab.get('schema')!r}, expected {LABELS_SCHEMA!r} (re-render)")
             if lab["arrangement_id"] != arr["arrangement_id"] or d.name != arr["arrangement_id"]:
@@ -229,7 +243,7 @@ def manifest_records(rendered: Sequence[tuple[dict, dict, Path]]):
     and the shelf manifest keeps its bytes)."""
     from verify.manifest import ArrangementRecord
 
-    return [ArrangementRecord(arr["arrangement_id"], arr["target_id"], "dev", tuple(lab["lightings"]),
+    return [ArrangementRecord(arr["arrangement_id"], arr["target_id"], arr.get("split", "dev"), tuple(lab["lightings"]),
                               bool(arr.get("predeclared_indistinguishable", False)),
                               environment=None if environment(arr) == SHELF else environment(arr))
             for arr, lab, _ in rendered]
@@ -443,11 +457,14 @@ def check_single_version(rendered: Sequence[tuple[dict, dict, Path]]) -> tuple[s
 
 
 def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positions: str | Path | None = None,
-          sheets: bool = False, generation_log: str | Path | None = None) -> dict:
+          sheets: bool = False, generation_log: str | Path | None = None, freeze_sha256: str | None = None) -> dict:
     root = Path(root).resolve()
-    rendered = load_rendered(root)
+    rendered = load_rendered(root, freeze_sha256)
     if not rendered:
         raise ValueError(f"no rendered arrangements under {root}")
+    splits = sorted({arr.get("split", "dev") for arr, _, _ in rendered})
+    if len(splits) != 1:
+        raise ValueError(f"{root}: a set holds one split, this one has {splits}")
     env = check_single_environment(rendered)              # before anything is written
     gens, cfgs = check_single_version(rendered)
     pos_sha = check_positions(positions, rendered) if positions is not None else None
@@ -499,7 +516,7 @@ def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positi
         for _, lab, d in rendered:
             contact_sheets(d, lab)
     rnd = group_docs.get("random", {"arrangements": [], "n_arrangements": 0, "n_episodes": 0, "jobs": {}})
-    doc = {"schema": SET_SCHEMA, "simulation": True, "split": "dev", "root": str(root),
+    doc = {"schema": SET_SCHEMA, "simulation": True, "split": splits[0], "root": str(root),
            "n_arrangements": rnd["n_arrangements"], "n_episodes": rnd["n_episodes"], "jobs": rnd["jobs"], "groups": group_docs,
            "jobs_note": "primary = jobs_refL1.json (every query vs the L1 reference at its stop); secondary = jobs_same.json "
                         "(a separate run, reported separately, never a relabelling of the primary); report L1 and L2 queries "
@@ -511,8 +528,12 @@ def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positi
         doc = {"schema": doc.pop("schema"), "environment": env, **doc}
         doc["jobs_note"] = doc["jobs_note"].replace("the design cases DES0..3", "the design cases")
     (root / "set.json").write_text(json.dumps(doc, indent=1) + "\n")
-    (root / "README.md").write_text(set_readme(root, groups, ref_lightings) if env == SHELF else
-                                    set_readme_tabletop(root, groups, ref_lightings, positions))
+    readme = (set_readme(root, groups, ref_lightings) if env == SHELF else
+              set_readme_tabletop(root, groups, ref_lightings, positions))
+    if splits[0] == "test":   # a frozen test set: the dev wording does not apply (dev sets keep their README bytes)
+        readme = (readme.replace("Dev split only", "TEST split (generated under FREEZE.md)")
+                  .replace("split dev,", "split test,"))
+    (root / "README.md").write_text(readme)
     return doc
 
 
@@ -634,11 +655,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                          + ", ".join(f"{k} {v}" for k, v in DEFAULT_POSITIONS.items()))
     ap.add_argument("--generation-log", default=None, help="the generator's generation_log.json, copied into the set")
     ap.add_argument("--contact-sheets", action="store_true", help="also write contact sheets (needs cv2)")
+    ap.add_argument("--freeze", default=None,
+                    help="a test set: the committed docs/FREEZE.md its arrangements record (sim/freeze.py)")
     a = ap.parse_args(argv)
     try:
-        positions = a.positions or DEFAULT_POSITIONS[check_single_environment(load_rendered(a.root))]
-        doc = build(a.root, a.ref_lighting, positions, a.contact_sheets, a.generation_log)
-    except (IncompleteRender, ValueError) as e:
+        freeze_sha = None
+        if a.freeze is not None:
+            from sim import freeze as F
+            freeze_sha = F.require_freeze(a.freeze, needed=("sim/episodes.py", "sim/freeze.py"))["sha256"]
+        positions = a.positions or DEFAULT_POSITIONS[check_single_environment(load_rendered(a.root, freeze_sha))]
+        doc = build(a.root, a.ref_lighting, positions, a.contact_sheets, a.generation_log, freeze_sha)
+    except (IncompleteRender, ValueError, RuntimeError) as e:
         print(f"refused: {e}", file=sys.stderr)
         return 2
     print(json.dumps({k: doc[k] for k in ("root", "n_arrangements", "n_episodes", "files")}, indent=1))
