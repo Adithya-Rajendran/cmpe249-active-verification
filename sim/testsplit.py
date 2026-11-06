@@ -8,8 +8,8 @@ committed FREEZE.md. Inside it, sim.arrange's own module functions are wrapped:
     arrangement_id  gives a test seed the id <first letter of the dev prefix>T<6-digit seed> (ST100000, TT110000);
     _finish         marks a test-block random arrangement split "test" and adds its freeze record
                     {sha256 of FREEZE.md, freeze_id, sha256 of this module} BEFORE the arrangement is hashed.
-Everything else (placement, retries, reserves, targets, revisit draws, hashing) is sim.arrange's unchanged code, and every
-wrapper is restored when the block ends. Usage, only after the freeze (repo root):
+Everything else (placement, retries, reserves, targets, revisit draws, hashing) is sim.arrange's unchanged code, and
+every wrapper is restored when the block ends. Usage, only after the freeze (repo root):
 
     uv run --no-sync python -m sim.testsplit --config configs/sim/arrange_tabletop_v1.json --freeze docs/FREEZE.md \\
         --slots all --out DIR
@@ -37,7 +37,8 @@ NEEDED = ("sim/arrange.py", "sim/rig.py", "sim/tabletop.py", "sim/freeze.py", "s
 def test_block_seeds(ctx: A.Context) -> list[int]:
     """Every seed the config's test block may use: the slots' primary seeds and every family's reserve list."""
     blk = ctx.config["slots"]["test"]
-    return [sl["primary_seed"] for sl in A.slot_list(ctx, "test")] + [int(v) for r in blk["reserve"].values() for v in r]
+    primary = [sl["primary_seed"] for sl in A.slot_list(ctx, "test")]
+    return primary + [int(v) for r in blk["reserve"].values() for v in r]
 
 
 @contextlib.contextmanager

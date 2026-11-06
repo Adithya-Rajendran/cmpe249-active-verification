@@ -4,7 +4,8 @@ isaac_batch.py refuses every test arrangement (check_arrangement), and it stays 
 sets. This wrapper, copied next to it in the GB10 run directory with a copy of the committed FREEZE.md, accepts a test
 arrangement only if it is a random arrangement with a test-range seed, split "test", and a freeze record whose sha256
 equals the given FREEZE.md copy's (sim/testsplit.py writes that record; sim/freeze.py guards the generating side). Any
-other arrangement goes through isaac_batch's own check unchanged, so a development arrangement renders exactly as before.
+other arrangement goes through isaac_batch's own check unchanged, so a development arrangement renders exactly as
+before.
 Then isaac_batch.main runs with the remaining arguments. Usage (GB10 run dir, Isaac's python, only after the freeze):
 
     python render_test.py --freeze FREEZE.md --arrangements ARR/*.json --assets-dir ... --out OUT [isaac_batch options]

@@ -6,8 +6,8 @@ FREEZE.md carries exactly one fenced ```json block whose "schema" is FREEZE_SCHE
      "files": {"<repo-relative path>": "<sha256>", ...}}
 
 `require_freeze` (a checkout with git, where arrangements are generated and episodes built) refuses unless the file is
-tracked and committed unchanged at HEAD, its record parses, the record lists the files the caller needs frozen, and every
-listed file still has its listed sha256. It returns the record and FREEZE.md's own sha256, which every test arrangement
+tracked and committed unchanged at HEAD, its record parses, the record lists the files the caller needs frozen, and
+every listed file still has its listed sha256. It returns the record and FREEZE.md's own sha256, which every test arrangement
 then records. `matching_freeze` (the GB10 render directory, no git) only checks that a given copy of FREEZE.md has the
 sha256 an arrangement recorded. No dev path calls either.
 """
@@ -45,7 +45,8 @@ def parse_record(text: str) -> dict[str, Any]:
         if isinstance(doc, dict) and doc.get("schema") == FREEZE_SCHEMA:
             found.append(doc)
     if len(found) != 1:
-        raise FreezeError(f"FREEZE.md needs exactly one ```json block with schema {FREEZE_SCHEMA!r}; found {len(found)}")
+        raise FreezeError(f"FREEZE.md needs exactly one ```json block with schema {FREEZE_SCHEMA!r}; "
+                          f"found {len(found)}")
     rec = found[0]
     files = rec.get("files")
     if not (isinstance(rec.get("freeze_id"), str) and rec["freeze_id"] and isinstance(rec.get("commit"), str)
