@@ -169,8 +169,10 @@ from verify.manifest import (
 )
 from verify.policies import (
     DEFAULT_R_SEEDS,
+    DIR_NAME,
     FULL_SWEEP_VIEWS,
     GMYOPIC_LAM_DEG,
+    Dir,
     F,
     FullSweep,
     G,
@@ -181,6 +183,7 @@ from verify.policies import (
     run_r_seeds,
 )
 from verify.replay import ReplayEnv
+from verify.side import SideData, SideEnv, SideStore
 from verify.schema import (
     CAP_STEPS_DEFAULT,
     EPS,
@@ -253,7 +256,10 @@ CHECK_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic")
 # (first-clear-miss rule, k = 1) and FULL (all stops, uncapped).
 HELDOUT_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "F-fcm", "R-fcm", "G-fcm", "G-lookahead-fcm",
                     "G-myopic-fcm", "FULL")
-BUILTIN_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "FULL")
+BUILTIN_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "FULL", DIR_NAME)
+# Only with side descriptors (DevData.side; notes/2026-11-05-side-descriptor.md): the direction-rule control Dir runs in
+# the dev check, the k sensitivity and the held-out check (with Dir-fcm), next to the policies above.
+SIDE_POLICIES = (DIR_NAME,)
 K_SENSITIVITY_POLICIES = ("F", "R", "G", "G-lookahead", "G-myopic")   # S decides with k = 1 by construction
 LAM_SENSITIVITY_POLICIES = ("G", "G-lookahead")   # the only policies that read Thresholds.lam (G-myopic: lam_deg)
 REPORT_LIGHTINGS = tuple(x.value for x in Lighting)   # "L1", "L2": the headline split (DECISIONS 2026-11-02)
@@ -729,6 +735,7 @@ class DevData:
     inputs: Mapping[str, Any] | None = None
     environment_of: Mapping[str, str] | None = None
     positions_by_environment: Mapping[str, Positions] | None = None
+    side: SideData | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "specs", tuple(sorted(self.specs, key=lambda s: s.episode_id)))
@@ -789,6 +796,17 @@ class DevData:
                 raise ValueError(f"positions of {bad} do not have the evidence's {store.n_stops} stops")
             if self.positions not in self.positions_by_environment.values():
                 raise ValueError("positions must be one environment's positions (the reference)")
+        if self.side is not None:   # descriptors (DevData.side): exactly the dev episodes, every stop
+            if not isinstance(self.side, SideData):
+                raise TypeError(f"side must be SideData, got {type(self.side).__name__}")
+            extra = set(self.side.episode_ids) - ids
+            if extra:
+                raise SplitRefused(f"side descriptors for episodes outside the dev specs: {sorted(extra)[:5]}")
+            missing = ids - set(self.side.episode_ids)
+            if missing:
+                raise ValueError(f"side descriptors lack dev episodes: {sorted(missing)[:5]}")
+            if self.side.n_stops != store.n_stops:
+                raise ValueError(f"side descriptors have {self.side.n_stops} stops, the evidence {store.n_stops}")
 
     @property
     def arrangements(self) -> tuple[str, ...]:
@@ -854,7 +872,8 @@ class DevData:
                        inputs=subset_inputs(self.inputs),
                        environment_of=None if self.environment_of is None else
                        {a: self.environment_of[a] for a in sorted(keep)},
-                       positions_by_environment=self.positions_by_environment)
+                       positions_by_environment=self.positions_by_environment,
+                       side=None if self.side is None else self.side.subset(ids))
 
 
 SUBSET_INPUTS_NOTE = ("a subset of the dev data (e.g. a CV training fold): the input files hold every dev arrangement, "
@@ -913,7 +932,7 @@ def _rel(path: str | Path) -> str:
 
 
 def sim_dev_data(manifest: str | Path, evidence: str | Path, view_labels: str | Path,
-                 positions: str | Path) -> DevData:
+                 positions: str | Path, side: str | Path | None = None) -> DevData:
     """DevData from the set files sim/episodes.py writes (requirement 1, 2026-11-03):
 
     manifest     manifest.json (cmpe249.arrangements.v1): every arrangement must be split dev (SplitRefused otherwise,
@@ -921,6 +940,8 @@ def sim_dev_data(manifest: str | Path, evidence: str | Path, view_labels: str | 
     evidence     evidence.jsonl from perception/evidence.py on jobs_refL1.json (EvidenceStore format).
     view_labels  view_labels.json (cmpe249.sim-view-labels-set.v1): the geometric labels, the only label source.
     positions    the stops, e.g. configs/sim/positions_shelf_A.json.
+    side         optional: perception/side_descriptor.py rows on the same jobs (verify/side.py); only the manifest's
+                 episodes are read, and each needs a descriptor row at every stop. Then Dir runs, and A can train.
 
     The evidence and labels files may hold episodes of other arrangements of the same rendered set (one jobs file
     covers the random and the design manifests); only the manifest's episodes are read, and the others are counted
@@ -951,8 +972,13 @@ def sim_dev_data(manifest: str | Path, evidence: str | Path, view_labels: str | 
     labels = tuple(ViewLabel(e, st, d) for e in ids for st, d in enumerate(glab.episodes[e]))
     ign_ev = sorted(set(store.episode_ids()) - set(ids))
     ign_lab = sorted(set(glab.episodes) - set(ids))
+    side_data = None
+    if side is not None:
+        side_store = SideStore.from_jsonl(side, pos.n_stops, episode_ids=ids)
+        side_data = SideData.from_store(side_store, ids, source=f"perception.side_descriptor ({_rel(side)})")
     inputs = {name: {"file": _rel(p), "sha256": file_sha256(p)} for name, p in
-              (("manifest", manifest), ("evidence", evidence), ("view_labels", view_labels), ("positions", positions))}
+              (("manifest", manifest), ("evidence", evidence), ("view_labels", view_labels), ("positions", positions),
+               *((("side", side),) if side is not None else ()))}
     inputs["ignored_episodes"] = {
         "note": "episodes in the evidence or labels file that the manifest does not list; never read",
         "evidence": {"n": len(ign_ev), "arrangements": sorted({e.rsplit("-", 2)[0] for e in ign_ev})},
@@ -962,7 +988,7 @@ def sim_dev_data(manifest: str | Path, evidence: str | Path, view_labels: str | 
                     "and were ignored")
     return DevData(tuple(specs), factory, truth, labels, pos, False, SIM_LABEL_SOURCE if info.simulation else
                    f"geometric labels ({SIM_VIEW_LABELS_SCHEMA})", factory.evidence_sha256(),
-                   simulation=info.simulation, strata=info.strata(), inputs=inputs)
+                   simulation=info.simulation, strata=info.strata(), inputs=inputs, side=side_data)
 
 
 POOLED_NOTE = ("pooled calibration over environments (tabletop wave, step 9; DEV, not frozen): one threshold set from the "
@@ -981,20 +1007,23 @@ POOLED_FRR_NOTE = ("FRR <= frr_limit is a reported policy check (false removal; 
                    "false if one is false, else null.")
 
 
-def sim_dev_data_pooled(sets: Sequence[tuple[str | Path, str | Path, str | Path, str | Path]]) -> DevData:
+def sim_dev_data_pooled(sets: Sequence[tuple[str | Path, ...]]) -> DevData:
     """Pooled DevData from several sim dev sets, one per environment: each (manifest, evidence, view_labels, positions)
     is read by sim_dev_data with all its checks; a manifest's records give its environment (absent = shelf), and it must
     hold one. Refused: fewer than two sets, two sets of one environment, an arrangement id in two sets, sets that
     disagree on the simulation flag or the number of stops. The first set's positions are the reference; inputs are
-    recorded per environment ("<environment>/<file>")."""
+    recorded per environment ("<environment>/<file>"). A set may carry a fifth entry, its side descriptors: then every
+    set must, and the pooled data have them."""
+    if len({len(x) for x in sets}) > 1 or any(len(x) not in (4, 5) for x in sets):
+        raise ValueError("every pooled dev set is (manifest, evidence, view_labels, positions[, side]), all alike")
     if len(sets) < 2:
         raise ValueError("pooling needs at least two dev sets (one per environment); one set runs sim_dev_data")
     parts: list[tuple[str, DevData]] = []
-    for manifest, evidence, view_labels, positions in sets:
+    for manifest, evidence, view_labels, positions, *side in sets:
         envs = load_manifest_info(manifest).environments
         if len(envs) != 1:
             raise ValueError(f"{manifest}: a pooled dev set holds one environment, this one has {list(envs)}")
-        parts.append((envs[0], sim_dev_data(manifest, evidence, view_labels, positions)))
+        parts.append((envs[0], sim_dev_data(manifest, evidence, view_labels, positions, *side)))
     envs = [e for e, _ in parts]
     if len(set(envs)) != len(envs):
         raise ValueError(f"two dev sets of the same environment: {envs}")
@@ -1019,10 +1048,16 @@ def sim_dev_data_pooled(sets: Sequence[tuple[str | Path, str | Path, str | Path,
     strata = None if any(d.strata is None for _, d in parts) else {a: x for _, d in parts for a, x in d.strata.items()}
     sources = list(dict.fromkeys(d.label_source for _, d in parts))
     inputs = {f"{env}/{k}": v for env, d in parts for k, v in (d.inputs or {}).items()}
+    side = None
+    if parts[0][1].side is not None:
+        snaps = [d.side() for _, d in parts]
+        side = SideData({e: [st.get(e, k) for k in range(n_stops)] for st, (_, d) in zip(snaps, parts) for e in
+                         (s.episode_id for s in d.specs)}, n_stops,
+                        source="pooled side descriptors: " + "; ".join(f"{e}: {d.side.source}" for e, d in parts))
     return DevData(specs, factory, truth, tuple(l for _, d in parts for l in d.view_labels), parts[0][1].positions, False,
                    " | ".join(sources), factory.evidence_sha256(), simulation=parts[0][1].simulation, strata=strata,
                    inputs=inputs, environment_of={a: env for env, d in parts for a in d.arrangements},
-                   positions_by_environment={env: d.positions for env, d in parts})
+                   positions_by_environment={env: d.positions for env, d in parts}, side=side)
 
 
 def no_diagnostic_shares(dev: DevData, arrangements: Iterable[str] | None = None) -> dict[str, dict[str, Any]]:
@@ -1484,17 +1519,19 @@ def fold_isolated(fn: Callable[..., Any], *args: Any) -> Any:
 
 def _train_and_run_fold(factory: FoldTrainableFactory, train: DevData, held: DevData, thresholds: Thresholds,
                         settings: SelectionSettings, context: RunContext
-                        ) -> tuple[dict[tuple[str, float | None], tuple[EpisodeResult, ...]], int]:
+                        ) -> tuple[dict[tuple[str, float | None], tuple[EpisodeResult, ...]], int, Any]:
     """In a fold's own process (fold_isolated): build a fresh trainable, train it on the fold's training subset, and
     run it (k rule and -fcm) on the held-out arrangement's episodes, uncapped and under every cap. Returns
-    {(policy, cap_steps): results} and the number of replays."""
-    trained = {factory.name: factory().train(train, thresholds)}
+    {(policy, cap_steps): results}, the number of replays and the trainable's `report` attribute (None if it has
+    none): what it chose and fitted in this fold, for the record."""
+    trainable = factory()
+    trained = {factory.name: trainable.train(train, thresholds)}
     runner = PolicyRunner(held, settings, context, trained)
     out = {}
     for p in (factory.name, f"{factory.name}-fcm"):
         for cap in policy_caps(p, settings):
             out[(p, cap)] = runner.results(p, thresholds, run_budget(p, cap, settings, held.positions))
-    return out, runner.n_runs
+    return out, runner.n_runs, getattr(trainable, "report", None)
 
 
 def split_policy(name: str) -> tuple[str, bool]:
@@ -1525,6 +1562,8 @@ def make_policy(name: str, th: Thresholds, trained: Mapping[str, Callable[[], An
         return G.from_thresholds(th, lookahead=True)
     if base == "G-myopic":
         return GMyopic.from_thresholds(th)
+    if base == DIR_NAME:
+        return Dir.from_thresholds(th)
     raise ValueError(f"unsupported policy {name!r} (R runs through run_r_seeds)")
 
 
@@ -1582,14 +1621,17 @@ class PolicyRunner:
         rule = StoppingRule.first_clear_miss(th) if base == "S" or fcm else StoppingRule(th)
         store = self.dev.store_factory()       # fresh store per setting
         keys = store.replay_keys()             # minted before the first bind seals it
+        side = self.dev.side() if self.dev.side is not None else None   # fresh descriptor store per setting
         out = []
         for spec in self.dev.specs:
             # pooled dev data: the episode's environment's positions, the cap in its arc steps (else the one positions)
             pos = self.dev.positions_of(spec.arrangement_id)
             b = environment_budget(budget, self.dev.positions, pos)
+            reveal = side.bind(spec.episode_id) if side is not None else None
 
-            def make_env(key=keys[spec.episode_id], pos=pos, b=b) -> ReplayEnv:
-                return ReplayEnv(key, store, pos, b, self.context)
+            def make_env(key=keys[spec.episode_id], pos=pos, b=b, reveal=reveal) -> ReplayEnv | SideEnv:
+                env = ReplayEnv(key, store, pos, b, self.context)
+                return env if reveal is None else SideEnv(env, reveal)   # descriptors of requested stops only
             if base == "R" and "R" not in self.trained:
                 logs, res = run_r_seeds(make_env, rule, self.r_seeds, r_seed_salt(spec), spec=spec)
                 self.n_runs += len(logs)
@@ -1834,10 +1876,20 @@ def setting_rows(runner: PolicyRunner, policy: str, th: Thresholds, cap_steps: f
                               runner.dev.strata, with_bounds=with_bounds, travel_in_cm=not runner.dev.pooled)
 
 
+def check_policies(dev: DevData) -> tuple[str, ...]:
+    """The Step 4 dev-check policies: CHECK_POLICIES, plus SIDE_POLICIES when the dev data have side descriptors."""
+    return (*CHECK_POLICIES, *(SIDE_POLICIES if dev.side is not None else ()))
+
+
+def k_sensitivity_policies(dev: DevData) -> tuple[str, ...]:
+    """The k-sensitivity policies: K_SENSITIVITY_POLICIES, plus SIDE_POLICIES with side descriptors."""
+    return (*K_SENSITIVITY_POLICIES, *(SIDE_POLICIES if dev.side is not None else ()))
+
+
 def run_check(runner: PolicyRunner, th: Thresholds, settings: SelectionSettings) -> list[CheckRow]:
     """Step 4: every policy at the frozen thresholds, the primary budget, uncapped and every cap (S once)."""
     rows = []
-    for p in CHECK_POLICIES:
+    for p in check_policies(runner.dev):
         for cap in policy_caps(p, settings):
             rows += setting_rows(runner, p, th, cap, settings)
     return rows
@@ -1850,7 +1902,7 @@ def run_sensitivity(runner: PolicyRunner, th: Thresholds, settings: SelectionSet
     lam_rows: list[CheckRow] = []
     for k in settings.k_sensitivity:
         t = dataclasses.replace(th, k=k)
-        for p in K_SENSITIVITY_POLICIES:
+        for p in k_sensitivity_policies(runner.dev):
             for cap in settings.cap_settings:
                 k_rows += setting_rows(runner, p, t, cap, settings, with_bounds=False)
     for lam in settings.lam_sensitivity:
@@ -1861,8 +1913,9 @@ def run_sensitivity(runner: PolicyRunner, th: Thresholds, settings: SelectionSet
     return {"k": k_rows, "lam": lam_rows}
 
 
-def heldout_policies(trainables: Sequence[FoldTrainableFactory]) -> tuple[str, ...]:
-    """HELDOUT_POLICIES, then every fold-trained policy with its -fcm variant."""
+def heldout_policies(trainables: Sequence[FoldTrainableFactory], with_side: bool = False) -> tuple[str, ...]:
+    """HELDOUT_POLICIES, then (with side descriptors) SIDE_POLICIES with their -fcm variants, then every fold-trained
+    policy with its -fcm variant."""
     check_trainable_factories(trainables)
     names = [t.name for t in trainables]
     for n in names:
@@ -1870,7 +1923,8 @@ def heldout_policies(trainables: Sequence[FoldTrainableFactory]) -> tuple[str, .
             raise ValueError(f"fold-trained policy name {n!r} clashes with a built-in policy or the -fcm suffix")
     if len(set(names)) != len(names):
         raise ValueError("fold-trained policy names must be unique")
-    return (*HELDOUT_POLICIES, *(x for n in names for x in (n, f"{n}-fcm")))
+    side = tuple(x for n in SIDE_POLICIES for x in (n, f"{n}-fcm")) if with_side else ()
+    return (*HELDOUT_POLICIES, *side, *(x for n in names for x in (n, f"{n}-fcm")))
 
 
 def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContext, folds: Sequence[ViewFold],
@@ -1882,7 +1936,7 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
     per policy, cap and lighting (FRR per episode and per arrangement, recall, coverage, mean views and travel, counts,
     bounds and the stratified bootstrap). FRR above the limit is flagged as a reported check; it never touches
     eligibility or thresholds."""
-    policies = heldout_policies(trainables)
+    policies = heldout_policies(trainables, dev.side is not None)
     outs: dict[tuple[str, float | None], list[Outcome]] = {}
     fold_log: list[dict[str, Any]] = []
     episodes: list[dict[str, Any]] = []
@@ -1897,8 +1951,10 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
         train = dev.subset(train_arrs)
         held = dev.subset([f.held_out])
         fold_trained: dict[tuple[str, float | None], tuple[EpisodeResult, ...]] = {}
+        reports: dict[str, Any] = {}
         for t in trainables:   # one process per fold and trainable: no state outlives its fold
-            got, n = fold_isolated(_train_and_run_fold, t, train, held, f.thresholds, settings, context)
+            got, n, reports[t.name] = fold_isolated(_train_and_run_fold, t, train, held, f.thresholds, settings,
+                                                    context)
             fold_trained.update(got)
             n_runs += n
         runner = PolicyRunner(held, settings, context)   # built-in policies only
@@ -1917,7 +1973,8 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
                                      **_environment_key(dev, r.arrangement_id)})
         n_runs += runner.n_runs
         fold_log.append({"held_out": f.held_out, "ran": True, "thresholds": f.thresholds.to_dict(),
-                         "training_arrangements": train_arrs, "trained_policies": sorted(t.name for t in trainables)})
+                         "training_arrangements": train_arrs, "trained_policies": sorted(t.name for t in trainables),
+                         "trained_reports": reports})
     rows: list[CheckRow] = []
     th0 = frozen_thresholds(0.5, 0.5, 0.5)   # only k and lam are read from it (the same in every fold)
     for p in policies:
@@ -1932,6 +1989,9 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
              for r in rows if r.lighting in REPORT_LIGHTINGS and r.over_limit]
     out = {"rows": rows, "folds": fold_log, "flags": flags, "episodes": episodes, "n_runs": n_runs,
            "policies": list(policies), "trainable_policies": [t.name for t in trainables],
+           "trainable_modules_sha256": {m: file_sha256(REPO_ROOT / "verify" / m) for m in ("ranker.py", "policies.py",
+                                                                                          "side.py")}
+           if trainables else {},
            "arrangements_run": ran, "complete": bool(folds) and len(ran) == len(folds)}
     if dev.pooled:                                        # the same outcomes, split by environment
         by_env: dict[str, dict[str, Any]] = {}
@@ -1995,7 +2055,7 @@ def environment_breakdown(dev: DevData, settings: SelectionSettings, rows: Seque
                 for k in held:
                     held[k] = held[k] + f.held[k]
         check: list[CheckRow] = []
-        for p in CHECK_POLICIES:
+        for p in check_policies(dev):
             for cap in policy_caps(p, settings):
                 outs = [Outcome.of(r, dev.truth) for r in runner.results(p, th, run_budget(p, cap, settings, dev.positions))
                         if r.arrangement_id in arrs]
@@ -2081,7 +2141,7 @@ def run_selection(dev: DevData, settings: SelectionSettings, context: RunContext
     class; ranker A later), each built fresh and trained in every fold's own process.
     """
     refuse_non_dev(dev.specs)
-    heldout_policies(trainables)                          # a bad name fails before anything runs
+    heldout_policies(trainables, dev.side is not None)    # a bad name fails before anything runs
     rows = view_rows(dev)
     arrs = dev.arrangements
     table = ViewTable(rows, settings)
@@ -2237,6 +2297,7 @@ def candidate_doc(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
                      "checks: they never touch eligibility or any threshold. Rows for L1 and L2 queries are the "
                      "result; 'pooled' is a secondary line."),
             "policies": ho["policies"], "trainable_policies": ho["trainable_policies"],
+            "trainable_modules_sha256": ho["trainable_modules_sha256"],
             "primary_budget": settings.budget, "cap_steps": list(settings.cap_settings),
             "complete": ho["complete"], "arrangements_run": ho["arrangements_run"], "folds": ho["folds"],
             "flags": ho["flags"], "rows": [r.to_dict() for r in ho["rows"]]},
@@ -2247,7 +2308,7 @@ def candidate_doc(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
             "frr_limit": settings.frr_limit, "primary_budget": settings.budget,
             "cap_steps": list(settings.cap_settings),
             "travel_caps_cm": [cap_cm_from_steps(c, dev.positions) for c in settings.cap_settings],
-            "policies": list(CHECK_POLICIES), "g_lookahead": {"G": False, "G-lookahead": True},
+            "policies": list(check_policies(dev)), "g_lookahead": {"G": False, "G-lookahead": True},
             "g_myopic_lam_deg": GMYOPIC_LAM_DEG, "r_seeds": settings.r_seeds,
             "note": ("FRR <= frr_limit is a check, not an objective: flags are reported and nothing is changed to "
                      "fix them. Rows for L1 and L2 queries are the result; 'pooled' is a secondary line. "
@@ -2259,7 +2320,7 @@ def candidate_doc(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
             "rows": [r.to_dict() for r in res["check"]]},
         "sensitivity": {
             "note": "reported only, never selected; the frozen taus with k or lam replaced (point estimates)",
-            "k_values": list(settings.k_sensitivity), "k_policies": list(K_SENSITIVITY_POLICIES),
+            "k_values": list(settings.k_sensitivity), "k_policies": list(k_sensitivity_policies(dev)),
             "lam_values": list(settings.lam_sensitivity), "lam_policies": list(LAM_SENSITIVITY_POLICIES),
             "k": [r.to_dict() for r in res["sensitivity"]["k"]],
             "lam": [r.to_dict() for r in res["sensitivity"]["lam"]]},
@@ -2722,7 +2783,7 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
     sens = res["sensitivity"]
     for k in settings.k_sensitivity:
         for light in REPORT_LIGHTINGS:
-            L += [f"### k = {k} ({', '.join(K_SENSITIVITY_POLICIES)}), {light} queries", ""]
+            L += [f"### k = {k} ({', '.join(k_sensitivity_policies(dev))}), {light} queries", ""]
             L += _sens_table([r for r in sens["k"] if r.k == k and r.lighting == light], primary)
             L.append("")
     for lam in settings.lam_sensitivity:
@@ -2912,6 +2973,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lam-breakpoints", action="store_true",
                    help="print primary G's lam breakpoints on the positions file, check lam = 0 and --lam-sensitivity "
                         "against them, and exit")
+    p.add_argument("--side", action="append", default=None,
+                   help="side descriptors (perception/side_descriptor.py rows on the same jobs) per dev set, in "
+                        "--manifest order: adds the direction-rule control Dir and lets the rankers train")
+    p.add_argument("--ranker", action="append", default=None, choices=("A", "A-nocue"),
+                   help="fold-trained ranker for the held-out check (verify/ranker.py; needs --side); repeatable")
     p.add_argument("--tag", default=None)
     p.add_argument("--out", default=None, help="output dir (default runs/select-v4-<tag>/)")
     return p
@@ -2920,7 +2986,7 @@ def build_parser() -> argparse.ArgumentParser:
 def check_episodes(runner: PolicyRunner, th: Thresholds, settings: SelectionSettings) -> list[dict[str, Any]]:
     """Per-episode decisions of the Step 4 check (cached runs; for selection_details.json)."""
     out = []
-    for p in CHECK_POLICIES:
+    for p in check_policies(runner.dev):
         for cap in policy_caps(p, settings):
             budget = run_budget(p, cap, settings, runner.dev.positions)
             for r in runner.results(p, th, budget):
@@ -2947,12 +3013,16 @@ def settings_sha256(settings: SelectionSettings, provenance: Mapping[str, Any] |
 
 
 def data_provenance(dev: DevData) -> dict[str, Any] | None:
-    """What the settings hash records about sim / real dev data: the simulation flag and the input file hashes."""
+    """What the settings hash records about sim / real dev data: the simulation flag and the input file hashes, and the
+    side descriptors' hash when there are any (fold-trained policies are recorded by the held-out check)."""
     if dev.synthetic:
         return None
-    return {"simulation": dev.simulation,
-            "inputs": {k: v["sha256"] for k, v in (dev.inputs or {}).items() if isinstance(v, Mapping) and "sha256" in v},
-            "dev_evidence_sha256": dev.evidence_sha256, "view_labels_sha256": dev.view_labels_sha256}
+    out = {"simulation": dev.simulation,
+           "inputs": {k: v["sha256"] for k, v in (dev.inputs or {}).items() if isinstance(v, Mapping) and "sha256" in v},
+           "dev_evidence_sha256": dev.evidence_sha256, "view_labels_sha256": dev.view_labels_sha256}
+    if dev.side is not None:
+        out["side_sha256"] = dev.side.sha256()
+    return out
 
 
 def _write_atomic(path: Path, text: str) -> None:
@@ -3102,6 +3172,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.synthetic and args.positions and len(args.positions) > 1:
         print("--synthetic takes one --positions", file=sys.stderr)
         return 2
+    if args.side is not None and (args.synthetic or len(args.side) != len(args.manifest)):
+        print("--side needs sim / real dev sets, once per --manifest", file=sys.stderr)
+        return 2
+    if args.ranker and args.side is None:
+        print("--ranker needs --side (the rankers read the side descriptor)", file=sys.stderr)
+        return 2
+    from verify.ranker import RANKERS      # here, not at import: verify.ranker imports verify.policies only
+    trainables = [RANKERS[n] for n in dict.fromkeys(args.ranker or ())]
     try:
         settings = SelectionSettings(budget=args.budget, cap_steps=args.cap_steps, r_seeds=args.r_seeds,
                                      tau_match_grid=args.tau_match_grid, tau_q_grid=args.tau_q_grid,
@@ -3122,7 +3200,8 @@ def main(argv: list[str] | None = None) -> int:
         context = RunContext(model_id="synthetic-no-model", config_version=PROCEDURE_VERSION,
                              config_sha256=settings_sha256(settings, provenance), synthetic=True)
     else:
-        sets = list(zip(args.manifest, args.evidence, args.view_labels, args.positions))
+        sets = list(zip(args.manifest, args.evidence, args.view_labels, args.positions, *([args.side] if args.side
+                                                                                           else [])))
         try:
             dev = sim_dev_data(*sets[0]) if len(sets) == 1 else sim_dev_data_pooled(sets)
         except (OSError, ValueError, KeyError) as e:   # SplitRefused is a ManifestError, i.e. a ValueError
@@ -3136,7 +3215,7 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(args.out) if args.out else REPO_ROOT / "runs" / f"{PROCEDURE_VERSION}-{tag}"
     who = dev.label or "REAL DEV DATA"
     try:
-        res = run_selection(dev, settings, context)
+        res = run_selection(dev, settings, context, trainables)
     except CalibrationInfeasible as e:   # fail loudly: no candidate, a failure record, a non-zero exit
         path = write_infeasible(out, dev, settings, e.failure, provenance)
         print(f"{who}: CALIBRATION INFEASIBLE, no frozen candidate written. {e}", file=sys.stderr)
