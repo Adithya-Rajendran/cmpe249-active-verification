@@ -20,8 +20,11 @@ and **imports only what this file names**. All shared types are already implemen
 | `verify/replay.py` | replay builder | schema |
 | `verify/stopping.py` | stopping builder | schema |
 | `verify/policies.py` | policies builder | schema, stopping, replay |
+| `verify/side.py` | ranker builder (descriptors on the replay path) | schema, replay |
+| `verify/ranker.py` | ranker builder (A / A-nocue training) | schema, policies, side, stopping (+ numpy; select lazily) |
 | `verify/synthetic.py` | synthetic builder | schema, numpy |
 | `analysis/metrics.py`, `analysis/bootstrap.py` | analysis builder | schema, numpy |
+| `analysis/common_target.py` | analysis builder | schema, metrics, bootstrap, numpy |
 | `verify/run.py` | run builder | everything above |
 | `analysis/intervals.py` | select builder | stdlib only |
 | `verify/lamgrid.py` | select builder (review F1) | schema, policies |
@@ -290,7 +293,8 @@ ever fails, update this paragraph.
 
 ```python
 class Policy(Protocol):
-    name: str                       # used in logs: "S", "F", "R", "G", "G-lookahead", "G-myopic", "FULL" (+ variants)
+    name: str                       # used in logs: "S", "F", "R", "G", "G-lookahead", "G-myopic", "FULL", "Dir", "A",
+                                    # "A-nocue" (+ variants)
     max_additional_views: int | None  # 0 for S; None = use the env budget
     early_stop: bool                # False only for FullSweep
     def select(self, observations: Sequence[Observation], candidates: Sequence[int],
@@ -299,9 +303,11 @@ class Policy(Protocol):
 
 `select` gets only these four arguments. `candidates` is non-empty and comes from
 `env.candidates()`. The return value must be in `candidates`; `run_episode` checks this and
-raises `ReplayError` otherwise. Ranker A (later) implements the same protocol. The features
-it needs, such as reference visibility per stop, will be passed to its constructor, which
-keeps the protocol unchanged.
+raises `ReplayError` otherwise. Ranker A (`verify.policies.Ranker`, trained by `verify/ranker.py`;
+notes/2026-11-05-ranker-a-design.md) and the direction-rule control `Dir` implement the same protocol. They read
+the left/right descriptor from the observations themselves: with side descriptors every env is a `verify.side.SideEnv`,
+whose revealed observations are `SideObservation`s carrying the descriptor of their own stop, so the protocol is
+unchanged and nothing of an unrequested view is reachable.
 
 Implementations:
 
@@ -814,11 +820,14 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   - **Simulation flag.** A view-labels file whose `simulation` flag disagrees with the manifest's is refused (exit 2),
     as verify.select refuses it. On a simulation manifest every line of logs.jsonl and ground_truth.json carries
     `"label": SIM_LABEL` and `"simulation": true` (`EpisodeLog.from_dict` and `GroundTruth.load` ignore both keys).
-  - Config versions `synthetic-v7` and `real-v4`.
+  - Config versions `synthetic-v7` and `real-v5`.
 - `--synthetic` is the main mode. Real data (v0): `--manifest MANIFEST.json --evidence
   <evidence.jsonl from perception/evidence.py>` runs the same run / score / diagnostics stages with
-  placeholder thresholds (truth re-read from the manifest only after the run). It writes table.md too,
-  scored on dev when the manifest has no test arrangement.
+  the placeholder thresholds, or with `--candidate` the frozen candidate's (read through `require_freeze_eligible`;
+  a simulation manifest with test arrangements requires it, unless `--placeholder-thresholds` for pipeline tests),
+  truth re-read from the manifest only after the run. One environment per run (split by environment). `--side` adds
+  descriptors and Dir, `--model NAME=PATH` the frozen rankers. It writes table.md too, scored on dev when the manifest
+  has no test arrangement, leading with the primary contrast A - G and carrying the common-target analysis.
   MANIFEST.json is a placeholder: build the manifest with `verify.manifest` (`save_manifest`); there
   is no `configs/arrangements.json` yet. Until the far-spot stops are taped, `configs/positions.json`
   is the old close-spot arc, so travel/cap numbers from a real run are not meaningful (pilot 1 is a
@@ -910,7 +919,7 @@ uv run --no-sync python -m verify.run --manifest SET/manifest.json --evidence SE
   "pooled". The `config` dict (thresholds, positions,
   budgets, `cap_steps`, `travel_caps_cm`, `nominal_step_cm`, `travel_tol_cm`, `g_lookahead`
   {"G": false, "G-lookahead": true}, `g_myopic` {lam_deg, travel_norm_cm}, r_seeds, generator
-  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v7`; `real-v4`
+  params, n_arr, seed, bootstrap B, primary budget, config_version (`synthetic-v7`; `real-v5`
   for real data), `simulation`, `bootstrap_stratified`, model_id, positions file path and sha256) is hashed with `config_sha256`, and
   the same hash is in every log line. `cap_steps` is hashed as floats (`[null, 1.0, 2.0, ...]`),
   so the default caps and an explicit `--cap-steps 1,2,3,4,6` give the same hash. v4 (real-v1)
@@ -1014,7 +1023,8 @@ candidate written but **not** eligible for freeze.
 **No compared policy's results set any shared setting.** DECISIONS 2026-10-12: "Shared thresholds are
 selected by a documented procedure that does not optimise them on G's results"; the student approved
 select-v4 on 2026-11-02. tau_q, tau_occ and tau_match are calibrated from per-view dev labels alone, k and
-lam are fixed in advance, and every policy (S, F, R, G, G-lookahead, G-myopic; A later) then runs with the
+lam are fixed in advance, and every policy (S, F, R, G, G-lookahead, G-myopic; with side descriptors Dir, A and
+A-nocue) then runs with the
 same frozen settings. Every setting below is a *proposed default - confirm*, to be predeclared before any
 dev data are looked at.
 
@@ -1122,7 +1132,8 @@ dev data are looked at.
     honest per-view estimate.
   - **(b) Held-out policy check** (`held_out_check`): in every feasible fold, every policy (`HELDOUT_POLICIES`: S,
     F, R, G, G-lookahead, G-myopic, F-fcm, R-fcm, G-fcm, G-lookahead-fcm, G-myopic-fcm, FULL, as verify.run
-    reports) runs on the held-out arrangement's episodes with **that fold's thresholds**, at the primary budget,
+    reports; with side descriptors also Dir and Dir-fcm, and every fold-trained policy with its -fcm variant) runs on
+    the held-out arrangement's episodes with **that fold's thresholds**, at the primary budget,
     uncapped and under every cap (S one view, FULL all five uncapped), on a fresh store per setting through the
     public replay API. Outcomes are pooled over the folds into rows per policy, cap and lighting (L1, L2; pooled a
     secondary line): FRR per episode and per arrangement, recall, coverage, mean views, mean travel, all with
@@ -1160,7 +1171,8 @@ dev data are looked at.
   used to pass while its label still read SYNTHETIC). The sidecar guards against accidental edits, not against
   someone who rewrites both files.
 - **Step 4: FRR <= `frr_limit` (0.10) is a check, not an objective.** With the frozen thresholds (k = 2, lam = 0),
-  `PolicyRunner` runs S, F, R, G, G-lookahead and G-myopic on all dev episodes at the primary budget (3), uncapped
+  `PolicyRunner` runs S, F, R, G, G-lookahead and G-myopic (and Dir with side descriptors) on all dev episodes at
+  the primary budget (3), uncapped
   and under every cap (1, 2, 3, 4, 6 arc steps; D-cap). FRR (per episode and per arrangement), recall, coverage,
   mean views and mean travel are reported **separately for L1 and L2 queries** (pooled: a labelled secondary line),
   with one-sided Clopper-Pearson and Jeffreys bounds and the cluster bootstrap over arrangements. R's
@@ -1239,18 +1251,12 @@ dev data are looked at.
   here):** `docs/EXPERIMENT_PLAN.md` and `docs/SIMULATION_STUDY.md` still describe selecting k and the travel
   penalty on dev; select-v4 fixes k = 2 and lam = 0 a priori.
 - **Known gaps, next checkpoint.**
-  - **Ranker A** is not built; the held-out check's `FoldTrainable` hook is where it plugs in (A is not yet in
-    the Step 4 dev check).
-  - **TODO, REQUIRED before calibration (DECISIONS 2026-11-04, choice 4; not done).** Rendering may proceed, but
-    before pooled calibration, sensitivity reporting or policy replay on the tabletop:
-    - split Step 5 (sensitivity) by environment (per-environment k and lam rows next to the pooled ones, like Steps
-      3b and 4);
-    - split `verify.run` by environment and make it consume the selected candidate (through
-      `require_freeze_eligible`) instead of the placeholder `Thresholds()` it replays with today.
-  - **Per environment.** select pools environments (above) and reports a per-environment breakdown; `verify.run`
-    is not split by environment yet, and Step 5 (sensitivity) has no per-environment rows (the TODO above).
-  - **verify.run thresholds.** `verify.run` still replays with the placeholder `Thresholds()`; it does not yet
-    read a frozen candidate (through `require_freeze_eligible`; the TODO above).
+  - **Ranker A and A-nocue** (`verify/ranker.py`, `--ranker`) train through the held-out check's `FoldTrainable`
+    hook in every fold's own process; they are not in the Step 4 dev check (they are fold-trained). Each fold's
+    fitted report is in frozen_candidate.json and summarised in the report.
+  - **Done 2026-11-05 (DECISIONS 2026-11-04, choice 4, required before calibration).** Step 5 (sensitivity) is split
+    by environment for pooled dev data (`environment_sensitivity`); `verify.run` runs one environment per run and
+    reads the frozen candidate through `require_freeze_eligible`.
 
 ---
 
@@ -1259,7 +1265,7 @@ dev data are looked at.
 - Policies see only requested views. Ground truth is joined only at scoring. The env never
   receives the spec or the condition. The runtime guarantee covers public and single-underscore
   paths only; introspection is excluded by the policy lint and by review (section 2).
-- F, R, G, G-lookahead, G-myopic (and A later) share one `StoppingRule`. Unknown counts against
+- F, R, G, G-lookahead, G-myopic, Dir, A and A-nocue share one `StoppingRule`. Unknown counts against
   coverage. G-lookahead's feasibility check reads the rule's k and predicate but never changes the
   decision.
 - Results are reported separately for L1 and L2 queries (metrics, curves, per-condition tables,

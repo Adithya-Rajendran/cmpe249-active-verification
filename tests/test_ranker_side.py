@@ -52,7 +52,8 @@ def write_side(d: Path, slots=SLOTS) -> Path:
         for cond in Condition:
             for light in Lighting:
                 for st in range(5):
-                    v = None if (cond is Condition.REMOVED and light is Lighting.L2 and st == 4) else side_value(i, cond, st)
+                    gone = cond is Condition.REMOVED and light is Lighting.L2 and st == 4
+                    v = None if gone else side_value(i, cond, st)
                     rows.append({"schema": SIDE_SCHEMA, "descriptor_version": "side-0.1-dev",
                                  "episode_id": episode_id(a, cond, light), "stop": st, "d": v,
                                  "missing": None if v is not None else "support"})
@@ -61,7 +62,8 @@ def write_side(d: Path, slots=SLOTS) -> Path:
     return p
 
 
-def store_of(records: dict[int, tuple[float, float, float]], eid: str = "X0001-occluded-L1") -> tuple[EvidenceStore, str]:
+def store_of(records: dict[int, tuple[float, float, float]],
+             eid: str = "X0001-occluded-L1") -> tuple[EvidenceStore, str]:
     st = EvidenceStore(5)
     for s, (m, q, o) in records.items():
         st.put(eid, EvidenceRecord(s, m, q, o))
@@ -163,7 +165,8 @@ class DirTest(unittest.TestCase):
     def run_dir(self, d3, budget=Budget(3)):
         sides = {s: 0.0 for s in range(5)}
         sides[2] = d3
-        return pol.run_episode(pol.Dir.from_thresholds(TH), side_env(OCC, sides, budget), StoppingRule(TH)).requested_stops
+        run = pol.run_episode(pol.Dir.from_thresholds(TH), side_env(OCC, sides, budget), StoppingRule(TH))
+        return run.requested_stops
 
     def test_positive_goes_to_larger_azimuth_nearest_first(self) -> None:
         self.assertEqual(self.run_dir(0.3)[:3], (2, 3, 4))
@@ -218,7 +221,8 @@ class FeatureTest(unittest.TestCase):
             pol.ranker_features(obs([(2, 0.2, 0.8, 0.1, None)]), 2, POS, 0.3)
 
     def test_nocue_excludes_every_obstruction_derived_feature(self) -> None:
-        self.assertEqual(set(pol.OBSTRUCTION_DERIVED), {"sep_occluded", "obstruction_start", "side_toward", "side_missing"})
+        self.assertEqual(set(pol.OBSTRUCTION_DERIVED),
+                         {"sep_occluded", "obstruction_start", "side_toward", "side_missing"})
         self.assertFalse(set(pol.NOCUE_FEATURES) & set(pol.OBSTRUCTION_DERIVED))
         rng = np.random.default_rng(0)
         model = dict(mean=rng.normal(size=8), scale=rng.uniform(0.5, 2, 8), coef=rng.normal(size=8), intercept=0.3)
@@ -418,9 +422,6 @@ class ModelFileTest(unittest.TestCase):
                          ("A-nocue", pol.NOCUE_FEATURES, f.coef, f.intercept, TH.tau_occ))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class PooledSideTest(unittest.TestCase):
     def test_pooled_sets_carry_both_environments_descriptors(self) -> None:
@@ -438,3 +439,125 @@ class PooledSideTest(unittest.TestCase):
             self.assertTrue([r for r in res["held_out_check"]["rows"] if r.policy == "A"])
             with self.assertRaises(ValueError):          # all sets with descriptors, or none
                 sel.sim_dev_data_pooled([(*set_files(d / "shelf"), sides[0]), set_files(d / "tab")])
+
+
+class ValidationTest(unittest.TestCase):
+    def test_side_store_refusals(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.jsonl"
+            row = {"schema": SIDE_SCHEMA, "descriptor_version": "side-9", "episode_id": "E", "stop": 0, "d": 0.0}
+            p.write_text(json.dumps(row) + "\n")
+            with self.assertRaises(ValueError):                       # an unknown descriptor version
+                SideStore.from_jsonl(p)
+            row["descriptor_version"] = "side-0.1-dev"
+            p.write_text((json.dumps(row) + "\n") * 2)
+            with self.assertRaises(ValueError):                       # a duplicate (episode, stop)
+                SideStore.from_jsonl(p)
+        with self.assertRaises(ValueError):
+            SideData({"E": [0.0] * 4}, 5)
+        with self.assertRaises(TypeError):
+            SideEnv(object(), lambda s: None)
+
+    def test_ranker_model_checks(self) -> None:
+        good = dict(mean=[0.0] * 4, scale=[1.0] * 4, coef=[0.1] * 4, intercept=0.0, tau_occ=0.3)
+        pol.Ranker("A-nocue", pol.NOCUE_FEATURES, **good)
+        for bad in ({"features": ("az_from_start", "az_from_start", "match_max", "quality_min")},
+                    {"features": ("nope", "sep_visited", "match_max", "quality_min")},
+                    {"mean": [0.0] * 3}, {"scale": [1.0, 1.0, 0.0, 1.0]}, {"coef": [float("nan")] * 4}):
+            args = {"features": pol.NOCUE_FEATURES, **good, **bad}
+            with self.assertRaises(ValueError, msg=bad):
+                pol.Ranker("x", **args)
+        with self.assertRaises(ValueError):
+            pol.Ranker("A", pol.NOCUE_FEATURES, **good).select((), (0,), POS, 2)
+        self.assertAlmostEqual(pol._sigmoid(-800.0), 0.0)
+        self.assertAlmostEqual(pol._sigmoid(-1.0) + pol._sigmoid(1.0), 1.0)
+
+    def test_model_file_refusals(self) -> None:
+        f = rk.Fitted(pol.NOCUE_FEATURES, (0.0,) * 4, (1.0,) * 4, (0.1,) * 4, 0.0, 1.0, {"1": 0.5}, 10, 3, 0.4)
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "m.json"
+            rk.save_model(p, "A-nocue", f, TH, {})
+            doc = json.loads(p.read_text())
+            p.write_text(json.dumps({**doc, "name": "A"}))           # A must carry A's features
+            with self.assertRaises(ValueError):
+                rk.load_model(p)
+            p.write_text(json.dumps({**doc, "schema": "other"}))
+            with self.assertRaises(ValueError):
+                rk.load_model(p)
+
+    def test_plain_observations_fail_loudly(self) -> None:
+        plain = (pol.Observation(step=0, stop=2, azimuth_deg=0.0, match_score=0.1, quality=0.9, obstruction=0.9),)
+        with self.assertRaises(AttributeError):
+            pol.Dir.from_thresholds(TH).select(plain, (1, 3), POS, 2)
+        with self.assertRaises(AttributeError):
+            pol.ranker_features(plain, 1, POS, 0.3)
+
+    def test_dir_nearest_on_its_side_else_g(self) -> None:
+        # On a five-stop arc two stops on one side of the start are never equidistant from the current stop, so the
+        # tie rule (lower index) cannot bind here; what matters is nearest-first on the side, then G's choice.
+        d = pol.Dir.from_thresholds(TH)
+        obs3 = obs([(2, 0.1, 0.9, 0.9, 0.4)])
+        self.assertEqual(d.select(obs3, (0, 1, 3, 4), POS, 2), 3)
+        self.assertEqual(d.select(obs3, (0, 1, 4), POS, 2), 4)
+        self.assertEqual(d.select(obs3, (0, 1), POS, 2), pol.G(0.0, TH.tau_occ).select(obs3, (0, 1), POS, 2))
+
+    def test_fit_that_does_not_converge_is_an_error(self) -> None:
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(200, 2))
+        y = (X[:, 0] > 0).astype(float)
+        with mock.patch.object(rk, "MAX_NEWTON", 1):
+            with self.assertRaises(RuntimeError):
+                rk.fit_logistic(X, y, np.ones(200), 10.0)
+
+    def test_inner_folds_count_rowless_arrangements(self) -> None:
+        X = np.random.default_rng(1).normal(size=(60, 2))
+        y = (X[:, 0] + np.random.default_rng(2).normal(size=60) > 0).astype(float)
+        arr = tuple(f"A{i % 6 + 1}" for i in range(60))
+        rows = rk.Rows(X, y, np.full(60, 0.1), arr, ("a", "b"))
+        every = [f"A{i}" for i in range(7)]       # A0 has no row; it sorts first, so it shifts every later fold
+        with_rowless = rk.fit_with_selection(rows, every)
+        self.assertEqual((with_rowless.n_training_arrangements, with_rowless.n_arrangements_with_rows), (7, 6))
+        self.assertEqual(with_rowless.inner_folds_skipped, 0)        # A0 shares its fold with A5
+        self.assertNotEqual(with_rowless.inner_logloss, rk.fit_with_selection(rows).inner_logloss)
+        with self.assertRaises(ValueError):
+            rk.fit_with_selection(rows, every[:5])                   # rows of arrangements outside the training set
+
+
+class SelectCliSideTest(unittest.TestCase):
+    def test_side_needs_one_file_per_set_and_dir_runs_only_with_it(self) -> None:
+        with tempfile.TemporaryDirectory() as d, quiet():
+            d = Path(d)
+            args = write_sim_set(d)
+            side = str(write_side(d))
+            quick = ["--cap-steps", "2", "--r-seeds", "1", "--k-sensitivity", "none", "--lam-sensitivity", "none",
+                     "--bootstrap-B", "20", "--tau-q-grid", "0.5,0.6", "--tau-occ-grid", "0.3", "--tau-match-grid",
+                     "0.5,0.6"]
+            self.assertEqual(sel.main([*args, "--side", side, "--side", side, *quick, "--out", str(d / "x")]), 2)
+            self.assertIn(sel.main([*args, *quick, "--out", str(d / "plain")]), (0, 4))
+            self.assertIn(sel.main([*args, "--side", side, *quick, "--out", str(d / "side")]), (0, 4))
+            plain = json.loads((d / "plain" / "frozen_candidate.json").read_text())
+            with_side = json.loads((d / "side" / "frozen_candidate.json").read_text())
+        self.assertNotIn("Dir", plain["held_out_check"]["policies"])
+        self.assertNotIn("Dir", plain["dev_check"]["policies"])
+        self.assertIn("Dir", with_side["held_out_check"]["policies"])
+        self.assertIn("Dir", with_side["dev_check"]["policies"])
+        self.assertEqual(plain["thresholds"], with_side["thresholds"])   # descriptors never touch calibration
+
+    def test_report_renders_the_fold_fits(self) -> None:
+        with tempfile.TemporaryDirectory() as d, quiet():
+            d = Path(d)
+            args = write_sim_set(d)
+            quick = ["--cap-steps", "2", "--r-seeds", "1", "--k-sensitivity", "none", "--lam-sensitivity", "none",
+                     "--bootstrap-B", "20", "--tau-q-grid", "0.5,0.6", "--tau-occ-grid", "0.3", "--tau-match-grid",
+                     "0.5,0.6"]
+            sel.main([*args, "--side", str(write_side(d)), "--ranker", "A", "--ranker", "A", *quick,
+                      "--out", str(d / "o")])
+            report = (d / "o" / sel.REPORT_FILE).read_text()
+            cand = json.loads((d / "o" / "frozen_candidate.json").read_text())
+        self.assertEqual(cand["held_out_check"]["trainable_policies"], ["A"])   # a repeated --ranker runs once
+        self.assertIn("Fold-trained A:", report)
+        self.assertIn("| side_toward |", report)
+
+
+if __name__ == "__main__":
+    unittest.main()

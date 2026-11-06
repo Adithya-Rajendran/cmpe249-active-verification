@@ -64,11 +64,13 @@ class TestRemainder(unittest.TestCase):
     def test_thresholds_are_the_shelf_ones(self):
         th = self.cfg["shelf_thresholds"]
         v03 = th["v03_image"]
-        self.assertEqual((v03["tau_q"], v03["tau_occ"], v03["tau_match"], v03["k"], v03["lam"]), (0.3, 0.35, 0.65, 2, 0.0))
+        self.assertEqual((v03["tau_q"], v03["tau_occ"], v03["tau_match"], v03["k"], v03["lam"]),
+                         (0.3, 0.35, 0.65, 2, 0.0))
         self.assertEqual(v03["sha256"], "4a06de0eebe407aad27b58fdfce3751460b5357924aba93a6f6830095b93b983")
         self.assertIsNone(th["v021_image"])
         self.assertEqual(self.cfg["source"]["arrange_config_sha256"], _sha(REPO / self.cfg["source"]["arrange_config"]))
-        self.assertEqual(self.cfg["source"]["slot_list_sha256"], json.loads(CFG11.read_text())["source"]["slot_list_sha256"])
+        self.assertEqual(self.cfg["source"]["slot_list_sha256"],
+                         json.loads(CFG11.read_text())["source"]["slot_list_sha256"])
 
     @unittest.skipUnless(DEV60.is_dir(), "untracked dev60 output not present")
     def test_the_dev60_output_still_matches(self):

@@ -3,6 +3,8 @@ removed target reading as no obstruction, the support rule, the in-box agreement
 refused-registration path and the jobs CLI."""
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -100,7 +102,8 @@ class TestSupportAndAgreement(unittest.TestCase):
         self.assertGreaterEqual(d["valid_left"], sd.SUPPORT_MIN)
 
     def test_the_in_box_share_is_v03_background_obstruction(self) -> None:
-        for q in (background(2), with_board(background(2), LEFT_BOARD), with_board(with_target(background(3)), RIGHT_BOARD),
+        for q in (background(2), with_board(background(2), LEFT_BOARD),
+                  with_board(with_target(background(3)), RIGHT_BOARD),
                   with_board(with_target(background(4)), (120, 60, 180, 140))):
             for valid in (ALL, np.pad(np.ones((H - 20, W - 30), bool), ((0, 20), (30, 0)))):
                 u, _ = v03.background_obstruction(REF, q, valid, BOX)
@@ -149,9 +152,22 @@ class TestCli(unittest.TestCase):
             self.assertEqual(sd.main(["--jobs", str(t / "jobs.json"), "--out", str(t / "side.jsonl")]), 0)
             rows = [json.loads(line) for line in (t / "side.jsonl").read_text().splitlines()]
             self.assertEqual([(r["episode_id"], r["stop"]) for r in rows], [(j["episode_id"], 2) for j in jobs])
-            self.assertTrue(all(r["schema"] == sd.SCHEMA and r["descriptor_version"] == sd.DESCRIPTOR_VERSION for r in rows))
+            self.assertTrue(all(r["schema"] == sd.SCHEMA and r["descriptor_version"] == sd.DESCRIPTOR_VERSION
+                                for r in rows))
             self.assertEqual((rows[0]["d"], rows[0]["missing"]), (0.0, None))
             self.assertEqual((rows[1]["d"], rows[1]["missing"]), (None, "registration refused"))
+            # the same rows from two spawned workers, in the jobs' order
+            self.assertEqual(sd.main(["--jobs", str(t / "jobs.json"), "--out", str(t / "w.jsonl"),
+                                      "--workers", "2"]), 0)
+            self.assertEqual((t / "w.jsonl").read_text(), (t / "side.jsonl").read_text())
+            # refusals: another jobs schema, a duplicate (episode, stop), a job whose stop is not its annotation's
+            (t / "bad.json").write_text(json.dumps({"schema": "nope", "jobs": jobs}))
+            (t / "dup.json").write_text(json.dumps({"schema": e021.JOBS_SCHEMA, "jobs": [jobs[0], jobs[0]]}))
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(sd.main(["--jobs", str(t / "bad.json"), "--out", str(t / "x.jsonl")]), 2)
+                self.assertEqual(sd.main(["--jobs", str(t / "dup.json"), "--out", str(t / "x.jsonl")]), 2)
+            with self.assertRaises(ValueError):
+                sd.job_descriptor({**jobs[0], "stop": 3})
 
 
 if __name__ == "__main__":

@@ -13,14 +13,21 @@ held-out policy check builds A afresh in every fold's own process on dev.subset(
     fit         standardised features (weighted mean and deviation of the fitting rows; zero deviation: centred
                 only), unpenalised intercept, sum w * logloss + ||beta||^2 / (2 C); Newton-Raphson from zero with step
                 halving if the objective would rise, until the largest step < 1e-10 (at most 100 steps, else an error).
-    selection   INNER_FOLDS folds of the sorted training arrangements (fold = position mod INNER_FOLDS); per C the mean
-                over folds of the held-in fold's weighted mean log-loss; lowest wins, ties within 1e-12 to the smaller C.
+    selection   INNER_FOLDS folds of the sorted training arrangements, all of them (fold = position mod INNER_FOLDS);
+                per C the mean over folds of the held-in fold's weighted mean log-loss; lowest wins, ties within 1e-12
+                to the smaller C. An arrangement whose every episode stops at its first view has no row and no weight:
+                it keeps its place in the fold assignment, and a fold left without rows is skipped and counted.
+
+    uv run --no-sync python -m verify.ranker --manifest M --evidence E --view-labels L --positions P --side S \\
+        [one of each per dev set] --candidate frozen_candidate.json --name A|A-nocue --out model.json
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import itertools
 import json
+import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -154,6 +161,7 @@ def weighted_logloss(intercept: float, coef: np.ndarray, Z: np.ndarray, y: np.nd
 
 
 def inner_folds(arrangements: Sequence[str], k: int = INNER_FOLDS) -> list[set[str]]:
+    """The design note's inner folds: the sorted arrangements, fold = position mod k."""
     arrs = sorted(set(arrangements))
     if len(arrs) < k:
         raise ValueError(f"inner cross-validation needs at least {k} training arrangements, got {len(arrs)}")
@@ -170,17 +178,28 @@ class Fitted:
     C: float
     inner_logloss: dict[str, float]
     n_rows: int
-    n_arrangements: int
+    n_arrangements_with_rows: int
     label_rate: float
+    n_training_arrangements: int = 0
+    inner_folds_skipped: int = 0
 
 
-def fit_with_selection(rows: Rows, c_grid: Sequence[float] = C_GRID) -> Fitted:
-    """Inner arrangement-grouped selection of C, then the refit on every row."""
+def fit_with_selection(rows: Rows, arrangements: Sequence[str] | None = None,
+                       c_grid: Sequence[float] = C_GRID) -> Fitted:
+    """Inner arrangement-grouped selection of C, then the refit on every row. arrangements: every training arrangement
+    (default: those with rows); the inner folds are formed from all of them, as the design note says."""
     arr = np.asarray(rows.arrangement)
+    every = sorted(set(arrangements) if arrangements is not None else set(rows.arrangement))
+    if not set(rows.arrangement) <= set(every):
+        raise ValueError("rows of arrangements outside the training arrangements")
+    folds = [held for held in inner_folds(every) if np.isin(arr, sorted(held)).any()]
+    skipped = INNER_FOLDS - len(folds)
+    if not folds:
+        raise ValueError("no inner fold has rows")
     losses = {}
     for C in c_grid:
         per = []
-        for held in inner_folds(rows.arrangement):
+        for held in folds:
             te = np.isin(arr, sorted(held))
             m, s = standardise(rows.X[~te], rows.w[~te])
             b0, b = fit_logistic((rows.X[~te] - m) / s, rows.y[~te], rows.w[~te], C)
@@ -192,7 +211,7 @@ def fit_with_selection(rows: Rows, c_grid: Sequence[float] = C_GRID) -> Fitted:
     b0, b = fit_logistic((rows.X - m) / s, rows.y, rows.w, best)
     return Fitted(rows.features, tuple(map(float, m)), tuple(map(float, s)), tuple(map(float, b)), b0, float(best),
                   {f"{C:g}": losses[C] for C in c_grid}, len(rows.y), len(set(rows.arrangement)),
-                  float((rows.w * rows.y).sum() / rows.w.sum()))
+                  float((rows.w * rows.y).sum() / rows.w.sum()), len(every), skipped)
 
 
 def policy_of(name: str, fitted: Fitted, tau_occ: float) -> Ranker:
@@ -208,8 +227,8 @@ class RankerA:
         self.report: dict[str, Any] | None = None
 
     def train(self, train: Any, thresholds: Thresholds) -> Callable[[], Ranker]:
-        fitted = fit_with_selection(training_rows(train, thresholds, self.features))
-        self.report = report_of(fitted, train.arrangements)
+        fitted = fit_with_selection(training_rows(train, thresholds, self.features), train.arrangements)
+        self.report = report_of(fitted)
         name, tau_occ = self.name, thresholds.tau_occ
         return lambda: policy_of(name, fitted, tau_occ)
 
@@ -223,29 +242,33 @@ class RankerANoCue(RankerA):
 RANKERS = {"A": RankerA, "A-nocue": RankerANoCue}
 
 
-def report_of(fitted: Fitted, arrangements: Sequence[str]) -> dict[str, Any]:
+def report_of(fitted: Fitted) -> dict[str, Any]:
+    """What a fold's training chose and fitted (frozen_candidate.json held_out_check.folds[].trained_reports)."""
     return {"features": list(fitted.features), "C": fitted.C, "inner_logloss": fitted.inner_logloss,
             "intercept": fitted.intercept, "coef": dict(zip(fitted.features, fitted.coef)),
             "mean": dict(zip(fitted.features, fitted.mean)), "scale": dict(zip(fitted.features, fitted.scale)),
-            "n_rows": fitted.n_rows, "n_arrangements": fitted.n_arrangements, "label_rate": fitted.label_rate,
-            "n_training_arrangements": len(arrangements)}
+            "n_rows": fitted.n_rows, "n_training_arrangements": fitted.n_training_arrangements,
+            "n_arrangements_with_rows": fitted.n_arrangements_with_rows,
+            "inner_folds_skipped": fitted.inner_folds_skipped, "label_rate": fitted.label_rate}
 
 
 def save_model(path: str | Path, name: str, fitted: Fitted, thresholds: Thresholds, provenance: dict[str, Any]) -> None:
     """The frozen model file (FREEZE.md): everything Ranker needs, plus how it was trained."""
-    doc = {"schema": MODEL_SCHEMA, "name": name, "tau_occ": thresholds.tau_occ, "features": list(fitted.features),
+    doc = {"schema": MODEL_SCHEMA, "name": name, "tau_occ": thresholds.tau_occ, **report_of(fitted),
            "mean": list(fitted.mean), "scale": list(fitted.scale), "coef": list(fitted.coef),
-           "intercept": fitted.intercept, "C": fitted.C, "inner_logloss": fitted.inner_logloss,
-           "n_rows": fitted.n_rows, "n_arrangements": fitted.n_arrangements, "label_rate": fitted.label_rate,
            "thresholds": thresholds.to_dict(), "provenance": provenance}
     Path(path).write_text(json.dumps(doc, indent=1, sort_keys=True) + "\n")
 
 
 def load_model(path: str | Path) -> Ranker:
+    """A frozen model file -> Ranker. A model named like a declared ranker must have exactly that ranker's features."""
     doc = json.loads(Path(path).read_text())
     if doc.get("schema") != MODEL_SCHEMA:
         raise ValueError(f"{path}: schema {doc.get('schema')!r}, expected {MODEL_SCHEMA!r}")
-    return Ranker(doc["name"], doc["features"], doc["mean"], doc["scale"], doc["coef"], doc["intercept"], doc["tau_occ"])
+    if doc["name"] in RANKERS and tuple(doc["features"]) != RANKERS[doc["name"]].features:
+        raise ValueError(f"{path}: {doc['name']} has features {doc['features']}, not {RANKERS[doc['name']].features}")
+    return Ranker(doc["name"], doc["features"], doc["mean"], doc["scale"], doc["coef"], doc["intercept"],
+                  doc["tau_occ"])
 
 
 # ---------------------------------------------------------------- the frozen model (FREEZE.md)
@@ -254,24 +277,23 @@ def train_frozen(dev: Any, candidate: str | Path, name: str) -> tuple[Fitted, Th
     """The frozen ranker: trained once on every development arrangement with the frozen candidate's thresholds, by the
     same procedure as in each fold. The candidate is read only through require_freeze_eligible, and the dev data must
     be the data it was calibrated on (its evidence and label hashes)."""
-    from verify.select import require_freeze_eligible   # select imports this module's caller, not this module
+    # imported here: verify.select.main imports this module lazily, and this function imports select lazily (no cycle)
+    from verify.select import candidate_thresholds, require_freeze_eligible
     doc = require_freeze_eligible(candidate)
     if (doc.get("dev_evidence_sha256"), doc.get("view_labels_sha256")) != (dev.evidence_sha256, dev.view_labels_sha256):
         raise ValueError("these dev data are not the candidate's: its dev_evidence_sha256 / view_labels_sha256 differ")
-    th = Thresholds(**{k: doc["thresholds"][k] for k in ("tau_match", "tau_q", "tau_occ", "k", "lam", "travel_norm_cm")})
-    fitted = fit_with_selection(training_rows(dev, th, RANKERS[name].features))
+    th = candidate_thresholds(doc)
+    fitted = fit_with_selection(training_rows(dev, th, RANKERS[name].features), dev.arrangements)
     prov = {"candidate_sha256": hashlib.sha256(Path(candidate).read_bytes()).hexdigest(),
             "dev_evidence_sha256": dev.evidence_sha256, "view_labels_sha256": dev.view_labels_sha256,
-            "side_sha256": dev.side.sha256(), "dev_arrangements": list(dev.arrangements),
+            "side_values_sha256": dev.side.sha256(), "dev_arrangements": list(dev.arrangements),
             "ranker_module_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             "design": "notes/2026-11-05-ranker-a-design.md"}
     return fitted, th, prov
 
 
 def main(argv: list[str] | None = None) -> int:
-    import argparse
-    import sys
-    from verify import select as sel
+    from verify import select as sel   # lazily, as in train_frozen
     ap = argparse.ArgumentParser(prog="verify.ranker", description="Train the frozen ranker A or A-nocue on every dev "
                                  "arrangement with the frozen candidate's thresholds (FREEZE.md).")
     for flag in ("--manifest", "--evidence", "--view-labels", "--positions", "--side"):
@@ -291,7 +313,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"refused: {type(e).__name__}: {e}", file=sys.stderr)
         return 2
     save_model(a.out, a.name, fitted, th, prov)
-    print(f"{a.name}: C {fitted.C:g}, {fitted.n_rows} rows from {fitted.n_arrangements} arrangements; wrote {a.out}")
+    print(f"{a.name}: C {fitted.C:g}, {fitted.n_rows} rows from {fitted.n_arrangements_with_rows} of "
+          f"{fitted.n_training_arrangements} arrangements; wrote {a.out}")
     return 0
 
 

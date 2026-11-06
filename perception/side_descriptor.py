@@ -1,4 +1,4 @@
-"""Left/right obstruction descriptor of one requested view (DEVELOPMENT, not frozen; notes/2026-11-05-side-descriptor.md).
+"""Left/right obstruction descriptor of one requested view (DEVELOPMENT; notes/2026-11-05-side-descriptor.md).
 
 Why: under a tight travel cap a policy has to choose a side of the arc, and v0.3's obstruction is a single number (how
 much of the expected box an occluding surface covers), not on which side of the target that surface lies. This
@@ -30,7 +30,7 @@ d > 0 (more obstruction left of the target) points to the stops at larger azimut
 describes observed change, not a measured occlusion mask and not proof that the target is visible from anywhere.
 
 Usage (repo root; numpy and OpenCV only, no detector or encoder):
-    python -m perception.side_descriptor --jobs JOBS.json --out side.jsonl [--workers N]
+    uv run --no-sync python -m perception.side_descriptor --jobs JOBS.json --out side.jsonl [--workers N]
 """
 from __future__ import annotations
 

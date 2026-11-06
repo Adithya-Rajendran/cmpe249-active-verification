@@ -86,3 +86,18 @@ Reported: per fold the chosen C, the inner log-loss of every C, the coefficients
 check rows of A, A-nocue and Dir beside every other policy; A - G (primary, b = 3, uncapped), A - G-lookahead along the
 cap grid (secondary), A - A-nocue and A - Dir (explanatory). Not done: no other feature, model family or label; no
 interaction terms; no lookahead; no tuning on policy outcomes; no promotion of any cap or subgroup.
+
+## Implementation notes (2026-11-05, after the checkpoint review, before any fit on rendered data)
+
+- Inner folds: the first implementation (5ff3b89) formed them from the training arrangements that have rows, so one
+  arrangement without rows would shift the fold assignment of every later one. Fixed to the rule above (all training
+  arrangements, sorted, position mod 5) before A was fitted on any rendered data. A fold with no rows is skipped and
+  counted (`inner_folds_skipped`).
+- An arrangement whose every episode stops at its first view has no row and so no weight: the weights sum to the number
+  of training arrangements with rows. Both counts are reported (`n_training_arrangements`, `n_arrangements_with_rows`).
+- Rows are built at b = 3 (histories of 0-2 additional views). At larger budgets of the declared budget curves A scores
+  histories longer than any it was trained on.
+- Per-fold reports are in frozen_candidate.json (`held_out_check.folds[].trained_reports`) and summarised in the
+  selection report (C chosen per fold, coefficient means and ranges).
+- A frozen model file records its features, thresholds and the candidate's sha256; verify.run refuses a model whose
+  name, features, thresholds or candidate do not match.

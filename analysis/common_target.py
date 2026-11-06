@@ -21,6 +21,8 @@ from typing import Any
 
 import numpy as np
 
+# _terms: the per-arrangement (numerator, denominator) sums analysis.bootstrap itself uses, reused so both analyses add
+# the episode terms the same way
 from analysis.bootstrap import _terms, pair, resolve_strata, sample_draws
 from analysis.metrics import METRICS
 from verify.schema import EPS, EpisodeLog, EpisodeResult, GroundTruth, as_results

@@ -7,13 +7,24 @@
 Every --synthetic output is labelled SYNTHETIC: the generator parameters and thresholds are
 placeholders, and the numbers are pipeline checks, not study results.
 
-Real or simulated data: --manifest MANIFEST.json --evidence evidence.jsonl [--view-labels view_labels.json]
-[--positions P], where the evidence file comes from perception/evidence.py (EvidenceStore.to_jsonl format). The
-same run stage replays it with no truth; the manifest is re-read for truth only after the run, and the optional sim
-view labels (cmpe249.sim-view-labels-set.v1) are read only after the run too, for the geometric
-no-diagnostic-view share. Thresholds are still the placeholders. A manifest with a top-level "simulation": true
-(sim/episodes.py) is labelled SIMULATION everywhere; any other is a REAL PILOT. It writes config.json, logs.jsonl,
-ground_truth.json, results.json and table.md (scored on test, or on dev when the manifest has no test arrangement).
+Real or simulated data:
+
+    uv run --no-sync python -m verify.run --manifest MANIFEST.json --evidence evidence.jsonl \\
+        [--view-labels view_labels.json] --positions P [--candidate frozen_candidate.json | --placeholder-thresholds] \\
+        [--side side.jsonl [--model A=model_A.json --model A-nocue=model_A-nocue.json]] [budgets, caps, B as above]
+
+The evidence file comes from perception/evidence.py or evidence_v03.py (EvidenceStore.to_jsonl format). The same run
+stage replays it with no truth; the manifest is re-read for truth only after the run, and the optional sim view labels
+(cmpe249.sim-view-labels-set.v1) are read only after the run too, for the geometric no-diagnostic-view share.
+Thresholds: --candidate reads a frozen select-v4 candidate through verify.select.require_freeze_eligible (sidecar,
+eligibility, synthetic marks); without it the placeholders are used, which a simulation manifest with test arrangements
+refuses unless --placeholder-thresholds is given (pipeline tests on hand-built sets only). --side gives every env the
+left/right descriptor of each requested view (verify/side.py) and adds the direction-rule control Dir; each --model
+adds a frozen ranker (verify/ranker.py) whose recorded features, thresholds and candidate must match. A manifest with a
+top-level "simulation": true (sim/episodes.py) is labelled SIMULATION everywhere; any other is a REAL PILOT. It writes
+config.json, logs.jsonl, ground_truth.json, results.json and table.md (scored on test, or on dev when the manifest has
+no test arrangement). results.json and table.md lead with the primary contrast A - G (b = 3, uncapped, per lighting;
+inconclusive when its 95 % interval contains 0) and carry the predeclared common-target analysis.
 
 Uncertainty (docs/SIM_PREREGISTRATION.md section 8): the paired arrangement-level cluster bootstrap and the
 percentile intervals of the single rates (FRR, removal recall, coverage of each policy row on test, per lighting)
@@ -76,7 +87,6 @@ from verify.policies import (
     run_r_seeds,
 )
 from verify.replay import ReplayEnv
-from verify.side import SideData, SideEnv, SideStore
 from verify.schema import (
     CAP_STEPS_DEFAULT,
     DEFAULT_POSITIONS_PATH,
@@ -102,6 +112,7 @@ from verify.schema import (
     file_sha256,
     to_jsonable,
 )
+from verify.side import SideData, SideEnv, SideStore
 from verify.stopping import StoppingRule
 from verify.synthetic import SyntheticParams, generate
 
@@ -137,7 +148,9 @@ REPORT_LIGHTINGS = tuple(x.value for x in Lighting)
 POOLED = "pooled"
 POOLED_DIAGNOSTIC = POOLED   # the lighting of a diagnostics row over both lightings (secondary section), as for metrics
 ROLE = {"S": "actual effort (1 view, budget-independent)",
-        "FULL": "higher-effort reference (5 views, ignores budget)"}
+        "FULL": "higher-effort reference (5 views, ignores budget)",
+        "A": "learned ranker (frozen model)", "A-nocue": "ablation: A without the obstruction-derived features",
+        "Dir": "explanatory control (post-hoc development origin)"}
 
 RunKey = tuple[str, int, float | None]  # (policy log name, budget, travel cap)
 
@@ -210,17 +223,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--candidate", default=None,
                    help="real/sim data: frozen_candidate.json from verify.select, read only through "
                         "require_freeze_eligible (its .sha256 sidecar must match and it must be eligible); its "
-                        "thresholds replace the placeholders. Required for a simulation manifest with test arrangements")
+                        "thresholds replace the placeholders. Required for a simulation manifest with test "
+                        "arrangements")
     p.add_argument("--placeholder-thresholds", action="store_true",
                    help="real/sim data: allow a simulation manifest with test arrangements to run on the placeholder "
                         "thresholds (pipeline tests on hand-built sets only; every output stays labelled 'placeholder "
                         "thresholds, not frozen')")
     p.add_argument("--side", default=None,
                    help="real/sim data: side descriptors (perception/side_descriptor.py rows on the same jobs): every "
-                        "env then reveals each requested view's own descriptor, and the direction-rule control Dir runs")
+                        "env then reveals each requested view's own descriptor, and the direction-rule control Dir "
+                        "runs")
     p.add_argument("--model", action="append", default=None,
                    help="real/sim data: NAME=PATH, a frozen ranker model file (verify/ranker.py save_model), e.g. "
-                        "A=model_A.json; needs --side and --candidate (the model's thresholds must be the candidate's); "
+                        "A=model_A.json; needs --side and --candidate (the model's features, thresholds and "
+                        "candidate must match); "
                         "repeatable")
     return p
 
@@ -643,8 +659,8 @@ def _md(cells: Sequence[str]) -> str:
 
 HEAD = ("| policy | FRR | FRR per arrangement (x/n) | recall | coverage | resolved acc | mean views | mean travel cm "
         "| n_arr/n_ep | note |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
-ORDER = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "F-fcm", "R-fcm", "G-fcm", "G-lookahead-fcm",
-         "G-myopic-fcm", "FULL")
+ORDER = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "Dir", "A", "A-nocue", "F-fcm", "R-fcm", "G-fcm",
+         "G-lookahead-fcm", "G-myopic-fcm", "Dir-fcm", "A-fcm", "A-nocue-fcm", "FULL")   # rows that ran; others skipped
 FULL_OVER_CAP = "uncapped reference (exceeds cap)"
 
 
@@ -834,7 +850,8 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
                   "| --- | --- | --- | --- | --- | --- | --- |"]
         for r in ct:
             lines.append(f"| {r['metric']} | {fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | "
-                         f"{r['n_arrangements']} | {r['n_episodes']} | {', '.join(r['single_target_families']) or '-'} | "
+                         f"{r['n_arrangements']} | {r['n_episodes']} | "
+                         f"{', '.join(r['single_target_families']) or '-'} | "
                          f"{_reading(r)} |")
         lines.append("")
     diag = results.get("diagnostics")
@@ -881,15 +898,19 @@ def _table_intro(results: dict[str, Any], scope: str) -> list[str]:
         data = (f"- {cfg['n_arr']} arrangements, seed {cfg['seed']}; scored on the **test** split only "
                 "(dev metrics are in results.json, scope \"dev\")")
     else:
+        frozen = cfg.get("thresholds_source") == "frozen candidate"
+        th_text = (f"The thresholds are the frozen select-v4 candidate's (`{cfg.get('candidate_file')}`, sha256 "
+                   f"`{cfg.get('candidate_sha256')}`)." if frozen
+                   else "The thresholds are the placeholders, not a frozen select-v4 candidate.")
         if cfg.get("simulation"):
             what = [("**SIMULATION.** Evidence from `perception/evidence.py` on Isaac Sim renders (the manifest says "
-                     "`\"simulation\": true`); every number here is a simulation result. The thresholds are the "
-                     "placeholders, not a frozen select-v4 candidate.")]
+                     "`\"simulation\": true`); every number here is a simulation result. " + th_text)]
         else:
-            what = [("**REAL PILOT.** Evidence from `perception/evidence.py` on real photos, with placeholder "
-                     "thresholds; not study results.")]
+            what = [("**REAL PILOT.** Evidence from `perception/evidence.py` on real photos; not study results. "
+                     + th_text)]
         other = "dev" if scope == Split.TEST.value else "test"
-        data = (f"- manifest `{cfg['manifest_file']}` (sha256 `{cfg['manifest_sha256']}`), evidence "
+        data = (f"- environment **{cfg.get('environment', 'shelf')}**; "
+                f"manifest `{cfg['manifest_file']}` (sha256 `{cfg['manifest_sha256']}`), evidence "
                 f"`{cfg['evidence_file']}` (sha256 `{cfg['evidence_sha256']}`); scored on the **{scope}** split"
                 + (" (the manifest has no test arrangement)" if scope != Split.TEST.value else "")
                 + f" ({other} metrics, if any, are in results.json)")
@@ -1067,6 +1088,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.n_arr < 2 or args.r_seeds < 1 or args.bootstrap_B < 1:
         print("need --n-arr >= 2, --r-seeds >= 1, --bootstrap-B >= 1", file=sys.stderr)
         return 2
+    given = [f for f, v in (("--candidate", args.candidate), ("--placeholder-thresholds", args.placeholder_thresholds),
+                            ("--side", args.side), ("--model", args.model)) if v]
+    if given:   # the synthetic path never reads them: refuse instead of silently ignoring them
+        print(f"{', '.join(given)}: real/sim data only, not --synthetic", file=sys.stderr)
+        return 2
     if args.primary_budget not in args.budgets:
         print(f"--primary-budget {args.primary_budget} not in --budgets {args.budgets}", file=sys.stderr)
         return 2
@@ -1114,10 +1140,11 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-REAL_CONFIG_VERSION = "real-v5"   # v5 (2026-11-05): frozen candidate thresholds (--candidate), side descriptors, Dir and
-# frozen rankers (--side, --model), the primary contrast and the common-target secondary analysis
-# real-v4   # v4 (2026-11-03): bootstrap_stratified is what the test bootstrap uses (singleton
-# strata fall back); single-rate CIs; SIMULATION-labelled logs and truth
+REAL_CONFIG_VERSION = "real-v5"
+# v5 (2026-11-05): frozen candidate thresholds (--candidate), side descriptors, Dir and frozen rankers (--side,
+# --model), the primary contrast and the common-target secondary analysis
+# v4 (2026-11-03): bootstrap_stratified is what the test bootstrap uses (singleton strata fall back); single-rate CIs;
+# SIMULATION-labelled logs and truth
 # v3 (2026-11-03): simulation flag, view labels file and bootstrap strata hashed
 # v2 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
 # v1 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
@@ -1128,7 +1155,8 @@ SIM_FROZEN_LABEL = "SIMULATION - frozen candidate thresholds"
 
 
 def main_real(args: argparse.Namespace) -> int:
-    """Run S/FULL/F/R/G/G-lookahead/G-myopic on real or simulated evidence: same run and score stages as --synthetic.
+    """Run S/FULL/F/R/G/G-lookahead/G-myopic, with --side also Dir and with --model the frozen rankers, on real or
+    simulated evidence: same run and score stages as --synthetic.
     A manifest with "simulation": true is labelled SIMULATION (config.json, results.json, table.md); the bootstrap
     is stratified by the manifest's quota slot classes when every arrangement has one."""
     if args.primary_budget not in args.budgets or args.r_seeds < 1 or args.bootstrap_B < 1:
@@ -1140,6 +1168,10 @@ def main_real(args: argparse.Namespace) -> int:
         del truth  # the run stage never sees it; re-read after the run
     except (OSError, ValueError, KeyError) as e:
         print(f"bad real-data input: {e}", file=sys.stderr)
+        return 2
+    if len(info.environments) != 1:   # split by environment (DECISIONS 2026-11-04, choice 4): one per run
+        print(f"{args.manifest}: one environment per run, this manifest has {list(info.environments)}; run each "
+              "environment's manifest with its own positions file", file=sys.stderr)
         return 2
     if info.simulation and args.positions is None:
         # configs/positions.json is the old close-spot arc: travel and caps would be wrong for a sim set
@@ -1171,7 +1203,8 @@ def main_real(args: argparse.Namespace) -> int:
     has_test = any(s.split is Split.TEST for s in specs)
     if info.simulation and has_test and args.candidate is None and not args.placeholder_thresholds:
         print("a simulation manifest with test arrangements needs --candidate: test is scored only with frozen "
-              "thresholds, never with the placeholders (--placeholder-thresholds: pipeline tests only)", file=sys.stderr)
+              "thresholds, never with the placeholders (--placeholder-thresholds: pipeline tests only)",
+              file=sys.stderr)
         return 2
     if args.candidate is not None and args.placeholder_thresholds:
         print("--candidate and --placeholder-thresholds exclude each other", file=sys.stderr)
@@ -1186,7 +1219,7 @@ def main_real(args: argparse.Namespace) -> int:
     models: dict[str, dict[str, str]] = {}
     try:
         if args.candidate is not None:
-            from verify.select import NotEligibleForFreeze, require_freeze_eligible   # heavy: only when asked
+            from verify.select import NotEligibleForFreeze, candidate_thresholds, require_freeze_eligible   # heavy
             try:
                 cand_doc = require_freeze_eligible(args.candidate)
             except NotEligibleForFreeze as e:
@@ -1194,24 +1227,26 @@ def main_real(args: argparse.Namespace) -> int:
             if bool(cand_doc.get("simulation")) != info.simulation:
                 raise ValueError(f"the candidate says simulation={cand_doc.get('simulation')} but the manifest says "
                                  f"simulation={info.simulation}")
-            th = Thresholds(**{k: cand_doc["thresholds"][k] for k in ("tau_match", "tau_q", "tau_occ", "k", "lam",
-                                                                       "travel_norm_cm")})
+            th = candidate_thresholds(cand_doc)
         if args.side is not None:
             side_data = SideData.from_store(SideStore.from_jsonl(args.side, positions.n_stops,
                                                                  episode_ids=[s.episode_id for s in specs]),
                                             [s.episode_id for s in specs], source=_rel(Path(args.side)))
         for item in args.model or ():
+            from verify.ranker import RANKERS, load_model
             name, sep, path = item.partition("=")
-            if not sep or not name or not path or name in models:
-                raise ValueError(f"--model takes NAME=PATH once per name, got {item!r}")
-            from verify.ranker import load_model
+            if not sep or name not in RANKERS or not path or name in models:
+                raise ValueError(f"--model takes NAME=PATH once per name, NAME one of {sorted(RANKERS)}; got {item!r}")
             doc = json.loads(Path(path).read_text())
             if doc.get("thresholds") != th.to_dict():
                 raise ValueError(f"model {path} was trained with thresholds {doc.get('thresholds')}, not the "
                                  f"candidate's {th.to_dict()}")
+            if (doc.get("provenance") or {}).get("candidate_sha256") != file_sha256(args.candidate):
+                raise ValueError(f"model {path} was trained for another candidate than {args.candidate}")
             r = load_model(path)
-            if r.name != name:
-                raise ValueError(f"model {path} is {r.name!r}, not {name!r}")
+            if r.name != name or r.features != RANKERS[name].features:
+                raise ValueError(f"model {path} is {r.name!r} with features {r.features}, not {name!r} with "
+                                 f"{RANKERS[name].features}")
             rankers.append(r)
             models[name] = {"file": _rel(Path(path)), "sha256": file_sha256(path)}
     except (OSError, ValueError, KeyError) as e:
@@ -1233,12 +1268,12 @@ def main_real(args: argparse.Namespace) -> int:
               "g_myopic": {"lam_deg": GMYOPIC_LAM_DEG, "travel_norm_cm": th.travel_norm_cm},
               "r_seeds": list(range(args.r_seeds)), "bootstrap_B": args.bootstrap_B,
               "primary_budget": args.primary_budget, "thresholds": th.to_dict(), "positions": positions.to_dict(),
-              "scoring_split": Split.TEST.value,
+              "scoring_split": Split.TEST.value, "environment": info.environments[0],
               "thresholds_source": "frozen candidate" if cand_doc is not None else "placeholders",
               "candidate_file": None if args.candidate is None else _rel(Path(args.candidate)),
               "candidate_sha256": None if args.candidate is None else file_sha256(args.candidate),
               "side_file": None if args.side is None else _rel(Path(args.side)),
-              "side_sha256": None if args.side is None else file_sha256(args.side),
+              "side_file_sha256": None if args.side is None else file_sha256(args.side),
               "ranker_models": models, "primary_contrast": list(PRIMARY_PAIR),
               "common_targets": list(COMMON_TARGETS)}
     if cand_doc is not None:
@@ -1274,6 +1309,9 @@ def main_real(args: argparse.Namespace) -> int:
               if all(a.occluder_family is not None for a in info.arrangements) else None)
     scored = score_stage(logs, truth, args.primary_budget, args.bootstrap_B, args.seed, strata=strata,
                          no_diagnostic=no_diag, common_target=common)
+    if common is None and any(m["policy"] == PRIMARY_PAIR[0] for m in scored["metrics"]):
+        scored["common_target_skipped"] = ("the manifest lacks occluder_family for some arrangement, so the "
+                                           "predeclared common-target analysis could not run")
     results = {"label": label, "synthetic": False, "simulation": info.simulation, "config": config,
                "config_sha256": sha, "positions": positions.to_dict(), "thresholds": th.to_dict(),
                "files": {n: file_sha256(out / n) for n in ("ground_truth.json", "logs.jsonl")},

@@ -2,17 +2,20 @@
 and the remaining 49 into the 60-arrangement tabletop dev set of the final pooled calibration).
 
 verify.select pools environments, one set each; the tabletop dev arrangements were rendered as two sets. This writes
-one set directory from them, checking before anything is written that:
+one set directory from them, checking before anything is written (or created) that:
   - every manifest has the same schema, simulation flag and environment, and the arrangement ids are disjoint;
   - the positions files are byte-identical (one geometry);
   - the view-label files have the same schema, simulation flag and rules, and label exactly their manifest's episodes;
   - each evidence file (EvidenceStore format, real) and each side-descriptor file (perception/side_descriptor.py rows)
     holds every manifest episode at every stop and nothing else;
+  - each evidence file agrees with its diagnostics file (the same views and scores), and every diagnostics row of
+    every set carries the same evidence_version (one evidence build);
 and records every source file's sha256 in merge_provenance.json. Contents are copied, not changed: evidence rows,
 descriptor rows and label records are concatenated in set order. Nothing is calibrated or scored here.
 
-    python tools/merge_dev_sets.py --set ROOT EVIDENCE SIDE [--set ROOT EVIDENCE SIDE ...] --out DIR
-ROOT holds manifest.json, view_labels.json and one positions_*.json; EVIDENCE and SIDE are that set's files.
+    uv run --no-sync python tools/merge_dev_sets.py --set ROOT EVIDENCE DIAG SIDE [--set ...] --out DIR
+ROOT holds manifest.json, view_labels.json and one positions_*.json; EVIDENCE, its DIAG(nostics) and SIDE are that set's
+files.
 """
 from __future__ import annotations
 
@@ -38,9 +41,9 @@ def positions_of(root: Path) -> Path:
     return found[0]
 
 
-def merge(sets: list[tuple[Path, Path, Path]], out: Path) -> dict:
-    mans = [json.loads((r / "manifest.json").read_text()) for r, _, _ in sets]
-    labs = [json.loads((r / "view_labels.json").read_text()) for r, _, _ in sets]
+def merge(sets: list[tuple[Path, Path, Path, Path]], out: Path) -> dict:
+    mans = [json.loads((r / "manifest.json").read_text()) for r, *_ in sets]
+    labs = [json.loads((r / "view_labels.json").read_text()) for r, *_ in sets]
     if len({(m["schema"], m.get("simulation")) for m in mans}) != 1:
         raise ValueError("the manifests differ in schema or simulation flag")
     envs = {a.get("environment", "shelf") for m in mans for a in m["arrangements"]}
@@ -49,14 +52,14 @@ def merge(sets: list[tuple[Path, Path, Path]], out: Path) -> dict:
     ids = [a["arrangement_id"] for m in mans for a in m["arrangements"]]
     if len(set(ids)) != len(ids):
         raise ValueError("an arrangement id is in two sets")
-    pos = [positions_of(r) for r, _, _ in sets]
+    pos = [positions_of(r) for r, *_ in sets]
     if len({sha(p) for p in pos}) != 1 or len({p.name for p in pos}) != 1:
         raise ValueError("the sets' positions files differ")
     if len({(l["schema"], l["simulation"], json.dumps(l["rules"], sort_keys=True)) for l in labs}) != 1:
         raise ValueError("the view-label files differ in schema, simulation flag or rules")
     n_stops = len(json.loads(pos[0].read_text())["stops"])
-    ev_rows, side_rows = [], []
-    for (root, ev, side), m, l in zip(sets, mans, labs):
+    ev_rows, side_rows, versions = [], [], set()
+    for (root, ev, diag, side), m, l in zip(sets, mans, labs):
         eps = {f"{a['arrangement_id']}-{c}-{li}" for a in m["arrangements"] for c in ("visible", "occluded", "removed")
                for li in a["lightings"]}
         if set(l["episodes"]) != eps:
@@ -71,9 +74,18 @@ def merge(sets: list[tuple[Path, Path, Path]], out: Path) -> dict:
             if not all(check(d) for d in rs):
                 raise ValueError(f"{path}: not {name} rows of the expected kind")
             (ev_rows if name == "evidence" else side_rows).extend(rs)
+        scores = {(d["episode_id"], int(d["stop"])): (d["match_score"], d["quality"], d["obstruction"])
+                  for d in rows(ev)}
+        drows = rows(diag)
+        if {(d["episode_id"], int(d["stop"])): (d["match_score"], d["quality"], d["obstruction"])
+                for d in drows} != scores or len(drows) != len(scores):
+            raise ValueError(f"{diag} is not the diagnostics of {ev} (other views or scores)")
+        versions |= {d.get("evidence_version") for d in drows}
+    if len(versions) != 1 or None in versions:
+        raise ValueError(f"the sets come from different evidence builds: evidence_version {sorted(map(str, versions))}")
+    if out.exists() and (not out.is_dir() or any(out.iterdir())):
+        raise ValueError(f"{out} is not an empty directory")
     out.mkdir(parents=True, exist_ok=True)
-    if any(out.iterdir()):
-        raise ValueError(f"{out} is not empty")
     man = {**mans[0], "arrangements": [a for m in mans for a in m["arrangements"]]}
     lab = {**labs[0], "episodes": {k: v for l in labs for k, v in l["episodes"].items()}}
     (out / "manifest.json").write_text(json.dumps(man, indent=2) + "\n")
@@ -82,19 +94,19 @@ def merge(sets: list[tuple[Path, Path, Path]], out: Path) -> dict:
     (out / "side.jsonl").write_text("".join(json.dumps(d) + "\n" for d in side_rows))
     (out / pos[0].name).write_bytes(pos[0].read_bytes())
     prov = {"note": "merged dev sets of one environment (tools/merge_dev_sets.py); contents copied unchanged",
-            "environment": envs.pop(), "n_arrangements": len(ids),
+            "environment": envs.pop(), "n_arrangements": len(ids), "evidence_version": versions.pop(),
             "sources": [{"root": str(r), "arrangements": len(m["arrangements"]),
-                         "files": {str(p): sha(p) for p in (r / "manifest.json", r / "view_labels.json", positions_of(r),
-                                                             ev, side)}}
-                        for (r, ev, side), m in zip(sets, mans)],
+                         "files": {str(p): sha(p) for p in (r / "manifest.json", r / "view_labels.json",
+                                                             positions_of(r), ev, diag, side)}}
+                        for (r, ev, diag, side), m in zip(sets, mans)],
             "outputs": {p.name: sha(p) for p in sorted(out.iterdir()) if p.name != "merge_provenance.json"}}
     (out / "merge_provenance.json").write_text(json.dumps(prov, indent=1) + "\n")
     return prov
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--set", nargs=3, action="append", required=True, metavar=("ROOT", "EVIDENCE", "SIDE"))
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0].replace("\n", " "))
+    ap.add_argument("--set", nargs=4, action="append", required=True, metavar=("ROOT", "EVIDENCE", "DIAG", "SIDE"))
     ap.add_argument("--out", required=True)
     a = ap.parse_args(argv)
     if len(a.set) < 2:
@@ -102,7 +114,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         prov = merge([tuple(Path(x) for x in s) for s in a.set], Path(a.out))
-    except (OSError, ValueError, KeyError) as e:
+    except KeyError as e:
+        print(f"refused: a source file lacks the field {e}", file=sys.stderr)
+        return 2
+    except (OSError, ValueError) as e:
         print(f"refused: {e}", file=sys.stderr)
         return 2
     print(f"merged {prov['n_arrangements']} {prov['environment']} arrangements into {a.out}")

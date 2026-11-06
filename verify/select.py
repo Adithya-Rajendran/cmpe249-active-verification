@@ -16,6 +16,9 @@ search, the held-out policy check and freeze eligibility 2026-11-03, before any 
         --positions configs/sim/positions_tabletop_A.json [the same options]
         (pooled calibration over both environments' dev sets: the four flags once per set, in the same order; see
         "Environments" below)
+    ... [--side SET/side_refL1.jsonl, once per set] [--ranker A] [--ranker A-nocue]
+        (side descriptors, perception/side_descriptor.py on the same jobs: the direction-rule control Dir runs, and the
+        fold-trained rankers of verify/ranker.py train in every fold of the held-out check; verify/side.py)
     uv run --no-sync python -m verify.select --lam-breakpoints [--positions configs/positions.json]
         [--lam-sensitivity ...]
         (prints the lam values at which primary G's choice changes on that geometry, and checks lam = 0
@@ -28,7 +31,8 @@ grouped-CV fold is infeasible, or there are fewer than two dev arrangements).
 No compared policy's results set any shared setting (DECISIONS 2026-10-12: "Shared thresholds are
 selected by a documented procedure that does not optimise them on G's results"). The thresholds come
 from per-view labels alone, k and lam are fixed in advance, and every policy (S, F, R, G, G-lookahead,
-G-myopic; A later) then runs with the same frozen settings.
+G-myopic, and with side descriptors Dir and the fold-trained rankers A and A-nocue) then runs with the same frozen
+settings.
 
 Procedure select-v4. Every number it produces on --synthetic data is SYNTHETIC and is never a real
 threshold; every number from a manifest with "simulation": true is a SIMULATION result.
@@ -126,10 +130,9 @@ headline, as before); next to them, frr_within_limit_by_environment and all_envi
 environment passed, because a pooled pass does not imply it (DECISIONS 2026-11-04, choice 2). FRR stays a reported
 policy check: no per-environment result retunes a threshold or gates freeze eligibility.
 
-Known gaps (docs/SIM_PREREGISTRATION.md; verify/README.md section 10): ranker A is not built (the held-out check
-has the per-fold training hook it will plug into); REQUIRED before pooled calibration, sensitivity reporting or policy
-replay (DECISIONS 2026-11-04, choice 4): Step 5 (sensitivity) is not split by environment, and verify.run still replays
-with placeholder thresholds, not the selected candidate.
+Closed 2026-11-05 (DECISIONS 2026-11-04, choice 4, required before pooled calibration): Step 5 (sensitivity) is split
+by environment for pooled dev data (environment_sensitivity), and verify.run scores test only with a frozen candidate
+(require_freeze_eligible). Ranker A and A-nocue plug into the per-fold training hook (verify/ranker.py).
 """
 from __future__ import annotations
 
@@ -183,7 +186,6 @@ from verify.policies import (
     run_r_seeds,
 )
 from verify.replay import ReplayEnv
-from verify.side import SideData, SideEnv, SideStore
 from verify.schema import (
     CAP_STEPS_DEFAULT,
     EPS,
@@ -213,6 +215,7 @@ from verify.schema import (
     to_jsonable,
     truth_from_condition,
 )
+from verify.side import SideData, SideEnv, SideStore
 from verify.stopping import StoppingRule
 from verify.synthetic import SyntheticParams, generate, generate_layouts
 
@@ -252,11 +255,13 @@ DEFAULT_LAM_SENSITIVITY = (0.7, 0.9, 1.2)
 DEFAULT_LAM_GRID = (LAM_FIXED, *DEFAULT_LAM_SENSITIVITY)   # every lam that runs: the fixed value, then the sensitivity
 
 CHECK_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic")
-# The held-out policy check runs every policy verify.run reports (run.ORDER): the k-rule policies, their -fcm variants
-# (first-clear-miss rule, k = 1) and FULL (all stops, uncapped).
+# The held-out policy check runs the policies verify.run reports (run.ORDER): the k-rule policies, their -fcm variants
+# (first-clear-miss rule, k = 1) and FULL (all stops, uncapped); with side descriptors also Dir (SIDE_POLICIES), and
+# every fold-trained policy.
 HELDOUT_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "F-fcm", "R-fcm", "G-fcm", "G-lookahead-fcm",
                     "G-myopic-fcm", "FULL")
-BUILTIN_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "FULL", DIR_NAME)
+BUILTIN_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "FULL", DIR_NAME)   # names make_policy builds
+# (a fold-trained policy may not reuse one); Dir runs only with side descriptors (SIDE_POLICIES)
 # Only with side descriptors (DevData.side; notes/2026-11-05-side-descriptor.md): the direction-rule control Dir runs in
 # the dev check, the k sensitivity and the held-out check (with Dir-fcm), next to the policies above.
 SIDE_POLICIES = (DIR_NAME,)
@@ -1452,7 +1457,7 @@ def freeze_eligibility(folds: Sequence[ViewFold], arrangements: Sequence[str]) -
 # ---------------------------------------------------------------- Steps 3b-5: policy runs (after every threshold is fixed)
 
 class FoldTrainable(Protocol):
-    """A policy trained per CV fold (ranker A later). train() receives a DevData holding the fold's TRAINING
+    """A policy trained per CV fold (ranker A, verify/ranker.py). train() receives a DevData holding the fold's TRAINING
     arrangements only (DevData.subset: its store, truth, labels and strata have nothing of the held-out arrangement,
     and its store factory and inputs lead nowhere else) and the fold's thresholds, and returns a factory of fresh
     policy instances, which then run on the held-out arrangement through the public replay API with the fold's
@@ -2064,6 +2069,7 @@ def environment_breakdown(dev: DevData, settings: SelectionSettings, rows: Seque
                                             _strata_of(dev, arrs))
         flags = [f"{env}: {x}" for x in check_flags(check, settings.frr_limit)]
         unchecked = [f"{env}: {x}" for x in check_unchecked(check)]
+        sens = environment_sensitivity(dev, settings, th, runner, arrs, pos)
         rates = rates_by_lighting(env_rows, th)
         gate = gate_pass_by_lighting(env_rows, th)
         warn = alpha_warnings(rates, settings.alpha_clear, f"Step 1 ({env} views)", REPORT_LIGHTINGS)
@@ -2076,9 +2082,28 @@ def environment_breakdown(dev: DevData, settings: SelectionSettings, rows: Seque
                     "no_diagnostic_view_share": no_diagnostic_shares(dev, arrs),
                     "stratification": stratification(dev.strata, arrs),
                     "check": check, "flags": flags, "unchecked": unchecked,
-                    "all_within_limit": all_within_limit(flags, unchecked),
+                    "all_within_limit": all_within_limit(flags, unchecked), "sensitivity": sens,
                     "lam_grid_check": check_lam_grid((LAM_FIXED, *settings.lam_sensitivity), pos, lookahead=False),
                     "warnings": warn}
+    return out
+
+
+def environment_sensitivity(dev: DevData, settings: SelectionSettings, th: Thresholds, runner: PolicyRunner,
+                            arrs: set[str], pos: Positions) -> dict[str, list[CheckRow]]:
+    """Step 5 split by environment (pooled dev data; DECISIONS 2026-11-04, choice 4): the k- and lam-sensitivity rows
+    on one environment's episodes, point estimates from the runner's cached runs (run_sensitivity ran them all), with
+    that environment's positions for the cap in cm. Reported only, never selected."""
+    out: dict[str, list[CheckRow]] = {"k": [], "lam": []}
+    for kind, values, policies in (("k", settings.k_sensitivity, k_sensitivity_policies(dev)),
+                                   ("lam", settings.lam_sensitivity, LAM_SENSITIVITY_POLICIES)):
+        for v in values:
+            t = dataclasses.replace(th, **{kind: v})
+            for p in policies:
+                for cap in settings.cap_settings:
+                    budget = run_budget(p, cap, settings, dev.positions)
+                    outs = [Outcome.of(r, dev.truth) for r in runner.results(p, t, budget) if r.arrangement_id in arrs]
+                    out[kind] += rows_from_outcomes(p, rule_k(p, t), t.lam, run_budget(p, cap, settings, pos), cap,
+                                                    outs, settings, _strata_of(dev, arrs), with_bounds=False)
     return out
 
 
@@ -2138,7 +2163,7 @@ def run_selection(dev: DevData, settings: SelectionSettings, context: RunContext
     Step 5, a copy with k or lam replaced); the held-out check gives each fold's runner that fold's thresholds. If
     Step 1 is infeasible on all dev arrangements, CalibrationInfeasible propagates before any fold or policy runs.
     trainables: factories of fold-trained policies for the held-out check (FoldTrainableFactory, e.g. a FoldTrainable
-    class; ranker A later), each built fresh and trained in every fold's own process.
+    class, such as verify.ranker.RankerA), each built fresh and trained in every fold's own process.
     """
     refuse_non_dev(dev.specs)
     heldout_policies(trainables, dev.side is not None)    # a bad name fails before anything runs
@@ -2357,6 +2382,9 @@ def environments_doc(dev: DevData, res: Mapping[str, Any], conf: float) -> dict[
                 "held_out_check": {"flags": ho[env]["flags"], "unchecked": ho[env]["unchecked"],
                                    "all_within_limit": ho[env]["all_within_limit"],
                                    "rows": [r.to_dict() for r in ho[env]["rows"]]},
+                "sensitivity": {"note": "reported only, never selected; point estimates on this environment's episodes",
+                                "k": [r.to_dict() for r in b["sensitivity"]["k"]],
+                                "lam": [r.to_dict() for r in b["sensitivity"]["lam"]]},
                 "lam_grid_check": b["lam_grid_check"].to_dict()} for env, b in res["by_environment"].items()}}
 
 
@@ -2411,6 +2439,12 @@ def require_freeze_eligible(candidate: str | Path) -> dict[str, Any]:
         raise NotEligibleForFreeze("a synthetic candidate is never frozen (its numbers are not thresholds): "
                                    + "; ".join(marks))
     return doc
+
+
+def candidate_thresholds(doc: Mapping[str, Any]) -> Thresholds:
+    """The Thresholds of a candidate document that require_freeze_eligible returned (verify.run, verify.ranker)."""
+    keys = ("tau_match", "tau_q", "tau_occ", "k", "lam", "travel_norm_cm")
+    return Thresholds(**{k: doc["thresholds"][k] for k in keys})
 
 
 # ---------------------------------------------------------------- report
@@ -2491,6 +2525,27 @@ def _check_table(rows: Sequence[CheckRow], conf: float) -> list[str]:
                  f"| {_f(c.coverage)} ({_num(c.n_resolved)}/{c.n_episodes}) "
                  f"| {_bound(b['coverage'] if b else None, 'lower')} | {_ci(r.bootstrap, 'coverage')} "
                  f"| {_f(c.mean_views, 2)} | {_travel_cell(r)} | {flag} |")
+    return L
+
+
+def _trained_report_lines(ho: Mapping[str, Any]) -> list[str]:
+    """Per fold-trained policy: how often each C was chosen over the folds, and each coefficient's mean and range
+    (standardised features). Every fold's full report is in frozen_candidate.json (held_out_check.folds)."""
+    L: list[str] = []
+    for name in ho.get("trainable_policies") or ():
+        reps = [f["trained_reports"][name] for f in ho["folds"]
+                if f.get("ran") and f.get("trained_reports", {}).get(name)]
+        if not reps:
+            continue
+        chosen = sorted({r["C"] for r in reps})
+        coefs = {k: [r["coef"][k] for r in reps] for k in reps[0]["coef"]}
+        L += ["", f"Fold-trained {name}: {len(reps)} folds; C chosen "
+              + ", ".join(f"{c:g} in {sum(r['C'] == c for r in reps)}" for c in chosen)
+              + f"; training rows {min(r['n_rows'] for r in reps)}-{max(r['n_rows'] for r in reps)}; label rate "
+              f"{min(r['label_rate'] for r in reps):.3f}-{max(r['label_rate'] for r in reps):.3f}. Coefficients "
+              "(standardised features), mean [min, max] over folds:", "",
+              "| feature | mean | min | max |", "| --- | --- | --- | --- |"]
+        L += [f"| {k} | {np.mean(v):+.3f} | {min(v):+.3f} | {max(v):+.3f} |" for k, v in coefs.items()]
     return L
 
 
@@ -2738,12 +2793,13 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
     L += ["### (b) Held-out policy check (each fold's thresholds on its held-out arrangement)", "",
           f"Policies: {', '.join(ho['policies'])}; at b = {settings.budget}, {_caps_text(settings)} (S one view, FULL "
           "all five, uncapped). Fold-trained policies: "
-          + (", ".join(ho["trainable_policies"]) or "none yet (ranker A plugs in through the FoldTrainable hook)")
+          + (", ".join(ho["trainable_policies"]) or "none")
           + f". Outcomes are pooled over the {len(ho['arrangements_run'])} folds that ran"
           + ("" if ho["complete"] else " (**INCOMPLETE**: infeasible folds did not run)")
           + f". Rates above FRR {settings.frr_limit:g} are reported checks: they never touch eligibility or a "
           "threshold.", ""]
     L += [f"- **FLAG** {f}" for f in ho["flags"]]
+    L += _trained_report_lines(ho)
     if dev.pooled:
         L.append("- these rows pool both environments' held-out episodes: " + _pooled_frr_text(ho))
     for light in REPORT_LIGHTINGS:
@@ -2895,6 +2951,14 @@ def _environment_section(dev: DevData, settings: SelectionSettings, res: Mapping
         for light in REPORT_LIGHTINGS:
             L += ["", f"#### {env}: dev check, {light} queries", ""]
             L += _check_table([r for r in b["check"] if r.lighting == light], conf)
+        primary = {(r.policy, r.cap_steps, r.lighting): r for r in b["check"]}   # this environment's primary rows
+        for kind, values in (("k", settings.k_sensitivity), ("lam", settings.lam_sensitivity)):
+            for v in values:
+                for light in REPORT_LIGHTINGS:
+                    rows_kv = [r for r in b["sensitivity"][kind] if getattr(r, kind) == v and r.lighting == light]
+                    if rows_kv:
+                        L += ["", f"#### {env}: sensitivity {kind} = {v:g}, {light} queries (reported only)", ""]
+                        L += _sens_table(rows_kv, primary)
         L.append("")
     return L
 
@@ -3018,10 +3082,11 @@ def data_provenance(dev: DevData) -> dict[str, Any] | None:
     if dev.synthetic:
         return None
     out = {"simulation": dev.simulation,
-           "inputs": {k: v["sha256"] for k, v in (dev.inputs or {}).items() if isinstance(v, Mapping) and "sha256" in v},
+           "inputs": {k: v["sha256"] for k, v in (dev.inputs or {}).items()
+                      if isinstance(v, Mapping) and "sha256" in v},
            "dev_evidence_sha256": dev.evidence_sha256, "view_labels_sha256": dev.view_labels_sha256}
-    if dev.side is not None:
-        out["side_sha256"] = dev.side.sha256()
+    if dev.side is not None:   # a hash of the descriptor values (inputs["side"] is the file's sha256)
+        out["side_values_sha256"] = dev.side.sha256()
     return out
 
 
@@ -3178,7 +3243,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.ranker and args.side is None:
         print("--ranker needs --side (the rankers read the side descriptor)", file=sys.stderr)
         return 2
-    from verify.ranker import RANKERS      # here, not at import: verify.ranker imports verify.policies only
+    from verify.ranker import RANKERS   # lazily: verify.ranker.train_frozen imports this module (no import cycle)
     trainables = [RANKERS[n] for n in dict.fromkeys(args.ranker or ())]
     try:
         settings = SelectionSettings(budget=args.budget, cap_steps=args.cap_steps, r_seeds=args.r_seeds,

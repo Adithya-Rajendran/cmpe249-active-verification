@@ -2,13 +2,13 @@
 notes/2026-11-05-ranker-a-design.md).
 
 A policy that reads the descriptor (ranker A, the direction-rule control Dir) must see it only for stops it requested,
-exactly as it sees evidence. The pinned evidence types in verify/schema.py (an import of C0, Amendment 2) stay unchanged:
-the descriptor travels in its own sealed store, and SideEnv wraps a ReplayEnv so that each Observation the env reveals
-(reset, request) comes back as a SideObservation carrying the descriptor of THAT stop and no other.
+exactly as it sees evidence. The pinned evidence types in verify/schema.py (an import of C0, Amendment 2) stay
+unchanged: the descriptor travels in its own sealed store, and SideEnv wraps a ReplayEnv so that each Observation the
+env reveals (reset, request) comes back as a SideObservation carrying the descriptor of THAT stop and no other.
 
     SideStore        episode_id -> stop -> descriptor (a float in [-1, 1], or None = missing: refused registration or
                      weak support). The only holder during a run. Before sealing it is an ordinary container; the
-                     first bind() seals it (put, get, episode_ids and subset then raise LeakError) and returns
+                     first bind() seals it (put, get, episode_ids and complete then raise LeakError) and returns
                      reveal(stop) for one episode. State lives in name-mangled slots, as in EvidenceStore: that stops
                      accidental and single-underscore access, not deliberate introspection (verify/README.md section 2).
     SideData         an immutable snapshot (DevData.side): a fresh unsealed SideStore per call, subset() for a CV
@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from verify.replay import ReplayEnv
-from verify.schema import Decision, EpisodeRun, LeakError, Observation, Positions, config_sha256
+from verify.schema import Budget, Decision, EpisodeRun, LeakError, Observation, Positions, config_sha256
 
 SIDE_SCHEMA = "cmpe249.side-descriptor.v0"
 SIDE_VERSIONS = ("side-0.1-dev",)
@@ -190,7 +190,7 @@ class SideEnv:
         return self.__env.positions
 
     @property
-    def budget(self):
+    def budget(self) -> Budget:
         return self.__env.budget
 
     @property
