@@ -174,3 +174,94 @@ Unchanged: criteria 1-6 (refusals per environment and lighting; present-labelled
 strong matches; diagnostic removal yield; common-accepted and newly accepted geometry), the candidate definitions and
 order, the evidence thresholds and every other setting. The remaining 49 tabletop arrangements still wait until a
 candidate passes the retained criteria and is locked.
+
+## Amendment 2 (2026-11-05, researcher's choice (a)): the registration search is closed; development continues with unchanged C0
+
+POST-HOC development amendment, made AFTER the bounded candidate experiment above had failed (no candidate passes the
+retained criteria in both environments; `notes/2026-11-05-registration-repair-results.md`, commit 61cb0e0) and AFTER the
+saved-evidence headroom analyses (main checkout `runs/2026-11-05-research-direction/` and
+`runs/2026-11-05-publication-plan/`; this worktree `runs/2026-11-05-headroom-check/`), and BEFORE any of the remaining
+49 tabletop development arrangements (dev60 slots 11-59: TD5011-TD5050, TD6200, TD5052-TD5059) is rendered or scored.
+
+Decision. The registration search is closed: no further candidate is defined, run or scored. Development continues
+with C0, unchanged, in both environments. This explicitly permits development to proceed DESPITE the unmet go/no-go
+requirement: "Order, stopping and lock" and the last sentence of Amendment 1 held the 49 until a candidate passed and
+was locked; that hold is released for C0 only. It is the researcher's decision, recorded before the 49 exist as images.
+
+What stands. Criterion 1 (refusals < 5 %) is not changed or relaxed. C0 FAILS it on the tabletop: 12 / 165 views refused
+in L1 and 9 / 165 in L2 on the first 11 arrangements (`runs/2026-11-04-tabletop-transfer11/regdiag/regdiag.md`); on the
+shelf it refused 0 / 900 in each lighting. Neither C0 nor the repair experiment passed, and nothing in this file may be
+cited as a passing registration.
+
+C0, pinned for both environments:
+- `perception/evidence_v03.py` (EVIDENCE_VERSION 0.3.1-dev), sha256
+  eeae5273db57647735dc8cc35f25f7dcc2c6a740b69c7d4c0a1ea4025901fd97, run as `python -m perception.evidence_v03 --align
+  image`: `image_align` with the default AlignParams (sigma 1.5, levels 4, stop_level 1, excl_f 0.5, border 24,
+  iters 200, eps 1e-6, min_cc 0.5, max_shift_px 100, max_scale_dev 0.10). The same bytes are at the shelf evidence
+  commit 694f46c, the tabletop transfer commit e0dc134 and this commit.
+- Its imports: frozen `perception/evidence.py` d0e0927ff9d36ee2a8027cc8050f1801e372faea1e12cd98c513345d258d46cf,
+  `verify/schema.py` fc34832788f1e1b947f32c663b789b20e5449b9095cf2065f241ac2cbb739b8f, `verify/stopping.py`
+  35575caea0c62a56dee08881d9b3add72c2182733f9a6e50487b344ca91a4765. Environment: `uv.lock`
+  6f6743a67be3f88867000cda6cdbc351463f6ecbb6e4e5a599ef6b7e5e14d053, `pyproject.toml`
+  245a585041f832a3c34f335b0bf9cd5427568c4950497daf29b6529bc6c7ee5d.
+- Evidence of record so far, under `/mnt/bench-data/datasets/cmpe249-active-verification/sim/`:
+  - shelf: `shelf_dev_v3/evidence/v03_image_refL1.jsonl` 860b9da4568d4ef7b226a39b5bab4a6de70e7bbb9fec4f23745e184d45a008f0
+    (diag 376b15443c2f4833367053bd26a308099a3aaca01749fdac88f4bcceb0ae6fb1; `provenance_694f46ca67aa.json`
+    5e3c6d0df687e9e224eb33da46106e4500dcc2815a7796b2ee52f907ee2df568);
+  - tabletop: `tabletop_transfer11/evidence/evidence_tabletop_transfer11_evidence_e0dc13499670_790e41d78b/v03_image_refL1.jsonl`
+    ca386f0489c752b1acdbe00ca3957f6eb8a2b7c39a7d13959cb77fb02d602bd3 (diag
+    2117539d3a4ac6287617a4235f0db75ddae1e4d73ec51fbb899c088d023e4188; `provenance.json`
+    2b45266e756161e2892b0142ae250618ff56ded59a9b6f5354b88078ffe36838).
+- The harness `perception/registration_v032.py --candidate C0` (sha256
+  8a1e224509211e65e38d5af13775796d4c8b007ea1666024f788906a6bb44371) reproduced both sets exactly (largest difference 0,
+  equal refusals) and also records the warp H. It may run beside the evidence of record for evaluation-only geometry;
+  the evidence of record stays the `perception.evidence_v03` output.
+
+What a refused registration does (this corrects the earlier, overstated wording). A refused view gets the identity
+warp, align_ok false and quality 0, so under the current gate (quality >= tau_q = 0.3) it can never contribute a clear
+miss. Its match score and obstruction are still computed on the unregistered query, and the strong-match rule has no
+quality gate, so a refused view CAN still return PRESENT. It also uses one view of the budget, and its obstruction value
+can change G's occlusion references and so the later choice of views. Refusal is not abstention and does not protect
+against every error.
+
+Thresholds. The 49 are first scored as a TRANSFER DIAGNOSTIC with the fixed shelf v03_image thresholds
+(frozen_candidate.json sha256 4a06de0eebe407aad27b58fdfce3751460b5357924aba93a6f6830095b93b983: tau_q 0.3, tau_occ 0.35,
+tau_match 0.65, k 2, lam 0), as the first 11 were. That diagnostic stays separate from the planned final shared
+calibration, which is unchanged: one global threshold set (SIM_PREREGISTRATION §7) calibrated on both environments'
+development data (`verify/select.py`, pooled sets), with the existing joint grid, both alpha constraints and complete
+grouped cross-validation (a candidate is eligible only if calibration succeeds on all development data and in every
+planned fold). This amendment locks registration; it does not freeze thresholds.
+
+The 49 and the four tabletop design cases. They are rendered after this commit and run through C0 unchanged (the
+evidence of record, plus the harness C0 for geometry). TDES0-TDES3, the predeclared tabletop design cases outside the
+60, are rendered in the same batch and reported separately. Until A's design is pinned (a commit recording A's
+features, training label, model family, regularisation grid and selection rule, and the direction-rule control), only
+operational integrity outputs are opened: completion and exit codes, file and row counts, render timings and retries,
+the frame-check and schema results, and hashes. Scene content (images, masks, per-arrangement content) and performance
+outputs (evidence scores, refusals, registration geometry, episode decisions) stay closed. Once opened for calibration
+or training, the 49 are development data, not an independent test set.
+
+Reporting. By environment and lighting, keeping the first 11 arrangements, the remaining 49 and the final test apart:
+refusals; both error directions (per view: present-labelled clear misses and removed-labelled strong matches; per
+episode: false removals and false presents); unknowns; and the geometry of accepted views, reported as disagreement
+with the specified simulator plane (shelf: the target plane, the front plane beside it; tabletop: the horizontal plane
+through the target's centre, a proxy, the table plane z = 0 beside it), with target-alone silhouette IoU where those
+renders exist. A plane disagreement is not an error against a true whole-scene alignment.
+
+Headroom in the preregistration package. The package includes the 2026-11-05 headroom findings, labelled CONDITIONAL
+DEVELOPMENT DIAGNOSTICS: they hold for the current development evidence and thresholds, and the any-order ceilings use
+views no policy may see. On shelf dev at b = 3 uncapped, G removes 45 / 60 (L1) and 43 / 60 (L2) against any-order
+ceilings of 46 and 44, and present episodes are at their ceiling; on the first 11 tabletop arrangements G is at its
+ceiling; G's choices equal the fixed route P3, P1, P5, P4, P2 on all 360 shelf episodes; and under the two-step travel
+cap the any-order ceiling (25 and 24) exceeds the best one-side route (15 and 13), with 18 of those ceiling removals in
+the M16 arrangements, each resolvable only on the side away from its designed board offset
+(`runs/2026-11-05-headroom-check/side_audit.txt`). None of this predicts the final comparison: A may underperform G,
+and the planned calibration or new data may change the ceilings.
+
+Uncertainty stays arrangement-based: the paired, family-stratified cluster bootstrap of SIM_PREREGISTRATION §8.
+Binomial bounds on episode counts are descriptive only; the independent-binomial "about 3 %" figure discussed on
+2026-11-05 is not a risk bound of this study.
+
+Unchanged: k = 2, lam = 0, A - G at b = 3 with uncapped travel as the primary comparison, the declared secondary and
+sensitivity analyses, and the freeze before any test scene (no seed >= 100000 is generated, rendered or scored before
+FREEZE.md). No further registration candidates, no new environment and no endpoint change.
