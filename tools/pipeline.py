@@ -378,6 +378,18 @@ def frozen_code_check(freeze: str, code_paths: tuple[str, ...] | list[str], repo
                             f"(git diff {rec['commit'][:12]} HEAD -- {' '.join(code_paths)})")
 
 
+def evidence_freeze_gate(run: Run, ev: dict) -> None:
+    """A test set (spec "freeze"): the shipped code must be the frozen code (the tree is clean, so HEAD's files);
+    a terminal failure otherwise. Development specs pass through."""
+    if not run.spec.get("freeze"):
+        return
+    try:
+        frozen_code_check(run.spec["freeze"], ev.get("code_paths", EVIDENCE_CODE))
+    except RuntimeError as e:   # sim.freeze.FreezeError
+        run.fail("evidence", f"not the frozen evidence code: {e}")
+    run.emit("evidence", "info", "freeze checked", freeze=run.spec["freeze"])
+
+
 def evidence_settings(spec: dict) -> dict:
     """The spec's evidence section on top of the host's (remote.local.json "evidence": uv, project, checkpoints,
     code_dir), so tracked specs hold no host paths."""
@@ -424,12 +436,7 @@ def stage_evidence(run: Run, retry: bool = False) -> None:
                                            capture_output=True, check=True).stdout).hexdigest()
     if frozen != FROZEN_EVIDENCE_SHA256:
         run.fail("evidence", f"perception/evidence.py at {code_commit[:12]} is not the frozen v0.2.1", sha256=frozen)
-    if run.spec.get("freeze"):   # a test set: the shipped code must be the frozen code (clean tree, so HEAD's files)
-        try:
-            frozen_code_check(run.spec["freeze"], ev.get("code_paths", EVIDENCE_CODE))
-        except RuntimeError as e:   # sim.freeze.FreezeError
-            run.fail("evidence", f"not the frozen evidence code: {e}")
-        run.emit("evidence", "info", "freeze checked", freeze=run.spec["freeze"])
+    evidence_freeze_gate(run, ev)
     rd = run.spec["remote"]["run_dir"]
     # The job is keyed on the run, the shipped code and the steps (with "{out}" unresolved); its code dir and its
     # output dir are named by the whole key, so two jobs never share, delete or overwrite each other's files.

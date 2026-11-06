@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -58,6 +59,17 @@ def sha(path: str | Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def locked_versions(lock: Path) -> dict[str, str]:
+    """{normalised name: version} of every package in a uv.lock."""
+    pairs = re.findall(r'\[\[package\]\]\nname = "([^"]+)"\nversion = "([^"]+)"', lock.read_text())
+    return {name.lower().replace("_", "-"): version for name, version in pairs}
+
+
+def load_diag(path: str | Path) -> dict[tuple[str, int], dict]:
+    with Path(path).open() as f:
+        return {(d["episode_id"], int(d["stop"])): d for d in (json.loads(x) for x in f if x.strip())}
+
+
 class Report:
     def __init__(self) -> None:
         self.checks: list[dict[str, Any]] = []
@@ -68,7 +80,7 @@ class Report:
     def run(self, group: str, name: str, fn: Callable[[], tuple[bool, Any]]) -> None:
         try:
             ok, detail = fn()
-        except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:   # a given input that cannot be read fails
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:   # an unreadable given input fails
             ok, detail = False, f"{type(e).__name__}: {e}"
         self.add(group, name, ok, detail)
 
@@ -168,8 +180,16 @@ def check_evidence(rep: Report, rec: dict, set_root: Path, prov_path: Path) -> d
     g = "evidence"
     files = rec["files"]
     prov = json.loads(prov_path.read_text())
-    rep.add(g, "the GB10 env's uv.lock is the frozen one", prov["gb10_env"].get("uv_lock_sha256") == files.get("uv.lock"),
-            prov["gb10_env"].get("uv_lock_sha256"))
+    env = prov["gb10_env"]
+    rep.add(g, "the GB10 env's uv.lock is the frozen one", env.get("uv_lock_sha256") == files.get("uv.lock"),
+            env.get("uv_lock_sha256"))
+
+    def installed() -> tuple[bool, Any]:
+        locked = locked_versions(REPO / "uv.lock")
+        off = {n: [v, locked.get(n.lower().replace("_", "-"))] for n, v in env["packages"].items()
+               if locked.get(n.lower().replace("_", "-")) != v}
+        return (bool(env["packages"]) and not off, off or None)
+    rep.run(g, "every installed GB10 package has its uv.lock version", installed)
 
     def shipped() -> tuple[bool, Any]:
         bad = []
@@ -187,6 +207,17 @@ def check_evidence(rep: Report, rec: dict, set_root: Path, prov_path: Path) -> d
     rep.add(g, "every primary output has one record per L1-reference job",
             all(len(v) == 1 and v[0]["records"] == n_jobs for v in got.values()),
             {w: [x["records"] for x in v] for w, v in got.items()} | {"jobs": n_jobs})
+
+    def reproduces() -> tuple[bool, Any]:   # an equality check of two files: nothing is read as an outcome
+        paths = {Path(k).name: k for k in outs}
+        rec_, har = (load_diag(paths[n]) for n in ("v03_image_refL1.diag.jsonl", "c0_refL1.diag.jsonl"))
+        if sorted(rec_) != sorted(har):
+            return False, "the two diagnostics hold different views"
+        diff = max(abs(rec_[k][f] - har[k][f]) for k in rec_ for f in ("match_score", "quality", "obstruction"))
+        same = all((rec_[k]["registration"].get("refused") is None) == (har[k]["registration"].get("refused") is None)
+                   for k in rec_)
+        return diff == 0 and same, {"max_abs_diff": diff, "refusals_equal": same}
+    rep.run(g, "the harness C0 reproduces the evidence of record (largest difference 0, equal refusals)", reproduces)
     return outs
 
 
@@ -195,7 +226,7 @@ def check_run(rep: Report, rec: dict, env: str, set_root: Path, run_dir: Path, o
     files = rec["files"]
     c = json.loads((run_dir / "config.json").read_text())["config"]
     want = {
-        "config_version": RUN_CONFIG_VERSION, "environment": env, "scoring_split": "test", "model_id": "v03_image",
+        "config_version": RUN_CONFIG_VERSION, "environment": env, "model_id": "v03_image",
         "bootstrap_B": 10000, "candidate_sha256": files.get("frozen/frozen_candidate.json"),
         "positions_file_sha256": files.get(POSITIONS[env]),
         "manifest_sha256": sha(set_root / "manifest.json"), "view_labels_sha256": sha(set_root / "view_labels.json"),
@@ -210,13 +241,15 @@ def check_run(rep: Report, rec: dict, env: str, set_root: Path, run_dir: Path, o
     th = {k: c["thresholds"].get(k) for k in ("tau_q", "tau_occ", "tau_match", "k", "lam")}
     rep.add(g, "the frozen thresholds", th == {k: cand[k] for k in th}, th)
     sens = c.get("sensitivity") or {}
-    declared = {"k sensitivity 3": sens.get("k") == [3], "lam sensitivity 0.7, 0.9, 1.2": sens.get("lam") == [0.7, 0.9, 1.2],
+    declared = {"k sensitivity 3": sens.get("k") == [3],
+                "lam sensitivity 0.7, 0.9, 1.2": sens.get("lam") == [0.7, 0.9, 1.2],
                 "gate-off ablation (F, R)": (c.get("gate_off_ablation") or {}).get("policies") == ["F", "R"],
                 "tau_match sweep": bool(c.get("tau_match_sweep"))}
     rep.add(g, "every declared secondary run was on", all(declared.values()), declared)
     if outs is not None:
         by_name = {Path(k).name: v["sha256"] for k, v in outs.items()}
-        ev = {"evidence_sha256": by_name.get("v03_image_refL1.jsonl"), "side_file_sha256": by_name.get("side_refL1.jsonl")}
+        ev = {"evidence_sha256": by_name.get("v03_image_refL1.jsonl"),
+              "side_file_sha256": by_name.get("side_refL1.jsonl")}
         off = {k: {"run": c.get(k), "provenance": v} for k, v in ev.items() if c.get(k) != v}
         rep.add(g, "the evidence of record and the descriptors of this set's evidence job", not off, off or None)
 
@@ -285,6 +318,7 @@ def main(argv: list[str] | None = None) -> int:
     doc = {"freeze": {"path": fz["path"], "sha256": fz["sha256"], "freeze_id": rec["freeze_id"]}, "env": a.env,
            "ok": rep.ok, "checks": rep.checks}
     if a.out:
+        a.out.parent.mkdir(parents=True, exist_ok=True)
         a.out.write_text(json.dumps(doc, indent=1) + "\n")
     for c in rep.checks:
         print(f"{'PASS' if c['ok'] else 'FAIL'}  {c['group']}: {c['check']}"

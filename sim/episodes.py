@@ -17,14 +17,15 @@ verify/. Both read fixed formats, so this step writes exactly those (no conversi
     stop = index into the positions file;
   - manifest.json (cmpe249.arrangements.v1 plus the top-level key "simulation": true, so verify can label the run
     SIMULATION; each entry = verify's ArrangementRecord.to_dict() plus the plain keys occluder_family, m16_side and
-    design_case); split dev; indistinguishable = the arrangement's predeclared flag, i.e. the IND28 occluder family;
+    design_case); split dev, or test for a frozen test set (below); indistinguishable = the arrangement's predeclared
+    flag, i.e. the IND28 occluder family;
   - truth.json (scoring only), view_labels.json (exact per-view visible fractions and diagnostic labels from the
-    masks, for development analysis only: never a policy input), true_alignment.json (the true query-to-reference homographies
+    masks, for analysis only: never a policy input), true_alignment.json (the true query-to-reference homographies
     of the shelf front plane and of the target's depth plane from the known camera poses, sim/alignment.py: evaluation-only,
     never an evidence or policy input; the corner tags are gone from shelf_v3 scenes), summary.md, set.json (hashes, revisit deltas);
   - optional contact sheets (cv2) per arrangement and lighting, and a crop sheet around the target.
 
-Environments (tabletop wave, step 8; DEV, not frozen): a set is one environment, from its arrangements' records
+Environments (tabletop wave, step 8): a set is one environment, from its arrangements' records
 ("environment" at the top level and in the scene spec; neither = the shelf, i.e. sets made before the tabletop). A set
 mixing environments is refused before anything is written. The shelf's outputs are unchanged byte for byte
 (tests/test_shelf_goldens.py); a tabletop set differs only where the text or the geometry does: the annotation's
@@ -42,10 +43,14 @@ arrangement_file_sha256 != sha256(arrangement.json)); build refuses a --position
 arrangement's recorded positions sha256 or whose stop names differ from labels['stops'].
 
 Paths in annotations and jobs are absolute: the share (/mnt/bench-data/...) has the same path on the Jetson and the
-GB10. Only dev arrangements are accepted (integer seeds 0-9999 or the design seeds), as in sim/arrange.py.
+GB10. A set holds one split. Dev arrangements (integer seeds 0-9999 or the design seeds) are accepted as in
+sim/arrange.py. A frozen test set needs --freeze docs/FREEZE.md: sim/freeze.py require_freeze checks the committed file
+first, and every test arrangement must record that file's sha256 (check_split). Its manifest, set.json and README then
+say test.
 
     python -m sim.episodes --root /mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_dev_v1 \\
         [--ref-lighting same L1] [--contact-sheets] [--positions configs/sim/positions_shelf_A.json] [--generation-log LOG]
+        [--freeze docs/FREEZE.md]
 """
 from __future__ import annotations
 
@@ -115,7 +120,8 @@ def check_split(arr: Mapping, freeze_sha256: str | None = None) -> None:
         return
     rec = arr.get("freeze") or {}
     if freeze_sha256 is None or rec.get("sha256") != freeze_sha256:
-        raise A.SeedError(f"{arr.get('arrangement_id')}: a test arrangement needs --freeze with the FREEZE.md it records")
+        raise A.SeedError(f"{arr.get('arrangement_id')}: a test arrangement needs --freeze with the FREEZE.md it "
+                          "records")
     seed = arr.get("seed")
     if arr.get("kind") != "random" or isinstance(seed, bool) or not isinstance(seed, int) or seed < A.TEST_SEED_MIN:
         raise A.SeedError(f"{arr.get('arrangement_id')}: not a test-range random arrangement")
@@ -542,7 +548,8 @@ def test_set_wording(readme: str) -> str:
             .replace("(SIMULATION, DEV)", "(SIMULATION, TEST)")
             .replace("Dev split only", "TEST split (generated under FREEZE.md)")
             .replace("split dev,", "split test,")
-            .replace(" The tabletop environment is DEV (not frozen).", " The tabletop environment is frozen (FREEZE.md)."))
+            .replace(" The tabletop environment is DEV (not frozen).",
+                     " The tabletop environment is frozen (FREEZE.md)."))
 
 
 def set_readme(root: Path, groups: Mapping[str, Sequence[tuple[dict, dict, Path]]], ref_lightings: Sequence[str]) -> str:

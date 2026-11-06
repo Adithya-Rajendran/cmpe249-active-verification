@@ -306,9 +306,10 @@ def _batch_lines(o: dict) -> list[str]:
     for tag in ("c0", "cand"):
         b = o.get(f"batch_{tag}")
         if b:
-            out.append(f"Batch {b['candidate']}: {b['views']} views, {b['workers']} workers, torch/OMP {b['torch_threads']} "
-                       f"thread, cv2 {b['cv2_threads']}, host {b['host']} ({b['cpu_count']} CPUs, {b['gpu']}), wall "
-                       f"{b['wall_s']} s, {b['views_per_hour']} views/hour (wall clock includes model loading)")
+            out.append(f"Batch {b['candidate']}: {b['views']} views, {b['workers']} workers, "
+                       f"torch/OMP {b['torch_threads']} thread, cv2 {b['cv2_threads']}, host {b['host']} "
+                       f"({b['cpu_count']} CPUs, {b['gpu']}), wall {b['wall_s']} s, {b['views_per_hour']} views/hour "
+                       "(wall clock includes model loading)")
     return out
 
 
@@ -323,8 +324,8 @@ def main() -> int:
     ap.add_argument("--cand-timing")
     ap.add_argument("--original-c0")
     ap.add_argument("--design", action="store_true", help="design cases: reported, not gating")
-    ap.add_argument("--thresholds", help="a candidate file (checked by verify.select.require_freeze_eligible) instead of "
-                    "the pinned shelf candidate, e.g. frozen/frozen_candidate.json")
+    ap.add_argument("--thresholds", help="a candidate file (checked by verify.select.require_freeze_eligible) "
+                    "instead of the pinned shelf candidate, e.g. frozen/frozen_candidate.json")
     ap.add_argument("--report-only", action="store_true",
                     help="C0 alone (give the same diagnostics as --c0 and --cand): no criteria, no PASS / FAIL")
     ap.add_argument("--data-label", help="the data named in the header (default: development data), e.g. 'TEST data'")

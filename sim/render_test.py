@@ -55,8 +55,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     freeze_sha = hashlib.sha256(path.read_bytes()).hexdigest()
     sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()   # noqa: E731
-    print(f"render_test.py sha256 {sha(__file__)}; isaac_batch.py {sha(B.__file__)}; isaac_rig.py {sha(B.ir.__file__)}; "
-          f"FREEZE.md copy {freeze_sha}", flush=True)
+    print(f"render_test.py sha256 {sha(__file__)}; isaac_batch.py {sha(B.__file__)}; "
+          f"isaac_rig.py {sha(B.ir.__file__)}; FREEZE.md copy {freeze_sha}", flush=True)
     original = B.check_arrangement
     B.check_arrangement = gate(freeze_sha)
     try:

@@ -295,6 +295,13 @@ class MakeFreezeTest(unittest.TestCase):
         self.assertEqual([f for f in MF.FROZEN if not (REPO / f).is_file()], [])
         for needed in (*TS.NEEDED, "sim/episodes.py", "sim/isaac_batch.py", "sim/render_test.py"):
             self.assertIn(needed, MF.FROZEN)
+        import pipeline
+        import test_validity as TV
+        self.assertEqual(pipeline.EVIDENCE_FROZEN, TV.EVIDENCE_FROZEN)     # one list, written twice
+        self.assertLessEqual(set(pipeline.EVIDENCE_FROZEN), set(MF.FROZEN))
+        for rel in (*TV.CONFIGS.values(), *TV.POSITIONS.values(), "frozen/frozen_candidate.json",
+                    "frozen/model_A.json", "frozen/model_A-nocue.json", "sim/testsplit.py", "sim/isaac_rig.py"):
+            self.assertIn(rel, MF.FROZEN)                                   # what tools/test_validity.py looks up
 
 
 if __name__ == "__main__":

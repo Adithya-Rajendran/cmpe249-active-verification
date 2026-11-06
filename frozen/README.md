@@ -1,7 +1,9 @@
-# Frozen inputs of the test evaluation (candidate until docs/FREEZE.md is committed)
+# Frozen inputs of the test evaluation
 
-Byte-identical copies of development outputs that the test path reads. docs/FREEZE.md records their sha256, and they
-change only by a dated addendum. Provenance: `notes/2026-11-06-pooled-calibration.md`.
+Byte-identical copies of development outputs that the test path reads. They are frozen by the commit of docs/FREEZE.md
+that records their sha256, made after the researcher's final review, and they change only by a dated addendum.
+Provenance: `notes/2026-11-06-pooled-calibration.md`. The candidate's own `status` string predates the freeze, and
+FREEZE.md supersedes it.
 
 | File | sha256 | Source |
 |---|---|---|

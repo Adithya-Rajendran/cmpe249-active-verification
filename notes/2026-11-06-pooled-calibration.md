@@ -116,10 +116,15 @@ removals among 60 removed episodes per environment and lighting. R is the expect
 Outputs: `runs/2026-11-06-pooled-dev120/summary/heldout_b3.txt` and `heldout_b3_caps1_6.txt` (from `heldout_table.py`
 there); disagreements from `discord.py`.
 
-- **Errors.** No false removal in any row (0 of 120 present-truth episodes per cell). One false present per tabletop
-  lighting for every policy except R (TD5017, above).
-- **Unknown present-truth episodes.** 6 / 120 per cell at every travel setting except the 1-step cap, where F, R, G,
-  G-lookahead and A-nocue leave 15 and A and Dir leave 6.
+- **Errors.** No false removal in any row (0 of 120 present-truth episodes per cell).
+  - There is one false present per tabletop lighting (TD5017, above) for every multi-view policy except R, uncapped
+    and under the 2- to 6-step caps, and for FULL.
+  - R has 0.25-0.60 in expectation.
+  - S, and every policy under the 1-step cap, have none.
+- **Unknown present-truth episodes.**
+  - S, a single view, leaves 60 / 120.
+  - Every other policy leaves 6 / 120 per cell at every travel setting except the 1-step cap. There, F, G,
+    G-lookahead and A-nocue leave 15, R 14.65-15.10 in expectation, and A and Dir 6.
 - **Effort, uncapped, mean travel per episode** (shelf L1 / L2, tabletop L1 / L2): G 145 / 146 / 68 / 69 cm; A
   156 / 158 / 71 / 74 cm; Dir 94 / 96 / 36 / 37 cm. Mean views are 2.12-2.26 for each of them.
 - **A against G at the primary setting.** The two disagree on 5 episodes in 4 arrangements, out of 240 removed

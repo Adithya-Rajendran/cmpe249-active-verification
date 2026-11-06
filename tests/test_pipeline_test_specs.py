@@ -15,6 +15,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import pipeline  # noqa: E402
@@ -109,6 +110,50 @@ class FrozenCodeCheckTest(unittest.TestCase):
         self.git("commit", "-q", "-am", "post-freeze change")
         with self.assertRaises(RuntimeError):
             self.check()
+
+
+class EvidenceFreezeGateTest(unittest.TestCase):
+    """stage_evidence's hook: a test spec runs frozen_code_check and fails the run when it refuses; a dev spec skips
+    it."""
+
+    def run_gate(self, spec: dict, error: Exception | None) -> tuple[list, list, BaseException | None]:
+        calls, events = [], []
+
+        class StubRun:
+            def __init__(self) -> None:
+                self.spec = spec
+
+            def emit(self, stage, level, msg, **data) -> None:
+                events.append((stage, level, msg))
+
+            def fail(self, stage, msg, **data) -> None:
+                events.append((stage, "alert", msg))
+                raise SystemExit(1)
+
+        def check(freeze, code_paths):
+            calls.append((freeze, tuple(code_paths)))
+            if error is not None:
+                raise error
+        raised = None
+        with mock.patch.object(pipeline, "frozen_code_check", side_effect=check):
+            try:
+                pipeline.evidence_freeze_gate(StubRun(), {})
+            except SystemExit as e:
+                raised = e
+        return calls, events, raised
+
+    def test_a_test_spec_is_checked_and_a_refusal_fails_the_run(self) -> None:
+        calls, events, raised = self.run_gate({"freeze": "docs/FREEZE.md"}, None)
+        self.assertEqual(calls, [("docs/FREEZE.md", tuple(pipeline.EVIDENCE_CODE))])
+        self.assertIsNone(raised)
+        self.assertEqual(events[-1][:2], ("evidence", "info"))
+        calls, events, raised = self.run_gate({"freeze": "docs/FREEZE.md"}, RuntimeError("changed since the freeze"))
+        self.assertIsNotNone(raised)
+        self.assertIn("changed since the freeze", events[-1][2])
+
+    def test_a_dev_spec_is_not_checked(self) -> None:
+        calls, events, raised = self.run_gate({}, None)
+        self.assertEqual((calls, events, raised), ([], [], None))
 
 
 class TestSpecsTest(unittest.TestCase):

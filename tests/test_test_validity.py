@@ -4,7 +4,9 @@ RULE (as tests/test_freeze_gate.py): no arrangement of the study's test blocks i
 synthetic block (900000+) of an in-memory config, under a stand-in freeze file, which the synthetic block accepts."""
 from __future__ import annotations
 
+import hashlib
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -48,7 +50,8 @@ class ValidityTest(unittest.TestCase):
         TS.write_set(cls.geometry, cls.ctx, arrs, A.slot_list(cls.ctx, "test"), log)
         cls.ids = sorted(a["arrangement_id"] for a in arrs)
         cls.rec = {"freeze_id": "freeze-test", "files": {
-            TV.CONFIGS["shelf"]: TV.sha(REPO / TV.CONFIGS["shelf"]), "sim/testsplit.py": TV.sha(REPO / "sim/testsplit.py"),
+            TV.CONFIGS["shelf"]: TV.sha(REPO / TV.CONFIGS["shelf"]),
+            "sim/testsplit.py": TV.sha(REPO / "sim/testsplit.py"),
             "sim/isaac_batch.py": "b" * 64, "sim/isaac_rig.py": "c" * 64, "uv.lock": "d" * 64,
             "frozen/frozen_candidate.json": "e" * 64, TV.POSITIONS["shelf"]: "f" * 64,
             "frozen/model_A.json": "1" * 64, "frozen/model_A-nocue.json": "2" * 64}}
@@ -133,7 +136,8 @@ class ValidityTest(unittest.TestCase):
             run = t / "run"
             run.mkdir()
             outs = {"/x/v03_image_refL1.jsonl": {"sha256": "7" * 64}, "/x/side_refL1.jsonl": {"sha256": "8" * 64}}
-            for change, check in ((None, None), ({"bootstrap_B": 1000}, "frozen candidate, positions, set files and settings"),
+            for change, check in ((None, None),
+                                  ({"bootstrap_B": 1000}, "frozen candidate, positions, set files and settings"),
                                   ({"thresholds": {**cand, "tau_match": 0.65}}, "the frozen thresholds"),
                                   ({"ranker_models": {"A": {"sha256": "3" * 64}, "A-nocue": {"sha256": "2" * 64}}},
                                    "the frozen A and A-nocue model files"),
@@ -161,13 +165,58 @@ class ValidityTest(unittest.TestCase):
             TV.check_checkpoints(rep, p)
             self.assertFalse(rep.ok)
 
-    def test_main_refuses_an_uncommitted_freeze(self) -> None:
+    def test_main_refuses_a_freeze_outside_the_repository(self) -> None:
         import contextlib
         import io
         with tempfile.TemporaryDirectory() as t, contextlib.redirect_stderr(io.StringIO()):
             p = Path(t) / "FREEZE.md"
             p.write_text("x")
             self.assertEqual(TV.main(["--freeze", str(p), "--env", "shelf"]), 2)
+
+    def test_evidence_checks(self) -> None:
+        def at_head(rel: str) -> str:
+            out = subprocess.run(["git", "-C", str(REPO), "show", f"HEAD:{rel}"], capture_output=True, check=True)
+            return hashlib.sha256(out.stdout).hexdigest()
+        head = subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True, text=True,
+                              check=True).stdout.strip()
+        rec = {"freeze_id": "t", "files": {rel: at_head(rel) for rel in TV.EVIDENCE_FROZEN}}
+        locked = TV.locked_versions(REPO / "uv.lock")
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            jobs = [{"episode_id": "X-removed-L1", "stop": s} for s in range(3)]
+            (t / "jobs_refL1.json").write_text(json.dumps({"jobs": jobs}))
+
+            def diag(name: str, match: float, refused=None) -> str:
+                p = t / name
+                p.write_text("".join(json.dumps({**j, "match_score": match, "quality": 0.9, "obstruction": 0.1,
+                                                 "registration": {"refused": refused}}) + "\n" for j in jobs))
+                return str(p)
+
+            def provenance(c0_match: float, packages: dict) -> Path:
+                outs = {str(t / n): {"records": 3, "sha256": "0" * 64}
+                        for n in ("v03_image_refL1.jsonl", "c0_refL1.jsonl", "side_refL1.jsonl")}
+                outs[diag("v03_image_refL1.diag.jsonl", 0.5)] = {"records": 3, "sha256": "0" * 64}
+                outs[diag("c0_refL1.diag.jsonl", c0_match)] = {"records": 3, "sha256": "0" * 64}
+                p = t / "prov.json"
+                p.write_text(json.dumps({"code_commit": head, "set_root": str(t), "outputs": outs,
+                                         "gb10_env": {"uv_lock_sha256": rec["files"]["uv.lock"],
+                                                      "packages": packages}}))
+                return p
+            good = {"numpy": locked["numpy"], "torch": locked["torch"]}
+            for c0_match, packages, failing in ((0.5, good, None),
+                                                (0.51, good, "the harness C0 reproduces the evidence of record "
+                                                             "(largest difference 0, equal refusals)"),
+                                                (0.5, {**good, "numpy": "0.0.1"},
+                                                 "every installed GB10 package has its uv.lock version")):
+                with self.subTest(c0_match=c0_match, failing=failing):
+                    rep = TV.Report()
+                    TV.check_evidence(rep, rec, t, provenance(c0_match, packages))
+                    if failing is None:
+                        self.assertTrue(rep.ok, rep.checks)
+                    else:
+                        got = self.checks(rep)
+                        self.assertFalse(got.pop(failing))
+                        self.assertTrue(all(got.values()), got)
 
 
 if __name__ == "__main__":

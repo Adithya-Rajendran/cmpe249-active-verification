@@ -351,25 +351,29 @@ $UV_RUN -m verify.select --synthetic --n-arr 30 --seed 0 --bootstrap-B 200 --tag
 
 ## 9. The test-split rule
 
-**No test seed is generated, rendered or scored before `docs/FREEZE.md` exists.** [SIM_PREREGISTRATION.md](SIM_PREREGISTRATION.md) section 12 lists what the freeze records.
+**No test seed is generated, rendered or scored before `docs/FREEZE.md` is committed.** [SIM_PREREGISTRATION.md](SIM_PREREGISTRATION.md) section 12 lists what the freeze records.
 
-- `docs/FREEZE.md` does **not exist** yet. So no test scene exists.
-- In code today the refusal does not look for the file. It is unconditional:
-  - `sim.arrange --split test` exits 2 (`seed 100000 is in the reserved TEST range`).
-  - `sim.isaac_batch` refuses arrangements with seeds outside 0-9999 before Isaac starts.
+- Until the freeze, every route refuses test seeds (>= 100000):
+  - `sim.arrange` exits 2 (`seed 100000 is in the reserved TEST range`);
+  - `sim.isaac_batch` refuses any arrangement that is not a dev arrangement before Isaac starts;
+  - `sim.episodes` refuses a test arrangement without `--freeze`;
   - `verify.select` accepts only dev arrangements.
-- How the guard is lifted at the freeze is not written yet.
-- Do not work around the guard. A test scene made before the freeze invalidates the test split.
+- After the freeze, test seeds open only against the committed `docs/FREEZE.md` (`sim/freeze.py`):
+  - generation through `sim/testsplit.py`, with `sim/arrange.py` byte-identical;
+  - episodes through `sim/episodes.py --freeze docs/FREEZE.md`;
+  - rendering through `sim/render_test.py` (`sim/run_render_test.sh`) in a GB10 run dir of its own, with `sim/isaac_batch.py` byte-identical.
+
+  `tools/test_validity.py` checks the outputs against the freeze record. The runbook is in `docs/FREEZE.md`.
+- Do not work around the gate. A test scene made before the freeze invalidates the test split.
 
 ## 10. Known gaps: not yet reproducible
 
-- **Ranker A is not built.** Policies S, F, R, G (and ablations) run. The held-out check has a per-fold hook for A. No A exists, so the primary contrast A - G cannot be run.
-- **Evidence v0.3 is not frozen.** It is the development evidence step (section 5.5). Freezing it is part of the final pre-registration review.
-- **No feasible frozen thresholds.** The only select-v4 run on rendered data (6 arrangements, v0.2.1) was infeasible (exit 3). `verify.run` uses placeholder thresholds.
-- **Dev results only, shelf only.** Evidence and select-v4 on `shelf_dev_v3` (`notes/2026-11-04-dev60-evidence-variants.md`) are development numbers.
-- **The tabletop environment does not exist in the repo.** No config, positions file or scene. Results are not yet split by environment.
-- **`docs/FREEZE.md` and the test split do not exist.** The pre-registration is a draft. A final review comes after A.
-- **No results.** Nothing in this repo is a study result.
+- **The test has not run.** `docs/FREEZE.md` and the test sets do not exist until the researcher's final review of the preregistration.
+- **Development only.** Every number in this repository is a development (simulation) result:
+  - the pooled calibration over both environments' 120 development arrangements, with A, A-nocue and Dir held out (`notes/2026-11-06-pooled-calibration.md`);
+  - the tabletop transfer diagnostic (`notes/2026-11-06-tabletop-dev49-transfer.md`).
+- **The frozen candidate and the A / A-nocue model files** are in `frozen/`, copied from untracked run folders. The development evidence they were fitted on is on the shared volume, recorded by sha256 in the candidate. The rendered development images are not in the repository.
+- **Registration.** C0 (evidence v0.3's image registration) fails its pre-set tabletop refusal criterion on the first 11 tabletop arrangements. The study continues with C0 unchanged by an explicit amendment (`notes/2026-11-04-registration-repair-plan.md`, Amendment 2).
 - **The generators of the geometry files are not in git.** `configs/rig_geometry.json` and `configs/sim/positions_shelf_A.json` are committed outputs. Their scripts (`make_rig_geometry.py`, `make_positions_shelf_A.py`) and the measurements are in the author's gitignored `data/raw/`. So the geometry can be used, but not regenerated from the measurements.
 - **`tools/pipeline.py` needs the GB10 launch script**, which is not in the repo (section 6). The committed run spec holds the author's host details.
 - **`uv sync` works only on linux aarch64**, and rendering is tested only on the GB10.

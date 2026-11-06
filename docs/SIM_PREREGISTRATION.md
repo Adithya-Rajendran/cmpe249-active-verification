@@ -13,7 +13,7 @@ progress folder.
 - This document fixes the analysis rules. Slots still marked `[ ]` are open until the final review.
 
 **Order of work:**
-1. Finish the development loop: generator quotas, dev renders, evidence, threshold calibration, the S/F/R/G replay, and building and training A.
+1. Finish the development loop: generator quotas, dev renders, evidence, threshold calibration, the S/F/R/G replay, and building and training A. **Done (2026-11-06; §14).**
 2. Review this document.
 3. Freeze it (§12).
 4. Only then generate any test scene.
@@ -107,7 +107,8 @@ progress folder.
 - **The independent unit is the arrangement.** Resampling, CV folds and the split are by arrangement. R's seeds are averaged within an episode and add no samples.
 - **Seed blocks per environment:**
   - **Dev:** seeds 0–9999, plus DES0–DES3.
-  - **Test:** a contiguous block from 100000 upward.
+  - **Test:** a contiguous block per environment: shelf from 100000, tabletop from 110000. Each has per-family reserve
+    lists (shelf 101000+, tabletop 111000+), as in the generator configs.
 
   No test seed is rendered, scored or viewed before the freeze.
 - **Quotas are slots, not weights.**
@@ -152,7 +153,8 @@ progress folder.
 - **A.** A regularised logistic regression on observed evidence and candidate geometry, never on unrequested images.
   - **Training:** grouped (by arrangement) CV on dev only, with geometric diagnostic labels (§3) as training targets.
   - **Freeze:** features and regularisation grid are fixed in FREEZE.md.
-  - **Pinned design** (`notes/2026-11-05-ranker-a-design.md`, f4d4fe5, fixed before any fit on rendered evidence):
+  - **Pinned design** (`notes/2026-11-05-ranker-a-design.md`, f4d4fe5, fixed before any fit on rendered evidence;
+    implementation notes appended at 088e1dc):
     - Model: L2 logistic regression, fit by Newton's method, with C in {0.01, 0.1, 1, 10}. C is chosen by five
       inner arrangement folds on the training label's log-loss, never on a policy outcome.
     - Rows: every state after the start view and 0-2 further stops at which the stopping rule continues. Each
@@ -164,7 +166,8 @@ progress folder.
     arrangements with the frozen thresholds (`python -m verify.ranker`).
   - **Isolation.** In the held-out check, each fold trains its own A and A-nocue in its own process on that fold's
     training arrangements.
-- **The left/right descriptor** (`notes/2026-11-05-side-descriptor.md`, c41ecff):
+- **The left/right descriptor** (`notes/2026-11-05-side-descriptor.md`, c41ecff; the M16 check's result appended at
+  f4d4fe5):
   - Definition: d = u_left − u_right of v0.3's own obstruction map, over the target's context window split at the box
     centre. d > 0 points to larger azimuth.
   - It is missing on a refused registration or when either half has less than half its pixels valid.
