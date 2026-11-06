@@ -15,6 +15,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import registration_compare as rc  # noqa: E402
 
+REPO = Path(__file__).resolve().parents[1]
+
 BOX = [40, 40, 80, 80]
 T5 = [[1, 0, 5.0], [0, 1, 0], [0, 0, 1]]
 
@@ -117,6 +119,35 @@ class TestScore(unittest.TestCase):
         self.assertFalse(o["per_lighting"]["L1"]["criteria"]["4_diag_yield_ge_c0"])
         self.assertEqual(o["per_lighting"]["L1"]["newly_refused"], [["TX1-removed-L1", 0, "support"]])
         self.assertFalse(o["pass"])
+
+    def test_report_only_with_the_frozen_candidate(self):
+        # the test set's view-level reporting: C0 alone, thresholds from frozen/ (sidecar-checked), no criteria
+        frozen = REPO / "frozen" / "frozen_candidate.json"
+        def c0(e):
+            return T5, None, (0.68 if "removed" in e else 0.9), 0.9, 0.38
+        p = self.diag("c0r", c0)
+        a = SimpleNamespace(set=str(self.set), jobs="jobs_refL1.json", c0=p, cand=p, name="C0", design=False,
+                            c0_timing=None, cand_timing=None, original_c0=None, thresholds=str(frozen),
+                            report_only=True, data_label="TEST data")
+        o = rc.score(a)
+        self.assertEqual(o["thresholds_sha256"], rc.sha(frozen))
+        self.assertFalse(o["gating"])
+        # tau_match 0.7 and tau_occ 0.4: match 0.68 with obstruction 0.38 is a clear miss here (the shelf
+        # candidate's tau_match 0.65 would make it a strong match, and its tau_occ 0.35 would fail the gate)
+        self.assertEqual(o["per_lighting"]["L1"]["c0"]["diag_removal_yield"], 1)
+        self.assertEqual(o["per_lighting"]["L1"]["c0"]["removed_strong_match"], 0)
+        md = rc.markdown(o)
+        self.assertTrue(md.startswith("# C0 views: set"))
+        self.assertIn("SIMULATION, TEST data.", md)
+        self.assertNotIn("Criteria", md)
+        self.assertNotIn("PASS", md)
+
+    def test_a_candidate_failing_its_sidecar_is_refused(self):
+        bad = self.t / "frozen_candidate.json"
+        shutil.copy(REPO / "frozen" / "frozen_candidate.json", bad)
+        (self.t / "frozen_candidate.json.sha256").write_text("0" * 64 + "  frozen_candidate.json\n")
+        with self.assertRaises(SystemExit):
+            rc.thresholds_rule(str(bad))
 
 
 if __name__ == "__main__":

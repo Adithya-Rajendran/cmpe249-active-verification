@@ -21,6 +21,11 @@ Usage (repo root):
     python tools/registration_compare.py --set SET --jobs jobs_refL1.json --c0 C0.diag.jsonl --cand C1.diag.jsonl \\
         --name C1 [--c0-timing T0.json --cand-timing T1.json] [--original-c0 v03_image_refL1.diag.jsonl] \\
         [--design] --out-dir DIR
+The test set's view-level reporting (Amendment 2: refusals, both per-view error directions and plane geometry, by
+lighting), with the frozen thresholds and no criteria:
+    python tools/registration_compare.py --set SET --jobs jobs_refL1.json --c0 c0_refL1.diag.jsonl \\
+        --cand c0_refL1.diag.jsonl --name C0 --original-c0 v03_image_refL1.diag.jsonl \\
+        --thresholds frozen/frozen_candidate.json --report-only --data-label "TEST data" --out-dir DIR
 """
 from __future__ import annotations
 
@@ -60,6 +65,21 @@ def rule() -> StoppingRule:
         raise SystemExit(f"{CANDIDATE}: sha256 is not the recorded {CANDIDATE_SHA}")
     t = json.loads(CANDIDATE.read_text())["thresholds"]
     return StoppingRule(Thresholds(tau_match=t["tau_match"], tau_q=t["tau_q"], tau_occ=t["tau_occ"], k=t["k"]))
+
+
+def thresholds_rule(path: str | None) -> tuple[StoppingRule, str]:
+    """The stopping rule and its candidate's sha256: the pinned shelf candidate (rule()) by default, or a candidate that
+    verify.select.require_freeze_eligible accepts (its .sha256 sidecar checked; e.g. frozen/frozen_candidate.json for
+    the test set's view-level reporting under Amendment 2)."""
+    if path is None:
+        return rule(), CANDIDATE_SHA
+    from verify.select import NotEligibleForFreeze, require_freeze_eligible
+    try:
+        t = require_freeze_eligible(path)["thresholds"]
+    except NotEligibleForFreeze as e:
+        raise SystemExit(f"--thresholds {path}: {e}") from e
+    return (StoppingRule(Thresholds(tau_match=t["tau_match"], tau_q=t["tau_q"], tau_occ=t["tau_occ"], k=t["k"])),
+            sha(Path(path)))
 
 
 def decisions(d: dict, r: StoppingRule) -> dict[str, bool]:
@@ -123,7 +143,9 @@ def score(args) -> dict:
         if sorted(d) != sorted(keys) or len(d) != len(keys):
             raise SystemExit(f"{name}: the diagnostics do not hold every job key exactly once")
     labels, truth, env = view_meta(set_dir, args.design)
-    r = rule()
+    thresholds = getattr(args, "thresholds", None)
+    report_only = getattr(args, "report_only", False)
+    r, thresholds_sha = thresholds_rule(thresholds)
     masks: dict[tuple[str, str], tuple[np.ndarray, np.ndarray]] = {}
     rows = []
     for j, k in zip(jobs, keys):
@@ -150,7 +172,10 @@ def score(args) -> dict:
         rows.append(row)
     out = {"set": str(set_dir), "jobs": args.jobs, "design": args.design, "environment": env, "candidate": args.name,
            "inputs": {p: sha(Path(p)) for p in (args.c0, args.cand, str(set_dir / args.jobs))},
-           "thresholds_sha256": CANDIDATE_SHA, "gating": not args.design, "per_lighting": {}}
+           "thresholds_sha256": thresholds_sha, "gating": not (args.design or report_only), "per_lighting": {}}
+    if thresholds is not None or report_only:
+        out.update(thresholds_file=thresholds, report_only=report_only,
+                   data_label=getattr(args, "data_label", None) or "development data")
     for L in LIGHTINGS:
         rs = [x for x in rows if x["lighting"] == L]
         n = len(rs)
@@ -214,28 +239,45 @@ def fmt(g: dict | None) -> str:
 
 def markdown(o: dict) -> str:
     c = o["candidate"]
-    md = [f"# {c} against C0: {Path(o['set']).name} {'(design cases, NOT gating)' if o['design'] else ''}", "",
-          "SIMULATION, development data. Pinned plan notes/2026-11-04-registration-repair-plan.md (b144e04, Amendment 1). "
-          "Fixed shelf v03_image thresholds (sha256 4a06de0e...). Simulator truth for scoring only.", ""]
+    if o.get("report_only"):     # C0 alone (candidate == C0), no criteria: the view-level reporting of Amendment 2
+        md = [f"# C0 views: {Path(o['set']).name}", "",
+              f"SIMULATION, {o['data_label']}. View-level reporting under Amendment 2 of "
+              "notes/2026-11-04-registration-repair-plan.md: C0, the evidence of record's registration, with no "
+              f"criteria. Thresholds: {o['thresholds_file'] or CANDIDATE} (sha256 {o['thresholds_sha256'][:8]}...). "
+              "Simulator truth for scoring only.", ""]
+        cols = lambda P, L, f: f(P[L], "c0")                                         # noqa: E731
+    else:
+        th = ("Fixed shelf v03_image thresholds (sha256 4a06de0e...)." if o.get("thresholds_file") is None else
+              f"Thresholds: {o['thresholds_file']} (sha256 {o['thresholds_sha256'][:8]}...).")
+        md = [f"# {c} against C0: {Path(o['set']).name} {'(design cases, NOT gating)' if o['design'] else ''}", "",
+              f"SIMULATION, {o.get('data_label', 'development data')}. Pinned plan "
+              f"notes/2026-11-04-registration-repair-plan.md (b144e04, Amendment 1). {th} Simulator truth for scoring "
+              "only.", ""]
+        cols = lambda P, L, f: f"{f(P[L], 'c0')} | {f(P[L], 'cand')}"                # noqa: E731
     if "c0_vs_original" in o:
         md += [f"C0 through the harness vs the original v0.3 evidence run: {o['c0_vs_original']}", ""]
-    md += [f"| | {' | '.join(f'{L} C0 | {L} {c}' for L in LIGHTINGS)} |", "|---|" + "---|" * 4]
+    if o.get("report_only"):
+        md += [f"| C0 | {' | '.join(LIGHTINGS)} |", "|---|" + "---|" * len(LIGHTINGS)]
+    else:
+        md += [f"| | {' | '.join(f'{L} C0 | {L} {c}' for L in LIGHTINGS)} |", "|---|" + "---|" * 4]
     P = o["per_lighting"]
     for key, lbl in (("refused", "refused"), ("present_clear_miss", "present-labelled clear misses"),
                      ("removed_strong_match", "removed-labelled strong matches"),
                      ("diag_removal_yield", "diagnostic removal yield"), ("present_gate_pass", "present gate pass")):
-        md.append(f"| {lbl} | " + " | ".join(f"{P[L]['c0'][key]} / {P[L]['denominators'][key]} | "
-                                             f"{P[L]['cand'][key]} / {P[L]['denominators'][key]}" for L in LIGHTINGS) + " |")
+        md.append(f"| {lbl} | " + " | ".join(cols(P, L, lambda x, t, key=key: f"{x[t][key]} / {x['denominators'][key]}")
+                                             for L in LIGHTINGS) + " |")
     md.append("| target-plane error, common accepted (median / p90 / max px) | " + " | ".join(
-        f"{fmt(P[L]['geometry_common_target']['c0'])} | {fmt(P[L]['geometry_common_target']['cand'])}" for L in LIGHTINGS) + " |")
+        cols(P, L, lambda x, t: fmt(x['geometry_common_target'][t])) for L in LIGHTINGS) + " |")
     md.append(f"| {'table' if o['environment'] == 'tabletop' else 'front'}-plane error, common accepted | " + " | ".join(
-        f"{fmt(P[L]['geometry_common_other']['c0'])} | {fmt(P[L]['geometry_common_other']['cand'])}" for L in LIGHTINGS) + " |")
+        cols(P, L, lambda x, t: fmt(x['geometry_common_other'][t])) for L in LIGHTINGS) + " |")
     md.append("| silhouette IoU, common accepted (median / p90 / max) | " + " | ".join(
-        f"{fmt(P[L]['silhouette_common']['c0'])} | {fmt(P[L]['silhouette_common']['cand'])}" for L in LIGHTINGS) + " |")
+        cols(P, L, lambda x, t: fmt(x['silhouette_common'][t])) for L in LIGHTINGS) + " |")
     md.append("| registration s/view (median / p90 / max) | " + " | ".join(
-        f"{fmt(P[L]['c0']['registration_s'])} | {fmt(P[L]['cand']['registration_s'])}" for L in LIGHTINGS) + " |")
+        cols(P, L, lambda x, t: fmt(x[t]['registration_s'])) for L in LIGHTINGS) + " |")
     md.append("| complete evidence s/view (median / p90 / max) | " + " | ".join(
-        f"{fmt(P[L]['c0']['evidence_s'])} | {fmt(P[L]['cand']['evidence_s'])}" for L in LIGHTINGS) + " |")
+        cols(P, L, lambda x, t: fmt(x[t]['evidence_s'])) for L in LIGHTINGS) + " |")
+    if o.get("report_only"):
+        return "\n".join(md + [""] + _batch_lines(o)) + "\n"
     md += ["", "Criteria (gating only for the random arrangements):", ""]
     for L in LIGHTINGS:
         x = P[L]
@@ -252,13 +294,18 @@ def markdown(o: dict) -> str:
                       "; ".join(f"{a} {b} {e:.2f} {i:.3f}" for a, b, e, i in P[L]["newly_accepted_err_target"]))
         if P[L]["newly_refused"]:
             md.append(f"Newly refused, {L}: " + "; ".join(f"{a} {b} ({why})" for a, b, why in P[L]["newly_refused"]))
+    return "\n".join(md + _batch_lines(o)) + "\n"
+
+
+def _batch_lines(o: dict) -> list[str]:
+    out = []
     for tag in ("c0", "cand"):
         b = o.get(f"batch_{tag}")
         if b:
-            md.append(f"Batch {b['candidate']}: {b['views']} views, {b['workers']} workers, torch/OMP {b['torch_threads']} "
-                      f"thread, cv2 {b['cv2_threads']}, host {b['host']} ({b['cpu_count']} CPUs, {b['gpu']}), wall "
-                      f"{b['wall_s']} s, {b['views_per_hour']} views/hour (wall clock includes model loading)")
-    return "\n".join(md) + "\n"
+            out.append(f"Batch {b['candidate']}: {b['views']} views, {b['workers']} workers, torch/OMP {b['torch_threads']} "
+                       f"thread, cv2 {b['cv2_threads']}, host {b['host']} ({b['cpu_count']} CPUs, {b['gpu']}), wall "
+                       f"{b['wall_s']} s, {b['views_per_hour']} views/hour (wall clock includes model loading)")
+    return out
 
 
 def main() -> int:
@@ -272,15 +319,23 @@ def main() -> int:
     ap.add_argument("--cand-timing")
     ap.add_argument("--original-c0")
     ap.add_argument("--design", action="store_true", help="design cases: reported, not gating")
+    ap.add_argument("--thresholds", help="a candidate file (checked by verify.select.require_freeze_eligible) instead of "
+                    "the pinned shelf candidate, e.g. frozen/frozen_candidate.json")
+    ap.add_argument("--report-only", action="store_true",
+                    help="C0 alone (give the same diagnostics as --c0 and --cand): no criteria, no PASS / FAIL")
+    ap.add_argument("--data-label", help="the data named in the header (default: development data), e.g. 'TEST data'")
     ap.add_argument("--out-dir", required=True)
     args = ap.parse_args()
+    if args.report_only and args.c0 != args.cand:
+        raise SystemExit("--report-only reports C0 alone: give the same diagnostics file as --c0 and --cand")
     o = score(args)
     d = Path(args.out_dir)
     d.mkdir(parents=True, exist_ok=True)
     stem = f"{args.name}_{Path(args.jobs).stem.removeprefix('jobs_')}"
     (d / f"{stem}.json").write_text(json.dumps(o, indent=1))
     (d / f"{stem}.md").write_text(markdown(o))
-    print(f"wrote {d / stem}.md; " + (f"overall {'PASS' if o['pass'] else 'FAIL'}" if o["gating"] else "design cases: not gating"))
+    print(f"wrote {d / stem}.md; " + (f"overall {'PASS' if o['pass'] else 'FAIL'}" if o["gating"] else
+                                      "report only: no criteria" if args.report_only else "design cases: not gating"))
     return 0
 
 
