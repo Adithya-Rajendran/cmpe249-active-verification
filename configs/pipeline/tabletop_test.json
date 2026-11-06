@@ -1,7 +1,7 @@
 {
  "run_id": "tabletop_test",
  "note": "The frozen tabletop TEST set: the 100 test slots of configs/sim/arrange_tabletop_v1.json, generated only after the freeze by python -m sim.testsplit --freeze docs/FREEZE.md (runbook in docs/FREEZE.md) into /mnt/bench-data/datasets/cmpe249-active-verification/sim/tabletop_test_geometry/arr and copied to the GB10 run dir as arr_tabletop_test. Rendered through sim/render_test.py (sim/run_render_test.sh, with the run dir's copy of FREEZE.md); episodes with --freeze; then the unchanged C0 evidence of record (perception.evidence_v03 --align image, with the v021_image ablation from the same pass), the harness C0 beside it for evaluation-only geometry, and the left/right descriptor, exactly as for the development sets. No select and no summary: the frozen thresholds and models are applied by verify.run (runbook).",
- "remote": "configs/pipeline/remote.local.json",
+ "remote": "configs/pipeline/remote.test.local.json",
  "freeze": "docs/FREEZE.md",
  "render": {
   "script": "render_test.py",

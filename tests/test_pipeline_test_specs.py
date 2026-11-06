@@ -9,6 +9,7 @@ import contextlib
 import io
 import json
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -79,6 +80,10 @@ class TestSpecsTest(unittest.TestCase):
                 r = spec["render"]
                 self.assertEqual(spec["run_id"], run)
                 self.assertEqual(spec["freeze"], "docs/FREEZE.md")
+                # the test's own GB10 run dir (frozen renderer copies), never the development sets' run dir
+                self.assertEqual(spec["remote"], "configs/pipeline/remote.test.local.json")
+                ignored = subprocess.run(["git", "-C", str(REPO), "check-ignore", "-q", spec["remote"]])
+                self.assertEqual(ignored.returncode, 0, "host details stay out of git")
                 self.assertEqual(spec["set_root"], f"{SIM}/{run}")
                 self.assertEqual(spec["generation_log"], f"{SIM}/{run}_geometry/arr/index/generation_log.json")
                 self.assertEqual(r["script"], "render_test.py")
