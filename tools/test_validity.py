@@ -209,6 +209,11 @@ def check_run(rep: Report, rec: dict, env: str, set_root: Path, run_dir: Path, o
     cand = json.loads((REPO / "frozen" / "frozen_candidate.json").read_text())["thresholds"]
     th = {k: c["thresholds"].get(k) for k in ("tau_q", "tau_occ", "tau_match", "k", "lam")}
     rep.add(g, "the frozen thresholds", th == {k: cand[k] for k in th}, th)
+    sens = c.get("sensitivity") or {}
+    declared = {"k sensitivity 3": sens.get("k") == [3], "lam sensitivity 0.7, 0.9, 1.2": sens.get("lam") == [0.7, 0.9, 1.2],
+                "gate-off ablation (F, R)": (c.get("gate_off_ablation") or {}).get("policies") == ["F", "R"],
+                "tau_match sweep": bool(c.get("tau_match_sweep"))}
+    rep.add(g, "every declared secondary run was on", all(declared.values()), declared)
     if outs is not None:
         by_name = {Path(k).name: v["sha256"] for k, v in outs.items()}
         ev = {"evidence_sha256": by_name.get("v03_image_refL1.jsonl"), "side_file_sha256": by_name.get("side_refL1.jsonl")}

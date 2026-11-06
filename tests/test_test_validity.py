@@ -127,7 +127,9 @@ class ValidityTest(unittest.TestCase):
                    "positions_file_sha256": "f" * 64, "manifest_sha256": TV.sha(t / "manifest.json"),
                    "view_labels_sha256": TV.sha(t / "view_labels.json"), "thresholds": dict(cand),
                    "ranker_models": {"A": {"sha256": "1" * 64}, "A-nocue": {"sha256": "2" * 64}},
-                   "evidence_sha256": "7" * 64, "side_file_sha256": "8" * 64}
+                   "evidence_sha256": "7" * 64, "side_file_sha256": "8" * 64,
+                   "sensitivity": {"k": [3], "lam": [0.7, 0.9, 1.2]},
+                   "gate_off_ablation": {"policies": ["F", "R"]}, "tau_match_sweep": {"grid": [0.65, 0.7]}}
             run = t / "run"
             run.mkdir()
             outs = {"/x/v03_image_refL1.jsonl": {"sha256": "7" * 64}, "/x/side_refL1.jsonl": {"sha256": "8" * 64}}
@@ -136,7 +138,8 @@ class ValidityTest(unittest.TestCase):
                                   ({"ranker_models": {"A": {"sha256": "3" * 64}, "A-nocue": {"sha256": "2" * 64}}},
                                    "the frozen A and A-nocue model files"),
                                   ({"side_file_sha256": "9" * 64},
-                                   "the evidence of record and the descriptors of this set's evidence job")):
+                                   "the evidence of record and the descriptors of this set's evidence job"),
+                                  ({"tau_match_sweep": None}, "every declared secondary run was on")):
                 with self.subTest(change=change):
                     (run / "config.json").write_text(json.dumps({"config": {**cfg, **(change or {})}}))
                     rep = TV.Report()
