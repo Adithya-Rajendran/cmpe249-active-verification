@@ -61,3 +61,19 @@ It is reported beside A, never selected or tuned, and is not a candidate primary
 - Whatever it shows, A's design does not change because of it: A includes this descriptor as defined, A-nocue excludes
   it with every other obstruction-derived feature, and no other feature or registration method is searched.
 - Output: `runs/2026-11-05-side-descriptor-m16/` (untracked): the jobs subset, the descriptor rows and the readout.
+
+## Result of the M16 check (2026-11-05, run after the pin c41ecff)
+
+`runs/2026-11-05-side-descriptor-m16/readout.txt` (jobs subset sha256 20ea3f28..., descriptor rows sha256 56834c30...;
+computed on the Jetson; every view's in-box share is identical to the GB10 evidence of record's background_obstruction).
+
+| Condition | L1 | L2 |
+|---|---|---|
+| occluded | 18 / 18 signs as predicted, none missing | 18 / 18, none missing |
+| removed | 18 / 18, none missing | 18 / 18, none missing |
+| visible (board parked; null control) | 16 at 0, 2 within +-0.001 | 5 at 0, 13 between -0.112 and +0.004 |
+
+The occluded and removed magnitudes are 0.24 to 0.51; the largest null-control magnitude is 0.112 (L2), so in L2 the
+descriptor carries a small lighting residual on scenes without an occluder in front. On these 18 arrangements C0
+refused nothing. This is one family on shelf dev only, the family whose designed side the descriptor was built to
+read; it says nothing yet about S8, the boxes, IND28 or the tabletop.
