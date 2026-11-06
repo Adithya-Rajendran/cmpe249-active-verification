@@ -288,12 +288,13 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
     - the occluder family (S8, M16, IND28, white box, YCB box), with M16's two sides pooled;
     - the quota slot class, which splits M16 into M16-left and M16-right.
 
-    Each level gives every policy's metrics per lighting, at the primary budget, uncapped and under every cap, with
-    the family's target composition. On test, A − G per family and lighting is computed at b = 3 uncapped with the
-    paired cluster bootstrap (B as §8). Within an occluder family the bootstrap is stratified by slot class: for M16
-    that is by side; the other families are a single stratum. Each family and lighting has its own derived seed. A
-    family with fewer than 2 arrangements gets no interval. These intervals are descriptive evidence for H3, not new
-    endpoints.
+    Each level gives every policy's metrics per lighting, with the family's target composition. Policies run at the
+    primary budget, uncapped and under every cap; S and FULL run at their own effort. On test, A − G per family and
+    lighting is computed at b = 3 uncapped with the paired cluster bootstrap (B as §8). Within an occluder family the
+    bootstrap is stratified by slot class: for M16 that is by side; the other families are a single stratum. If one M16
+    side has fewer than 2 arrangements, the M16 bootstrap is unstratified and flagged, as in §8. Each family and
+    lighting has its own derived seed. A family with fewer than 2 arrangements gets no interval. These intervals are
+    descriptive evidence for H3, not new endpoints.
   - **Each multi-view policy against S:** A, A-nocue, Dir, F, R, G, G-lookahead and G-myopic minus S, at S's actual
     effort (one view).
   - **The τ_match risk-coverage sweep.** It is run at b = 3, uncapped, with the other thresholds frozen, for every

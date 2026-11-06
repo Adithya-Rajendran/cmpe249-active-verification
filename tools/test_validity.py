@@ -10,15 +10,16 @@ It reads:
 - verify.run's config.json;
 - optionally, a `sha256sum` listing of the GB10 checkpoints.
 
-It never reads an evidence score, a decision or a label value. Each group runs only when its input is given; a given
-input that is missing or unreadable fails. Exit 0 when every check that ran passed, 1 otherwise, 2 when FREEZE.md itself
+It reads no decision and no label value, and reads evidence scores only for one equality test (the harness C0 against
+the evidence of record, whose outcome is equal or not). Each group runs only when its input is given; a given input that
+is missing or unreadable fails. Exit 0 when every check that ran passed, 1 otherwise, 2 when FREEZE.md itself
 does not pass.
 
     uv run --offline --no-project --python 3.13.5 --with numpy==2.5.3 --with opencv-python-headless==5.0.0.93 \\
       python tools/test_validity.py --freeze docs/FREEZE.md --env shelf \\
         --geometry <share>/sim/shelf_test_geometry/arr --set <share>/sim/shelf_test \\
         [--evidence-provenance runs/shelf_test/evidence_provenance.json] [--verify-run runs/<date>-test/shelf] \\
-        [--gb10-checkpoints gb10_checkpoints.sha256] [--out report.json]
+        [--gb10-checkpoints gb10_checkpoints.sha256] [--render-log render_log_head.txt] [--out report.json]
 """
 from __future__ import annotations
 
@@ -53,16 +54,34 @@ EVIDENCE_FROZEN = ("perception/evidence_v03.py", "perception/evidence.py", "perc
                    "perception/side_descriptor.py", "perception/registration_v032.py", "verify/schema.py",
                    "verify/stopping.py", "pyproject.toml", "uv.lock")   # = tools/pipeline.py EVIDENCE_FROZEN
 RUN_CONFIG_VERSION = "real-v6"   # = verify/run.py REAL_CONFIG_VERSION
+# The declared run settings (SIM_PREREGISTRATION §1, §4, §6, §8-§10; FREEZE.md runbook step 5), written out here so a
+# run with any other setting fails even if verify.run's own defaults moved.
+RUN_SETTINGS = {
+    "budgets": [0, 1, 2, 3, 4], "primary_budget": 3, "cap_steps": [None, 1.0, 2.0, 3.0, 4.0, 6.0], "seed": 0,
+    "r_seeds": list(range(20)), "bootstrap_B": 10000, "bootstrap_stratified": True, "primary_contrast": ["A", "G"],
+    "common_targets": ["foam_brick", "tuna_fish_can"], "model_id": "v03_image",
+    "bootstrap_pairs": [["A", "G"], ["A", "F"], ["A", "R"], ["A", "A-nocue"], ["A", "G-lookahead"], ["A", "Dir"],
+                        ["G", "F"], ["G", "R"], ["G", "S"], ["F", "S"], ["R", "S"], ["A", "S"], ["A-nocue", "S"],
+                        ["Dir", "S"], ["G-lookahead", "S"], ["G-myopic", "S"], ["G", "G-lookahead"],
+                        ["G", "G-myopic"]],
+}
+SWEEP_VALUES = [0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.75, 0.8, 0.85, 0.9]   # the grid below 0.7 and the extension
+ANALYSIS_CODE_PREFIXES = ("verify/", "analysis/")   # = verify/run.py ANALYSIS_CODE
 
 
 def sha(path: str | Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def norm_name(name: str) -> str:
+    """A package name normalised as PEP 503 does (runs of -, _ and . become one -, lower case)."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def locked_versions(lock: Path) -> dict[str, str]:
     """{normalised name: version} of every package in a uv.lock."""
     pairs = re.findall(r'\[\[package\]\]\nname = "([^"]+)"\nversion = "([^"]+)"', lock.read_text())
-    return {name.lower().replace("_", "-"): version for name, version in pairs}
+    return {norm_name(name): version for name, version in pairs}
 
 
 def load_diag(path: str | Path) -> dict[tuple[str, int], dict]:
@@ -102,13 +121,13 @@ def check_generation(rep: Report, rec: dict, freeze_sha: str, env: str, geometry
     rep.run(g, "config is the frozen one", lambda: (sha(REPO / CONFIGS[env]) == files.get(CONFIGS[env]), CONFIGS[env]))
     rows = {r["arrangement_id"]: r for r in json.loads((geometry / "index" / "index.json").read_text())["arrangements"]}
     ctx = ctx or A.load_context(REPO / CONFIGS[env])
-    block = set(TS.test_block_seeds(ctx))
+    want = {sl["index"]: sl for sl in A.slot_list(ctx, "test")}          # the frozen slot list (no seed is drawn)
+    reserve = {f: set(v) for f, v in ctx.config["slots"]["test"]["reserve"].items()}
     slots = json.loads((geometry / "index" / "slots.json").read_text())["slots"]
-    expected = len(A.slot_list(ctx, "test"))
-    rep.add(g, "one arrangement per test slot", len(rows) == len(slots) == expected,
-            {"arrangements": len(rows), "slots": len(slots), "expected": expected})
-    bad: dict[str, list] = {k: [] for k in ("file", "split", "seed", "hash", "freeze", "slot")}
-    seen_slots = []
+    rep.add(g, "one arrangement per test slot", len(rows) == len(slots) == len(want),
+            {"arrangements": len(rows), "slots": len(slots), "expected": len(want)})
+    bad: dict[str, list] = {k: [] for k in ("file", "split", "provenance", "slot", "seed", "hash", "freeze")}
+    seen_slots, seen_seeds = [], []
     for aid, r in sorted(rows.items()):
         p = geometry / r["file"]
         if sha(p) != r["sha256"]:
@@ -116,7 +135,17 @@ def check_generation(rep: Report, rec: dict, freeze_sha: str, env: str, geometry
         arr = json.loads(p.read_text())
         if (arr.get("split"), arr.get("kind"), arr.get("environment")) != ("test", "random", env):
             bad["split"].append(aid)
-        if arr.get("seed") not in block:
+        if arr.get("provenance") != ctx.provenance:                       # generator, config, geometry, ... hashes
+            bad["provenance"].append(aid)
+        sl = arr.get("slot") or {}
+        exp = want.get(sl.get("index"))
+        if exp is None or sl.get("split") != "test" or any(sl.get(k) != exp[k] for k in
+                                                            ("family", "m16_side", "target", "primary_seed")) \
+                or (arr.get("occluder_family"), arr.get("m16_side")) != (exp["family"], exp["m16_side"]):
+            bad["slot"].append(aid)
+        seed = arr.get("seed")
+        allowed = set() if exp is None else {exp["primary_seed"]} | reserve.get(exp["family"], set())
+        if seed != sl.get("used_seed") or seed not in allowed:
             bad["seed"].append(aid)
         if not (arr.get("arrangement_sha256") == A.arrangement_hash(arr) == r["arrangement_sha256"]):
             bad["hash"].append(aid)
@@ -124,19 +153,18 @@ def check_generation(rep: Report, rec: dict, freeze_sha: str, env: str, geometry
         if (fz.get("sha256"), fz.get("freeze_id"), fz.get("testsplit_sha256")) != \
                 (freeze_sha, rec["freeze_id"], rec["files"].get("sim/testsplit.py")):
             bad["freeze"].append(aid)
-        sl = arr.get("slot") or {}
-        if (sl.get("split"), sl.get("family"), sl.get("m16_side")) != ("test", arr.get("occluder_family"),
-                                                                       arr.get("m16_side")):
-            bad["slot"].append(aid)
         seen_slots.append(sl.get("index"))
-    count = Counter(seen_slots)
-    off = sorted((s for s in count if s not in range(expected) or count[s] > 1), key=str)
-    bad["slot"] += [f"slot {s}" for s in off]
+        seen_seeds.append(seed)
+    bad["slot"] += [f"slot {s} twice" for s, n in Counter(seen_slots).items() if n > 1]
+    bad["seed"] += [f"seed {s} twice" for s, n in Counter(seen_seeds).items() if n > 1]
     for k, v in bad.items():
         rep.add(g, {"file": "each file has its index sha256", "split": "split test, kind random, this environment",
-                    "seed": "each seed is in the config's test block", "hash": "arrangement_sha256 recomputes",
-                    "freeze": "each records this FREEZE.md, its freeze_id and the frozen testsplit",
-                    "slot": "each is a test slot of its family, and no slot twice"}[k], not v, v or None)
+                    "provenance": "each was made by the frozen generator, config and geometry (provenance hashes)",
+                    "slot": "each is its frozen slot (family, M16 side, target, primary seed), and no slot twice",
+                    "seed": "each seed is its slot's primary seed or its family's reserve, as used, and unique",
+                    "hash": "arrangement_sha256 recomputes",
+                    "freeze": "each records this FREEZE.md, its freeze_id and the frozen testsplit"}[k],
+                not v, v or None)
     return rows
 
 
@@ -165,14 +193,16 @@ def check_render(rep: Report, rec: dict, env: str, rows: dict[str, dict], set_ro
     def manifest() -> tuple[bool, Any]:
         m = json.loads((set_root / "manifest.json").read_text())
         arrs = m["arrangements"]
-        off = [a["arrangement_id"] for a in arrs if (a.get("split"), a.get("environment")) != ("test", env)]
+        # the shelf's records carry no environment key (sim/episodes.py, pinned by the shelf goldens): absent = shelf
+        off = [a["arrangement_id"] for a in arrs if (a.get("split"), a.get("environment") or "shelf") != ("test", env)]
         ids = {a["arrangement_id"] for a in arrs}
         return (not off and ids == set(rows), {"not test/this environment": off[:10], "ids_equal": ids == set(rows)})
     rep.run("episodes", "manifest: the generated arrangements, split test, this environment", manifest)
-    rep.run("episodes", "set.json: split test, this environment", lambda: (
-        (lambda s: ((s.get("split"), s.get("environment")) == ("test", env), {k: s.get(k) for k in ("split",
-                                                                                                    "environment")}))
-        (json.loads((set_root / "set.json").read_text()))))
+    def set_json() -> tuple[bool, Any]:
+        doc = json.loads((set_root / "set.json").read_text())
+        got = (doc.get("split"), doc.get("environment") or "shelf")
+        return got == ("test", env), {"split": got[0], "environment": got[1]}
+    rep.run("episodes", "set.json: split test, this environment", set_json)
 
 
 def check_evidence(rep: Report, rec: dict, set_root: Path, prov_path: Path) -> dict[str, dict]:
@@ -186,8 +216,7 @@ def check_evidence(rep: Report, rec: dict, set_root: Path, prov_path: Path) -> d
 
     def installed() -> tuple[bool, Any]:
         locked = locked_versions(REPO / "uv.lock")
-        off = {n: [v, locked.get(n.lower().replace("_", "-"))] for n, v in env["packages"].items()
-               if locked.get(n.lower().replace("_", "-")) != v}
+        off = {n: [v, locked.get(norm_name(n))] for n, v in env["packages"].items() if locked.get(norm_name(n)) != v}
         return (bool(env["packages"]) and not off, off or None)
     rep.run(g, "every installed GB10 package has its uv.lock version", installed)
 
@@ -226,13 +255,18 @@ def check_run(rep: Report, rec: dict, env: str, set_root: Path, run_dir: Path, o
     files = rec["files"]
     c = json.loads((run_dir / "config.json").read_text())["config"]
     want = {
-        "config_version": RUN_CONFIG_VERSION, "environment": env, "model_id": "v03_image",
-        "bootstrap_B": 10000, "candidate_sha256": files.get("frozen/frozen_candidate.json"),
+        "config_version": RUN_CONFIG_VERSION, "environment": env, **RUN_SETTINGS,
+        "candidate_sha256": files.get("frozen/frozen_candidate.json"),
         "positions_file_sha256": files.get(POSITIONS[env]),
         "manifest_sha256": sha(set_root / "manifest.json"), "view_labels_sha256": sha(set_root / "view_labels.json"),
     }
     off = {k: {"run": c.get(k), "want": v} for k, v in want.items() if c.get(k) != v}
-    rep.add(g, "frozen candidate, positions, set files and settings", not off, off or None)
+    rep.add(g, "frozen candidate, positions, set files and every declared setting", not off, off or None)
+    code = c.get("code_sha256") or {}
+    frozen_code = {k: v for k, v in files.items() if k.startswith(ANALYSIS_CODE_PREFIXES) and k.endswith(".py")}
+    off = {k: {"run": code.get(k), "record": frozen_code.get(k)} for k in set(code) | set(frozen_code)
+           if code.get(k) != frozen_code.get(k)}
+    rep.add(g, "the run's verify/ and analysis/ code is the frozen code", bool(code) and not off, off or None)
     models = c.get("ranker_models") or {}
     mod = {n: (models.get(n) or {}).get("sha256") for n in ("A", "A-nocue")}
     rep.add(g, "the frozen A and A-nocue model files", mod == {"A": files.get("frozen/model_A.json"),
@@ -241,17 +275,36 @@ def check_run(rep: Report, rec: dict, env: str, set_root: Path, run_dir: Path, o
     th = {k: c["thresholds"].get(k) for k in ("tau_q", "tau_occ", "tau_match", "k", "lam")}
     rep.add(g, "the frozen thresholds", th == {k: cand[k] for k in th}, th)
     sens = c.get("sensitivity") or {}
+    gate_off = c.get("gate_off_ablation") or {}
+    sweep = c.get("tau_match_sweep") or {}
     declared = {"k sensitivity 3": sens.get("k") == [3],
                 "lam sensitivity 0.7, 0.9, 1.2": sens.get("lam") == [0.7, 0.9, 1.2],
-                "gate-off ablation (F, R)": (c.get("gate_off_ablation") or {}).get("policies") == ["F", "R"],
-                "tau_match sweep": bool(c.get("tau_match_sweep"))}
-    rep.add(g, "every declared secondary run was on", all(declared.values()), declared)
+                "gate-off ablation (F, R at tau_occ 1.0)": (gate_off.get("policies"), gate_off.get("tau_occ"))
+                == (["F", "R"], 1.0),
+                "tau_match sweep (both sides of the frozen value)": (sweep.get("frozen_tau_match"),
+                                                                     sweep.get("values_run")) == (0.7, SWEEP_VALUES),
+                "both family levels": sorted((c.get("by_family") or {}).get("levels") or {})
+                == ["by_family", "by_occluder_family"]}
+    rep.add(g, "every declared secondary run was on, as declared", all(declared.values()), declared)
     if outs is not None:
         by_name = {Path(k).name: v["sha256"] for k, v in outs.items()}
         ev = {"evidence_sha256": by_name.get("v03_image_refL1.jsonl"),
               "side_file_sha256": by_name.get("side_refL1.jsonl")}
         off = {k: {"run": c.get(k), "provenance": v} for k, v in ev.items() if c.get(k) != v}
         rep.add(g, "the evidence of record and the descriptors of this set's evidence job", not off, off or None)
+
+
+def check_render_log(rep: Report, rec: dict, freeze_sha: str, log: Path) -> None:
+    """The first line of the GB10 render log (sim/render_test.py): the hashes of what actually ran."""
+    files = rec["files"]
+    m = re.match(r"render_test\.py sha256 (\w{64}); isaac_batch\.py (\w{64}); isaac_rig\.py (\w{64}); "
+                 r"FREEZE\.md copy (\w{64})", log.read_text().splitlines()[0] if log.read_text() else "")
+    got = dict(zip(("sim/render_test.py", "sim/isaac_batch.py", "sim/isaac_rig.py", "FREEZE.md"), m.groups())) if m \
+        else {}
+    want = {rel: files.get(rel) for rel in ("sim/render_test.py", "sim/isaac_batch.py", "sim/isaac_rig.py")}
+    want["FREEZE.md"] = freeze_sha
+    rep.add("render", "the render log names the frozen render_test.py, isaac_batch.py, isaac_rig.py and this FREEZE.md",
+            got == want, {k: [got.get(k), v] for k, v in want.items() if got.get(k) != v} or None)
 
 
 def check_checkpoints(rep: Report, listing: Path) -> None:
@@ -273,6 +326,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--evidence-provenance", type=Path, help="the pipeline run dir's evidence_provenance.json")
     ap.add_argument("--verify-run", type=Path, help="the verify.run output dir")
     ap.add_argument("--gb10-checkpoints", type=Path, help="`sha256sum` output, run in the GB10 checkpoints dir")
+    ap.add_argument("--render-log", type=Path, help="the first line of the GB10 render log (sim/render_test.py)")
     ap.add_argument("--out", type=Path, help="write the report here (JSON)")
     a = ap.parse_args(argv)
     try:
@@ -310,6 +364,11 @@ def main(argv: list[str] | None = None) -> int:
                 check_run(rep, rec, a.env, a.set, a.verify_run, outs)
             except (OSError, ValueError, KeyError) as e:
                 rep.add("verify.run", "the run config is readable", False, f"{type(e).__name__}: {e}")
+    if a.render_log:
+        try:
+            check_render_log(rep, rec, fz["sha256"], a.render_log)
+        except OSError as e:
+            rep.add("render", "the render log is readable", False, str(e))
     if a.gb10_checkpoints:
         try:
             check_checkpoints(rep, a.gb10_checkpoints)

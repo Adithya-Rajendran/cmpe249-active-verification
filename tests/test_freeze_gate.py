@@ -28,7 +28,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 def record(files: dict[str, str], **kw) -> str:
-    doc = {"schema": F.FREEZE_SCHEMA, "freeze_id": "freeze-test", "commit": "abc", "files": files, **kw}
+    doc = {"schema": F.FREEZE_SCHEMA, "freeze_id": "freeze-test", "commit": "c" * 40, "files": files, **kw}
     return "# FREEZE\n\ntext\n\n```json\n" + json.dumps(doc, indent=1) + "\n```\n"
 
 
@@ -45,7 +45,8 @@ class ParseTest(unittest.TestCase):
     def test_exactly_one_valid_record(self) -> None:
         self.assertEqual(F.parse_record(record({"a.txt": "0" * 64}))["freeze_id"], "freeze-test")
         for text in ("no block", record({"a.txt": "0" * 64}) * 2, record({}), record({"a.txt": "short"}),
-                     "```json\n{\"schema\": \"other\"}\n```"):
+                     "```json\n{\"schema\": \"other\"}\n```", record({"a.txt": "0" * 64}, commit="HEAD"),
+                     record({"a.txt": "0" * 64}, commit="tabletop"), record({"a.txt": "0" * 64}, commit="abc")):
             with self.assertRaises(F.FreezeError):
                 F.parse_record(text)
 
@@ -100,6 +101,14 @@ class RequireTest(unittest.TestCase):
 
     def test_the_record_commit_must_be_an_ancestor(self) -> None:
         self.freeze.write_text(record({"a.txt": F.file_sha256(self.repo / "a.txt")}, commit="0" * 40))
+        git(self.repo, "add", "FREEZE.md")
+        git(self.repo, "commit", "-q", "-m", "freeze")
+        with self.assertRaises(F.FreezeError):
+            F.require_freeze(self.freeze, repo=self.repo)
+
+    def test_a_non_utf8_freeze_is_refused_cleanly(self) -> None:
+        self.freeze.write_bytes(record({"a.txt": F.file_sha256(self.repo / "a.txt")},
+                                       commit=self.code_commit).encode() + b"\xff\xfe")
         git(self.repo, "add", "FREEZE.md")
         git(self.repo, "commit", "-q", "-m", "freeze")
         with self.assertRaises(F.FreezeError):
@@ -276,10 +285,12 @@ class ConsumerTest(unittest.TestCase):
     def test_test_set_readme_wording(self) -> None:
         dev = ("# X: simulated dev set (SIMULATION)\n... Dev split only; every result ... split dev, ...\n"
                "# Y: simulated dev set, TABLETOP environment (SIMULATION, DEV)\n... a simulation result. The tabletop "
-               "environment is DEV (not frozen).\n")
+               "environment is DEV (not frozen).\n-> `sim/isaac_batch.py` (renderer, GB10) -> ... labels at its own "
+               "pose (development analysis and scoring only; never a policy input).\n")
         got = E.test_set_wording(dev)
-        for phrase in ("dev set", "DEV", "Dev split", "split dev", "not frozen"):
+        for phrase in ("dev set", "DEV", "Dev split", "split dev", "not frozen", "development analysis"):
             self.assertNotIn(phrase, got)
+        self.assertIn("sim/render_test.py", got)
         self.assertIn("simulated TEST set", got)
         self.assertIn("TEST split (generated under FREEZE.md)", got)
 

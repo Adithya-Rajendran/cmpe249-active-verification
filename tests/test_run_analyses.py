@@ -104,6 +104,12 @@ class AnalysesRunTest(unittest.TestCase):
             for v in ("", "-fcm"):
                 self.assertIn((p + v, "S"), self.pairs(), p + v)
         self.assertEqual(self.res["config"]["config_version"], "real-v6")
+        # the analysis code the run loaded, by sha256 (tools/test_validity.py compares it with the freeze record)
+        code = self.res["config"]["code_sha256"]
+        repo = Path(run.__file__).resolve().parents[1]
+        self.assertEqual(sorted(code), sorted(p.relative_to(repo).as_posix() for pattern in run.ANALYSIS_CODE
+                                              for p in repo.glob(pattern)))
+        self.assertEqual(code["verify/run.py"], run.file_sha256(run.__file__))
         self.assertIn(["A", "S"], self.res["config"]["bootstrap_pairs"])
         rows = [b for b in self.res["bootstrap"] if (b["policy_a"], b["policy_b"]) == ("Dir", "S")]
         self.assertEqual({b["travel_cap_cm"] for b in rows}, set(self.res["config"]["travel_caps_cm"]))

@@ -54,7 +54,8 @@ class ValidityTest(unittest.TestCase):
             "sim/testsplit.py": TV.sha(REPO / "sim/testsplit.py"),
             "sim/isaac_batch.py": "b" * 64, "sim/isaac_rig.py": "c" * 64, "uv.lock": "d" * 64,
             "frozen/frozen_candidate.json": "e" * 64, TV.POSITIONS["shelf"]: "f" * 64,
-            "frozen/model_A.json": "1" * 64, "frozen/model_A-nocue.json": "2" * 64}}
+            "frozen/model_A.json": "1" * 64, "frozen/model_A-nocue.json": "2" * 64, "sim/render_test.py": "4" * 64,
+            "verify/run.py": "5" * 64, "analysis/bootstrap.py": "6" * 64}}
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -90,7 +91,8 @@ class ValidityTest(unittest.TestCase):
         finally:
             p.write_text(original)
 
-    def render_set(self, t: Path, rows: dict, **override) -> Path:
+    def render_set(self, t: Path, rows: dict, manifest_extra: dict | None = None, **override) -> Path:
+        manifest_extra = manifest_extra or {}
         root = t / "set"
         for aid, r in rows.items():
             (root / aid).mkdir(parents=True)
@@ -98,9 +100,10 @@ class ValidityTest(unittest.TestCase):
                  "isaac_batch_sha256": "b" * 64, "isaac_rig_sha256": "c" * 64,
                  "render_settings_sha256": TV.RENDER_SETTINGS["shelf"], **override}
             (root / aid / "labels.json").write_text(json.dumps({"hashes": h}))
+        # the shelf's records carry no environment key (sim/episodes.py): absent means the shelf
         (root / "manifest.json").write_text(json.dumps({"arrangements": [
-            {"arrangement_id": a, "split": "test", "environment": "shelf"} for a in rows]}))
-        (root / "set.json").write_text(json.dumps({"split": "test", "environment": "shelf"}))
+            {"arrangement_id": a, "split": "test", **manifest_extra} for a in rows]}))
+        (root / "set.json").write_text(json.dumps({"split": "test"}))
         return root
 
     def test_render_checks(self) -> None:
@@ -119,31 +122,84 @@ class ValidityTest(unittest.TestCase):
                             self.render_set(Path(t), rows, render_settings_sha256=TV.RENDER_SETTINGS["tabletop"]))
             self.assertFalse(self.checks(rep)["each render has the development render settings"])
 
+    def test_a_manifest_of_another_environment_fails(self) -> None:
+        _, rows = self.generation()
+        with tempfile.TemporaryDirectory() as t:
+            rep = TV.Report()
+            TV.check_render(rep, self.rec, "shelf", rows,
+                            self.render_set(Path(t), rows, manifest_extra={"environment": "tabletop"}))
+            self.assertFalse(self.checks(rep)["manifest: the generated arrangements, split test, this environment"])
+
+    def test_an_arrangement_off_its_frozen_slot_fails(self) -> None:
+        p = self.geometry / f"{self.ids[0]}.json"
+        original = p.read_text()
+        try:
+            for change, check in (
+                    (lambda a: a["slot"].update(target=a["slot"]["target"] + 100),
+                     "each is its frozen slot (family, M16 side, target, primary seed), and no slot twice"),
+                    (lambda a: a.update(seed=a["seed"] + 7),
+                     "each seed is its slot's primary seed or its family's reserve, as used, and unique"),
+                    (lambda a: a["provenance"]["config"].update(sha256="0" * 64),
+                     "each was made by the frozen generator, config and geometry (provenance hashes)")):
+                with self.subTest(check=check):
+                    arr = json.loads(original)
+                    change(arr)
+                    p.write_text(json.dumps(arr, indent=1) + "\n")
+                    self.assertFalse(self.checks(self.generation()[0])[check])
+        finally:
+            p.write_text(original)
+
+    def test_render_log(self) -> None:
+        with tempfile.TemporaryDirectory() as t:
+            p = Path(t) / "head.txt"
+            line = (f"render_test.py sha256 {'4' * 64}; isaac_batch.py {'b' * 64}; isaac_rig.py {'c' * 64}; "
+                    f"FREEZE.md copy {self.freeze_sha}")
+            for text, ok in ((line, True), (line.replace("b" * 64, "9" * 64), False), ("something else", False)):
+                with self.subTest(ok=ok):
+                    p.write_text(text + "\n")
+                    rep = TV.Report()
+                    TV.check_render_log(rep, self.rec, self.freeze_sha, p)
+                    self.assertEqual(rep.ok, ok, rep.checks)
+
     def test_run_checks(self) -> None:
         with tempfile.TemporaryDirectory() as t:
             t = Path(t)
             (t / "manifest.json").write_text("{}")
             (t / "view_labels.json").write_text("{}")
             cand = json.loads((REPO / "frozen" / "frozen_candidate.json").read_text())["thresholds"]
-            cfg = {"config_version": TV.RUN_CONFIG_VERSION, "environment": "shelf", "scoring_split": "test",
-                   "model_id": "v03_image", "bootstrap_B": 10000, "candidate_sha256": "e" * 64,
+            cfg = {"config_version": TV.RUN_CONFIG_VERSION, "environment": "shelf", **TV.RUN_SETTINGS,
+                   "candidate_sha256": "e" * 64,
                    "positions_file_sha256": "f" * 64, "manifest_sha256": TV.sha(t / "manifest.json"),
                    "view_labels_sha256": TV.sha(t / "view_labels.json"), "thresholds": dict(cand),
                    "ranker_models": {"A": {"sha256": "1" * 64}, "A-nocue": {"sha256": "2" * 64}},
                    "evidence_sha256": "7" * 64, "side_file_sha256": "8" * 64,
                    "sensitivity": {"k": [3], "lam": [0.7, 0.9, 1.2]},
-                   "gate_off_ablation": {"policies": ["F", "R"]}, "tau_match_sweep": {"grid": [0.65, 0.7]}}
+                   "gate_off_ablation": {"policies": ["F", "R"], "tau_occ": 1.0},
+                   "tau_match_sweep": {"frozen_tau_match": 0.7, "values_run": list(TV.SWEEP_VALUES)},
+                   "by_family": {"levels": {"by_family": {}, "by_occluder_family": {}}},
+                   "code_sha256": {"verify/run.py": "5" * 64, "analysis/bootstrap.py": "6" * 64}}
             run = t / "run"
             run.mkdir()
             outs = {"/x/v03_image_refL1.jsonl": {"sha256": "7" * 64}, "/x/side_refL1.jsonl": {"sha256": "8" * 64}}
+            settings = "frozen candidate, positions, set files and every declared setting"
+            declared = "every declared secondary run was on, as declared"
             for change, check in ((None, None),
-                                  ({"bootstrap_B": 1000}, "frozen candidate, positions, set files and settings"),
+                                  ({"bootstrap_B": 1000}, settings),
+                                  ({"primary_budget": 2}, settings),
+                                  ({"bootstrap_stratified": False}, settings),
+                                  ({"code_sha256": {"verify/run.py": "0" * 64, "analysis/bootstrap.py": "6" * 64}},
+                                   "the run's verify/ and analysis/ code is the frozen code"),
+                                  ({"code_sha256": {"verify/run.py": "5" * 64}},
+                                   "the run's verify/ and analysis/ code is the frozen code"),
                                   ({"thresholds": {**cand, "tau_match": 0.65}}, "the frozen thresholds"),
                                   ({"ranker_models": {"A": {"sha256": "3" * 64}, "A-nocue": {"sha256": "2" * 64}}},
                                    "the frozen A and A-nocue model files"),
                                   ({"side_file_sha256": "9" * 64},
                                    "the evidence of record and the descriptors of this set's evidence job"),
-                                  ({"tau_match_sweep": None}, "every declared secondary run was on")):
+                                  ({"tau_match_sweep": None}, declared),
+                                  ({"tau_match_sweep": {"frozen_tau_match": 0.7, "values_run": [0.4, 0.65]}},
+                                   declared),
+                                  ({"by_family": {"levels": {"by_family": {}}}}, declared)):
                 with self.subTest(change=change):
                     (run / "config.json").write_text(json.dumps({"config": {**cfg, **(change or {})}}))
                     rep = TV.Report()

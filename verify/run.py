@@ -1745,7 +1745,15 @@ def main(argv: list[str] | None = None) -> int:
 
 REAL_CONFIG_VERSION = "real-v6"
 # v6 (2026-11-05): multi-view policies vs S, by-family breakdowns, gate-off ablation, tau_match sweep, view diagnostics
-#   (review 2026-11-06, before any v6 test run: occluder-family level, sweep extension, per-family seeds)
+#   (review 2026-11-06, before any v6 test run: occluder-family level, sweep extension, per-family seeds; code_sha256)
+ANALYSIS_CODE = ("verify/*.py", "analysis/*.py")   # every module this run can import from the repository
+
+
+def code_sha256() -> dict[str, str]:
+    """{repo-relative path: sha256} of ANALYSIS_CODE as this run loads it (tools/test_validity.py compares it with the
+    freeze record)."""
+    return {p.relative_to(REPO_ROOT).as_posix(): file_sha256(p)
+            for pattern in ANALYSIS_CODE for p in sorted(REPO_ROOT.glob(pattern))}
 # v5 (2026-11-05): frozen candidate thresholds (--candidate), side descriptors, Dir and frozen rankers (--side,
 # --model), the primary contrast and the common-target secondary analysis
 # v4 (2026-11-03): bootstrap_stratified is what the test bootstrap uses (singleton strata fall back); single-rate CIs;
@@ -1918,7 +1926,8 @@ def main_real(args: argparse.Namespace) -> int:
                   "policies": list(TM_SWEEP_POLICIES),
                   "note": "reported only, never selected; primary budget, uncapped; other thresholds frozen"},
               "view_diagnostics": {"start_stop": positions.start_index, "k": th.k,
-                                   "source": "view labels and evidence file, read after the run"}}
+                                   "source": "view labels and evidence file, read after the run"},
+              "code_sha256": code_sha256()}
     if cand_doc is not None:
         label = SIM_FROZEN_LABEL if info.simulation else REAL_FROZEN_LABEL
     sha = config_sha256(config)

@@ -53,7 +53,9 @@ def unlocked(freeze: Mapping[str, Any], seeds: Sequence[int]) -> Iterator[None]:
     - A seed below SYNTHETIC_SEED_MIN (a study block or its reserves) opens only if the committed docs/FREEZE.md passes
       the require_freeze captured at import and has the freeze's sha256. A mocked or stand-in record therefore cannot
       open a study seed, not even with a matching file elsewhere.
-    - A synthetic test block needs the file the freeze names, with its sha256, on disk."""
+    - A synthetic test block needs the file the freeze names, with its sha256, on disk.
+    The gate guards against accidents, such as a test with a mocked freeze, not against deliberate in-process patching
+    of this module or of sim.freeze."""
     if A.check_dev_seed.__module__ != A.__name__:
         raise RuntimeError("test seeds are already unlocked")
     allowed = frozenset(int(s) for s in seeds)

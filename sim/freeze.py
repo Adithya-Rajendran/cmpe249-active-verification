@@ -29,6 +29,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FREEZE_SCHEMA = "cmpe249.freeze.v1"
 _BLOCK = re.compile(r"```json\s*\n(.*?)\n```", re.S)
+_COMMIT = re.compile(r"[0-9a-f]{40}")   # a full commit id: never a branch name or HEAD, which would always pass
 
 
 class FreezeError(RuntimeError):
@@ -55,9 +56,10 @@ def parse_record(text: str) -> dict[str, Any]:
     rec = found[0]
     files = rec.get("files")
     if not (isinstance(rec.get("freeze_id"), str) and rec["freeze_id"] and isinstance(rec.get("commit"), str)
-            and isinstance(files, dict) and files
+            and _COMMIT.fullmatch(rec["commit"]) and isinstance(files, dict) and files
             and all(isinstance(k, str) and isinstance(v, str) and len(v) == 64 for k, v in files.items())):
-        raise FreezeError("the freeze record needs a freeze_id, a commit and a non-empty {path: sha256} files map")
+        raise FreezeError("the freeze record needs a freeze_id, a full 40-hex commit id and a non-empty "
+                          "{path: sha256} files map")
     return rec
 
 
@@ -87,7 +89,11 @@ def require_freeze(path: str | Path, needed: Iterable[str] = (), repo: str | Pat
     data = p.read_bytes()
     if _committed_bytes(repo, rel) != data:
         raise FreezeError(f"{rel} differs from its committed bytes at HEAD: commit the freeze first")
-    rec = parse_record(data.decode())
+    try:
+        text = data.decode()
+    except UnicodeDecodeError as e:
+        raise FreezeError(f"{rel} is not UTF-8 text: {e}") from e
+    rec = parse_record(text)
     if _git(repo, "merge-base", "--is-ancestor", rec["commit"], "HEAD").returncode != 0:
         raise FreezeError(f"the record's commit {rec['commit']!r} is not an ancestor of HEAD")
     missing = sorted(set(needed) - set(rec["files"]))

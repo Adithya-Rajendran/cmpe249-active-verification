@@ -548,6 +548,9 @@ def test_set_wording(readme: str) -> str:
             .replace("(SIMULATION, DEV)", "(SIMULATION, TEST)")
             .replace("Dev split only", "TEST split (generated under FREEZE.md)")
             .replace("split dev,", "split test,")
+            .replace("`sim/isaac_batch.py` (renderer, GB10)",
+                     "`sim/isaac_batch.py` through `sim/render_test.py` (renderer under the freeze gate, GB10)")
+            .replace("(development analysis and scoring only;", "(analysis and scoring only;")
             .replace(" The tabletop environment is DEV (not frozen).",
                      " The tabletop environment is frozen (FREEZE.md)."))
 
