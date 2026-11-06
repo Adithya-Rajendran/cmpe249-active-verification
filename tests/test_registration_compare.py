@@ -136,6 +136,8 @@ class TestScore(unittest.TestCase):
         # candidate's tau_match 0.65 would make it a strong match, and its tau_occ 0.35 would fail the gate)
         self.assertEqual(o["per_lighting"]["L1"]["c0"]["diag_removal_yield"], 1)
         self.assertEqual(o["per_lighting"]["L1"]["c0"]["removed_strong_match"], 0)
+        self.assertNotIn("pass", o)                                     # no criteria for C0 alone
+        self.assertNotIn("criteria", o["per_lighting"]["L1"])
         md = rc.markdown(o)
         self.assertTrue(md.startswith("# C0 views: set"))
         self.assertIn("SIMULATION, TEST data.", md)

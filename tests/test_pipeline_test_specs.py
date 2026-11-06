@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import io
 import json
 import re
@@ -67,6 +68,47 @@ class EpisodesArgsTest(unittest.TestCase):
             argv = json.loads((t / "argv.json").read_text())
             self.assertEqual(argv[:2], ["-m", "sim.episodes"])
             self.assertEqual(argv[-2:], ["--freeze", "docs/FREEZE.md"])
+
+
+class FrozenCodeCheckTest(unittest.TestCase):
+    """The evidence stage of a test set ships code only when FREEZE.md passes sim/freeze.py and no shipped code path
+    changed since the frozen commit (a temporary repository; nothing of the study is touched)."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self.tmp.name)
+        for args in (["init", "-q"], ["config", "user.email", "t@example.com"], ["config", "user.name", "t"]):
+            self.git(*args)
+        for rel in (*pipeline.EVIDENCE_FROZEN, "perception/other.py"):
+            (self.repo / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.repo / rel).write_text(f"{rel}\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "code")
+        commit = self.git("rev-parse", "HEAD").strip()
+        files = {rel: hashlib.sha256((self.repo / rel).read_bytes()).hexdigest() for rel in pipeline.EVIDENCE_FROZEN}
+        doc = {"schema": "cmpe249.freeze.v1", "freeze_id": "t", "commit": commit, "files": files}
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs" / "FREEZE.md").write_text("# FREEZE\n\n```json\n" + json.dumps(doc) + "\n```\n")
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def git(self, *args: str) -> str:
+        return subprocess.run(["git", "-C", str(self.repo), *args], check=True, capture_output=True, text=True).stdout
+
+    def check(self) -> None:
+        pipeline.frozen_code_check("docs/FREEZE.md", list(pipeline.EVIDENCE_CODE), repo=self.repo)
+
+    def test_frozen_code_passes_and_any_later_code_change_fails(self) -> None:
+        with self.assertRaises(RuntimeError):                       # FREEZE.md not committed yet
+            self.check()
+        self.git("add", "docs/FREEZE.md")
+        self.git("commit", "-q", "-m", "freeze")
+        self.check()
+        (self.repo / "perception" / "other.py").write_text("changed after the freeze\n")   # shipped, not listed
+        self.git("commit", "-q", "-am", "post-freeze change")
+        with self.assertRaises(RuntimeError):
+            self.check()
 
 
 class TestSpecsTest(unittest.TestCase):

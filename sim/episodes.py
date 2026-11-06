@@ -531,10 +531,18 @@ def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positi
     readme = (set_readme(root, groups, ref_lightings) if env == SHELF else
               set_readme_tabletop(root, groups, ref_lightings, positions))
     if splits[0] == "test":   # a frozen test set: the dev wording does not apply (dev sets keep their README bytes)
-        readme = (readme.replace("Dev split only", "TEST split (generated under FREEZE.md)")
-                  .replace("split dev,", "split test,"))
+        readme = test_set_wording(readme)
     (root / "README.md").write_text(readme)
     return doc
+
+
+def test_set_wording(readme: str) -> str:
+    """A dev-set README (set_readme / set_readme_tabletop) reworded for a frozen test set."""
+    return (readme.replace(": simulated dev set", ": simulated TEST set")
+            .replace("(SIMULATION, DEV)", "(SIMULATION, TEST)")
+            .replace("Dev split only", "TEST split (generated under FREEZE.md)")
+            .replace("split dev,", "split test,")
+            .replace(" The tabletop environment is DEV (not frozen).", " The tabletop environment is frozen (FREEZE.md)."))
 
 
 def set_readme(root: Path, groups: Mapping[str, Sequence[tuple[dict, dict, Path]]], ref_lightings: Sequence[str]) -> str:

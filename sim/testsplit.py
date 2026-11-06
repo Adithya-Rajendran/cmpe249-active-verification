@@ -32,6 +32,12 @@ from sim import freeze as F
 
 THIS_FILE = Path(__file__).resolve()
 NEEDED = ("sim/arrange.py", "sim/rig.py", "sim/tabletop.py", "sim/freeze.py", "sim/testsplit.py")
+FREEZE_REL = "docs/FREEZE.md"
+# Seeds from here up form the synthetic blocks of the unit tests (in-memory configs). Every lower test-range seed
+# (>= A.TEST_SEED_MIN), including both study blocks and their reserves, needs the committed docs/FREEZE.md itself.
+SYNTHETIC_SEED_MIN = 900000
+# Captured at import: a test that patches sim.freeze.require_freeze cannot open the study's test seeds.
+_REQUIRE_FREEZE = F.require_freeze
 
 
 def test_block_seeds(ctx: A.Context) -> list[int]:
@@ -43,17 +49,28 @@ def test_block_seeds(ctx: A.Context) -> list[int]:
 
 @contextlib.contextmanager
 def unlocked(freeze: Mapping[str, Any], seeds: Sequence[int]) -> Iterator[None]:
-    """Accept these test seeds in sim.arrange while the block runs (freeze: require_freeze's result). The FREEZE.md it
-    names is re-checked on disk, so a stand-in record (a mocked require_freeze) cannot open anything."""
+    """Accept these test seeds in sim.arrange while the block runs (freeze: require_freeze's result).
+    - A seed below SYNTHETIC_SEED_MIN (a study block or its reserves) opens only if the committed docs/FREEZE.md passes
+      the require_freeze captured at import and has the freeze's sha256. A mocked or stand-in record therefore cannot
+      open a study seed, not even with a matching file elsewhere.
+    - A synthetic test block needs the file the freeze names, with its sha256, on disk."""
     if A.check_dev_seed.__module__ != A.__name__:
         raise RuntimeError("test seeds are already unlocked")
     allowed = frozenset(int(s) for s in seeds)
     if not allowed or min(allowed) < A.TEST_SEED_MIN:
         raise A.SeedError(f"a test block holds only seeds >= {A.TEST_SEED_MIN}")
-    fp = Path(freeze["path"])
-    fp = fp if fp.is_absolute() else A.R.REPO_ROOT / fp
-    if not fp.is_file() or hashlib.sha256(fp.read_bytes()).hexdigest() != freeze["sha256"]:
-        raise A.SeedError(f"{fp}: no FREEZE.md with the freeze's sha256; test seeds stay closed")
+    if min(allowed) < SYNTHETIC_SEED_MIN:
+        try:
+            committed = _REQUIRE_FREEZE(F.REPO_ROOT / FREEZE_REL, needed=NEEDED)
+        except F.FreezeError as e:
+            raise A.SeedError(f"study test seeds need the committed {FREEZE_REL}: {e}") from e
+        if committed["sha256"] != freeze["sha256"]:
+            raise A.SeedError(f"the freeze's sha256 is not the committed {FREEZE_REL}'s; test seeds stay closed")
+    else:
+        fp = Path(freeze["path"])
+        fp = fp if fp.is_absolute() else A.R.REPO_ROOT / fp
+        if not fp.is_file() or hashlib.sha256(fp.read_bytes()).hexdigest() != freeze["sha256"]:
+            raise A.SeedError(f"{fp}: no FREEZE.md with the freeze's sha256; test seeds stay closed")
     record = {"sha256": freeze["sha256"], "freeze_id": freeze["record"]["freeze_id"],
               "testsplit_sha256": hashlib.sha256(THIS_FILE.read_bytes()).hexdigest()}
     real_check, real_id, real_finish = A.check_dev_seed, A.arrangement_id, A._finish

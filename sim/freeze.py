@@ -5,11 +5,16 @@ FREEZE.md carries exactly one fenced ```json block whose "schema" is FREEZE_SCHE
     {"schema": "cmpe249.freeze.v1", "freeze_id": "...", "commit": "<the frozen commit>",
      "files": {"<repo-relative path>": "<sha256>", ...}}
 
-`require_freeze` (a checkout with git, where arrangements are generated and episodes built) refuses unless the file is
-tracked and committed unchanged at HEAD, its record parses, the record lists the files the caller needs frozen, and
-every listed file still has its listed sha256. It returns the record and FREEZE.md's own sha256, which every test arrangement
-then records. `matching_freeze` (the GB10 render directory, no git) only checks that a given copy of FREEZE.md has the
-sha256 an arrangement recorded. No dev path calls either.
+`require_freeze` (a checkout with git, where arrangements are generated and episodes built) refuses unless:
+- the file is tracked, and its bytes equal its committed bytes at HEAD (`git show`, so a skip-worktree or
+  assume-unchanged flag cannot hide an edit);
+- its record parses, and the record's commit is an ancestor of HEAD;
+- the record lists the files the caller needs frozen;
+- every listed file still has its listed sha256.
+It returns the record and FREEZE.md's own sha256 (of its bytes), which every test arrangement then records.
+`matching_freeze` only checks that a given copy of FREEZE.md has the sha256 an arrangement recorded, and that it parses.
+It serves a host without the repository; sim/render_test.py makes the same sha256 comparison itself. No dev path calls
+either.
 """
 from __future__ import annotations
 
@@ -60,6 +65,12 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
 
 
+def _committed_bytes(repo: Path, rel: str) -> bytes | None:
+    """The file's bytes at HEAD, or None when HEAD has no such file."""
+    res = subprocess.run(["git", "-C", str(repo), "show", f"HEAD:{rel}"], capture_output=True)
+    return res.stdout if res.returncode == 0 else None
+
+
 def require_freeze(path: str | Path, needed: Iterable[str] = (), repo: str | Path = REPO_ROOT) -> dict[str, Any]:
     """{"record", "sha256", "path"} of a committed, unchanged FREEZE.md whose listed files all match; FreezeError
     otherwise. needed: repo-relative paths the caller requires to be among the frozen files."""
@@ -73,10 +84,12 @@ def require_freeze(path: str | Path, needed: Iterable[str] = (), repo: str | Pat
         raise FreezeError(f"{p}: no such file")
     if _git(repo, "ls-files", "--error-unmatch", rel).returncode != 0:
         raise FreezeError(f"{rel} is not tracked by git: a freeze must be committed")
-    if _git(repo, "diff", "--quiet", "HEAD", "--", rel).returncode != 0:
-        raise FreezeError(f"{rel} differs from HEAD: commit the freeze first")
-    text = p.read_text()
-    rec = parse_record(text)
+    data = p.read_bytes()
+    if _committed_bytes(repo, rel) != data:
+        raise FreezeError(f"{rel} differs from its committed bytes at HEAD: commit the freeze first")
+    rec = parse_record(data.decode())
+    if _git(repo, "merge-base", "--is-ancestor", rec["commit"], "HEAD").returncode != 0:
+        raise FreezeError(f"the record's commit {rec['commit']!r} is not an ancestor of HEAD")
     missing = sorted(set(needed) - set(rec["files"]))
     if missing:
         raise FreezeError(f"the freeze does not list {missing}")
@@ -87,7 +100,7 @@ def require_freeze(path: str | Path, needed: Iterable[str] = (), repo: str | Pat
             changed.append(f)
     if changed:
         raise FreezeError(f"frozen files changed or missing since the freeze: {changed[:5]}")
-    return {"record": rec, "sha256": hashlib.sha256(text.encode()).hexdigest(), "path": rel}
+    return {"record": rec, "sha256": hashlib.sha256(data).hexdigest(), "path": rel}
 
 
 def matching_freeze(path: str | Path, want_sha256: str) -> str:

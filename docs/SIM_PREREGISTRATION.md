@@ -336,6 +336,9 @@ Scores are never multiplied, and views are not assumed independent. k = 1 is use
 ## 13. Deviations
 
 - **Dated addenda.** Any change after the freeze is a dated addendum: what changed, why, and whether any test result had been seen. Earlier text is never edited.
+- **Where addenda go.** They go in a new file, `docs/FREEZE_ADDENDA.md`, never in a frozen file. This document, the
+  pinned notes and every file listed in FREEZE.md's record are checked byte for byte whenever a test seed opens, so
+  editing any of them would close the gate.
 - **Changes after test rendering** are reported as deviations next to the results they affect, with the pre-registered analysis alongside where feasible.
 
 ## 14. Development record before the freeze (CONDITIONAL DEVELOPMENT DIAGNOSTICS)

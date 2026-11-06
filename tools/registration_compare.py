@@ -173,9 +173,9 @@ def score(args) -> dict:
     out = {"set": str(set_dir), "jobs": args.jobs, "design": args.design, "environment": env, "candidate": args.name,
            "inputs": {p: sha(Path(p)) for p in (args.c0, args.cand, str(set_dir / args.jobs))},
            "thresholds_sha256": thresholds_sha, "gating": not (args.design or report_only), "per_lighting": {}}
-    if thresholds is not None or report_only:
-        out.update(thresholds_file=thresholds, report_only=report_only,
-                   data_label=getattr(args, "data_label", None) or "development data")
+    data_label = getattr(args, "data_label", None)
+    if thresholds is not None or report_only or data_label:
+        out.update(thresholds_file=thresholds, report_only=report_only, data_label=data_label or "development data")
     for L in LIGHTINGS:
         rs = [x for x in rows if x["lighting"] == L]
         n = len(rs)
@@ -221,6 +221,10 @@ def score(args) -> dict:
                                    for s in ("median", "p90", "max")} for m in ("registration_s", "evidence_s")}
         out["per_lighting"][L] = res
     out["pass"] = all(all(v["criteria"].values()) for v in out["per_lighting"].values())
+    if report_only:   # C0 alone: the repair plan's criteria do not apply
+        del out["pass"]
+        for v in out["per_lighting"].values():
+            del v["criteria"]
     for tag, p in (("c0", args.c0_timing), ("cand", args.cand_timing)):
         if p:
             out[f"batch_{tag}"] = json.loads(Path(p).read_text())

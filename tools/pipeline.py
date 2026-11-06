@@ -32,7 +32,9 @@ Stages:
               tabletop sets 4 table clipping FAIL or 8 table clipping INCOMPLETE (OR-ed; sim/check_batch.py docstring).
     evidence  ship `git archive` of the last commit that changed the GB10's code (evidence.code_paths, default
               perception/ verify/ capture/ pyproject.toml uv.lock; the tracked tree must be clean and
-              perception/evidence.py the frozen v0.2.1) to the GB10, and run the spec's evidence steps there one
+              perception/evidence.py the frozen v0.2.1; a test set's spec ("freeze") also needs its FREEZE.md to
+              pass sim/freeze.py and no code path changed since the frozen commit) to the GB10, and run the spec's
+              evidence steps there one
               after another in the GB10 project uv env; outputs land on the shared dataset volume. The job is
               keyed on run_id, that commit and a hash of the steps and jobs files: rerunning re-attaches to a
               running or finished job, and any change to the code, steps or jobs launches a new one. Each job
@@ -357,6 +359,25 @@ def git(*args: str) -> str:
     return subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True, check=True).stdout
 
 
+# What a test set's evidence runs: the freeze record must list these (sim/freeze.py require_freeze checks every file).
+EVIDENCE_FROZEN = ("perception/evidence_v03.py", "perception/evidence.py", "perception/common.py",
+                   "perception/side_descriptor.py", "perception/registration_v032.py", "verify/schema.py",
+                   "verify/stopping.py", "pyproject.toml", "uv.lock")
+
+
+def frozen_code_check(freeze: str, code_paths: tuple[str, ...] | list[str], repo: Path = REPO) -> None:
+    """A test set's evidence. The spec's FREEZE.md must pass sim.freeze.require_freeze: committed and unchanged, every
+    listed file matching, the evidence code listed. No shipped code path may differ between the freeze record's commit
+    and HEAD. Raises sim.freeze.FreezeError (a RuntimeError) otherwise."""
+    if str(repo) not in sys.path:
+        sys.path.insert(0, str(repo))
+    from sim import freeze as F   # stdlib only, like this driver
+    rec = F.require_freeze(repo / freeze, needed=EVIDENCE_FROZEN, repo=repo)["record"]
+    if subprocess.run(["git", "-C", str(repo), "diff", "--quiet", rec["commit"], "HEAD", "--", *code_paths]).returncode:
+        raise F.FreezeError(f"shipped code differs between the frozen commit {rec['commit'][:12]} and HEAD "
+                            f"(git diff {rec['commit'][:12]} HEAD -- {' '.join(code_paths)})")
+
+
 def evidence_settings(spec: dict) -> dict:
     """The spec's evidence section on top of the host's (remote.local.json "evidence": uv, project, checkpoints,
     code_dir), so tracked specs hold no host paths."""
@@ -403,6 +424,12 @@ def stage_evidence(run: Run, retry: bool = False) -> None:
                                            capture_output=True, check=True).stdout).hexdigest()
     if frozen != FROZEN_EVIDENCE_SHA256:
         run.fail("evidence", f"perception/evidence.py at {code_commit[:12]} is not the frozen v0.2.1", sha256=frozen)
+    if run.spec.get("freeze"):   # a test set: the shipped code must be the frozen code (clean tree, so HEAD's files)
+        try:
+            frozen_code_check(run.spec["freeze"], ev.get("code_paths", EVIDENCE_CODE))
+        except RuntimeError as e:   # sim.freeze.FreezeError
+            run.fail("evidence", f"not the frozen evidence code: {e}")
+        run.emit("evidence", "info", "freeze checked", freeze=run.spec["freeze"])
     rd = run.spec["remote"]["run_dir"]
     # The job is keyed on the run, the shipped code and the steps (with "{out}" unresolved); its code dir and its
     # output dir are named by the whole key, so two jobs never share, delete or overwrite each other's files.

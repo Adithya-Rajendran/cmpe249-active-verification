@@ -6,7 +6,10 @@ arrangement only if it is a random arrangement with a test-range seed, split "te
 equals the given FREEZE.md copy's (sim/testsplit.py writes that record; sim/freeze.py guards the generating side). Any
 other arrangement goes through isaac_batch's own check unchanged, so a development arrangement renders exactly as
 before.
-Then isaac_batch.main runs with the remaining arguments. Usage (GB10 run dir, Isaac's python, only after the freeze):
+Then isaac_batch.main runs with the remaining arguments. The log's first line gives the sha256 of this file, of the
+isaac_batch.py and isaac_rig.py that run, and of the FREEZE.md copy. Every labels.json records the renderer's two
+hashes as well, and the validity check (tools/test_validity.py) compares them with the freeze record. Usage (GB10 run
+dir, Isaac's python, only after the freeze):
 
     python render_test.py --freeze FREEZE.md --arrangements ARR/*.json --assets-dir ... --out OUT [isaac_batch options]
 """
@@ -17,10 +20,10 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-try:
-    from sim import isaac_batch as B
-except ImportError:  # the GB10 run dir, next to a copy of isaac_batch.py
+try:  # the GB10 run dir: the copy next to this file, never a `sim` package that happens to be importable
     import isaac_batch as B
+except ImportError:  # the repository (tests)
+    from sim import isaac_batch as B
 
 
 def gate(freeze_sha256: str):
@@ -50,8 +53,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not path.is_file():
         print(f"{path}: no such file", file=sys.stderr)
         return 2
-    B.check_arrangement = gate(hashlib.sha256(path.read_bytes()).hexdigest())
-    return B.main(argv) or 0
+    freeze_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()   # noqa: E731
+    print(f"render_test.py sha256 {sha(__file__)}; isaac_batch.py {sha(B.__file__)}; isaac_rig.py {sha(B.ir.__file__)}; "
+          f"FREEZE.md copy {freeze_sha}", flush=True)
+    original = B.check_arrangement
+    B.check_arrangement = gate(freeze_sha)
+    try:
+        return B.main(argv) or 0
+    finally:
+        B.check_arrangement = original
 
 
 if __name__ == "__main__":
