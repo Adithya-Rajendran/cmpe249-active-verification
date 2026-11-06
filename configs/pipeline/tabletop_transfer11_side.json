@@ -1,0 +1,45 @@
+{
+ "run_id": "tabletop_transfer11_side",
+ "note": "Left/right descriptor for every view of the 11-arrangement tabletop transfer diagnostic, L1-reference jobs. Run with --from-stage evidence --to-stage evidence.",
+ "remote": "configs/pipeline/remote.local.json",
+ "set_root": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/tabletop_transfer11",
+ "local_python": [
+  "uv",
+  "run",
+  "--offline",
+  "--no-project",
+  "--python",
+  "3.13.5",
+  "--with",
+  "numpy==2.5.3",
+  "--with",
+  "opencv-python-headless==5.0.0.93",
+  "python"
+ ],
+ "poll_seconds": 30,
+ "heartbeat_seconds": 600,
+ "evidence": {
+  "out_dir": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/tabletop_transfer11/side",
+  "jobs": [
+   "jobs_refL1.json"
+  ],
+  "step_alert_minutes": 60,
+  "variants": {
+   "side": {
+    "args": [
+     "-m",
+     "perception.side_descriptor",
+     "--jobs",
+     "{jobs}",
+     "--out",
+     "{out}/side_{part}.jsonl",
+     "--workers",
+     "10"
+    ],
+    "outputs": [
+     "{out}/side_{part}.jsonl"
+    ]
+   }
+  }
+ }
+}

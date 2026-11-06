@@ -1,6 +1,6 @@
 {
  "run_id": "tabletop_dev49_evidence",
- "note": "The 49-arrangement tabletop development remainder and the design cases TDES0-TDES3 (configs/sim/tabletop_dev49.json; Amendment 2 of notes/2026-11-04-registration-repair-plan.md). Unchanged C0: perception.evidence_v03 --align image is the evidence of record (with the v021_image ablation from the same pass); the harness registration_v032 --candidate C0 runs beside it and records the warp H for evaluation-only geometry. L1-reference jobs, random slots and design cases as separate jobs files. No select and no summary section: the outputs stay sealed until A's design is pinned, and nothing is calibrated on them before the final pooled calibration. Run with --from-stage evidence --to-stage evidence.",
+ "note": "The 49-arrangement tabletop development remainder and the design cases TDES0-TDES3 (configs/sim/tabletop_dev49.json; Amendment 2 of notes/2026-11-04-registration-repair-plan.md). Unchanged C0: perception.evidence_v03 --align image is the evidence of record (with the v021_image ablation from the same pass); the harness registration_v032 --candidate C0 runs beside it and records the warp H for evaluation-only geometry; perception.side_descriptor then computes the left/right descriptor (notes/2026-11-05-side-descriptor.md). L1-reference jobs, random slots and design cases as separate jobs files. No select and no summary section: the outputs stay sealed until A's design is pinned, and nothing is calibrated on them before the final pooled calibration. Run with --from-stage evidence --to-stage evidence.",
  "remote": "configs/pipeline/remote.local.json",
  "set_root": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/tabletop_dev49",
  "local_python": [
@@ -69,6 +69,21 @@
     "outputs": [
      "{out}/c0_{part}.jsonl",
      "{out}/c0_{part}.diag.jsonl"
+    ]
+   },
+   "side": {
+    "args": [
+     "-m",
+     "perception.side_descriptor",
+     "--jobs",
+     "{jobs}",
+     "--out",
+     "{out}/side_{part}.jsonl",
+     "--workers",
+     "10"
+    ],
+    "outputs": [
+     "{out}/side_{part}.jsonl"
     ]
    }
   }
