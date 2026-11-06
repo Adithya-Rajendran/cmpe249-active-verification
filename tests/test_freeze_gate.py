@@ -199,5 +199,18 @@ class ConsumerTest(unittest.TestCase):
             self.assertEqual(RT.main(["--arrangements", "x.json"]), 2)   # no --freeze
 
 
+
+class MakeFreezeTest(unittest.TestCase):
+    def test_the_frozen_list_exists_and_uses_the_gates_schema(self) -> None:
+        import sys
+        sys.path.insert(0, str(REPO / "tools"))
+        import make_freeze as MF
+        self.assertEqual(MF.FREEZE_SCHEMA, F.FREEZE_SCHEMA)
+        self.assertEqual(len(set(MF.FROZEN)), len(MF.FROZEN))
+        self.assertEqual([f for f in MF.FROZEN if not (REPO / f).is_file()], [])
+        for needed in (*TS.NEEDED, "sim/episodes.py", "sim/isaac_batch.py", "sim/render_test.py"):
+            self.assertIn(needed, MF.FROZEN)
+
+
 if __name__ == "__main__":
     unittest.main()
