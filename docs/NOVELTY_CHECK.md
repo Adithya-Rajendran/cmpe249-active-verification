@@ -7,6 +7,8 @@
 
 ## Verdict
 
+*Correction (2026-11-07): PInVerify also fine-tunes SFT/RL agents, and a newer paper, SafeVantage, covers abstention with a trained, travel-aware selector for category-presence queries. See [Addendum 2026-11-07](#addendum-2026-11-07-pinverifys-trained-agents-and-the-recency-re-check). The verdict below is kept as written on September 26.*
+
 1. **The planned comparison is not already in the literature I could find.** No paper I found compares a learned view selector with a geometric one, plus fixed and random orders, under one shared stopping rule and matched view and travel budgets, for deciding whether a *remembered* object instance is present, removed, or undecidable after an unobserved change, with occluded-but-present controls. This holds for the three works the proposal names as the closest active methods ([7] DynaMem, [10] Bogenberger et al., [11] Terashima et al.; `docs/PROPOSAL.md` and the survey's "Closest work" section). It also holds for [12] SceneDiff, which that section discusses as passive work. *(Evidence check: the first version said "the four works the proposal names as closest", but the proposal names only [7, 10, 11].)* Each has at most one of the five rubric properties below in full (SceneDiff's passive occlusion handling). The rest are absent or partial.
 2. **The survey missed closer work.** Four papers not in `docs/LITERATURE_REVIEW.md` are closer than [7], [10] and [11] on specific parts of the design:
    - **PInVerify** (arXiv 2605.30639, May 2026). On an offline replay of six pre-captured viewpoints, it compares random, angular farthest-point (a geometric angular-diversity rule close to G) and multimodal-LLM view selection under one shared adaptive stopping rule. The three strategies land "within 0.2 pp of each other". The task differs: it verifies whether a *present* candidate matches a description, in simulation.
@@ -501,3 +503,62 @@ Commands, all run on Oct 2, 2026:
 - `pdftotext` and string search for PInVerify v1, INSPECT v1 and Build Once v4.
 
 Quotes were checked by string search against the retrieved files.
+
+## Addendum 2026-11-07: PInVerify's trained agents, and the recency re-check
+
+**Why now.** The workshop manuscript is about to go to the instructor. This addendum corrects one omission and reports the recency re-check that the "Limitations of this check" section asked for.
+
+**Sources.** All in the main checkout:
+- `runs/2026-11-07-literature-recheck/recheck.md` and `source_pdfs.sha256`: the search log, the candidate tables and full-text notes. The search was run by a Sonnet/high agent with generic queries only. Claude checked SafeVantage's quotes against the extracted text, and its venue on neurips.cc.
+- `runs/2026-11-06-followup-literature/pinverify_notes.md`: PInVerify read in full (Opus/high, 2026-11-06).
+
+### Correction: PInVerify also trains agents
+
+The September 26 entries cover only PInVerify's training-free selectors: Verdict items 2-3, the comparison-table row, ranked threat 1 and the likely-null-result flag.
+- **What they got right.** The comparison under one shared stopping rule is training-free only: random, angular FPS and a prompted MLLM, "within 0.2 pp" of each other.
+- **What they left out.** PInVerify also fine-tunes Qwen3-VL-4B LoRA agents: SFT, SFT+DPO, SFT+GRPO and SFT+GSPO, eight adapters over two prompt variants.
+  - These agents learn the view, the stop and the answer together. Their prompt includes "Remaining budget" and a log of earlier observations.
+  - Their overall accuracy, 0.848-0.860, is close to the best training-free agent's 0.850. They make fewer false rejects and more same-category false accepts.
+  - They come from one training seed: "Compute constraints prevented multi-seed runs".
+- **Effect.** A trained verification agent conditioned on history and budget is prior work. What remains for this project is narrower: a trained selector compared with simple and planning baselines under one shared stopping rule, for the removed-or-occluded decision about a remembered instance.
+
+### Recency re-check (September 26 to November 7, 2026)
+
+**SafeVantage** (arXiv 2609.36906 v2, 1 Oct 2026). Poster at the NeurIPS 2026 Workshop on Physical Understanding for Decision-Making (confirmed on neurips.cc, 2026-11-07); read in full.
+- **What it does.** A trained, claim-conditioned view selector answers YES, NO or ABSTAIN to category-presence queries in simulated houses.
+  - It charges for geodesic travel and reports risk-coverage measures, including matched-coverage risk and AURC.
+  - Its baselines, at equal action budgets, are random, nearest frontier, coverage gain, a category-room prior and detector-confidence gain.
+- **What it does not cover.**
+  - A remembered instance: "it does not assume a unique object instance".
+  - Removal, or occluded-present controls.
+  - A shared stopping rule: "5 scene-disjoint folds are used to fit a selective head for each policy".
+  - A direction-rule or lookahead baseline.
+- **Its costly error is a false YES,** the opposite of ours.
+- **Effect.** Abstention scored against coverage, with a trained and travel-aware selector, is no longer a distinction in general. The distinction is now scoped to the remembered-instance decision between removed and occluded.
+- **Caveat.** A third-party description mentions a variant with a WAIT output and different numbers. The workshop version was not seen, so check its numbers before citing them.
+
+**Selective Commitment** (arXiv 2609.23131 v1, 19 Sep 2026; missed on September 26). It keeps present, unobserved and absent hypotheses, with a defer action, for language-guided retrieval. It uses a belief-space planner: no trained selector, no travel cap and no shared-stopping comparison. The overlap is weak.
+
+**Other papers.**
+- Read in text: FOCUS (2610.05639), IVAM-Nav (2610.10125), 2610.29964 and AECNav (2608.10817). None is a threat.
+- About 25 more were screened by abstract.
+
+**Known works.** None has a new version or venue:
+- PInVerify: v1;
+- PBD-AG: v2, under review;
+- INSPECT: v1;
+- APPLE: v6, ICLR 2026;
+- CLOSER: v1.
+
+### The distinction as the manuscript now states it (draft 1, 2026-11-07)
+
+"What we have not found is the present/removed/unknown decision for a remembered instance, with matched occluded-present and removed controls, studied with abstention scored against coverage, a separate per-verification travel cap, and a trained selector compared with geometric, direction-rule and lookahead baselines under one shared stopping rule."
+
+### Limits of this re-check
+
+- The search was keyword-based and rate-limited.
+- The accepted-paper lists for CoRL 2026, IROS 2026, ICRA 2027 and the NeurIPS 2026 workshops could not be reached.
+- OpenReview and IEEE Xplore were not searched.
+- The known works were checked for new versions only, not re-read.
+
+Repeat the check before any submission.
