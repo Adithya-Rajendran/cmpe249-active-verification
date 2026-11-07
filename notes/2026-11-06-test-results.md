@@ -412,6 +412,7 @@ Each claim is for its environment, lighting and metric.
   - Neither policy made a false removal or a false present in any cell.
 - **A and Dir, at b = 3.** A's decisions equal Dir's in every episode, uncapped and under the 1-, 3- and 4-step caps. Dir has no fitted parameter and uses the same start-view descriptor.
   - Dir travels 37–50 % less uncapped and under the 3- and 4-step caps (38–50 % uncapped). Under the 1-step cap the two runs are identical.
+  - The image cost points the other way: uncapped, A takes slightly fewer views in three cells (2.14 vs 2.25 / 2.27 on the shelf, 2.14 vs 2.16 in tabletop L1) and the same in tabletop L2 (2.17). Both costs are reported.
   - So at the primary setting, the A − G differences above are equally differences between Dir and G.
   - This is observed agreement, not a causal attribution, and it is specific to b = 3: at b = 2, A's counts equal G's.
 - **A-nocue and G.** At b = 3, A-nocue's paths, decisions and effort equal G's in every episode at every cap. This is observed; A-nocue drops four features together.
@@ -422,7 +423,7 @@ These are not findings on a par with the primary, and none is promoted to it.
 
 - **Travel caps.**
   - At 3 and 4 steps, A (= Dir) resolves more removed episodes than G-lookahead: +0.14 to +0.18, with each of the four cells' intervals excluding 0, read pointwise.
-  - At 2 steps, A resolves none, while G-lookahead resolves 26–57 and Dir 42–73.
+  - At 2 steps, A resolves no removed episode, as G does (both still resolve 190 of 200 present episodes per cell), while G-lookahead resolves 26–57 and Dir 42–73 removed episodes of 100.
   - At 6 steps, A decides exactly as G does.
     - It is below Dir in all four cells, and those intervals exclude 0.
     - It is below G-lookahead in shelf L2 (−0.050 [−0.090, −0.010]) and tabletop L2 (−0.040 [−0.080, −0.010]).
@@ -435,7 +436,8 @@ These are not findings on a par with the primary, and none is promoted to it.
 
 ### Not supported
 
-- Any claim that learned view selection is better or worse than geometric selection, in any cell. A's decisions equal Dir's at b = 3, so the shelf L2 difference is not attributable to learning.
+- Any general claim that learned view selection is better or worse than geometric selection. The supported A − G result above is narrower: one fitted ranker, one cell, read pointwise.
+- Any decision-performance benefit of A beyond Dir. At the primary setting (b = 3, uncapped) the test demonstrates none: their decisions are identical, as they are under the 1-, 3- and 4-step caps, and Dir resolves more removed episodes under the 2- and 6-step caps. This agreement is observed; it does not establish what causes the A − G difference.
 - Any claim about the side descriptor alone.
 - Any equivalence claim.
 - Any claim about learned active perception in general. Under Addendum 2, these results test one restricted, budget-blind A on scenes with limited occlusion complexity, not history-dependent or budget-aware learned selection.
