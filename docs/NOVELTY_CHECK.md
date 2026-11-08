@@ -531,11 +531,12 @@ The September 26 entries cover only PInVerify's training-free selectors: Verdict
 - **What it does not cover.**
   - A remembered instance: "it does not assume a unique object instance".
   - Removal, or occluded-present controls.
-  - A shared stopping rule: "5 scene-disjoint folds are used to fit a selective head for each policy".
+  - A shared decision rule. In its active comparison every acquisition policy runs to the same fixed action horizon, and the final decision head, an ℓ2-regularised logistic model, is fitted separately for each policy: "5 scene-disjoint folds are used to fit a selective head for each policy". Its separate equal-input static comparison maps every method's score through one shared two-threshold adapter.
+    - *Correction (2026-11-08).* This bullet said "a shared stopping rule". The per-policy fitting is of the final decision head at a common fixed horizon; it does not show that stopping varies by policy.
   - A direction-rule or lookahead baseline.
 - **Its costly error is a false YES,** the opposite of ours.
 - **Effect.** Abstention scored against coverage, with a trained and travel-aware selector, is no longer a distinction in general. The distinction is now scoped to the remembered-instance decision between removed and occluded.
-- **Caveat.** A third-party description mentions a variant with a WAIT output and different numbers. The workshop version was not seen, so check its numbers before citing them.
+- **Caveat.** A third-party description mentions a variant with a WAIT output and different numbers. The workshop version was not seen. The manuscript describes and cites arXiv v2 only, and imports no workshop numbers.
 
 **Selective Commitment** (arXiv 2609.23131 v1, 19 Sep 2026; missed on September 26). It keeps present, unobserved and absent hypotheses, with a defer action, for language-guided retrieval. It uses a belief-space planner: no trained selector, no travel cap and no shared-stopping comparison. The overlap is weak.
 
