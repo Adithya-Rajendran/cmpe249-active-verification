@@ -51,3 +51,30 @@ These are dated changes made after the freeze (SIM_PREREGISTRATION §13, FREEZE.
 - development findings stay apart from the test results.
 
 **Test results seen.** None.
+
+## Addendum 3 (2026-11-12): post-hoc analyses after the test (reporting only)
+
+**What changed.** Nothing in the frozen analysis, and no reported estimate. On 2026-11-12, after every test outcome had been read and reported, an independent review of the completed study added analyses that the frozen plan does not contain. They are recorded in `notes/2026-11-12-posthoc-review.md`:
+- **A replay check.** A separate implementation of the stopping rule and of F, G, G-lookahead, Dir, A and A-nocue gives the saved decision, path and travel in 172,800 of 172,800 runs.
+- **Exact tests.** An exact sign test on the discordant arrangements of each paired contrast, beside the declared bootstrap interval. The note also states that the two lighting cells of an environment use the same arrangements.
+- **Fixed orders.**
+  - G's order on the test set, and all 24 fixed orders at the primary setting.
+  - A fixed order chosen on the development data (Fix), as a control that reads no image to choose a stop.
+  - A per-episode hindsight ceiling.
+- **Visited stops.** The stops that A and Dir visit at the primary setting.
+- **Safety margin.** The clear misses among all five views of the present episodes, and the separation of the match scores.
+- **Calibration.** A recount of the frozen calibration, and the alignment refusal counts.
+
+**Why.** The researcher asked for an independent review on 2026-11-12 and chose to record its analyses as a dated post-hoc addendum. The review found that three readings of the results needed a fixed-order control or an exact test:
+- the shelf L2 interval of the primary comparison;
+- the comparison with the fixed order F;
+- the equal decisions of A and Dir.
+
+**What it changes about the evidence.**
+- **Every analysis here is post hoc.** The analyses to run, the rule that chooses Fix and the contrasts to report were all decided with the test outcomes known. The rule that chooses Fix reads development data only, but it was written after the test.
+- **They are exploratory.** None is a confirmatory result, none replaces a declared comparison, and none is promoted to the primary.
+- **The frozen results stand as reported** in `notes/2026-11-06-test-results.md`. Where the new note qualifies a reading of that note, its §8 says so.
+
+**Test results seen.** All of them.
+
+**Unchanged:** the code, models, thresholds, stopping rule, scenes, seeds, sample sizes, primary comparison and analysis, and every file in the freeze record.
