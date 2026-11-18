@@ -2,6 +2,14 @@
 
 End-to-end commands, hosts, data layout and known gaps: [`docs/REPRODUCE.md`](../docs/REPRODUCE.md).
 
+**Current scope, 2026-11-17:** The researcher selected Isaac Sim and MuJoCo for a simulation-only study.
+The [development plan](../development/cross_sim/PLAN.md) supersedes the older simulator-role decision below.
+The current MuJoCo code still implements the legacy rig. It needs a qualified arrangement adapter before paired appearance evaluation.
+Physical-camera collection is outside the active scope.
+
+The commands below describe the legacy setup. On GB10, dependency changes must use the project uv environment.
+Preserve the approved Python versions and Isaac environment.
+
 ## What it is for
 
 - **Camera-position design.** Check drafted arc stops and occluder placements on a 3-D model before taping stops or

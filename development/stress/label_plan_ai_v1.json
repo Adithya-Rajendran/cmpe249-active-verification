@@ -1,0 +1,29 @@
+{
+  "study_id": "support-stress-dev-v1",
+  "label_revision": "ai-and-geometry-v1-20261117",
+  "status": "development",
+  "geometry_protocol_sha256": "5455c6a302387445058483046a9473db970fdd46426da927527a459668ada280",
+  "supersedes_for_development": "Waiting for complete human support labels before development analysis",
+  "physical_source": "simulator_intervention",
+  "proxy_source": "geometry_proxy",
+  "proxy_reviewer": "sim_mask_proxy_v1",
+  "present_visible_fraction_gte": 0.9,
+  "removed_region_obstruction_lt": 0.1,
+  "proxy_unknown_meaning": "The geometry proxy rule did not pass; visual unanswerability is not established.",
+  "ai_source": "ai",
+  "starter_ai_model": "gpt-6.1-terra",
+  "starter_ai_count": 60,
+  "full_audit": {
+    "seed": 20261117,
+    "strata": ["environment", "level", "phase"],
+    "queries_per_stratum": 60,
+    "sample_per_stratum": 6,
+    "sample_total": 180,
+    "inclusion_probability": 0.1,
+    "selection": "Sort by SHA-256 of UTF-8 text 20261117|ID, then by ID. Take first six per stratum."
+  },
+  "no_mixed_label_sources_in_one_metric": true,
+  "geometry_proxy_authorizes_support_go": false,
+  "complete_ai_labels_authorize_provisional_development_triage": true,
+  "human_validation_claim": false
+}

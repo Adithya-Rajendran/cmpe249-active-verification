@@ -1,0 +1,15 @@
+{
+  "pages": 10,
+  "rendered_pages": 10,
+  "text_extraction": "passed",
+  "evidence_checks": "passed",
+  "style_gate": "passed",
+  "layout_check": {
+    "page_count": 10,
+    "out_of_page_text": [],
+    "text_overlaps": []
+  },
+  "pdf_sha256": "524903f59e3b63561f6fbf98e285b634e05dd1f0f20a1a52dce5065cd3cf705c",
+  "final_revision": "Page 5 wording shortened. Final PDF page re-rendered and all final page text checked.",
+  "visual_review": "All pages inspected. No clipping or text overlap found."
+}

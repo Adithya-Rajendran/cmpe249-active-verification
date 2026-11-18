@@ -78,3 +78,33 @@ These are dated changes made after the freeze (SIM_PREREGISTRATION §13, FREEZE.
 **Test results seen.** All of them.
 
 **Unchanged:** the code, models, thresholds, stopping rule, scenes, seeds, sample sizes, primary comparison and analysis, and every file in the freeze record.
+
+## Addendum 4 (2026-11-16): close the historical freeze and separate the new method
+
+**Request.** The researcher requested a repository cleanup, a revised method and plan, and a cleanup of the flawed freeze.
+They also replaced the separate instructor report with the Canvas progress assignment.
+
+**What changed.** The active research documents now describe a separate study of evidence for a memory update.
+Its design is in [METHOD.md](METHOD.md), [EVALUATION_PLAN.md](EVALUATION_PLAN.md) and [FREEZE_POLICY.md](FREEZE_POLICY.md).
+It has no active freeze, new test data or experimental result.
+The older local reports and instructor packet moved to a dated archive with their source files and hashes.
+
+**Status of this freeze.** `simulation-freeze-1` is closed to new research decisions.
+It remains the historical record for reproducing the completed study.
+Its code, manifests, tag, thresholds, seeds and results remain unchanged.
+The old test data are development data for every later method.
+A passing historical hash check does not authorize a new study's test.
+
+**Why.** The completed study had little selector headroom and no attainable false removal under its frozen test evidence.
+The ranker's history terms, training target and budget inputs further limit the interpretation.
+Addenda 2 and 3 and the post-hoc review retain those limitations.
+These are limits of the comparison, not evidence that an unreported successful method existed.
+The seed incident and timestamp exception remain disclosed. This addendum does not repair their history.
+
+**Test results seen.** All results of the completed study.
+No new method was run during this document reset.
+The new design is explicitly informed by the old outcomes.
+Any confirmatory test of it needs a distinct protocol and fresh data.
+
+**Unchanged.** Every file listed in the old freeze manifest and the original FREEZE.md bytes.
+Earlier addenda remain intact. No new freeze tag, commit, push or external submission accompanies this addendum.

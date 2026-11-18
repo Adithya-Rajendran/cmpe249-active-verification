@@ -1,0 +1,306 @@
+{
+  "smoke_definite": {
+    "primary": {
+      "shelf:D0": {
+        "n": 10,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "shelf:D6": {
+        "n": 10,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "tabletop:D0": {
+        "n": 11,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "tabletop:D6": {
+        "n": 7,
+        "total": 15,
+        "physical_errors": 0
+      }
+    },
+    "native": {
+      "tabletop:D0": {
+        "n": 12,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "shelf:D6": {
+        "n": 5,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "tabletop:D6": {
+        "n": 7,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "shelf:D0": {
+        "n": 10,
+        "total": 15,
+        "physical_errors": 0
+      }
+    },
+    "native_normalized_guard": {
+      "shelf:D6": {
+        "n": 9,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "tabletop:D0": {
+        "n": 12,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "tabletop:D6": {
+        "n": 7,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "shelf:D0": {
+        "n": 10,
+        "total": 15,
+        "physical_errors": 0
+      }
+    },
+    "relaxed_guard": {
+      "tabletop:D6": {
+        "n": 10,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "shelf:D0": {
+        "n": 10,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "shelf:D6": {
+        "n": 10,
+        "total": 15,
+        "physical_errors": 0
+      },
+      "tabletop:D0": {
+        "n": 11,
+        "total": 15,
+        "physical_errors": 0
+      }
+    }
+  },
+  "ai_tabletop_D6": {
+    "primary": {
+      "useful": {
+        "estimate": 0.4,
+        "numerator": 6,
+        "denominator": 15,
+        "eligible_arrangements": 1,
+        "arrangement_rates": {
+          "STR-TABLETOP-01": 0.4
+        }
+      },
+      "unsupported": {
+        "estimate": 0.06666666666666667,
+        "numerator": 1,
+        "denominator": 15,
+        "eligible_arrangements": 1,
+        "arrangement_rates": {
+          "STR-TABLETOP-01": 0.06666666666666667
+        }
+      },
+      "recoverable": {
+        "numerator": 5,
+        "denominator": 15,
+        "arrangement_weighted": 0.3333333333333333,
+        "arrangement_rates": {
+          "STR-TABLETOP-01": 0.3333333333333333
+        }
+      }
+    },
+    "relaxed_guard": {
+      "useful": {
+        "estimate": 0.6,
+        "numerator": 9,
+        "denominator": 15,
+        "eligible_arrangements": 1,
+        "arrangement_rates": {
+          "STR-TABLETOP-01": 0.6
+        }
+      },
+      "unsupported": {
+        "estimate": 0.06666666666666667,
+        "numerator": 1,
+        "denominator": 15,
+        "eligible_arrangements": 1,
+        "arrangement_rates": {
+          "STR-TABLETOP-01": 0.06666666666666667
+        }
+      },
+      "recoverable": {
+        "numerator": 2,
+        "denominator": 15,
+        "arrangement_weighted": 0.13333333333333333,
+        "arrangement_rates": {
+          "STR-TABLETOP-01": 0.13333333333333333
+        }
+      }
+    }
+  },
+  "ai_proxy_agreement": {
+    "count": 60,
+    "agreement_count": 47,
+    "cross_tab_ai_rows_proxy_columns": {
+      "PRESENT": {
+        "PRESENT": 27,
+        "REMOVED": 0,
+        "UNKNOWN": 10,
+        "DISPUTED": 0
+      },
+      "REMOVED": {
+        "PRESENT": 0,
+        "REMOVED": 5,
+        "UNKNOWN": 1,
+        "DISPUTED": 0
+      },
+      "UNKNOWN": {
+        "PRESENT": 0,
+        "REMOVED": 2,
+        "UNKNOWN": 15,
+        "DISPUTED": 0
+      },
+      "DISPUTED": {
+        "PRESENT": 0,
+        "REMOVED": 0,
+        "UNKNOWN": 0,
+        "DISPUTED": 0
+      }
+    }
+  },
+  "full_render": {
+    "checked_utc": "2026-11-17T17:51:48Z",
+    "render_exit_code": 0,
+    "render_directory_count": 120,
+    "partial_directory_count": 0
+  },
+  "full_validation": {
+    "status": "PASS",
+    "arrangements": 120,
+    "bases": 24,
+    "rgb_count": 2400,
+    "mask_count": 5400
+  },
+  "source_map": {
+    "snapshot_utc": "2026-11-17T18:06:08.371498+00:00",
+    "sources": {
+      "S1": [
+        {
+          "path": "README.md",
+          "sha256": "93806cee5428c51f0420d3e5760f4def7ee38a585a99336c9294227d633f34a5"
+        },
+        {
+          "path": "progress/PLAN.md",
+          "sha256": "993ef8815eccfc94bd66e609c70fa660c5e0a6951bcd5efe297dd0d8bcad1cd3"
+        },
+        {
+          "path": "progress/meetings/2026-11-17.md",
+          "sha256": "9f8bd7da809a321fd7b49c5aada9ea22b718ad37672d1005e25ebe78b77ff743"
+        },
+        {
+          "path": "docs/METHOD.md",
+          "sha256": "64a2932e28a4272da9d77c84584b81e3b11325436088d9b6b59dd133ed3a2719"
+        },
+        {
+          "path": "docs/EVALUATION_PLAN.md",
+          "sha256": "31ce90ba016c8d714cfee2763bf92bedf40885a28653bc80d26fb77f94433cb5"
+        }
+      ],
+      "S2": [
+        {
+          "path": "development/stress/PROTOCOL.md",
+          "sha256": "6f01a8b6ebc95f71e83bda4e981aef6c4855997e5f47bcb72d59d92bc4a85eaa"
+        },
+        {
+          "path": "development/stress/LABEL_PLAN_AI_V1.md",
+          "sha256": "d8198500dc8341192a687e9a4282d2cbb5a654f7201ab0cb621e3d29eefb0d75"
+        }
+      ],
+      "S3": [
+        {
+          "path": "notes/2026-11-17-stress-execution.md",
+          "sha256": "3739367c431a3156d728645b9a08fdb9c34467ece973c371d6489e630c43aa9d"
+        },
+        {
+          "path": "runs/2026-11-17-stress-dev-v1/reviewer/smoke_evidence_audit.json",
+          "sha256": "d7c67118ac7132854cc322c0ca676ccbd5327ce5fe6a3306b88d086dd551d0ef"
+        }
+      ],
+      "S4": [
+        {
+          "path": "runs/2026-11-17-stress-dev-v1/label-evaluation-v1/ai-primary.json",
+          "sha256": "32c0f93694eb7c064525d2d071c104b814a121457e37b1dffd5007a37985614e"
+        },
+        {
+          "path": "runs/2026-11-17-stress-dev-v1/label-evaluation-v1/ai-relaxed_guard.json",
+          "sha256": "f48b218a68a4692ca3f0222b75482a819ece2960f3f2e78ae5c968d81d190c5c"
+        }
+      ],
+      "S5": [
+        {
+          "path": "runs/2026-11-17-stress-dev-v1/label-evaluation-v1/ai-vs-proxy.json",
+          "sha256": "e0d981d370e0225fe39a71176064ec640975ce67f2289c9be82e55a6b75d2b41"
+        },
+        {
+          "path": "runs/2026-11-17-stress-dev-v1/reviewer/ai_label_spot_review.json",
+          "sha256": "e49a180bf6ad82e614f8dc80b3a5724ffa5190a638a1c89cf30cb3ac13a08f2e"
+        }
+      ],
+      "S6": [
+        {
+          "path": "runs/2026-11-17-stress-dev-v1/reviewer/ipv4_and_render_completion.json",
+          "sha256": "14e85b06eb2e4fb4952889beb7e536efab6cd6a9617beb6260287e25bb2e3a6b"
+        },
+        {
+          "path": "runs/2026-11-17-stress-dev-v1/full-review/cohort-validation.json",
+          "sha256": "ae7df828560b8be7437130314a020778bf25e853efca385eb19a6423fd00fd7e"
+        },
+        {
+          "path": "runs/2026-11-17-stress-dev-v1/reviewer/full_audit_attempts.json",
+          "sha256": "83d0c88985d341798fa215dd02b9b6aa48971cb5c3105212b7c453fecbb56125"
+        }
+      ],
+      "S7": [
+        {
+          "path": "notes/2026-11-16-development-pilot.md",
+          "sha256": "935da020db352df5323520949ec1f085efc720dee38330814bc889ae971fed3f"
+        },
+        {
+          "path": "notes/2026-11-12-posthoc-review.md",
+          "sha256": "b20940e7f6ea68515fd60087d6935c0e11822c9a88e043e058035eba8567ef92"
+        }
+      ],
+      "S8": [
+        {
+          "path": "docs/FREEZE_POLICY.md",
+          "sha256": "a3fc4c42eeac87be489a572e42e06ccff69956a0ffd289ffb115dd7161e9538c"
+        },
+        {
+          "path": "notes/2026-11-17-research-and-stress-plan.md",
+          "sha256": "66e19faa65fe1e7de8caaa05c46dc13846657593d025d442b8d0453719a4b527"
+        }
+      ]
+    },
+    "images": [
+      {
+        "source": "runs/2026-11-17-stress-dev-v1/smoke-review/SXS01D6/reference_P3_L1.png",
+        "asset": "assets/shelf.png",
+        "sha256": "d7b4290a1cc4a1a350ab42e48ebe8c6241d883deea05dcaa6f78527187f2e5e5"
+      },
+      {
+        "source": "runs/2026-11-17-stress-dev-v1/smoke-review/SXT01D6/reference_P3_L1.png",
+        "asset": "assets/tabletop.png",
+        "sha256": "ffbecaa89feba91003a56e02586b667f4ff55dedb370268326a6a04d0ccf9a0d"
+      }
+    ]
+  }
+}
