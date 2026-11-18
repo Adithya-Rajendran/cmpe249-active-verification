@@ -1,0 +1,78 @@
+{
+ "run_id": "tabletop_transfer11_evidence",
+ "note": "Tabletop check (c), the 11-arrangement transfer diagnostic (configs/sim/tabletop_transfer11.json): unchanged evidence v0.3 on ECC image registration plus the v021_image ablation from the same pass, L1-reference jobs, L1 and L2 reported separately, at the existing shelf thresholds (fixed_thresholds; v021_image has none, shelf calibration was infeasible). No select stage: nothing is calibrated on this subset. Run with --from-stage evidence.",
+ "remote": "configs/pipeline/remote.local.json",
+ "set_root": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/tabletop_transfer11",
+ "local_python": [
+  "uv",
+  "run",
+  "--offline",
+  "--no-project",
+  "--python",
+  "3.13.5",
+  "--with",
+  "numpy==2.5.3",
+  "--with",
+  "opencv-python-headless==5.0.0.93",
+  "python"
+ ],
+ "poll_seconds": 30,
+ "heartbeat_seconds": 600,
+ "evidence": {
+  "out_dir": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/tabletop_transfer11/evidence",
+  "jobs": [
+   "jobs_refL1.json"
+  ],
+  "step_alert_minutes": 40,
+  "variants": {
+   "v03_image": {
+    "args": [
+     "-m",
+     "perception.evidence_v03",
+     "--align",
+     "image",
+     "--jobs",
+     "{jobs}",
+     "--out",
+     "{out}/v03_image_{part}.jsonl",
+     "--out-v021-aligned",
+     "{out}/v021_image_{part}.jsonl",
+     "--diag",
+     "{out}/v03_image_{part}.diag.jsonl"
+    ],
+    "outputs": [
+     "{out}/v03_image_{part}.jsonl",
+     "{out}/v021_image_{part}.jsonl",
+     "{out}/v03_image_{part}.diag.jsonl"
+    ]
+   }
+  }
+ },
+ "summary": {
+  "design": false,
+  "illustrative": {
+   "tau_q": 0.6,
+   "tau_occ": 0.3
+  },
+  "fixed_thresholds": {
+   "v03_image": {
+    "tau_q": 0.3,
+    "tau_occ": 0.35,
+    "tau_match": 0.65,
+    "source": "/home/jetson/Projects/SJSU/Fall26/CMPE249/cmpe249-active-verification/runs/shelf_dev_v3_evidence/select/v03_image/frozen_candidate.json",
+    "sha256": "4a06de0eebe407aad27b58fdfce3751460b5357924aba93a6f6830095b93b983"
+   },
+   "v021_image": null
+  },
+  "variants": {
+   "v021_image": {
+    "diag": "{out}/v03_image_{part}.diag.jsonl",
+    "obstruction": "obstruction_v021"
+   },
+   "v03_image": {
+    "diag": "{out}/v03_image_{part}.diag.jsonl",
+    "obstruction": "obstruction"
+   }
+  }
+ }
+}

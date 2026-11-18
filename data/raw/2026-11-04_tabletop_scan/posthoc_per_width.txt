@@ -1,0 +1,15 @@
+IND28 w=0.28 h=0.15: retains its own-width best support: False (fails [4, 9, 14])
+IND28 w=0.28 h=0.18: retains its own-width best support: True
+IND28 w=0.28 h=0.2: retains its own-width best support: False (fails [4])
+IND28 w=0.28 h=0.22: retains its own-width best support: False (fails [4, 9, 14])
+IND28 w=0.28 h=0.25: retains its own-width best support: False (fails [4, 9, 14, 21])
+IND28 w=0.36 h=0.15: retains its own-width best support: False (fails [4, 6, 9, 14, 21])
+IND28 w=0.36 h=0.18: retains its own-width best support: True
+IND28 w=0.36 h=0.2: retains its own-width best support: False (fails [4, 9, 14])
+IND28 w=0.36 h=0.22: retains its own-width best support: False (fails [4, 9, 14, 21])
+IND28 w=0.36 h=0.25: retains its own-width best support: False (fails [4, 9, 14, 21])
+IND28 w=0.44 h=0.15: retains its own-width best support: False (fails [4, 6, 14])
+IND28 w=0.44 h=0.18: retains its own-width best support: True
+IND28 w=0.44 h=0.2: retains its own-width best support: False (fails [4, 9, 14])
+IND28 w=0.44 h=0.22: retains its own-width best support: False (fails [4, 9, 14, 21])
+IND28 w=0.44 h=0.25: retains its own-width best support: False (fails [4, 9, 14, 21])

@@ -1,0 +1,42 @@
+{
+  "study_id": "support-stress-dev-v1",
+  "status": "development",
+  "version": "2026-11-17",
+  "environments": ["shelf", "tabletop"],
+  "arrangements_per_environment": 12,
+  "classes": ["S8", "M16-L", "M16-R", "IND28", "white_box", "ycb_box"],
+  "slots_per_class": 2,
+  "seed_starts": {"shelf": 8000, "tabletop": 8500},
+  "seeds_per_slot": 32,
+  "attempts_per_seed": 21,
+  "valid_candidates_per_slot": 32,
+  "middle_band": [0.3, 0.9],
+  "middle_fraction_target": 0.2,
+  "sign_seed": 20261117,
+  "levels": [
+    {"id": "D0", "translation_m": 0.0, "yaw_deg": 0.0},
+    {"id": "D1", "translation_m": 0.01, "yaw_deg": 0.5},
+    {"id": "D2", "translation_m": 0.02, "yaw_deg": 1.0},
+    {"id": "D4", "translation_m": 0.04, "yaw_deg": 2.0},
+    {"id": "D6", "translation_m": 0.06, "yaw_deg": 3.0}
+  ],
+  "stops": ["P1", "P2", "P3", "P4", "P5"],
+  "lightings": ["L1"],
+  "query_phases": ["visible", "occluded", "removed"],
+  "render_size": [2304, 1296],
+  "primary_size": [1200, 675],
+  "resize": "Pillow.LANCZOS",
+  "reference_source_level": "D0",
+  "thresholds": {"quality": 0.3, "present": 0.7, "absent": 0.6, "obstruction": 0.4},
+  "align_params": {"sigma": 1.5, "levels": 4, "stop_level": 1, "excl_f": 0.5, "border": 24, "iters": 200, "eps": 0.000001, "min_cc": 0.5, "max_shift_px": 100.0, "max_scale_dev": 0.1},
+  "analyses": [
+    {"id": "primary", "size": [1200, 675], "max_shift_px": 100.0},
+    {"id": "native", "size": [2304, 1296], "max_shift_px": 100.0},
+    {"id": "native_normalized_guard", "size": [2304, 1296], "max_shift_px": 192.0},
+    {"id": "relaxed_guard", "size": [1200, 675], "max_shift_px": 200.0}
+  ],
+  "support_label_source": "blinded_human",
+  "bootstrap": {"unit": "base_arrangement", "draws": 2000, "seed": 20261117},
+  "development_gates": {"unsupported_rate_gt": 0.01, "error_arrangements_min": 3, "yield_loss_min": 0.1, "recoverable_abstention_min": 0.1},
+  "forecast_D4_primary": {"shelf": 0.85, "tabletop": 0.65}
+}

@@ -26,7 +26,7 @@ def run_set(d: Path, out: str, labels: bool = True, **kw) -> tuple[int, Path]:
     args = write_sim_set(d / f"set-{out}", **kw)
     lab = ["--view-labels", args[5]] if labels else []
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-        rc = run.main([*args[:4], *args[6:], *BASE, *lab, "--out", str(d / out)])
+        rc = run.main([*args[:4], *args[6:], *BASE, *lab, "--placeholder-thresholds", "--out", str(d / out)])
     return rc, d / out
 
 
@@ -182,7 +182,7 @@ class SimRunTest(unittest.TestCase):
                 return logs
             with mock.patch.object(run, "run_stage", stage), contextlib.redirect_stdout(io.StringIO()), \
                     contextlib.redirect_stderr(io.StringIO()) as err:
-                rc = run.main([*args, *BASE, "--out", str(out)])
+                rc = run.main([*args, *BASE, "--placeholder-thresholds", "--out", str(out)])
             self.assertEqual(rc, 2)
             self.assertIn("changed during the run", err.getvalue())
             self.assertFalse((out / "results.json").exists() or (out / "table.md").exists())
@@ -260,8 +260,10 @@ class SimRunTest(unittest.TestCase):
         for metric in ("false_removal_rate", "removal_recall", "coverage"):
             self.assertEqual(ci[metric]["estimate"], o[metric])
         self.assertEqual((ci["B"], ci["seed"], ci["n_arrangements"], ci["n_episodes"]), (50, 0, len(SLOTS), 21))
-        cell = (f"| G | {run.fmt(o['false_removal_rate'])} [{run.fmt(ci['false_removal_rate']['ci_lo'])}, "
-                f"{run.fmt(ci['false_removal_rate']['ci_hi'])}] |")
+        frr = ci["false_removal_rate"]
+        cell = (f"| G | {run.fmt(o['false_removal_rate'])} [{run.fmt(frr['ci_lo'])}, {run.fmt(frr['ci_hi'])}]"
+                + (f" {run.ZERO_WIDTH_MARK}" if frr["zero_width"] else "") + " |")   # real-v7: zero-width marked
+        self.assertEqual(frr["zero_width"], frr["ci_hi"] - frr["ci_lo"] <= 1e-12)
         self.assertIn(cell, self.table)
         self.assertIn("**Single-rate intervals.**", self.table)
         self.assertIn("seeds are not", self.table)
@@ -274,13 +276,14 @@ class SimRunTest(unittest.TestCase):
             args = write_sim_set(d / "set", split="test")
             out = d / "out"
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                self.assertEqual(run.main([*args, *BASE, "--out", str(out)]), 0)
+                self.assertEqual(run.main([*args, *BASE, "--placeholder-thresholds", "--out", str(out)]), 0)
                 self.assertTrue((out / "results.json").is_file())
                 lab = json.loads(Path(args[5]).read_text())
                 lab["episodes"].pop(next(iter(lab["episodes"])))
                 bad = d / "labels_missing.json"
                 bad.write_text(json.dumps(lab))
-                rc = run.main([*args[:4], *args[6:], *BASE, "--seed", "1", "--view-labels", str(bad),
+                rc = run.main([*args[:4], *args[6:], *BASE, "--placeholder-thresholds", "--seed", "1",
+                               "--view-labels", str(bad),
                                "--out", str(out)])
             self.assertEqual(rc, 2)
             self.assertEqual(sorted(p.name for p in out.iterdir()), ["config.json", "ground_truth.json", "logs.jsonl"])
@@ -288,7 +291,8 @@ class SimRunTest(unittest.TestCase):
             # an input that is one of the outputs is refused before anything is removed
             shutil.copyfile(args[1], out / "results.json")
             with contextlib.redirect_stderr(io.StringIO()) as err:
-                rc = run.main([*args[:1], str(out / "results.json"), *args[2:], *BASE, "--out", str(out)])
+                rc = run.main([*args[:1], str(out / "results.json"), *args[2:], *BASE, "--placeholder-thresholds",
+                               "--out", str(out)])
             self.assertEqual(rc, 2)
             self.assertIn("is an output of this run", err.getvalue())
             self.assertTrue((out / "results.json").is_file() and (out / "config.json").is_file())
@@ -315,7 +319,7 @@ class SimRunTest(unittest.TestCase):
             args = write_sim_set(Path(d) / "set", split="test", labels_simulation=False)
             out = Path(d) / "out"
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
-                rc = run.main([*args, *BASE, "--out", str(out)])
+                rc = run.main([*args, *BASE, "--placeholder-thresholds", "--out", str(out)])
             self.assertEqual(rc, 2)
             self.assertIn("the manifest says simulation=True but", err.getvalue())
             self.assertFalse((out / "results.json").exists())

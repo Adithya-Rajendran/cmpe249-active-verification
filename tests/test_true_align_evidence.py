@@ -32,6 +32,31 @@ class TestLoadTrueH(unittest.TestCase):
             (t / "true_alignment.json").write_text(json.dumps({"arrangements": {"SD1001": {"stops": {"P1": stop}}}}))
             self.assertEqual(list(tae.load_true_h(t, "target")), [("SD1001", 0)])
 
+    def test_tabletop_planes_dispatch_on_the_document(self) -> None:
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            H_table, H_target = np.eye(3) * 2, np.eye(3) * 3
+            stop = {"stop_index": 1, "H_table_plane": H_table.tolist(), "H_target_plane": H_target.tolist()}
+            (t / "true_alignment.json").write_text(
+                json.dumps({"environment": "tabletop", "arrangements": {"TD5000": {"stops": {"P2": stop}}}}))
+            np.testing.assert_array_equal(tae.load_true_h(t, "table")[("TD5000", 1)], H_table)
+            np.testing.assert_array_equal(tae.load_true_h(t, "target")[("TD5000", 1)], H_target)
+            with self.assertRaises(ValueError):
+                tae.load_true_h(t, "front")                 # a shelf plane name on a tabletop set
+
+    def test_shelf_set_refuses_the_table_plane_and_mixed_sets_are_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            stop = {"stop_index": 0, "H_front_plane": np.eye(3).tolist(), "H_target_plane": np.eye(3).tolist()}
+            (t / "true_alignment.json").write_text(json.dumps({"arrangements": {"SD1001": {"stops": {"P1": stop}}}}))
+            with self.assertRaises(ValueError):
+                tae.load_true_h(t, "table")
+            tstop = {"stop_index": 0, "H_table_plane": np.eye(3).tolist(), "H_target_plane": np.eye(3).tolist()}
+            (t / "true_alignment_design.json").write_text(
+                json.dumps({"environment": "tabletop", "arrangements": {"TDES0": {"stops": {"P1": tstop}}}}))
+            with self.assertRaises(ValueError):
+                tae.load_true_h(t, "target")               # target is a plane of both, but the files disagree on the environment
+
 
 if __name__ == "__main__":
     unittest.main()

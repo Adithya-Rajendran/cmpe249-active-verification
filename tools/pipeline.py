@@ -17,12 +17,24 @@ Stages:
               its log until its rc file appears. Alerts: a Traceback or Python error line, an arrangement whose
               label sanity check failed, an arrangement slower than slow_factor x the running median, no new
               arrangement for stall_minutes, the render process gone without an rc file, a non-zero rc, or fewer
-              arrangements than expected.
-    episodes  python -m sim.episodes --root SET --contact-sheets --generation-log GENLOG
-    check     python -m sim.check_batch --root SET
+              arrangements than expected. Liveness is probed with a self-excluding `pgrep -f` (first character of the
+              pattern in brackets, so the probe's own shell never matches) that prints RUNNING=0|1, RC=, LINES= and
+              PROBE_END. Three outcomes: RUNNING; STOPPED (the probe ran and found no process); PROBE_FAILED (ssh or
+              transport failure, a non-zero exit, a timeout, unreadable output). PROBE_FAILED is never "stopped": it
+              is retried like any ssh failure (5 in a row is a terminal alert) and never launches or reports "gone".
+              Only STOPPED with no rc file, confirmed by a second probe 10 s later, is "gone without an rc file". After
+              --launch the driver waits up to render.launch_wait_seconds (default 60) for the process or an rc file.
+              The render process is render.script (default isaac_batch.py, launched by sim/run_render.sh); a frozen
+              test set renders through render_test.py (sim/run_render_test.sh), the freeze gate around it.
+    episodes  python -m sim.episodes --root SET --contact-sheets --generation-log GENLOG [--freeze FREEZE], with
+              --freeze the spec's "freeze" (the committed docs/FREEZE.md) for a test set
+    check     python -m sim.check_batch --root SET. Any non-zero exit is a terminal failure: 1 label sanity, and for
+              tabletop sets 4 table clipping FAIL or 8 table clipping INCOMPLETE (OR-ed; sim/check_batch.py docstring).
     evidence  ship `git archive` of the last commit that changed the GB10's code (evidence.code_paths, default
               perception/ verify/ capture/ pyproject.toml uv.lock; the tracked tree must be clean and
-              perception/evidence.py the frozen v0.2.1) to the GB10, and run the spec's evidence steps there one
+              perception/evidence.py the frozen v0.2.1; a test set's spec ("freeze") also needs its FREEZE.md to
+              pass sim/freeze.py and no code path changed since the frozen commit) to the GB10, and run the spec's
+              evidence steps there one
               after another in the GB10 project uv env; outputs land on the shared dataset volume. The job is
               keyed on run_id, that commit and a hash of the steps and jobs files: rerunning re-attaches to a
               running or finished job, and any change to the code, steps or jobs launches a new one. Each job
@@ -48,6 +60,7 @@ A stage whose spec section is missing is skipped. Stdlib only. Usage:
     python tools/pipeline.py configs/pipeline/shelf_dev_v3.json [--launch] [--from-stage episodes]
     python tools/pipeline.py configs/pipeline/shelf_dev_v3_evidence.json --from-stage evidence [--to-stage select]
     python tools/pipeline.py configs/pipeline/shelf_dev_v3_truealign.json --from-stage evidence  (after the above)
+    python tools/pipeline.py configs/pipeline/shelf_test.json --launch  (only after the freeze: docs/FREEZE.md)
 """
 from __future__ import annotations
 
@@ -122,6 +135,86 @@ class Remote:
                               text=not isinstance(stdin, bytes))
 
 
+class SshError(OSError):
+    """An ssh command that did not run (connection refused or timed out: exit 255, no output), or whose output
+    could not be read as the probe it was meant to be."""
+
+
+# Render liveness probe states. Only STOPPED means "the probe ran and found no process"; PROBE_FAILED (ssh or
+# transport failure, a non-zero exit, a timeout, output that does not parse) says nothing about the process.
+RUNNING, STOPPED, PROBE_FAILED = "RUNNING", "STOPPED", "PROBE_FAILED"
+_BRACKETABLE = re.compile(r"[A-Za-z0-9_./: =-]")
+
+
+RENDER_SCRIPTS = ("isaac_batch.py", "render_test.py")   # dev sets; frozen test sets (sim/render_test.py)
+
+
+def render_pattern(render: dict) -> str:
+    """The pgrep -f pattern (an extended regex) of the render process: its command line, render.script (default
+    isaac_batch.py; render_test.py, the freeze gate around it, for a test set) followed by --arrangements."""
+    script = render.get("script", RENDER_SCRIPTS[0])
+    if script not in RENDER_SCRIPTS:
+        raise ValueError(f"render.script {script!r} is not one of {RENDER_SCRIPTS}")
+    return f"{script} --arrangements {render['arrangements_dir']}/"
+
+
+def episodes_args(spec: dict) -> list[str]:
+    """sim.episodes for the spec's set; a test set's spec names the committed FREEZE.md its arrangements record
+    ("freeze", repo-relative), which sim.episodes checks with sim/freeze.py before it reads any arrangement."""
+    args = ["-m", "sim.episodes", "--root", spec["set_root"], "--contact-sheets", "--generation-log",
+            spec["generation_log"]]
+    return args + (["--freeze", spec["freeze"]] if spec.get("freeze") else [])
+
+
+def self_excluding(pattern: str) -> str:
+    """`pattern` with its first character in a bracket expression ("isaac" -> "[i]saac"). The probe's own shell
+    (`bash -c` here, `sh -c` under ssh) carries the pattern in its command line, and `pgrep -f PATTERN` would match that
+    shell: always "running". "[i]saac" still matches "isaac" but the text "[i]saac" does not, so the probe cannot
+    find itself. The rest of the pattern stays a regex, as before."""
+    if not pattern or not _BRACKETABLE.fullmatch(pattern[0]):
+        raise ValueError(f"cannot make a self-excluding pattern from {pattern!r}: the first character must be a "
+                         "letter, digit or one of _ . / : space = -")
+    return f"[{pattern[0]}]{pattern[1:]}"
+
+
+def render_probe_command(pattern: str, rc_file: str, log: str) -> str:
+    """The remote shell command of the render probe. pgrep's exit status is kept apart from transport failures:
+    0 -> RUNNING=1, 1 (no match) -> RUNNING=0, anything else (pgrep missing, bad pattern) -> RUNNING=ERR<n>. PROBE_END
+    is printed last, so a command that was cut short is not mistaken for one that found nothing."""
+    return (f"pgrep -f -- {shlex.quote(self_excluding(pattern))} >/dev/null 2>&1; s=$?; "
+            "if [ $s -eq 0 ]; then echo RUNNING=1; elif [ $s -eq 1 ]; then echo RUNNING=0; "
+            "else echo RUNNING=ERR$s; fi; "
+            f"if [ -f {rc_file} ]; then echo RC=$(cat {rc_file}); else echo RC=; fi; "
+            f"if [ -f {log} ]; then echo LINES=$(wc -l < {log}); else echo LINES=0; fi; echo PROBE_END")
+
+
+def parse_render_probe(returncode: int, stdout: str, stderr: str = "") -> dict:
+    """{"status": RUNNING | STOPPED | PROBE_FAILED, "rc": str, "lines": int, "error": str}. Anything but a zero exit
+    and a complete, well-formed marker block is PROBE_FAILED."""
+    def failed(why: str) -> dict:
+        return {"status": PROBE_FAILED, "rc": "", "lines": 0,
+                "error": f"{why} (exit {returncode}): {str(stderr).strip()[-200:]}"}
+    if returncode != 0:
+        return failed("probe command failed")
+    out = str(stdout).splitlines()
+    if not out or out[-1].strip() != "PROBE_END":
+        return failed("probe output is incomplete")
+    fields = dict(line.split("=", 1) for line in out[:-1] if "=" in line)
+    if fields.get("RUNNING") not in ("0", "1") or "RC" not in fields or not fields.get("LINES", "").isdigit():
+        return failed(f"probe output is not RUNNING=0|1, RC=, LINES=n: {str(stdout).strip()[-200:]!r}")
+    return {"status": RUNNING if fields["RUNNING"] == "1" else STOPPED, "rc": fields["RC"].strip(),
+            "lines": int(fields["LINES"]), "error": ""}
+
+
+def probe_render(remote: Remote, pattern: str, rc_file: str, log: str, timeout: int = 60) -> dict:
+    """One render probe, as parse_render_probe's dict. An ssh timeout or OS error is PROBE_FAILED too."""
+    try:
+        res = remote.run(render_probe_command(pattern, rc_file, log), timeout=timeout)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return {"status": PROBE_FAILED, "rc": "", "lines": 0, "error": f"{type(e).__name__}: {e}"}
+    return parse_render_probe(res.returncode, res.stdout, res.stderr)
+
+
 def read_new_lines(remote: Remote, log: str, offset: int) -> tuple[list[str], int]:
     """The complete lines appended to the remote log since byte `offset`, and the new offset. Byte offsets and
     "\\n" only: progress bars write "\\r", which str.splitlines() would also count as line ends. Each line is
@@ -139,40 +232,65 @@ def stage_render(run: Run, launch: bool) -> None:
     remote = Remote(run.spec["remote"])
     rd = run.spec["remote"]["run_dir"]
     log, rc_file = f"{rd}/{r['log']}", f"{rd}/{r['rc_file']}"
-    pattern = f"isaac_batch.py --arrangements {r['arrangements_dir']}/"
+    pattern = render_pattern(r)
 
     def probe() -> dict:
-        cmd = (f"pgrep -f {shlex.quote(pattern)} >/dev/null && echo RUNNING=1 || echo RUNNING=0; "
-               f"test -f {rc_file} && echo RC=$(cat {rc_file}) || echo RC=; "
-               f"wc -l < {log} 2>/dev/null || echo 0")
-        out = remote.run(cmd).stdout.split()
-        return {"running": "RUNNING=1" in out, "rc": next((o[3:] for o in out if o.startswith("RC=")), ""),
-                "lines": int(out[-1]) if out and out[-1].isdigit() else 0}
+        """RUNNING or STOPPED; a PROBE_FAILED raises SshError, which the callers count like any ssh failure."""
+        state = probe_render(remote, pattern, rc_file, log)
+        if state["status"] == PROBE_FAILED:
+            raise SshError(state["error"])
+        return state
 
-    state = probe()
-    if not state["running"] and state["rc"] == "":
+    def probe_retrying() -> dict:
+        for attempt in range(5):
+            try:
+                return probe()
+            except (subprocess.TimeoutExpired, OSError) as e:
+                err = e
+                time.sleep(run.spec["poll_seconds"])
+        run.fail("render", "render probe failed 5 times in a row (ssh, transport or unreadable output); "
+                 "not treating the render as stopped", error=str(err))
+
+    state = probe_retrying()
+    if state["status"] == STOPPED and state["rc"] == "":
         if not launch:
             run.fail("render", "no render is running for this spec and none has finished; rerun with --launch")
-        remote.run(f"cd {rd} && setsid nohup bash {r['launch_script']} >/dev/null 2>&1 < /dev/null &")
+        # braces: only the launcher goes to the background, so ssh returns at once (`a && b &` backgrounds a && b
+        # in a subshell that keeps ssh's stdout open until the render ends)
+        remote.run(f"cd {rd} && {{ setsid nohup bash {r['launch_script']} >/dev/null 2>&1 < /dev/null & }}")
         run.emit("render", "info", "launched", script=r["launch_script"])
+        # the render appears a moment after the launcher returns: wait for it (or its rc) before polling for "gone"
+        wait = r.get("launch_wait_seconds", 60)
+        deadline = time.time() + wait
+        while True:
+            state = probe_retrying()
+            if state["status"] == RUNNING or state["rc"] != "":
+                break
+            if time.time() > deadline:
+                run.fail("render", f"launched, but no render process appeared and no rc file was written within "
+                         f"{wait} s", script=r["launch_script"])
+            time.sleep(2)
     else:
-        run.emit("render", "info", "attached", running=state["running"], rc=state["rc"])
+        run.emit("render", "info", "attached", running=state["status"] == RUNNING, rc=state["rc"])
 
-    seen, durations, offset = set(), [], 0
+    seen, durations, offset, pending = set(), [], 0, []
     last_progress, last_heartbeat, ssh_failures = time.time(), 0.0, 0
     expected = r["expected"]
     while True:
         try:
-            # Read only the new part of the log.
-            new_lines, offset = read_new_lines(remote, log, offset)
+            # Read only the new part of the log. Lines already read stay in `pending` if the probe then fails:
+            # their offset has moved on, so dropping them would lose arrangements and error lines.
+            chunk, offset = read_new_lines(remote, log, offset)
+            pending += chunk
             state = probe()
             ssh_failures = 0
         except (subprocess.TimeoutExpired, OSError) as e:
             ssh_failures += 1
             if ssh_failures >= 5:
-                run.fail("render", "GB10 unreachable over ssh 5 times in a row", error=str(e))
+                run.fail("render", "GB10 unreachable or the render probe unreadable 5 times in a row", error=str(e))
             time.sleep(run.spec["poll_seconds"])
             continue
+        new_lines, pending = pending, []
         for line in new_lines:
             if line.startswith("ISAAC_BATCH "):
                 rec = json.loads(line[len("ISAAC_BATCH "):])
@@ -203,10 +321,12 @@ def stage_render(run: Run, launch: bool) -> None:
                      median_s=statistics.median(durations) if durations else None,
                      max_s=max(durations) if durations else None)
             return
-        if not state["running"]:
-            # The launcher writes rc right after the process exits; give it a moment before calling it lost.
+        if state["status"] == STOPPED:
+            # The launcher writes rc right after the process exits; give it a moment before calling it lost. Only a
+            # probe that ran and found neither process nor rc counts (a failed probe is retried, never "gone").
             time.sleep(10)
-            if probe()["rc"] == "":
+            again = probe_retrying()
+            if again["status"] == STOPPED and again["rc"] == "":
                 run.fail("render", "render process is gone and wrote no rc file", rendered=len(seen))
             continue
         stall = run.spec["stall_minutes"] * 60
@@ -237,6 +357,37 @@ def stage_local(run: Run, stage: str, module_args: list[str], ok_rcs: tuple[int,
 
 def git(*args: str) -> str:
     return subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True, check=True).stdout
+
+
+# What a test set's evidence runs: the freeze record must list these (sim/freeze.py require_freeze checks every file).
+EVIDENCE_FROZEN = ("perception/evidence_v03.py", "perception/evidence.py", "perception/common.py",
+                   "perception/side_descriptor.py", "perception/registration_v032.py", "verify/schema.py",
+                   "verify/stopping.py", "pyproject.toml", "uv.lock")
+
+
+def frozen_code_check(freeze: str, code_paths: tuple[str, ...] | list[str], repo: Path = REPO) -> None:
+    """A test set's evidence. The spec's FREEZE.md must pass sim.freeze.require_freeze: committed and unchanged, every
+    listed file matching, the evidence code listed. No shipped code path may differ between the freeze record's commit
+    and HEAD. Raises sim.freeze.FreezeError (a RuntimeError) otherwise."""
+    if str(repo) not in sys.path:
+        sys.path.insert(0, str(repo))
+    from sim import freeze as F   # stdlib only, like this driver
+    rec = F.require_freeze(repo / freeze, needed=EVIDENCE_FROZEN, repo=repo)["record"]
+    if subprocess.run(["git", "-C", str(repo), "diff", "--quiet", rec["commit"], "HEAD", "--", *code_paths]).returncode:
+        raise F.FreezeError(f"shipped code differs between the frozen commit {rec['commit'][:12]} and HEAD "
+                            f"(git diff {rec['commit'][:12]} HEAD -- {' '.join(code_paths)})")
+
+
+def evidence_freeze_gate(run: Run, ev: dict) -> None:
+    """A test set (spec "freeze"): the shipped code must be the frozen code (the tree is clean, so HEAD's files);
+    a terminal failure otherwise. Development specs pass through."""
+    if not run.spec.get("freeze"):
+        return
+    try:
+        frozen_code_check(run.spec["freeze"], ev.get("code_paths", EVIDENCE_CODE))
+    except RuntimeError as e:   # sim.freeze.FreezeError
+        run.fail("evidence", f"not the frozen evidence code: {e}")
+    run.emit("evidence", "info", "freeze checked", freeze=run.spec["freeze"])
 
 
 def evidence_settings(spec: dict) -> dict:
@@ -271,10 +422,6 @@ def steps_key(steps: list[dict], out_dir: str = "") -> str:
     return h.hexdigest()[:10]
 
 
-class SshError(OSError):
-    """An ssh command that did not run (connection refused or timed out: exit 255, no output)."""
-
-
 def stage_evidence(run: Run, retry: bool = False) -> None:
     ev = evidence_settings(run.spec)
     remote = Remote(run.spec["remote"])
@@ -289,6 +436,7 @@ def stage_evidence(run: Run, retry: bool = False) -> None:
                                            capture_output=True, check=True).stdout).hexdigest()
     if frozen != FROZEN_EVIDENCE_SHA256:
         run.fail("evidence", f"perception/evidence.py at {code_commit[:12]} is not the frozen v0.2.1", sha256=frozen)
+    evidence_freeze_gate(run, ev)
     rd = run.spec["remote"]["run_dir"]
     # The job is keyed on the run, the shipped code and the steps (with "{out}" unresolved); its code dir and its
     # output dir are named by the whole key, so two jobs never share, delete or overwrite each other's files.
@@ -357,12 +505,13 @@ def stage_evidence(run: Run, retry: bool = False) -> None:
     else:
         run.emit("evidence", "info", "attached", running=state["running"], rc=state["rc"], key=key, out=out)
 
-    offset, step_started, ssh_failures, last_heartbeat = 0, time.time(), 0, 0.0
+    offset, pending, step_started, ssh_failures, last_heartbeat = 0, [], time.time(), 0, 0.0
     alert_after = ev.get("step_alert_minutes", 30) * 60
     alerted = False
     while True:
         try:
-            new_lines, offset = read_new_lines(remote, log, offset)
+            chunk, offset = read_new_lines(remote, log, offset)    # kept in `pending` if the probe then fails
+            pending += chunk
             state = probe()
             ssh_failures = 0
         except (subprocess.TimeoutExpired, OSError) as e:
@@ -371,6 +520,7 @@ def stage_evidence(run: Run, retry: bool = False) -> None:
                 run.fail("evidence", "GB10 unreachable over ssh 5 times in a row", error=str(e))
             time.sleep(run.spec["poll_seconds"])
             continue
+        new_lines, pending = pending, []
         for line in new_lines:
             if line.startswith("EVIDENCE_STEP start "):
                 rec = json.loads(line.split(" ", 2)[2])
@@ -500,8 +650,7 @@ def run_stages(run: Run, spec: dict, args: argparse.Namespace) -> None:
     if "render" in todo:
         stage_render(run, args.launch)
     if "episodes" in todo:
-        stage_local(run, "episodes", ["-m", "sim.episodes", "--root", root, "--contact-sheets",
-                                      "--generation-log", spec["generation_log"]])
+        stage_local(run, "episodes", episodes_args(spec))
     if "check" in todo:
         stage_local(run, "check", ["-m", "sim.check_batch", "--root", root])
     for stage, fn in (("evidence", lambda r: stage_evidence(r, args.retry)), ("select", stage_select)):

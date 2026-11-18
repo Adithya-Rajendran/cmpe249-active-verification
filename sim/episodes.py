@@ -17,12 +17,21 @@ verify/. Both read fixed formats, so this step writes exactly those (no conversi
     stop = index into the positions file;
   - manifest.json (cmpe249.arrangements.v1 plus the top-level key "simulation": true, so verify can label the run
     SIMULATION; each entry = verify's ArrangementRecord.to_dict() plus the plain keys occluder_family, m16_side and
-    design_case); split dev; indistinguishable = the arrangement's predeclared flag, i.e. the IND28 occluder family;
+    design_case); split dev, or test for a frozen test set (below); indistinguishable = the arrangement's predeclared
+    flag, i.e. the IND28 occluder family;
   - truth.json (scoring only), view_labels.json (exact per-view visible fractions and diagnostic labels from the
-    masks, for development analysis only: never a policy input), true_alignment.json (the true query-to-reference homographies
+    masks, for analysis only: never a policy input), true_alignment.json (the true query-to-reference homographies
     of the shelf front plane and of the target's depth plane from the known camera poses, sim/alignment.py: evaluation-only,
     never an evidence or policy input; the corner tags are gone from shelf_v3 scenes), summary.md, set.json (hashes, revisit deltas);
   - optional contact sheets (cv2) per arrangement and lighting, and a crop sheet around the target.
+
+Environments (tabletop wave, step 8): a set is one environment, from its arrangements' records
+("environment" at the top level and in the scene spec; neither = the shelf, i.e. sets made before the tabletop). A set
+mixing environments is refused before anything is written. The shelf's outputs are unchanged byte for byte
+(tests/test_shelf_goldens.py); a tabletop set differs only where the text or the geometry does: the annotation's
+"where" names the table workspace instead of compartment #3, manifest rows carry "environment": "tabletop" (verify
+reads a row without it as the shelf), set.json carries "environment", true_alignment.json has the table plane z = 0
+and the target's horizontal plane (sim/alignment.py), and the README names the tabletop files.
 
 The random slots and the predeclared design cases DES0..3 are separate groups: the files above (manifest, jobs, truth,
 view labels, summary) describe the random slots only; a set with design cases also gets manifest_design.json,
@@ -34,10 +43,14 @@ arrangement_file_sha256 != sha256(arrangement.json)); build refuses a --position
 arrangement's recorded positions sha256 or whose stop names differ from labels['stops'].
 
 Paths in annotations and jobs are absolute: the share (/mnt/bench-data/...) has the same path on the Jetson and the
-GB10. Only dev arrangements are accepted (integer seeds 0-9999 or the design seeds), as in sim/arrange.py.
+GB10. A set holds one split. Dev arrangements (integer seeds 0-9999 or the design seeds) are accepted as in
+sim/arrange.py. A frozen test set needs --freeze docs/FREEZE.md: sim/freeze.py require_freeze checks the committed file
+first, and every test arrangement must record that file's sha256 (check_split). Its manifest, set.json and README then
+say test.
 
     python -m sim.episodes --root /mnt/bench-data/datasets/cmpe249-active-verification/sim/shelf_dev_v1 \\
         [--ref-lighting same L1] [--contact-sheets] [--positions configs/sim/positions_shelf_A.json] [--generation-log LOG]
+        [--freeze docs/FREEZE.md]
 """
 from __future__ import annotations
 
@@ -63,10 +76,55 @@ REF_LIGHTINGS = ("L1", "same")
 JOBS_FILES = {"L1": "jobs_refL1.json", "same": "jobs_same.json"}
 JOBS_ROLE = {"L1": "primary", "same": "secondary"}
 THIS_FILE = Path(__file__).resolve()
+SHELF, TABLETOP = "shelf", "tabletop"
+ENVIRONMENTS = (SHELF, TABLETOP)
+DEFAULT_POSITIONS = {SHELF: "configs/sim/positions_shelf_A.json", TABLETOP: "configs/sim/positions_tabletop_A.json"}
+# where the annotation box is, in words (the shelf's text is the one every shelf set has)
+WHERE = {SHELF: "compartment #3", TABLETOP: "on the table (workspace)"}
 
 
 def sha256_file(p: str | Path) -> str:
     return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+
+
+def environment(arr: Mapping) -> str:
+    """'shelf' or 'tabletop': the arrangement's top-level "environment" (sim/arrange.py) or its scene spec's (sim/tabletop.py);
+    neither = the shelf (sets made before the tabletop). ValueError if the two disagree or name another environment."""
+    top, scene = arr.get("environment"), arr.get("scene", {}).get("environment")
+    if top is not None and scene is not None and top != scene:
+        raise ValueError(f"{arr.get('arrangement_id')}: environment {top!r} but its scene spec says {scene!r}")
+    env = top or scene or SHELF
+    if env not in ENVIRONMENTS:
+        raise ValueError(f"{arr.get('arrangement_id')}: environment must be one of {ENVIRONMENTS}, got {env!r}")
+    return env
+
+
+def check_single_environment(rendered: Sequence[tuple[dict, dict, Path]]) -> str:
+    """The set's one environment; ValueError naming the arrangements of each if they come from more than one (a set mixes
+    no environments: its manifest, jobs, true alignment and README describe one)."""
+    by: dict[str, list[str]] = {}
+    for a, _, _ in rendered:
+        by.setdefault(environment(a), []).append(a["arrangement_id"])
+    if len(by) > 1:
+        raise ValueError(f"the arrangements come from {len(by)} environments, not one: "
+                         + "; ".join(f"{env}: {ids[:6]}{' ...' if len(ids) > 6 else ''}" for env, ids in sorted(by.items()))
+                         + ". Build one set per environment (pooling happens in verify, from the manifests).")
+    return next(iter(by)) if by else SHELF
+
+
+def check_split(arr: Mapping, freeze_sha256: str | None = None) -> None:
+    """A test arrangement (split "test") only with the freeze it records (freeze_sha256: the committed FREEZE.md's,
+    sim/freeze.py require_freeze) and a seed of the test range; anything else must pass check_dev."""
+    if arr.get("split") != "test":
+        check_dev(arr)
+        return
+    rec = arr.get("freeze") or {}
+    if freeze_sha256 is None or rec.get("sha256") != freeze_sha256:
+        raise A.SeedError(f"{arr.get('arrangement_id')}: a test arrangement needs --freeze with the FREEZE.md it "
+                          "records")
+    seed = arr.get("seed")
+    if arr.get("kind") != "random" or isinstance(seed, bool) or not isinstance(seed, int) or seed < A.TEST_SEED_MIN:
+        raise A.SeedError(f"{arr.get('arrangement_id')}: not a test-range random arrangement")
 
 
 def check_dev(arr: Mapping) -> None:
@@ -85,7 +143,7 @@ class IncompleteRender(RuntimeError):
     """A folder under the set root is a render that never finished (or is mixed): the set must not be built from it."""
 
 
-def load_rendered(root: str | Path) -> list[tuple[dict, dict, Path]]:
+def load_rendered(root: str | Path, freeze_sha256: str | None = None) -> list[tuple[dict, dict, Path]]:
     """(arrangement, labels, folder) for every rendered arrangement under root, sorted by id.
     Raises IncompleteRender, listing every offender, for a folder with arrangement.json but no labels.json (a crashed
     render), a leftover <ARR>.partial (an interrupted render), or labels.json without arrangement.json; raises ValueError
@@ -106,7 +164,7 @@ def load_rendered(root: str | Path) -> list[tuple[dict, dict, Path]]:
             arr_bytes = (d / "arrangement.json").read_bytes()
             arr = json.loads(arr_bytes)
             lab = json.loads((d / "labels.json").read_text())
-            check_dev(arr)
+            check_split(arr, freeze_sha256)
             if lab.get("schema") != LABELS_SCHEMA:
                 raise ValueError(f"{d}: labels schema {lab.get('schema')!r}, expected {LABELS_SCHEMA!r} (re-render)")
             if lab["arrangement_id"] != arr["arrangement_id"] or d.name != arr["arrangement_id"]:
@@ -141,7 +199,7 @@ def annotation_doc(arr: Mapping, labels: Mapping, folder: Path, stop_index: int,
             "reference": str(rgb_path(folder, "reference", stop, lighting)),
             "stop": int(stop_index),
             "targets": {arr["target_id"]: {"box": [int(v) for v in box],
-                                           "where": f"{stop}, compartment #3, from the {lighting} reference instance mask"}},
+                                           "where": f"{stop}, {WHERE[environment(arr)]}, from the {lighting} reference instance mask"}},
             "note": "SIMULATION (Isaac Sim render). Box = bounding box of the target's instance mask in this lighting's "
                     "reference render (nominal camera), continuous pixel coordinates (pixel i covers [i, i + 1)). Query views "
                     "are rendered at the arrangement's revisit pose (a small seeded camera perturbation); "
@@ -187,10 +245,14 @@ def jobs_doc(rendered: Sequence[tuple[dict, dict, Path]], ref_lighting: str, pro
 
 
 def manifest_records(rendered: Sequence[tuple[dict, dict, Path]]):
+    """verify's records; a tabletop record carries its environment (a shelf record none: verify reads absent as the shelf,
+    and the shelf manifest keeps its bytes)."""
     from verify.manifest import ArrangementRecord
 
-    return [ArrangementRecord(arr["arrangement_id"], arr["target_id"], "dev", tuple(lab["lightings"]),
-                              bool(arr.get("predeclared_indistinguishable", False))) for arr, lab, _ in rendered]
+    return [ArrangementRecord(arr["arrangement_id"], arr["target_id"], arr.get("split", "dev"), tuple(lab["lightings"]),
+                              bool(arr.get("predeclared_indistinguishable", False)),
+                              environment=None if environment(arr) == SHELF else environment(arr))
+            for arr, lab, _ in rendered]
 
 
 def manifest_doc(rendered: Sequence[tuple[dict, dict, Path]]) -> dict:
@@ -203,6 +265,11 @@ def manifest_doc(rendered: Sequence[tuple[dict, dict, Path]]) -> dict:
     episodes_from_arrangements(recs)
     rows = [{**rec.to_dict(), "occluder_family": arr["occluder_family"], "m16_side": arr.get("m16_side"),
              "design_case": bool(arr.get("design_case", False))} for rec, (arr, _, _) in zip(recs, rendered)]
+    # occluder_family / m16_side / design_case are written after the record's keys (the shelf manifests' key order);
+    # a tabletop row's "environment" stays last
+    for row in rows:
+        if "environment" in row:
+            row["environment"] = row.pop("environment")
     return {"schema": MANIFEST_SCHEMA, "simulation": True, "arrangements": rows}
 
 
@@ -396,12 +463,16 @@ def check_single_version(rendered: Sequence[tuple[dict, dict, Path]]) -> tuple[s
 
 
 def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positions: str | Path | None = None,
-          sheets: bool = False, generation_log: str | Path | None = None) -> dict:
+          sheets: bool = False, generation_log: str | Path | None = None, freeze_sha256: str | None = None) -> dict:
     root = Path(root).resolve()
-    rendered = load_rendered(root)
+    rendered = load_rendered(root, freeze_sha256)
     if not rendered:
         raise ValueError(f"no rendered arrangements under {root}")
-    gens, cfgs = check_single_version(rendered)           # before anything is written
+    splits = sorted({arr.get("split", "dev") for arr, _, _ in rendered})
+    if len(splits) != 1:
+        raise ValueError(f"{root}: a set holds one split, this one has {splits}")
+    env = check_single_environment(rendered)              # before anything is written
+    gens, cfgs = check_single_version(rendered)
     pos_sha = check_positions(positions, rendered) if positions is not None else None
     for arr, lab, d in rendered:
         lab["_file_sha256"] = sha256_file(d / "labels.json")
@@ -451,7 +522,7 @@ def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positi
         for _, lab, d in rendered:
             contact_sheets(d, lab)
     rnd = group_docs.get("random", {"arrangements": [], "n_arrangements": 0, "n_episodes": 0, "jobs": {}})
-    doc = {"schema": SET_SCHEMA, "simulation": True, "split": "dev", "root": str(root),
+    doc = {"schema": SET_SCHEMA, "simulation": True, "split": splits[0], "root": str(root),
            "n_arrangements": rnd["n_arrangements"], "n_episodes": rnd["n_episodes"], "jobs": rnd["jobs"], "groups": group_docs,
            "jobs_note": "primary = jobs_refL1.json (every query vs the L1 reference at its stop); secondary = jobs_same.json "
                         "(a separate run, reported separately, never a relabelling of the primary); report L1 and L2 queries "
@@ -459,9 +530,29 @@ def build(root: str | Path, ref_lightings: Sequence[str] = REF_LIGHTINGS, positi
            "label_sanity_flagged": {a["arrangement_id"]: lab["label_sanity"]["flagged_stops"] for a, lab, _ in rendered
                                     if lab.get("label_sanity") and not lab["label_sanity"]["ok"]},
            "files": written, "provenance": prov}
+    if env != SHELF:                                       # the shelf's set.json keeps its keys (absent = the shelf)
+        doc = {"schema": doc.pop("schema"), "environment": env, **doc}
+        doc["jobs_note"] = doc["jobs_note"].replace("the design cases DES0..3", "the design cases")
     (root / "set.json").write_text(json.dumps(doc, indent=1) + "\n")
-    (root / "README.md").write_text(set_readme(root, groups, ref_lightings))
+    readme = (set_readme(root, groups, ref_lightings) if env == SHELF else
+              set_readme_tabletop(root, groups, ref_lightings, positions))
+    if splits[0] == "test":   # a frozen test set: the dev wording does not apply (dev sets keep their README bytes)
+        readme = test_set_wording(readme)
+    (root / "README.md").write_text(readme)
     return doc
+
+
+def test_set_wording(readme: str) -> str:
+    """A dev-set README (set_readme / set_readme_tabletop) reworded for a frozen test set."""
+    return (readme.replace(": simulated dev set", ": simulated TEST set")
+            .replace("(SIMULATION, DEV)", "(SIMULATION, TEST)")
+            .replace("Dev split only", "TEST split (generated under FREEZE.md)")
+            .replace("split dev,", "split test,")
+            .replace("`sim/isaac_batch.py` (renderer, GB10)",
+                     "`sim/isaac_batch.py` through `sim/render_test.py` (renderer under the freeze gate, GB10)")
+            .replace("(development analysis and scoring only;", "(analysis and scoring only;")
+            .replace(" The tabletop environment is DEV (not frozen).",
+                     " The tabletop environment is frozen (FREEZE.md)."))
 
 
 def set_readme(root: Path, groups: Mapping[str, Sequence[tuple[dict, dict, Path]]], ref_lightings: Sequence[str]) -> str:
@@ -516,21 +607,83 @@ def set_readme(root: Path, groups: Mapping[str, Sequence[tuple[dict, dict, Path]
         "same revisit pose).", ""])
 
 
+def set_readme_tabletop(root: Path, groups: Mapping[str, Sequence[tuple[dict, dict, Path]]], ref_lightings: Sequence[str],
+                        positions: str | Path | None) -> str:
+    """The README of a tabletop set (set_readme is the shelf's, unchanged)."""
+    rendered = [x for g in groups.values() for x in g]
+    ids = ", ".join(a["arrangement_id"] for a, _, _ in groups["random"]) or "none"
+    dids = ", ".join(a["arrangement_id"] for a, _, _ in groups["design"]) or "none"
+    ind = ", ".join(a["arrangement_id"] for a, _, _ in rendered if a.get("predeclared_indistinguishable")) or "none"
+    pos = Path(positions).name if positions is not None else Path(DEFAULT_POSITIONS[TABLETOP]).name
+    jobs = []
+    if "L1" in ref_lightings:
+        jobs.append("- `jobs_refL1.json`: **PRIMARY** evidence jobs. Every query, L1 and L2, is paired with the **L1 reference** at "
+                    "its stop (docs/SIMULATION_STUDY.md, Reference pairing). Report L1 and L2 queries separately; the lighting is "
+                    "in every episode_id (`<ARR>-<condition>-<L>`).")
+    if "same" in ref_lightings:
+        jobs.append("- `jobs_same.json`: **SECONDARY** evidence jobs. Each query is paired with the reference at its own lighting "
+                    "(L1-L1, L2-L2). It is a separate run, reported separately, and never a relabelling of the primary run.")
+    return "\n".join([
+        f"# {root.name}: simulated dev set, TABLETOP environment (SIMULATION, DEV)", "",
+        "Isaac Sim 6.2 RTX renders of generated tabletop arrangements: `sim/arrange.py` (generator, tabletop config) -> "
+        "`sim/isaac_batch.py` (renderer, GB10) -> `sim/episodes.py` (this folder's jobs, annotations and manifest). Dev split "
+        "only; every result from it is a simulation result. The tabletop environment is DEV (not frozen).", "",
+        f"- Random slots ({len(groups['random'])}): {ids}.",
+        f"- Design cases, outside the slots ({len(groups['design'])}): {dids}. They have their own `*_design*` files.",
+        f"- Predeclared indistinguishable (IND28 occluder family and the IND28 design case): {ind}.",
+        f"- Episodes: 3 conditions x 2 lightings per arrangement; 5 stops per episode, stop index = position in `{pos}` "
+        "(P3 = 2, the start stop).",
+        "- Query views (visible / occluded / removed, both lightings) are rendered at the arrangement's revisit poses (a small "
+        "seeded camera perturbation, one draw per stop); the references at the nominal poses.",
+        "- No fiducials: the query is aligned to its reference by the evidence step itself (or not at all); "
+        "`true_alignment.json` is the ground truth for scoring that.", "",
+        "## Files", "",
+        *jobs,
+        "- `manifest.json`: verify manifest (`verify.manifest`), split dev, `\"simulation\": true`, with `occluder_family`, "
+        "`m16_side`, `design_case` and `\"environment\": \"tabletop\"` per arrangement (a row without it is a shelf row). "
+        "`manifest_design.json` is the same for the design cases.",
+        "- `truth.json`: present / removed per episode (scoring only).",
+        "- `true_alignment.json` (`\"environment\": \"tabletop\"`): the true query-to-reference homographies of the table plane "
+        "z = 0 (`H_table_plane`) and of the horizontal plane through the target's centre (`H_target_plane`) per arrangement and "
+        "stop, with the revisit pose deltas and the reference-box corner displacement; from the simulator's camera poses "
+        "(sim/alignment.py). Evaluation-only, never an evidence or policy input.",
+        "- `view_labels.json`: exact per-view visible fractions and diagnostic labels from the instance masks at each view's "
+        "own pose (development analysis and scoring only; never a policy input).",
+        "- `summary.md`: per-arrangement table. `set.json`: environment, file hashes, generator / config hashes, revisit deltas.",
+        f"- `{pos}`: the stops (the positions file the arrangements were generated with, per-stop pitch).",
+        "- `generation_log.json` (if given): the generator's set-level log of failed tries and reserve replacements.",
+        "- `<ARR>/`: `arrangement.json` (seed, objects, phases, revisit cameras, generator and config hashes), "
+        "`rgb/<phase>_<stop>_<L>.png`, `masks/` (target masks, target-alone masks at the nominal and revisit poses, class maps; "
+        "the table and the room are class 0 with the background), `annotations/ann_<stop>_<L>.json` (one per stop and "
+        "reference lighting; boxes from that lighting's nominal reference mask), `labels.json`, `render.json`, contact sheets.", "",
+        "Diagnostic (docs/SIM_PREREGISTRATION.md section 3): a present-target view with visible fraction >= 0.90; a removed view "
+        "whose expected region is unobstructed (the occluder covers < 10 % of the target's region: the visible-phase mask at the "
+        "same revisit pose). `python -m sim.check_batch` adds the share of clipped table pixels per stop (light check).", ""])
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m sim.episodes", description=__doc__.split("\n\n")[0])
     ap.add_argument("--root", required=True, help="folder with one rendered <ARR>/ per arrangement (sim/isaac_batch.py)")
     ap.add_argument("--ref-lighting", nargs="+", default=list(REF_LIGHTINGS), choices=REF_LIGHTINGS,
                     help="reference pairing(s) to write: L1 -> jobs_refL1.json (PRIMARY), same -> jobs_same.json "
                          "(SECONDARY, a separate run); default both")
-    ap.add_argument("--positions", default="configs/sim/positions_shelf_A.json",
+    ap.add_argument("--positions", default=None,
                     help="copied into the set; must be the file the arrangements were generated with (sha256 checked; shelf_v1, v2 "
-                         "and v3 all use positions_shelf_A.json)")
+                         "and v3 all use positions_shelf_A.json). Default: the set environment's file, "
+                         + ", ".join(f"{k} {v}" for k, v in DEFAULT_POSITIONS.items()))
     ap.add_argument("--generation-log", default=None, help="the generator's generation_log.json, copied into the set")
     ap.add_argument("--contact-sheets", action="store_true", help="also write contact sheets (needs cv2)")
+    ap.add_argument("--freeze", default=None,
+                    help="a test set: the committed docs/FREEZE.md its arrangements record (sim/freeze.py)")
     a = ap.parse_args(argv)
     try:
-        doc = build(a.root, a.ref_lighting, a.positions, a.contact_sheets, a.generation_log)
-    except (IncompleteRender, ValueError) as e:
+        freeze_sha = None
+        if a.freeze is not None:
+            from sim import freeze as F
+            freeze_sha = F.require_freeze(a.freeze, needed=("sim/episodes.py", "sim/freeze.py"))["sha256"]
+        positions = a.positions or DEFAULT_POSITIONS[check_single_environment(load_rendered(a.root, freeze_sha))]
+        doc = build(a.root, a.ref_lighting, positions, a.contact_sheets, a.generation_log, freeze_sha)
+    except (IncompleteRender, ValueError, RuntimeError) as e:
         print(f"refused: {e}", file=sys.stderr)
         return 2
     print(json.dumps({k: doc[k] for k in ("root", "n_arrangements", "n_episodes", "files")}, indent=1))

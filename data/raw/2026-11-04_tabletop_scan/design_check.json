@@ -1,0 +1,246 @@
+{
+ "config": {
+  "path": "configs/sim/arrange_tabletop_v1.json",
+  "sha256": "ad9def2a33c7c280c3ad11b28b3ecdeb3a639a93e4c2ca3f293672360d825be8"
+ },
+ "generator_sha256": "e08da91658e2864a96a6735c3a78e49e5056d1b9e91b4798aa9a571fa910fd85",
+ "scope": "geometry only: nominal pinhole convex hulls through the nominal cameras and through each case's fixed revisit cameras; no rendering; rendered masks remain authoritative",
+ "cases": {
+  "TDES0": {
+   "family": "S8",
+   "intended_pattern": "CCHCC",
+   "gap_m": 0.08,
+   "shift_m": 0.0,
+   "config_margin_px": 30.729,
+   "nominal": {
+    "P1": {
+     "coverage": 0.0,
+     "margin_px": 214.961
+    },
+    "P2": {
+     "coverage": 0.0,
+     "margin_px": 35.506
+    },
+    "P3": {
+     "coverage": 1.0,
+     "margin_px": 30.729
+    },
+    "P4": {
+     "coverage": 0.0,
+     "margin_px": 35.022
+    },
+    "P5": {
+     "coverage": 0.0,
+     "margin_px": 214.961
+    }
+   },
+   "revisit": {
+    "P1": {
+     "coverage": 0.0,
+     "margin_px": 221.223,
+     "redraws": 0
+    },
+    "P2": {
+     "coverage": 0.0,
+     "margin_px": 42.85,
+     "redraws": 0
+    },
+    "P3": {
+     "coverage": 1.0,
+     "margin_px": 36.216,
+     "redraws": 0
+    },
+    "P4": {
+     "coverage": 0.0,
+     "margin_px": 38.644,
+     "redraws": 0
+    },
+    "P5": {
+     "coverage": 0.0,
+     "margin_px": 215.103,
+     "redraws": 0
+    }
+   },
+   "revisit_min_coverage_at_H": 1.0,
+   "revisit_max_coverage_at_C": 0.0,
+   "revisit_pattern": "CCHCC"
+  },
+  "TDES1": {
+   "family": "M16-R",
+   "intended_pattern": "CCHHC",
+   "gap_m": 0.065,
+   "shift_m": 0.045,
+   "config_margin_px": 10.883,
+   "nominal": {
+    "P1": {
+     "coverage": 0.0,
+     "margin_px": 164.819
+    },
+    "P2": {
+     "coverage": 0.0,
+     "margin_px": 14.98
+    },
+    "P3": {
+     "coverage": 1.0,
+     "margin_px": 31.08
+    },
+    "P4": {
+     "coverage": 1.0,
+     "margin_px": 10.883
+    },
+    "P5": {
+     "coverage": 0.0,
+     "margin_px": 44.958
+    }
+   },
+   "revisit": {
+    "P1": {
+     "coverage": 0.0,
+     "margin_px": 171.081,
+     "redraws": 0
+    },
+    "P2": {
+     "coverage": 0.0,
+     "margin_px": 23.466,
+     "redraws": 0
+    },
+    "P3": {
+     "coverage": 1.0,
+     "margin_px": 23.015,
+     "redraws": 0
+    },
+    "P4": {
+     "coverage": 0.9994,
+     "margin_px": -1.266,
+     "redraws": 0
+    },
+    "P5": {
+     "coverage": 0.0,
+     "margin_px": 55.804,
+     "redraws": 0
+    }
+   },
+   "revisit_min_coverage_at_H": 0.9994,
+   "revisit_max_coverage_at_C": 0.0,
+   "revisit_pattern": "CCHHC"
+  },
+  "TDES2": {
+   "family": "M16-L",
+   "intended_pattern": "CHHCC",
+   "gap_m": 0.065,
+   "shift_m": -0.045,
+   "config_margin_px": 10.883,
+   "nominal": {
+    "P1": {
+     "coverage": 0.0,
+     "margin_px": 44.958
+    },
+    "P2": {
+     "coverage": 1.0,
+     "margin_px": 10.883
+    },
+    "P3": {
+     "coverage": 1.0,
+     "margin_px": 31.08
+    },
+    "P4": {
+     "coverage": 0.0,
+     "margin_px": 14.54
+    },
+    "P5": {
+     "coverage": 0.0,
+     "margin_px": 164.819
+    }
+   },
+   "revisit": {
+    "P1": {
+     "coverage": 0.0,
+     "margin_px": 61.601,
+     "redraws": 0
+    },
+    "P2": {
+     "coverage": 1.0,
+     "margin_px": 19.174,
+     "redraws": 0
+    },
+    "P3": {
+     "coverage": 1.0,
+     "margin_px": 23.773,
+     "redraws": 0
+    },
+    "P4": {
+     "coverage": 0.0,
+     "margin_px": 22.441,
+     "redraws": 0
+    },
+    "P5": {
+     "coverage": 0.0,
+     "margin_px": 167.93,
+     "redraws": 0
+    }
+   },
+   "revisit_min_coverage_at_H": 1.0,
+   "revisit_max_coverage_at_C": 0.0,
+   "revisit_pattern": "CHHCC"
+  },
+  "TDES3": {
+   "family": "IND28",
+   "intended_pattern": "HHHHH",
+   "gap_m": 0.005,
+   "shift_m": -0.02,
+   "config_margin_px": 3.435,
+   "nominal": {
+    "P1": {
+     "coverage": 1.0,
+     "margin_px": 3.435
+    },
+    "P2": {
+     "coverage": 1.0,
+     "margin_px": 61.652
+    },
+    "P3": {
+     "coverage": 1.0,
+     "margin_px": 61.292
+    },
+    "P4": {
+     "coverage": 1.0,
+     "margin_px": 61.652
+    },
+    "P5": {
+     "coverage": 1.0,
+     "margin_px": 3.435
+    }
+   },
+   "revisit": {
+    "P1": {
+     "coverage": 1.0,
+     "margin_px": 4.956,
+     "redraws": 0
+    },
+    "P2": {
+     "coverage": 1.0,
+     "margin_px": 62.323,
+     "redraws": 0
+    },
+    "P3": {
+     "coverage": 1.0,
+     "margin_px": 62.142,
+     "redraws": 0
+    },
+    "P4": {
+     "coverage": 1.0,
+     "margin_px": 60.525,
+     "redraws": 0
+    },
+    "P5": {
+     "coverage": 0.9981,
+     "margin_px": -3.512,
+     "redraws": 0
+    }
+   },
+   "revisit_min_coverage_at_H": 0.9981,
+   "revisit_max_coverage_at_C": null,
+   "revisit_pattern": "HHHHH"
+  }
+ }
+}

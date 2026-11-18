@@ -1,0 +1,87 @@
+"""Writes scan_plan.json: the tabletop board-height scan plan, committed BEFORE the scan runs (the commit time is the proof
+that heights, seeds, budget and the decision rule were fixed beforehand). Hashes of the base config and of the code the scan
+runs with are recorded; sim/feasibility.py heightscan refuses a base config with another hash."""
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[2]
+sys.path.insert(0, str(REPO))
+
+
+def sha(p):
+    return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+
+
+plan = {
+    "schema": "cmpe249.tabletop-height-scan-plan.v1",
+    "title": "Tabletop board-height scan (tabletop wave 2A, step 4)",
+    "authority": ("DECISIONS 2026-11-04 item 2 (the researcher): seeds and attempt budget fixed beforehand; scan all of "
+                  "0.15/0.18/0.20/0.22/0.25 m; choose the smallest height that (a) admits foam brick and tuna can on both M16 "
+                  "sides and (b) retains the best S8/IND28 target support found across the whole grid, comparing identities and "
+                  "success rates, not only counts; if no height satisfies both, report that; taller boards are tabletop variants "
+                  "with exact dimensions."),
+    "base_config": {"file": "base_config.json", "sha256": sha(HERE / "base_config.json"),
+                    "note": "make_tabletop_config.py base; board heights are null there and set per cell"},
+    "code_at_plan": {p: sha(REPO / p) for p in ("sim/arrange.py", "sim/feasibility.py", "sim/tabletop.py", "sim/rig.py")},
+    "heights_m": [0.15, 0.18, 0.20, 0.22, 0.25],
+    "no_early_stop": True,
+    "board_families": ["S8", "M16", "IND28"],
+    "board_dims_note": ("every board family at the scanned height (S8 0.08 m wide, M16 0.16 m, IND28 per ind28_widths_m; all "
+                        "0.005 m thick), the other rules of the base config unchanged"),
+    "m16_sides": ["L", "R"],
+    "ind28_widths_m": [0.28, 0.36, 0.44],
+    "ind28_widths_note": ("0.28 m = the physical IND28; 0.36 / 0.44 m = candidate tabletop variants for the +-60 deg stops "
+                          "(design proposal section 4), scanned at every height"),
+    "targets": [4, 9, 14, 21, 6],
+    "ycb_box_choices": [[2, "upright"], [3, "upright"], [16, "upright"], [7, "edge"]],
+    "ycb_box_note": "upright cracker box, upright sugar box, upright wood block, pudding box on edge; one choice per cell (height-independent)",
+    "white_box_note": "height-independent cells (one per target), recorded; the class matrix decides its target list",
+    "tries_per_cell": 100,
+    "attempt": 0,
+    "probe_seeds": {"start": 7000, "n": 100,
+                    "note": ("dev seeds 7000-7099, the SAME seeds in every cell (paired); try_place(seed, attempt 0), entropy "
+                             "[ENTROPY_SALT['tabletop'], seed]; disjoint from the slot seeds 5000-5059 / reserves 6000-6411")},
+    "class_matrix_probe_seeds": {"start": 7200, "n": 100, "note": "dev seeds 7200-7299 for the class matrix at the chosen height"},
+    "decision_rule": {
+        "alpha": 0.05,
+        "m16_must_admit": [21, 6],
+        "admitted": "a target is ADMITTED in a cell if at least 1 of its tries_per_cell tries succeeds (same wording as the shelf exclusions: 0 of N tries = not admitted)",
+        "a": "height h meets (a) if foam brick (21) and tuna can (6) are both admitted in M16-L and in M16-R at h",
+        "best_support": ("BEST SUPPORT of family F (S8 over the 5 heights; IND28 over the 5 heights x 3 widths) = (identities) the set "
+                         "B_F of targets admitted in at least one cell of F's grid, and (rates) for each target t in B_F its largest "
+                         "success count over F's grid, k*_F(t)"),
+        "b": ("height h meets (b) if S8 retains its best support at h AND IND28 retains its best support at h for at least one "
+              "width W. F retains its best support at h (width W) if for EVERY target t in B_F: t is admitted at h (W) and its "
+              "success count k there is not significantly lower than k*_F(t): one-sided Fisher exact test of k/N vs k*_F(t)/N, "
+              "p >= alpha (sim/feasibility.py fisher_one_sided_lower). Equal identities with a significantly lower rate fail"),
+        "choice": "H_T = the smallest scanned height meeting (a) and (b); all five heights are scanned whatever the outcome",
+        "ind28_width": ("the IND28 width at H_T = the narrowest width W meeting (b) at H_T; W > 0.28 m is recorded as a tabletop "
+                        "variant with its exact dimensions (W x H_T x 0.005 m)"),
+        "none": "if no height meets (a) and (b) the outcome is reported as 'no height satisfies' and no height is picked",
+        "ycb_box": "a ycb_box choice is kept if it admits at least one of the five targets; the class matrix then decides the ycb_box target list",
+        "implementation": "sim/feasibility.py decide_height (unit-tested on synthetic results in tests/test_sim_arrange_tabletop.py before the run)",
+    },
+    "after_the_scan": {
+        "class_matrix": ("at H_T (all boards), the chosen IND28 width and the kept ycb_box choices: 100 real generator tries per "
+                         "(slot class, target), probe seeds 7200-7299; a class's target list = the targets with >= 1 success; the "
+                         "others are excluded with the reason 'no valid placement found in 100 tries'"),
+        "revisit_redraw_rate": "rejected revisit draws per stop over the generated dev60 + TDES0-3 (scratch, not the share)",
+    },
+    "budget": {"workers": 5, "n_cells": None,
+               "estimate": ("smoke (26 cells x 2 tries, 5 workers): 0.59 worker-s per try; failing tries up to ~1.7 s. 175 cells x 100 "
+                            "tries = 17,500 tries: ~35 min expected, ~1.7 h worst case, under the 2 h limit, so the budget stays 100"),
+               "long_run": "background process writing scan.log (not committed), cells.jsonl and results.json in this folder"},
+    "smoke_disclosure": ("Before this plan was written the generator code was smoke-tested on dev seeds 9900-9911 and 9950-9961 (not "
+                         "used here) at a board height of 0.20 m (and 0.15 / 0.25 m in a 2-try pipeline check) for timing and for the "
+                         "parking rule: with the parked occluder's base centre required in frame at all 5 stops, 5 of 12 S8 parks "
+                         "succeeded (3 stops: 8 of 12; 1 stop: 12 of 12), so the base config requires >= 1 stop (on the seen table). "
+                         "No smoke result is used by the decision."),
+}
+from sim import feasibility as F  # noqa: E402
+
+plan["budget"]["n_cells"] = len(F.scan_cells(plan))
+(HERE / "scan_plan.json").write_text(json.dumps(plan, indent=1) + "\n")
+print("wrote", HERE / "scan_plan.json", "cells", plan["budget"]["n_cells"])

@@ -1,0 +1,209 @@
+{
+ "schema": "cmpe249.positions.v1",
+ "environment": "tabletop",
+ "status": "SIM 2026-11-04: the simulated TABLETOP's stops (DEV, not frozen). Written by `python -m sim.tabletop positions`.",
+ "note": "Frame: configs/sim/tabletop_geometry.json (origin at the workspace centre on the table top, y away from P3). Lens on a 45 cm arc about the workspace centre, 38 cm above the table, azimuths -60..60 deg in 30 deg steps, each stop facing the centre, roll 0. Each stop's tilt_deg (downward pitch) maximises the smallest frame margin of the workspace outline (24 points on the 0.20 m circle at z = 0 and z = 0.12) with the fitted k1; accepted only if every stop's acceptable-pitch window (margin >= 0) is >= 2 deg wide. There is no file-level tilt_deg: readers use the per-stop values (sim/rig.py stop_tilt_deg).",
+ "radius_cm": 45.0,
+ "arc_centre_behind_front_cm": 0.0,
+ "arc_centre_note": "the arc centre is the frame origin (the workspace centre); the key name is the shelf schema's",
+ "arc_rotation_deg": 0.0,
+ "height_cm": 38.0,
+ "height_note": "lens height above the table top (z = 0)",
+ "roll_deg": 0.0,
+ "roll_note": "every stop; read by sim/rig.py cameras_from_positions (the shelf file has no roll_deg and keeps the P3 fitted 1.98 deg)",
+ "tilt_note": "per stop (stops[i].tilt_deg)",
+ "stops": [
+  {
+   "name": "P1",
+   "azimuth_deg": -60.0,
+   "tilt_deg": 39.23
+  },
+  {
+   "name": "P2",
+   "azimuth_deg": -30.0,
+   "tilt_deg": 39.23
+  },
+  {
+   "name": "P3",
+   "azimuth_deg": 0.0,
+   "tilt_deg": 39.23
+  },
+  {
+   "name": "P4",
+   "azimuth_deg": 30.0,
+   "tilt_deg": 39.23
+  },
+  {
+   "name": "P5",
+   "azimuth_deg": 60.0,
+   "tilt_deg": 39.23
+  }
+ ],
+ "start_stop": "P3",
+ "f_order": [
+  "P1",
+  "P2",
+  "P4",
+  "P5"
+ ],
+ "frame_check": {
+  "P1": {
+   "tilt_deg": 39.23,
+   "optimum_deg": 39.23,
+   "k1_min_margin_px": 101.46,
+   "pinhole_min_margin_px": 104.48,
+   "k1_window_deg": [
+    36.29,
+    42.17
+   ],
+   "k1_window_width_deg": 5.88,
+   "revisit": {
+    "corners_worst_margin_px": 10.93,
+    "corners_worst_delta": {
+     "dx_m": 0.01,
+     "dy_m": 0.01,
+     "dz_m": 0.01,
+     "dyaw_deg": -0.5,
+     "dpitch_deg": -0.5,
+     "droll_deg": -0.5
+    },
+    "corners_best_margin_px": 109.02,
+    "sample_n": 2000,
+    "sample_min_margin_px": 25.7,
+    "sample_median_margin_px": 85.13,
+    "sample_below_floor": 0,
+    "expected_redraw_rate": 0.0
+   }
+  },
+  "P2": {
+   "tilt_deg": 39.23,
+   "optimum_deg": 39.23,
+   "k1_min_margin_px": 101.46,
+   "pinhole_min_margin_px": 104.48,
+   "k1_window_deg": [
+    36.29,
+    42.17
+   ],
+   "k1_window_width_deg": 5.88,
+   "revisit": {
+    "corners_worst_margin_px": 10.93,
+    "corners_worst_delta": {
+     "dx_m": 0.01,
+     "dy_m": 0.01,
+     "dz_m": 0.01,
+     "dyaw_deg": 0.5,
+     "dpitch_deg": -0.5,
+     "droll_deg": 0.5
+    },
+    "corners_best_margin_px": 109.02,
+    "sample_n": 2000,
+    "sample_min_margin_px": 25.1,
+    "sample_median_margin_px": 85.86,
+    "sample_below_floor": 0,
+    "expected_redraw_rate": 0.0
+   }
+  },
+  "P3": {
+   "tilt_deg": 39.23,
+   "optimum_deg": 39.23,
+   "k1_min_margin_px": 101.46,
+   "pinhole_min_margin_px": 104.48,
+   "k1_window_deg": [
+    36.29,
+    42.17
+   ],
+   "k1_window_width_deg": 5.88,
+   "revisit": {
+    "corners_worst_margin_px": 24.16,
+    "corners_worst_delta": {
+     "dx_m": -0.01,
+     "dy_m": 0.01,
+     "dz_m": 0.01,
+     "dyaw_deg": -0.5,
+     "dpitch_deg": -0.5,
+     "droll_deg": -0.5
+    },
+    "corners_best_margin_px": 100.19,
+    "sample_n": 2000,
+    "sample_min_margin_px": 29.14,
+    "sample_median_margin_px": 85.49,
+    "sample_below_floor": 0,
+    "expected_redraw_rate": 0.0
+   }
+  },
+  "P4": {
+   "tilt_deg": 39.23,
+   "optimum_deg": 39.23,
+   "k1_min_margin_px": 101.46,
+   "pinhole_min_margin_px": 104.48,
+   "k1_window_deg": [
+    36.29,
+    42.17
+   ],
+   "k1_window_width_deg": 5.88,
+   "revisit": {
+    "corners_worst_margin_px": 10.93,
+    "corners_worst_delta": {
+     "dx_m": -0.01,
+     "dy_m": 0.01,
+     "dz_m": 0.01,
+     "dyaw_deg": -0.5,
+     "dpitch_deg": -0.5,
+     "droll_deg": -0.5
+    },
+    "corners_best_margin_px": 109.02,
+    "sample_n": 2000,
+    "sample_min_margin_px": 30.16,
+    "sample_median_margin_px": 85.58,
+    "sample_below_floor": 0,
+    "expected_redraw_rate": 0.0
+   }
+  },
+  "P5": {
+   "tilt_deg": 39.23,
+   "optimum_deg": 39.23,
+   "k1_min_margin_px": 101.46,
+   "pinhole_min_margin_px": 104.48,
+   "k1_window_deg": [
+    36.29,
+    42.17
+   ],
+   "k1_window_width_deg": 5.88,
+   "revisit": {
+    "corners_worst_margin_px": 10.93,
+    "corners_worst_delta": {
+     "dx_m": -0.01,
+     "dy_m": 0.01,
+     "dz_m": 0.01,
+     "dyaw_deg": 0.5,
+     "dpitch_deg": -0.5,
+     "droll_deg": 0.5
+    },
+    "corners_best_margin_px": 109.02,
+    "sample_n": 2000,
+    "sample_min_margin_px": 32.76,
+    "sample_median_margin_px": 85.59,
+    "sample_below_floor": 0,
+    "expected_redraw_rate": 0.0
+   }
+  }
+ },
+ "revisit_check": {
+  "translation_m": 0.01,
+  "rotation_deg": 0.5,
+  "min_margin_px": 0.0,
+  "distort": true,
+  "ranges_from": "configs/sim/arrange_shelf_v3.json revisit (the shared revisit protocol)",
+  "method": "worst outline margin over the 64 corners of the +-translation (world x, y, z) / +-rotation (yaw, pitch, roll) box (sim/arrange.py perturb_camera), and over a seeded uniform sample (revisit_draw, entropy [7000000 + k], k < 2000, stream_salt 1383428169, attempt 0); expected_redraw_rate = the sample's share below min_margin_px. The arrangement frame check will add the target's hull (sim/arrange.py frame_check)."
+ },
+ "acceptance": {
+  "rule": "every stop's k1 acceptable-pitch window >= 2.0 deg",
+  "min_window_deg": 5.88,
+  "ok": true
+ },
+ "provenance": {
+  "plan": "design proposal section 2 = the recorded D2b tabletop plan (DECISIONS 2026-09-26 evening); researcher's decision 2026-11-04 item 1",
+  "tilt_deg": "sim/tabletop.py make_positions (this file's frame_check block is its output)",
+  "geometry": "configs/sim/tabletop_geometry.json (workspace outline, camera f_px / k1) sha256 76317422198c9e25ae3d0af8502551a729a19651a349993ae99b3428ff55e249"
+ }
+}

@@ -1,0 +1,78 @@
+{
+ "run_id": "regrepair_c1_tabletop",
+ "note": "Registration repair plan (notes/2026-11-04-registration-repair-plan.md, pinned b144e04, Amendment 1): C0 (v0.3 image_align, unchanged) and candidate C1 through the same harness (perception/registration_v032.py) on the 11-arrangement tabletop transfer diagnostic, as comparable timed jobs: 10 spawned workers, torch / OMP 1 thread, cv2 1 thread; C0 then C1, one after the other. The *.timing.json batch records are written next to the outputs (not record-counted). Scored locally against the pinned criteria at the fixed shelf v03_image thresholds; no select or summary stage: nothing is calibrated. Run with --from-stage evidence.",
+ "remote": "configs/pipeline/remote.local.json",
+ "set_root": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/tabletop_transfer11",
+ "local_python": [
+  "uv",
+  "run",
+  "--offline",
+  "--no-project",
+  "--python",
+  "3.13.5",
+  "--with",
+  "numpy==2.5.3",
+  "--with",
+  "opencv-python-headless==5.0.0.93",
+  "python"
+ ],
+ "poll_seconds": 30,
+ "heartbeat_seconds": 600,
+ "evidence": {
+  "out_dir": "/mnt/bench-data/datasets/cmpe249-active-verification/sim/tabletop_transfer11/evidence",
+  "jobs": [
+   "jobs_refL1.json"
+  ],
+  "step_alert_minutes": 90,
+  "variants": {
+   "c0": {
+    "args": [
+     "-m",
+     "perception.registration_v032",
+     "--candidate",
+     "C0",
+     "--jobs",
+     "{jobs}",
+     "--out",
+     "{out}/c0_{part}.jsonl",
+     "--diag",
+     "{out}/c0_{part}.diag.jsonl",
+     "--workers",
+     "10",
+     "--torch-threads",
+     "1",
+     "--timing",
+     "{out}/c0_{part}.timing.json"
+    ],
+    "outputs": [
+     "{out}/c0_{part}.jsonl",
+     "{out}/c0_{part}.diag.jsonl"
+    ]
+   },
+   "c1": {
+    "args": [
+     "-m",
+     "perception.registration_v032",
+     "--candidate",
+     "C1",
+     "--jobs",
+     "{jobs}",
+     "--out",
+     "{out}/c1_{part}.jsonl",
+     "--diag",
+     "{out}/c1_{part}.diag.jsonl",
+     "--workers",
+     "10",
+     "--torch-threads",
+     "1",
+     "--timing",
+     "{out}/c1_{part}.timing.json"
+    ],
+    "outputs": [
+     "{out}/c1_{part}.jsonl",
+     "{out}/c1_{part}.diag.jsonl"
+    ]
+   }
+  }
+ }
+}

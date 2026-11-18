@@ -1,80 +1,94 @@
-# Occlusion Aware Active Verification for Robot Scene Memory
+# Evidence-Aware Verification for Robot Scene Memory
 
-**Course:** CMPE 249 Intelligent Autonomous Systems, Fall 2026  
-**Team member:** Adithya Rajendran (solo)  
-**Instructor:** Kaikai Liu  
-**Selected track:** Track 4 - VLA / robotics  
-**Project format:** Research with a bounded system prototype  
-**Secondary alignment:** Track 6 - Safety and evaluation  
-**Status (2026-11-03):**
-- **Reproduce:** [docs/REPRODUCE.md](docs/REPRODUCE.md) is the single entry point: hosts, software, data layout, the pipeline commands, checks, and what is not yet reproducible.
-- **Direction change.** With the instructor's agreement, the course study now runs **in simulation** (Isaac Sim 6.2 on the GB10; MuJoCo was used only to cross-check the geometry) instead of by physical capture; see the [amendment](docs/SIMULATION_STUDY.md). A real-robot study with the PIs is planned after the course. There are no experimental results yet. A 64-arrangement shelf dev set (`shelf_dev_v3`) is rendered and scored (development data only).
-- **Built:** the capture tooling (also drivable from a phone), the offline verification core (replay, policies, threshold selection select-v4, paired bootstrap), evidence step v0.2.1, and a simulated replica of the shelf rig ([notes](notes/2026-11-02-simulation.md)). The replica reproduces the 2026-10-10 camera and occluder design in two independent renderers. On top of it sit a seeded arrangement generator, a batch Isaac Sim renderer, episode and set checks, and a run driver ([`sim/`](sim/README.md), [`tools/`](tools/pipeline.py)). Evidence v0.3 (tag-free image registration plus a background occlusion cue, dev, not frozen) is evaluated on the full shelf dev set against frozen v0.2.1 and a v0.2.1 + image-alignment ablation ([notes](notes/2026-11-04-dev60-evidence-variants.md)); ranker A is not built.
-- **Real pilots:** two single-stop pilots. Frozen v0.2.1 got 51/52 per view on pilot 2, a held-out test of the code, and the one miss exposed a same-footprint occluder gap ([notes](notes/2026-10-20-pilot2.md)). These are now a real-world sanity check for the simulation.
-- **Public datasets:** on hand as development data; OCID is turned into 903 labelled episodes ([notes](notes/2026-10-23-public-data-ocid.md)).
+CMPE 249, San José State University, Fall 2026. Adithya Rajendran. Instructor: Kaikai Liu.
 
-## Abstract
+**Status: development, 2026-11-17 Pacific. No new study is frozen.**
 
-A robot that revisits a workspace may fail to detect a remembered object because it was removed, it is occluded, or the detector missed it. Visibility reasoning helps interpret a miss, but deciding whether to acquire another view also requires a sensing policy. I propose a bounded study of that decision using five calibrated camera positions and three possible outputs: present, removed from the monitored area, or unknown. A small learned view ranker will be compared with fixed, random, and geometric parallax selectors using the same perception front end, stopping rule, and observation and travel limits. A passive single-view rule provides a no-movement reference. The main question is whether learning improves on the geometric selector, and under which occlusion conditions. No experimental results are claimed at proposal time.
+The first study tested camera view selection. That study is complete, with important limits in its design.
+The next study tests whether an image supports a decision about a remembered object.
+The first development pilot is complete. Its model verifier failed an obvious retained-target control.
 
-## Research question
+The camera-displacement run is complete. Guard controls recover many abstentions without added physical errors.
+AI support judgments remain provisional after qualification and a repeated audit.
 
-Under a fixed observation and travel budget, does adaptive view selection with conservative stopping reduce false removals, at comparable coverage, relative to passive visibility reasoning and to fixed, random, and geometric inspection orders? Secondary: does a learned ranker add anything over parallax geometry, and under which conditions?
+The next step qualifies MuJoCo scene support, then compares fixed image-only controls across Isaac Sim and MuJoCo.
+The researcher selected simulation-only evaluation. Physical-camera transfer remains future work.
+A further model comparison requires validated support labels, useful opportunity and successful verifier qualification.
 
-## Proposal submission materials
+## Current study
 
-| Requirement | File |
+A missing detection does not establish removal. The target can remain behind an occluder.
+The verifier returns PRESENT, REMOVED or UNKNOWN from a reference image and one revisit image.
+REMOVED means absent from the remembered region under the stated task assumptions. It does not mean absent from the whole scene.
+
+The image verifier checks separate evidence for presence and removal.
+An agreement veto can reject its errors. A conditional cascade can add answers where it abstains.
+The evaluation measures unsupported answers and useful correct answers together.
+
+The main reference is image-only verification, including guard controls.
+A later model comparison includes explicit UNKNOWN and calibrated confidence rejection.
+
+| Read | Purpose |
 | --- | --- |
-| A - Initial project description | This README |
-| B - Literature and SOTA survey | [Fourteen papers: ten recent and four foundational](docs/LITERATURE_REVIEW.md) |
-| C - Canvas proposal | [PDF](docs/CMPE249_Project_Proposal.pdf), [editable Word document](docs/CMPE249_Project_Proposal.docx), and [Markdown source](docs/PROPOSAL.md) |
-| D - AI novelty and feasibility audit | [AI audit](docs/AI_AUDIT.md) |
-| Detailed evaluation design | [Experiment protocol](docs/EXPERIMENT_PLAN.md), amended for the [simulation study](docs/SIMULATION_STUDY.md) (2026-11-02) |
-| Citation metadata | [BibTeX references](references.bib) |
+| [Document guide](docs/README.md) | Current research documents and historical records |
+| [Proposal](docs/PROPOSAL.md) | Research question, contribution and closest work |
+| [Method](docs/METHOD.md) | Inputs, labels, decision rule and controls |
+| [Evaluation plan](docs/EVALUATION_PLAN.md) | Data, comparisons, metrics and readiness checks |
+| [Stress experiment](development/stress/PROTOCOL.md) | Declared camera levels, labels, controls and execution checks |
+| [Research update](notes/2026-11-17-research-and-stress-plan.md) | Closest work and corrections to the earlier interpretations |
+| [Stress execution](notes/2026-11-17-stress-execution.md) | Completed smoke, AI label audit and full rendering status |
+| [Scoring and label review](notes/2026-11-17-scoring-and-label-review.md) | Completed controls, independent recount and label qualification |
+| [Next simulator comparison](development/cross_sim/PLAN.md) | Backend qualification, paired scenes, physical-state scores and stopping rule |
+| [VA-TAMP review](notes/2026-11-17-va-tamp-and-simulation-scope.md) | Prior-work overlap, candidate contribution and simulation scope |
+| [Freeze policy](docs/FREEZE_POLICY.md) | Development, release conditions and historical records |
+| [Label audit](notes/2026-11-16-development-support-audit.md) | Support labels, ambiguous fragments and review limits |
+| [Development pilot](notes/2026-11-16-development-pilot.md) | Completed runs, failed baseline qualification and next decisions |
 
-## Progress since the proposal
+Publication depends on evidence beyond the strongest controls and a defensible contribution.
+Neither a new title nor a freeze establishes novelty.
 
-- [Reproduce the study: hosts, software, data, commands, checks, known gaps](docs/REPRODUCE.md)
-- [Novelty check for the week-2 gate](docs/NOVELTY_CHECK.md)
-- [Citation audit](docs/CITATION_AUDIT.md)
-- [Lab notebook: dated entries with figures](notes/)
-- [First real pilot and evidence v0 (2026-10-17)](notes/2026-10-17-first-real-pilot.md)
-- [Pilot 2: frozen evidence v0.2.1 on a held-out arrangement (2026-10-20)](notes/2026-10-20-pilot2.md)
-- [Public datasets, the OCID loader and v0.2.1 on OCID (2026-10-23)](notes/2026-10-23-public-data-ocid.md)
-- [Simulation: MuJoCo and Isaac Sim replicas of the rig (2026-11-02)](notes/2026-11-02-simulation.md)
-- Simulation dev loop (2026-11-03): [small dev batch check](notes/2026-11-03-dev-batch-check.md), [check batch through evidence v0.2.1 and select-v4](notes/2026-11-03-check-batch-evidence.md), [M16, shelf_v2/v3 and the render check](notes/2026-11-03-m16-and-render-check.md)
+## Completed study
 
-| Code | What |
+The [completed study](https://github.com/Adithya-Rajendran/cmpe249-active-verification/tree/b81ded23d6710bf792e96ac53b5104fce6b177a1) ended at `b81ded2`.
+The historical tag `simulation-freeze-1` identifies the [original freeze commit](https://github.com/Adithya-Rajendran/cmpe249-active-verification/tree/6d0ed94a73a20ff41549a2383b07f0358bf69ad9).
+This checkout starts from the completed study. The new documents do not replace its results.
+
+| Record | Purpose |
 | --- | --- |
-| [`capture/`](capture/README.md) | Locked Pi capture, the guided sequencer `run_arrangement.py`, its phone front end `phone_ui.py`, tag registration |
-| [`perception/`](perception/README.md) | Evidence step (frozen v0.2.1) and the perception smoke tests |
-| [`verify/`](verify/README.md) | Offline verification core: replay, policies, the shared stopping rule, threshold selection |
-| [`public_data/`](public_data/README.md) | Public datasets as development data (OCID loader, evidence runner, per-view scorer) |
-| [`sim/`](sim/README.md) | Rig description, arrangement generator (`sim.arrange`), Isaac Sim batch renderer (GB10), episode builder and set checks; MuJoCo geometry cross-check |
-| [`tools/`](tools/pipeline.py) | Run driver (render, episodes, check; JSONL events) and an alert-only watcher |
+| [Frozen results](notes/2026-11-06-test-results.md) | Original declared comparisons |
+| [Post-hoc review](notes/2026-11-12-posthoc-review.md) | Later analyses and interpretation limits |
+| [Historical freeze](docs/FREEZE.md) | Original manifest and runbook |
+| [Freeze addenda](docs/FREEZE_ADDENDA.md) | Exceptions, later analyses and closure |
+| [Historical experiment plan](docs/EXPERIMENT_PLAN.md) | Original study only |
+| [Historical reproduction guide](docs/REPRODUCE.md) | Original software and data pipeline |
+| [Document snapshots](docs/archive/2026-11-16-reset/ARCHIVE.md) | Previous README and proposal |
 
-## Initial scope
+The old test data are development data for the new study.
+The old freeze does not authorize a new test or establish the validity of the new method.
 
-One tabletop or shelf; 6 to 10 objects; five camera positions; recorded-view replay first. Outputs are present, removed from the monitored area, or unknown. The same pretrained perception front end (a small YOLO-World checkpoint plus reference-crop matching; SAM 2 optional) serves every policy. Policies: S, a passive single-view visibility rule; F and R, fixed and random orders; G, a geometric parallax selector; A, the proposed regularized logistic view ranker. All multi-view policies share one sequential stopping rule, so only the view choice differs.
+## Existing software
 
-The proposal's planned main dataset was 180 episodes split by physical arrangement into 60 development and 120 test episodes. For the simulation study this became 60 development and 100 test random arrangements per environment (6 episodes each), plus the design cases ([amendment](docs/SIMULATION_STUDY.md), [pre-registration draft](docs/SIM_PREREGISTRATION.md)). View selection cannot access unvisited query images. Models, thresholds, splits, and movement budgets are frozen before final testing.
+| Folder | Existing function |
+| --- | --- |
+| [capture](capture/README.md) | Camera capture and acquisition checks |
+| [perception](perception/README.md) | Image evidence and reference matching |
+| [verify](verify/README.md) | Replay, old selectors and the shared stopping rule |
+| [sim](sim/README.md) | Scene generation, rendering and geometric labels |
+| [development](development/README.md) | Current pilot plans, completed studies and development tools |
+| [public_data](public_data/README.md) | Development data adapters |
 
-## Devices and maintainer
+The historical code implements the completed study. Its pinned files and results remain unchanged.
+The [development runner](development/pilot/README.md) implements the new controls and arrangement-level analysis.
+The pilot uses existing simulator images. It does not establish an implemented robot-memory system or a method advantage.
 
-| Available device | Planned use | Owner and maintainer |
-| --- | --- | --- |
-| ASUS Ascent GX10 (GB10) | Development, local inference, image processing, analysis, simulation (Isaac Sim 6.2) | Adithya Rajendran |
-| Jetson Orin Nano 8 GB | Main development copy, tests, MuJoCo cross-check; optional onboard perception | Adithya Rajendran |
-| Raspberry Pi 5 with AI HAT+ | Camera acquisition and optional motor control / supported inference | Adithya Rajendran |
-| Raspberry Pi camera | Reference and query capture | Adithya Rajendran |
+## Course work
 
-All listed equipment is personally purchased, owned, and managed by Adithya Rajendran. I manage software installations and development access. AI HAT+ execution of the selected models is not assumed. A motorized camera stage remains an optional build.
-
-## Feasibility checkpoint
-
-By the end of week 2, the pilot must show usable perception and meaningful differences between camera views. I will review overlap with the closest papers and narrow or revise the topic with the instructor if the experiment or contribution is not viable.
+Read the [two-page progress feedback PDF](docs/feedback/2026-11-17/Rajendran-CMPE249-progress-feedback-2026-11-17.pdf) for the results and questions for Professor Liu.
+Professor Liu's optional Canvas check-in invites feedback on project progress and technical questions.
+The discussion focuses on support labels, the strongest comparison and transfer between simulators.
 
 ## AI assistance
 
-**Proposal support:** ChatGPT and Claude assisted with drafting, literature review, and the AI audit.  
-**Testing automation:** Codex or Claude Code will help automate test runs and result checks under my review.
+AI tools assisted with literature review, software, analysis and document preparation.
+The researcher must verify the sources, experimental records and final claims.
+The existing submission files remain historical records of the original proposal.

@@ -10,6 +10,15 @@ search, the held-out policy check and freeze eligibility 2026-11-03, before any 
         --view-labels SET/view_labels.json --positions configs/sim/positions_shelf_A.json [the same options]
         (sim dev data: the set files sim/episodes.py writes, with evidence from perception/evidence.py run on
         jobs_refL1.json; only dev arrangements are accepted)
+    uv run --no-sync python -m verify.select --manifest SHELF/manifest.json --evidence SHELF/evidence_refL1.jsonl
+        --view-labels SHELF/view_labels.json --positions configs/sim/positions_shelf_A.json
+        --manifest TABLE/manifest.json --evidence TABLE/evidence_refL1.jsonl --view-labels TABLE/view_labels.json
+        --positions configs/sim/positions_tabletop_A.json [the same options]
+        (pooled calibration over both environments' dev sets: the four flags once per set, in the same order; see
+        "Environments" below)
+    ... [--side SET/side_refL1.jsonl, once per set] [--ranker A] [--ranker A-nocue]
+        (side descriptors, perception/side_descriptor.py on the same jobs: the direction-rule control Dir runs, and the
+        fold-trained rankers of verify/ranker.py train in every fold of the held-out check; verify/side.py)
     uv run --no-sync python -m verify.select --lam-breakpoints [--positions configs/positions.json]
         [--lam-sensitivity ...]
         (prints the lam values at which primary G's choice changes on that geometry, and checks lam = 0
@@ -22,7 +31,8 @@ grouped-CV fold is infeasible, or there are fewer than two dev arrangements).
 No compared policy's results set any shared setting (DECISIONS 2026-10-12: "Shared thresholds are
 selected by a documented procedure that does not optimise them on G's results"). The thresholds come
 from per-view labels alone, k and lam are fixed in advance, and every policy (S, F, R, G, G-lookahead,
-G-myopic; A later) then runs with the same frozen settings.
+G-myopic, and with side descriptors Dir and the fold-trained rankers A and A-nocue) then runs with the same frozen
+settings.
 
 Procedure select-v4. Every number it produces on --synthetic data is SYNTHETIC and is never a real
 threshold; every number from a manifest with "simulation": true is a SIMULATION result.
@@ -104,9 +114,25 @@ EvidenceStore from a StoreFactory (one store per run setting; keys are minted be
 DEV-split arrangements are accepted; any test (or pilot) arrangement raises SplitRefused. The geometric view
 labels are calibration and scoring inputs only, never a policy input.
 
-Known gaps (docs/SIM_PREREGISTRATION.md; verify/README.md section 10): ranker A is not built (the held-out check
-has the per-fold training hook it will plug into); results are not yet split by environment; verify.run still
-replays with placeholder thresholds, not a frozen candidate.
+Environments (tabletop wave, step 9; DEV, not frozen). One set of files (one manifest) runs exactly as before: a shelf
+set's outputs are byte-identical to those before the tabletop. Several sets (one per environment, sim_dev_data_pooled)
+are POOLED: Step 1 and every fold of Step 3a calibrate on the views of all environments together (one threshold set),
+grouped CV leaves one arrangement out across the pool, and the bootstrap strata keep each environment's own quota classes
+(verify.manifest: tabletop strata are prefixed "tabletop:"). Every record keeps its environment (DevData.environment_of,
+from the manifest's records; absent = shelf). A policy replays an episode on that environment's positions file, and a
+travel cap of N arc steps is N of that environment's nominal steps. Rows pooled over environments carry the cap in arc
+steps only (no travel_cap_cm, no mean_travel_cm: each episode moved on its own geometry); centimetres are reported per
+environment (DECISIONS 2026-11-04, choice 3). Every output adds a per-environment breakdown (candidate "environments";
+report section "Per environment"): per-view rates at the chosen and held-out thresholds, gate pass rates, the
+no-diagnostic share, the dev check and the held-out check rows with their FRR flags and all_within_limit, each cap's cm,
+and the lam check on each geometry. all_within_limit and the flags of the main rows stay those of the pooled rows (the
+headline, as before); next to them, frr_within_limit_by_environment and all_environments_within_limit say whether each
+environment passed, because a pooled pass does not imply it (DECISIONS 2026-11-04, choice 2). FRR stays a reported
+policy check: no per-environment result retunes a threshold or gates freeze eligibility.
+
+Closed 2026-11-05 (DECISIONS 2026-11-04, choice 4, required before pooled calibration): Step 5 (sensitivity) is split
+by environment for pooled dev data (environment_sensitivity), and verify.run scores test only with a frozen candidate
+(require_freeze_eligible). Ranker A and A-nocue plug into the per-fold training hook (verify/ranker.py).
 """
 from __future__ import annotations
 
@@ -146,8 +172,10 @@ from verify.manifest import (
 )
 from verify.policies import (
     DEFAULT_R_SEEDS,
+    DIR_NAME,
     FULL_SWEEP_VIEWS,
     GMYOPIC_LAM_DEG,
+    Dir,
     F,
     FullSweep,
     G,
@@ -181,11 +209,13 @@ from verify.schema import (
     Thresholds,
     TruthState,
     cap_cm_from_steps,
+    cap_steps_from_cm,
     config_sha256,
     file_sha256,
     to_jsonable,
     truth_from_condition,
 )
+from verify.side import SideData, SideEnv, SideStore
 from verify.stopping import StoppingRule
 from verify.synthetic import SyntheticParams, generate, generate_layouts
 
@@ -225,11 +255,16 @@ DEFAULT_LAM_SENSITIVITY = (0.7, 0.9, 1.2)
 DEFAULT_LAM_GRID = (LAM_FIXED, *DEFAULT_LAM_SENSITIVITY)   # every lam that runs: the fixed value, then the sensitivity
 
 CHECK_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic")
-# The held-out policy check runs every policy verify.run reports (run.ORDER): the k-rule policies, their -fcm variants
-# (first-clear-miss rule, k = 1) and FULL (all stops, uncapped).
+# The held-out policy check runs the policies verify.run reports (run.ORDER): the k-rule policies, their -fcm variants
+# (first-clear-miss rule, k = 1) and FULL (all stops, uncapped); with side descriptors also Dir (SIDE_POLICIES), and
+# every fold-trained policy.
 HELDOUT_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "F-fcm", "R-fcm", "G-fcm", "G-lookahead-fcm",
                     "G-myopic-fcm", "FULL")
-BUILTIN_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "FULL")
+BUILTIN_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "FULL", DIR_NAME)   # names make_policy builds
+# (a fold-trained policy may not reuse one); Dir runs only with side descriptors (SIDE_POLICIES)
+# Only with side descriptors (DevData.side; notes/2026-11-05-side-descriptor.md): the direction-rule control Dir runs in
+# the dev check, the k sensitivity and the held-out check (with Dir-fcm), next to the policies above.
+SIDE_POLICIES = (DIR_NAME,)
 K_SENSITIVITY_POLICIES = ("F", "R", "G", "G-lookahead", "G-myopic")   # S decides with k = 1 by construction
 LAM_SENSITIVITY_POLICIES = ("G", "G-lookahead")   # the only policies that read Thresholds.lam (G-myopic: lam_deg)
 REPORT_LIGHTINGS = tuple(x.value for x in Lighting)   # "L1", "L2": the headline split (DECISIONS 2026-11-02)
@@ -688,7 +723,10 @@ class DevData:
 
     simulation: the manifest's top-level "simulation" flag (every output is then labelled SIMULATION).
     strata: {arrangement_id: quota slot class} for the stratified cluster bootstrap, or None (unstratified, flagged).
-    inputs: the input files and their sha256 (the sim dev path), recorded in the candidate."""
+    inputs: the input files and their sha256 (the sim dev path), recorded in the candidate.
+    environment_of / positions_by_environment: POOLED dev data only (sim_dev_data_pooled): every arrangement's
+    environment and every environment's positions; positions is then the reference environment's (the first set
+    given). Both None (every dev set before the tabletop, synthetic data): one environment, positions for all."""
     specs: tuple[EpisodeSpec, ...]
     store_factory: StoreFactory
     truth: GroundTruth
@@ -700,6 +738,9 @@ class DevData:
     simulation: bool = False
     strata: Mapping[str, str] | None = None
     inputs: Mapping[str, Any] | None = None
+    environment_of: Mapping[str, str] | None = None
+    positions_by_environment: Mapping[str, Positions] | None = None
+    side: SideData | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "specs", tuple(sorted(self.specs, key=lambda s: s.episode_id)))
@@ -745,10 +786,62 @@ class DevData:
             object.__setattr__(self, "strata", dict(sorted(self.strata.items())))
             if set(self.strata) != {s.arrangement_id for s in self.specs}:
                 raise ValueError("strata must name exactly the dev arrangements")
+        if (self.environment_of is None) != (self.positions_by_environment is None):
+            raise ValueError("pooled dev data need both environment_of and positions_by_environment")
+        if self.environment_of is not None:
+            object.__setattr__(self, "environment_of", dict(sorted(self.environment_of.items())))
+            object.__setattr__(self, "positions_by_environment", dict(sorted(self.positions_by_environment.items())))
+            if set(self.environment_of) != {s.arrangement_id for s in self.specs}:
+                raise ValueError("environment_of must name exactly the dev arrangements")
+            unknown = set(self.environment_of.values()) - set(self.positions_by_environment)
+            if unknown:
+                raise ValueError(f"no positions for the environment(s) {sorted(unknown)}")
+            bad = [e for e, p in self.positions_by_environment.items() if p.n_stops != store.n_stops]
+            if bad:
+                raise ValueError(f"positions of {bad} do not have the evidence's {store.n_stops} stops")
+            if self.positions not in self.positions_by_environment.values():
+                raise ValueError("positions must be one environment's positions (the reference)")
+        if self.side is not None:   # descriptors (DevData.side): exactly the dev episodes, every stop
+            if not isinstance(self.side, SideData):
+                raise TypeError(f"side must be SideData, got {type(self.side).__name__}")
+            extra = set(self.side.episode_ids) - ids
+            if extra:
+                raise SplitRefused(f"side descriptors for episodes outside the dev specs: {sorted(extra)[:5]}")
+            missing = ids - set(self.side.episode_ids)
+            if missing:
+                raise ValueError(f"side descriptors lack dev episodes: {sorted(missing)[:5]}")
+            if self.side.n_stops != store.n_stops:
+                raise ValueError(f"side descriptors have {self.side.n_stops} stops, the evidence {store.n_stops}")
 
     @property
     def arrangements(self) -> tuple[str, ...]:
         return tuple(sorted({s.arrangement_id for s in self.specs}))
+
+    @property
+    def pooled(self) -> bool:
+        """True for dev data pooled over environments (environment_of given)."""
+        return self.environment_of is not None
+
+    @property
+    def environments(self) -> tuple[str, ...]:
+        """The environments of pooled dev data, sorted; () otherwise."""
+        return tuple(sorted(set(self.environment_of.values()))) if self.environment_of is not None else ()
+
+    @property
+    def reference_environment(self) -> str | None:
+        """Pooled: the environment whose positions are `positions` (run settings' caps are converted from its cm)."""
+        if self.positions_by_environment is None:
+            return None
+        return next(e for e, p in self.positions_by_environment.items() if p == self.positions)
+
+    def environment_arrangements(self, env: str) -> tuple[str, ...]:
+        return tuple(a for a in self.arrangements if self.environment_of is not None and self.environment_of[a] == env)
+
+    def positions_of(self, arrangement_id: str) -> Positions:
+        """The positions an arrangement's episodes replay on: its environment's (pooled), else `positions`."""
+        if self.environment_of is None:
+            return self.positions
+        return self.positions_by_environment[self.environment_of[arrangement_id]]
 
     @property
     def view_labels_sha256(self) -> str:
@@ -781,7 +874,11 @@ class DevData:
                        tuple(l for l in self.view_labels if l.episode_id in ids), self.positions, self.synthetic,
                        self.label_source, factory.evidence_sha256(), simulation=self.simulation,
                        strata=None if self.strata is None else {a: self.strata[a] for a in sorted(keep)},
-                       inputs=subset_inputs(self.inputs))
+                       inputs=subset_inputs(self.inputs),
+                       environment_of=None if self.environment_of is None else
+                       {a: self.environment_of[a] for a in sorted(keep)},
+                       positions_by_environment=self.positions_by_environment,
+                       side=None if self.side is None else self.side.subset(ids))
 
 
 SUBSET_INPUTS_NOTE = ("a subset of the dev data (e.g. a CV training fold): the input files hold every dev arrangement, "
@@ -840,7 +937,7 @@ def _rel(path: str | Path) -> str:
 
 
 def sim_dev_data(manifest: str | Path, evidence: str | Path, view_labels: str | Path,
-                 positions: str | Path) -> DevData:
+                 positions: str | Path, side: str | Path | None = None) -> DevData:
     """DevData from the set files sim/episodes.py writes (requirement 1, 2026-11-03):
 
     manifest     manifest.json (cmpe249.arrangements.v1): every arrangement must be split dev (SplitRefused otherwise,
@@ -848,6 +945,8 @@ def sim_dev_data(manifest: str | Path, evidence: str | Path, view_labels: str | 
     evidence     evidence.jsonl from perception/evidence.py on jobs_refL1.json (EvidenceStore format).
     view_labels  view_labels.json (cmpe249.sim-view-labels-set.v1): the geometric labels, the only label source.
     positions    the stops, e.g. configs/sim/positions_shelf_A.json.
+    side         optional: perception/side_descriptor.py rows on the same jobs (verify/side.py); only the manifest's
+                 episodes are read, and each needs a descriptor row at every stop. Then Dir runs, and A can train.
 
     The evidence and labels files may hold episodes of other arrangements of the same rendered set (one jobs file
     covers the random and the design manifests); only the manifest's episodes are read, and the others are counted
@@ -878,8 +977,13 @@ def sim_dev_data(manifest: str | Path, evidence: str | Path, view_labels: str | 
     labels = tuple(ViewLabel(e, st, d) for e in ids for st, d in enumerate(glab.episodes[e]))
     ign_ev = sorted(set(store.episode_ids()) - set(ids))
     ign_lab = sorted(set(glab.episodes) - set(ids))
+    side_data = None
+    if side is not None:
+        side_store = SideStore.from_jsonl(side, pos.n_stops, episode_ids=ids)
+        side_data = SideData.from_store(side_store, ids, source=f"perception.side_descriptor ({_rel(side)})")
     inputs = {name: {"file": _rel(p), "sha256": file_sha256(p)} for name, p in
-              (("manifest", manifest), ("evidence", evidence), ("view_labels", view_labels), ("positions", positions))}
+              (("manifest", manifest), ("evidence", evidence), ("view_labels", view_labels), ("positions", positions),
+               *((("side", side),) if side is not None else ()))}
     inputs["ignored_episodes"] = {
         "note": "episodes in the evidence or labels file that the manifest does not list; never read",
         "evidence": {"n": len(ign_ev), "arrangements": sorted({e.rsplit("-", 2)[0] for e in ign_ev})},
@@ -889,18 +993,89 @@ def sim_dev_data(manifest: str | Path, evidence: str | Path, view_labels: str | 
                     "and were ignored")
     return DevData(tuple(specs), factory, truth, labels, pos, False, SIM_LABEL_SOURCE if info.simulation else
                    f"geometric labels ({SIM_VIEW_LABELS_SCHEMA})", factory.evidence_sha256(),
-                   simulation=info.simulation, strata=info.strata(), inputs=inputs)
+                   simulation=info.simulation, strata=info.strata(), inputs=inputs, side=side_data)
 
 
-def no_diagnostic_shares(dev: DevData) -> dict[str, dict[str, Any]]:
+POOLED_NOTE = ("pooled calibration over environments (tabletop wave, step 9; DEV, not frozen): one threshold set from the "
+               "views of every environment's dev set together; grouped CV leaves one arrangement out across the pool; "
+               "the bootstrap strata keep each environment's quota classes; each episode replays on its environment's "
+               "positions, with a cap of N arc steps = N of that environment's nominal steps. Rows pooled over "
+               "environments give the cap in arc steps only, with no cm and no mean travel in cm (the geometries "
+               "differ); the per-environment rows give the travel and each cap's cm. The per-environment rows and "
+               "rates are reported next to the pooled ones; the pooled rows carry the flags and all_within_limit, and "
+               "a pooled pass does not imply that each environment passed (frr_within_limit_by_environment).")
+POOLED_FRR_NOTE = ("FRR <= frr_limit is a reported policy check (false removal; Step 4 and the held-out check): it "
+                   "never changes a threshold and never gates freeze eligibility. all_within_limit is the pooled "
+                   "result over both environments' episodes and stays the headline; a pooled pass does NOT imply that "
+                   "each environment passed. frr_within_limit_by_environment is each environment's own result (true, "
+                   "false, or null = incomplete); all_environments_within_limit is true only if every one is true, "
+                   "false if one is false, else null.")
+
+
+def sim_dev_data_pooled(sets: Sequence[tuple[str | Path, ...]]) -> DevData:
+    """Pooled DevData from several sim dev sets, one per environment: each (manifest, evidence, view_labels, positions)
+    is read by sim_dev_data with all its checks; a manifest's records give its environment (absent = shelf), and it must
+    hold one. Refused: fewer than two sets, two sets of one environment, an arrangement id in two sets, sets that
+    disagree on the simulation flag or the number of stops. The first set's positions are the reference; inputs are
+    recorded per environment ("<environment>/<file>"). A set may carry a fifth entry, its side descriptors: then every
+    set must, and the pooled data have them."""
+    if len({len(x) for x in sets}) > 1 or any(len(x) not in (4, 5) for x in sets):
+        raise ValueError("every pooled dev set is (manifest, evidence, view_labels, positions[, side]), all alike")
+    if len(sets) < 2:
+        raise ValueError("pooling needs at least two dev sets (one per environment); one set runs sim_dev_data")
+    parts: list[tuple[str, DevData]] = []
+    for manifest, evidence, view_labels, positions, *side in sets:
+        envs = load_manifest_info(manifest).environments
+        if len(envs) != 1:
+            raise ValueError(f"{manifest}: a pooled dev set holds one environment, this one has {list(envs)}")
+        parts.append((envs[0], sim_dev_data(manifest, evidence, view_labels, positions, *side)))
+    envs = [e for e, _ in parts]
+    if len(set(envs)) != len(envs):
+        raise ValueError(f"two dev sets of the same environment: {envs}")
+    seen: dict[str, str] = {}
+    for env, d in parts:
+        for a in d.arrangements:
+            if a in seen:
+                raise ValueError(f"arrangement {a} is in the {seen[a]} and the {env} dev set")
+            seen[a] = env
+    if len({d.simulation for _, d in parts}) != 1:
+        raise ValueError("the dev sets disagree on the simulation flag: " + ", ".join(f"{e} {d.simulation}" for e, d in parts))
+    stores = [(env, d, d.store_factory()) for env, d in parts]
+    if len({st.n_stops for _, _, st in stores}) != 1:
+        raise ValueError("the dev sets have different numbers of stops: " + ", ".join(f"{e} {st.n_stops}" for e, _, st in stores))
+    n_stops = stores[0][2].n_stops
+    records = {s.episode_id: [st.get(s.episode_id, k) for k in range(n_stops)] for _, d, st in stores for s in d.specs}
+    factory = RecordStoreFactory(records, n_stops, synthetic=False,
+                                 source="pooled dev evidence: " + "; ".join(f"{e}: {d.store_factory().source}" for e, d in parts))
+    specs = tuple(s for _, d in parts for s in d.specs)
+    truth = GroundTruth({e: t for _, d in parts for e, t in d.truth.states.items()},
+                        frozenset().union(*(d.truth.indistinguishable for _, d in parts)), synthetic=False)
+    strata = None if any(d.strata is None for _, d in parts) else {a: x for _, d in parts for a, x in d.strata.items()}
+    sources = list(dict.fromkeys(d.label_source for _, d in parts))
+    inputs = {f"{env}/{k}": v for env, d in parts for k, v in (d.inputs or {}).items()}
+    side = None
+    if parts[0][1].side is not None:
+        snaps = [d.side() for _, d in parts]
+        side = SideData({e: [st.get(e, k) for k in range(n_stops)] for st, (_, d) in zip(snaps, parts) for e in
+                         (s.episode_id for s in d.specs)}, n_stops,
+                        source="pooled side descriptors: " + "; ".join(f"{e}: {d.side.source}" for e, d in parts))
+    return DevData(specs, factory, truth, tuple(l for _, d in parts for l in d.view_labels), parts[0][1].positions, False,
+                   " | ".join(sources), factory.evidence_sha256(), simulation=parts[0][1].simulation, strata=strata,
+                   inputs=inputs, environment_of={a: env for env, d in parts for a in d.arrangements},
+                   positions_by_environment={env: d.positions for env, d in parts}, side=side)
+
+
+def no_diagnostic_shares(dev: DevData, arrangements: Iterable[str] | None = None) -> dict[str, dict[str, Any]]:
     """Geometric no-diagnostic-view share per lighting (and pooled): episodes with no diagnostic stop, from the dev
-    view labels. Context for coverage, never a ceiling."""
+    view labels (of the given arrangements; default all). Context for coverage, never a ceiling."""
     diag: dict[str, bool] = {}
     for l in dev.view_labels:
         diag[l.episode_id] = diag.get(l.episode_id, False) or l.diagnostic
+    keep = None if arrangements is None else set(arrangements)
     out = {}
     for light in (*REPORT_LIGHTINGS, POOLED):
-        eps = [s.episode_id for s in dev.specs if light == POOLED or s.lighting.value == light]
+        eps = [s.episode_id for s in dev.specs if (light == POOLED or s.lighting.value == light)
+               and (keep is None or s.arrangement_id in keep)]
         x = sum(not diag[e] for e in eps)
         out[light] = {"x": x, "n": len(eps), "share": _ratio((x, len(eps)))}
     return out
@@ -1007,13 +1182,23 @@ def view_rows(dev: DevData) -> list[ViewRow]:
     """Every dev view with its label (offline dev analysis, read from a fresh unsealed store)."""
     store = dev.store_factory()
     lab = {(l.episode_id, l.stop): l.diagnostic for l in dev.view_labels}
+    return labelled_view_rows(dev.specs, store, lab, dev.positions_of)
+
+
+def labelled_view_rows(specs: Iterable[EpisodeSpec], store: EvidenceStore, diagnostic: Mapping[tuple[str, int], bool],
+                       positions_of: Callable[[str], Positions]) -> list[ViewRow]:
+    """Every view of the given specs (spec order, then stop order) with its geometric label, read from an unsealed
+    store: diagnostic maps (episode_id, stop) to the label (KeyError for a view without one), positions_of an
+    arrangement id to its positions. view_rows builds the dev rows with it; verify.run builds the rows of its scored
+    split with it after the run (scoring only, never a policy input)."""
     rows = []
-    for s in dev.specs:
+    for s in specs:
         for stop in range(store.n_stops):
             # step is read by no per-view predicate; 0 marks "a view on its own"
-            obs = Observation.from_record(store.get(s.episode_id, stop), step=0, positions=dev.positions)
+            obs = Observation.from_record(store.get(s.episode_id, stop), step=0,
+                                          positions=positions_of(s.arrangement_id))
             rows.append(ViewRow(s.arrangement_id, s.episode_id, s.condition, s.lighting,
-                                lab[(s.episode_id, stop)], obs))
+                                diagnostic[(s.episode_id, stop)], obs))
     return rows
 
 
@@ -1282,7 +1467,7 @@ def freeze_eligibility(folds: Sequence[ViewFold], arrangements: Sequence[str]) -
 # ---------------------------------------------------------------- Steps 3b-5: policy runs (after every threshold is fixed)
 
 class FoldTrainable(Protocol):
-    """A policy trained per CV fold (ranker A later). train() receives a DevData holding the fold's TRAINING
+    """A policy trained per CV fold (ranker A, verify/ranker.py). train() receives a DevData holding the fold's TRAINING
     arrangements only (DevData.subset: its store, truth, labels and strata have nothing of the held-out arrangement,
     and its store factory and inputs lead nowhere else) and the fold's thresholds, and returns a factory of fresh
     policy instances, which then run on the held-out arrangement through the public replay API with the fold's
@@ -1349,17 +1534,19 @@ def fold_isolated(fn: Callable[..., Any], *args: Any) -> Any:
 
 def _train_and_run_fold(factory: FoldTrainableFactory, train: DevData, held: DevData, thresholds: Thresholds,
                         settings: SelectionSettings, context: RunContext
-                        ) -> tuple[dict[tuple[str, float | None], tuple[EpisodeResult, ...]], int]:
+                        ) -> tuple[dict[tuple[str, float | None], tuple[EpisodeResult, ...]], int, Any]:
     """In a fold's own process (fold_isolated): build a fresh trainable, train it on the fold's training subset, and
     run it (k rule and -fcm) on the held-out arrangement's episodes, uncapped and under every cap. Returns
-    {(policy, cap_steps): results} and the number of replays."""
-    trained = {factory.name: factory().train(train, thresholds)}
+    {(policy, cap_steps): results}, the number of replays and the trainable's `report` attribute (None if it has
+    none): what it chose and fitted in this fold, for the record."""
+    trainable = factory()
+    trained = {factory.name: trainable.train(train, thresholds)}
     runner = PolicyRunner(held, settings, context, trained)
     out = {}
     for p in (factory.name, f"{factory.name}-fcm"):
         for cap in policy_caps(p, settings):
             out[(p, cap)] = runner.results(p, thresholds, run_budget(p, cap, settings, held.positions))
-    return out, runner.n_runs
+    return out, runner.n_runs, getattr(trainable, "report", None)
 
 
 def split_policy(name: str) -> tuple[str, bool]:
@@ -1390,6 +1577,8 @@ def make_policy(name: str, th: Thresholds, trained: Mapping[str, Callable[[], An
         return G.from_thresholds(th, lookahead=True)
     if base == "G-myopic":
         return GMyopic.from_thresholds(th)
+    if base == DIR_NAME:
+        return Dir.from_thresholds(th)
     raise ValueError(f"unsupported policy {name!r} (R runs through run_r_seeds)")
 
 
@@ -1402,6 +1591,14 @@ def run_budget(policy: str, cap_steps: float | None, settings: SelectionSettings
     if base == "FULL":
         return Budget(FULL_SWEEP_VIEWS)
     return Budget(settings.budget, cap_cm_from_steps(cap_steps, positions))
+
+
+def environment_budget(budget: Budget, reference: Positions, positions: Positions) -> Budget:
+    """Pooled dev data: the budget of a run setting on another environment's positions. Its travel cap is a number of
+    the reference positions' arc steps (run_budget), so it becomes the same number of `positions`' nominal steps."""
+    if budget.travel_cap_cm is None or positions == reference:
+        return budget
+    return Budget(budget.additional_views, cap_cm_from_steps(cap_steps_from_cm(budget.travel_cap_cm, reference), positions))
 
 
 def policy_caps(policy: str, settings: SelectionSettings) -> tuple[float | None, ...]:
@@ -1439,10 +1636,17 @@ class PolicyRunner:
         rule = StoppingRule.first_clear_miss(th) if base == "S" or fcm else StoppingRule(th)
         store = self.dev.store_factory()       # fresh store per setting
         keys = store.replay_keys()             # minted before the first bind seals it
+        side = self.dev.side() if self.dev.side is not None else None   # fresh descriptor store per setting
         out = []
         for spec in self.dev.specs:
-            def make_env(key=keys[spec.episode_id]) -> ReplayEnv:
-                return ReplayEnv(key, store, self.dev.positions, budget, self.context)
+            # pooled dev data: the episode's environment's positions, the cap in its arc steps (else the one positions)
+            pos = self.dev.positions_of(spec.arrangement_id)
+            b = environment_budget(budget, self.dev.positions, pos)
+            reveal = side.bind(spec.episode_id) if side is not None else None
+
+            def make_env(key=keys[spec.episode_id], pos=pos, b=b, reveal=reveal) -> ReplayEnv | SideEnv:
+                env = ReplayEnv(key, store, pos, b, self.context)
+                return env if reveal is None else SideEnv(env, reveal)   # descriptors of requested stops only
             if base == "R" and "R" not in self.trained:
                 logs, res = run_r_seeds(make_env, rule, self.r_seeds, r_seed_salt(spec), spec=spec)
                 self.n_runs += len(logs)
@@ -1640,18 +1844,25 @@ class CheckRow:
     bounds: Mapping[str, Any] | None
     bootstrap: Mapping[str, Any] | None
     over_limit: bool | None         # FRR > frr_limit (None when FRR is undefined)
+    # False for a row pooled over environments: its episodes ran on different geometries, so it has no cm (no
+    # travel_cap_cm, no mean_travel_cm); the cap is in arc steps and the per-environment rows give the cm
+    travel_in_cm: bool = True
 
     def to_dict(self) -> dict[str, Any]:
-        return {"policy": self.policy, "k": self.k, "lam": self.lam, "budget": self.budget,
-                "cap_steps": self.cap_steps, "travel_cap_cm": self.travel_cap_cm, "lighting": self.lighting,
-                **self.counts.to_dict(), "bounds": self.bounds, "bootstrap": self.bootstrap,
-                "frr_over_limit": self.over_limit}
+        d = {"policy": self.policy, "k": self.k, "lam": self.lam, "budget": self.budget,
+             "cap_steps": self.cap_steps, "travel_cap_cm": self.travel_cap_cm, "lighting": self.lighting,
+             **self.counts.to_dict(), "bounds": self.bounds, "bootstrap": self.bootstrap,
+             "frr_over_limit": self.over_limit}
+        if not self.travel_in_cm:
+            del d["travel_cap_cm"], d["mean_travel_cm"]
+        return d
 
 
 def rows_from_outcomes(policy: str, k: int, lam: float, budget: Budget, cap_steps: float | None,
                        outs: Sequence[Outcome], settings: SelectionSettings, strata: Mapping[str, str] | None,
-                       *, with_bounds: bool = True) -> list[CheckRow]:
-    """One CheckRow per L1, L2 and pooled from one policy's outcomes."""
+                       *, with_bounds: bool = True, travel_in_cm: bool = True) -> list[CheckRow]:
+    """One CheckRow per L1, L2 and pooled from one policy's outcomes. travel_in_cm False: rows pooled over
+    environments (CheckRow.travel_in_cm)."""
     rows = []
     for light in (*REPORT_LIGHTINGS, POOLED):
         sub = outs if light == POOLED else [o for o in outs if o.lighting.value == light]
@@ -1660,7 +1871,7 @@ def rows_from_outcomes(policy: str, k: int, lam: float, budget: Budget, cap_step
                              bounds(c, settings.conf) if with_bounds else None,
                              cluster_bootstrap(sub, settings.bootstrap_B, settings.seed, strata) if with_bounds
                              else None,
-                             None if c.frr is None else c.frr > settings.frr_limit + EPS))
+                             None if c.frr is None else c.frr > settings.frr_limit + EPS, travel_in_cm))
     return rows
 
 
@@ -1677,13 +1888,23 @@ def setting_rows(runner: PolicyRunner, policy: str, th: Thresholds, cap_steps: f
         cap_steps = None
     outs = [Outcome.of(r, runner.dev.truth) for r in runner.results(policy, th, budget)]
     return rows_from_outcomes(policy, rule_k(policy, th), th.lam, budget, cap_steps, outs, settings,
-                              runner.dev.strata, with_bounds=with_bounds)
+                              runner.dev.strata, with_bounds=with_bounds, travel_in_cm=not runner.dev.pooled)
+
+
+def check_policies(dev: DevData) -> tuple[str, ...]:
+    """The Step 4 dev-check policies: CHECK_POLICIES, plus SIDE_POLICIES when the dev data have side descriptors."""
+    return (*CHECK_POLICIES, *(SIDE_POLICIES if dev.side is not None else ()))
+
+
+def k_sensitivity_policies(dev: DevData) -> tuple[str, ...]:
+    """The k-sensitivity policies: K_SENSITIVITY_POLICIES, plus SIDE_POLICIES with side descriptors."""
+    return (*K_SENSITIVITY_POLICIES, *(SIDE_POLICIES if dev.side is not None else ()))
 
 
 def run_check(runner: PolicyRunner, th: Thresholds, settings: SelectionSettings) -> list[CheckRow]:
     """Step 4: every policy at the frozen thresholds, the primary budget, uncapped and every cap (S once)."""
     rows = []
-    for p in CHECK_POLICIES:
+    for p in check_policies(runner.dev):
         for cap in policy_caps(p, settings):
             rows += setting_rows(runner, p, th, cap, settings)
     return rows
@@ -1696,7 +1917,7 @@ def run_sensitivity(runner: PolicyRunner, th: Thresholds, settings: SelectionSet
     lam_rows: list[CheckRow] = []
     for k in settings.k_sensitivity:
         t = dataclasses.replace(th, k=k)
-        for p in K_SENSITIVITY_POLICIES:
+        for p in k_sensitivity_policies(runner.dev):
             for cap in settings.cap_settings:
                 k_rows += setting_rows(runner, p, t, cap, settings, with_bounds=False)
     for lam in settings.lam_sensitivity:
@@ -1707,8 +1928,9 @@ def run_sensitivity(runner: PolicyRunner, th: Thresholds, settings: SelectionSet
     return {"k": k_rows, "lam": lam_rows}
 
 
-def heldout_policies(trainables: Sequence[FoldTrainableFactory]) -> tuple[str, ...]:
-    """HELDOUT_POLICIES, then every fold-trained policy with its -fcm variant."""
+def heldout_policies(trainables: Sequence[FoldTrainableFactory], with_side: bool = False) -> tuple[str, ...]:
+    """HELDOUT_POLICIES, then (with side descriptors) SIDE_POLICIES with their -fcm variants, then every fold-trained
+    policy with its -fcm variant."""
     check_trainable_factories(trainables)
     names = [t.name for t in trainables]
     for n in names:
@@ -1716,7 +1938,8 @@ def heldout_policies(trainables: Sequence[FoldTrainableFactory]) -> tuple[str, .
             raise ValueError(f"fold-trained policy name {n!r} clashes with a built-in policy or the -fcm suffix")
     if len(set(names)) != len(names):
         raise ValueError("fold-trained policy names must be unique")
-    return (*HELDOUT_POLICIES, *(x for n in names for x in (n, f"{n}-fcm")))
+    side = tuple(x for n in SIDE_POLICIES for x in (n, f"{n}-fcm")) if with_side else ()
+    return (*HELDOUT_POLICIES, *side, *(x for n in names for x in (n, f"{n}-fcm")))
 
 
 def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContext, folds: Sequence[ViewFold],
@@ -1728,7 +1951,7 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
     per policy, cap and lighting (FRR per episode and per arrangement, recall, coverage, mean views and travel, counts,
     bounds and the stratified bootstrap). FRR above the limit is flagged as a reported check; it never touches
     eligibility or thresholds."""
-    policies = heldout_policies(trainables)
+    policies = heldout_policies(trainables, dev.side is not None)
     outs: dict[tuple[str, float | None], list[Outcome]] = {}
     fold_log: list[dict[str, Any]] = []
     episodes: list[dict[str, Any]] = []
@@ -1743,8 +1966,10 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
         train = dev.subset(train_arrs)
         held = dev.subset([f.held_out])
         fold_trained: dict[tuple[str, float | None], tuple[EpisodeResult, ...]] = {}
+        reports: dict[str, Any] = {}
         for t in trainables:   # one process per fold and trainable: no state outlives its fold
-            got, n = fold_isolated(_train_and_run_fold, t, train, held, f.thresholds, settings, context)
+            got, n, reports[t.name] = fold_isolated(_train_and_run_fold, t, train, held, f.thresholds, settings,
+                                                    context)
             fold_trained.update(got)
             n_runs += n
         runner = PolicyRunner(held, settings, context)   # built-in policies only
@@ -1755,28 +1980,141 @@ def held_out_check(dev: DevData, settings: SelectionSettings, context: RunContex
                 for r in (got if got is not None else runner.results(p, f.thresholds, budget)):
                     outs.setdefault((p, cap), []).append(Outcome.of(r, held.truth))
                     episodes.append({"fold": f.held_out, "policy": p, "cap_steps": cap,
-                                     "travel_cap_cm": budget.travel_cap_cm, "episode_id": r.episode_id,
+                                     "travel_cap_cm": _episode_cap_cm(dev, budget, r.arrangement_id),
+                                     "episode_id": r.episode_id,
                                      "lighting": r.lighting.value,
                                      "decision_frac": {d.value: r.frac(d) for d in Decision},
-                                     "mean_views": r.mean_views, "mean_travel_cm": r.mean_travel_cm})
+                                     "mean_views": r.mean_views, "mean_travel_cm": r.mean_travel_cm,
+                                     **_environment_key(dev, r.arrangement_id)})
         n_runs += runner.n_runs
         fold_log.append({"held_out": f.held_out, "ran": True, "thresholds": f.thresholds.to_dict(),
-                         "training_arrangements": train_arrs, "trained_policies": sorted(t.name for t in trainables)})
+                         "training_arrangements": train_arrs, "trained_policies": sorted(t.name for t in trainables),
+                         "trained_reports": reports})
     rows: list[CheckRow] = []
     th0 = frozen_thresholds(0.5, 0.5, 0.5)   # only k and lam are read from it (the same in every fold)
     for p in policies:
         for cap in policy_caps(p, settings):
             if (p, cap) in outs:
                 rows += rows_from_outcomes(p, rule_k(p, th0), LAM_FIXED, run_budget(p, cap, settings, dev.positions),
-                                           cap, outs[(p, cap)], settings, dev.strata)
+                                           cap, outs[(p, cap)], settings, dev.strata, travel_in_cm=not dev.pooled)
     ran = [x["held_out"] for x in fold_log if x["ran"]]
     flags = [f"held-out check: {r.policy}, {setting_label(r)}, {r.lighting} queries: FRR {r.counts.frr:.3f} "
              f"({_num(r.counts.n_false_removal)}/{r.counts.n_present}) > frr_limit {settings.frr_limit:g} (a reported "
              "check: it does not affect eligibility or any threshold)"
              for r in rows if r.lighting in REPORT_LIGHTINGS and r.over_limit]
-    return {"rows": rows, "folds": fold_log, "flags": flags, "episodes": episodes, "n_runs": n_runs,
-            "policies": list(policies), "trainable_policies": [t.name for t in trainables],
-            "arrangements_run": ran, "complete": bool(folds) and len(ran) == len(folds)}
+    out = {"rows": rows, "folds": fold_log, "flags": flags, "episodes": episodes, "n_runs": n_runs,
+           "policies": list(policies), "trainable_policies": [t.name for t in trainables],
+           "trainable_modules_sha256": {m: file_sha256(REPO_ROOT / "verify" / m) for m in ("ranker.py", "policies.py",
+                                                                                          "side.py")}
+           if trainables else {},
+           "arrangements_run": ran, "complete": bool(folds) and len(ran) == len(folds)}
+    if dev.pooled:                                        # the same outcomes, split by environment
+        by_env: dict[str, dict[str, Any]] = {}
+        for env in dev.environments:
+            arrs = set(dev.environment_arrangements(env))
+            pos = dev.positions_by_environment[env]
+            env_rows: list[CheckRow] = []
+            for p in policies:
+                for cap in policy_caps(p, settings):
+                    if (p, cap) in outs:
+                        env_rows += rows_from_outcomes(p, rule_k(p, th0), LAM_FIXED, run_budget(p, cap, settings, pos),
+                                                       cap, [o for o in outs[(p, cap)] if o.arrangement_id in arrs],
+                                                       settings, _strata_of(dev, arrs))
+            env_flags = [f"{env}: {x}" for x in check_flags(env_rows, settings.frr_limit, HELDOUT_CHECK)]
+            env_unchecked = [f"{env}: {x}" for x in check_unchecked(env_rows, HELDOUT_CHECK)]
+            by_env[env] = {"rows": env_rows, "flags": env_flags, "unchecked": env_unchecked,
+                           "all_within_limit": all_within_limit(env_flags, env_unchecked)}
+        out["by_environment"] = by_env
+        out.update(environment_verdicts(by_env))
+    return out
+
+
+def environment_verdicts(by_env: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """Pooled dev data: {"frr_within_limit_by_environment": {env: all_within_limit}, "all_environments_within_limit"}.
+    The second is True only if every environment's check passed, False if one failed, else None (incomplete). Reported
+    next to the pooled all_within_limit, which stays the headline: FRR is a policy check, so neither changes a
+    threshold or freeze eligibility, and a pooled pass does not imply that each environment passed."""
+    per = {env: b["all_within_limit"] for env, b in by_env.items()}
+    v = list(per.values())
+    return {"frr_within_limit_by_environment": per,
+            "all_environments_within_limit": False if False in v else (None if None in v else True)}
+
+
+def _episode_cap_cm(dev: DevData, budget: Budget, arrangement_id: str) -> float | None:
+    """A per-episode record's travel cap in cm: the episode's own environment's cm (pooled dev data), else the budget's."""
+    return environment_budget(budget, dev.positions, dev.positions_of(arrangement_id)).travel_cap_cm
+
+
+def _environment_key(dev: DevData, arrangement_id: str) -> dict[str, str]:
+    """{"environment": ...} for a per-episode record of pooled dev data; {} otherwise (the records keep their keys)."""
+    return {"environment": dev.environment_of[arrangement_id]} if dev.environment_of is not None else {}
+
+
+def _strata_of(dev: DevData, arrangements: Iterable[str]) -> dict[str, str] | None:
+    return None if dev.strata is None else {a: dev.strata[a] for a in sorted(arrangements)}
+
+
+def environment_breakdown(dev: DevData, settings: SelectionSettings, rows: Sequence[ViewRow], th: Thresholds,
+                          folds: Sequence[ViewFold], runner: PolicyRunner) -> dict[str, dict[str, Any]]:
+    """Pooled dev data only: per environment, the chosen thresholds' per-view rates and gate pass rates on its views,
+    the held-out per-view rates of its folds, its no-diagnostic share, the Step 4 rows on its episodes (the cached runs:
+    nothing new runs, and nothing here touches a threshold) with their flags, and the lam check on its positions."""
+    out: dict[str, dict[str, Any]] = {}
+    for env in dev.environments:
+        arrs = set(dev.environment_arrangements(env))
+        pos = dev.positions_by_environment[env]
+        env_rows = [r for r in rows if r.arrangement_id in arrs]
+        held = {k: ViewRates() for k in (*REPORT_LIGHTINGS, POOLED)}
+        for f in folds:
+            if f.held is not None and f.held_out in arrs:
+                for k in held:
+                    held[k] = held[k] + f.held[k]
+        check: list[CheckRow] = []
+        for p in check_policies(dev):
+            for cap in policy_caps(p, settings):
+                outs = [Outcome.of(r, dev.truth) for r in runner.results(p, th, run_budget(p, cap, settings, dev.positions))
+                        if r.arrangement_id in arrs]
+                check += rows_from_outcomes(p, rule_k(p, th), th.lam, run_budget(p, cap, settings, pos),
+                                            None if split_policy(p)[0] in ("S", "FULL") else cap, outs, settings,
+                                            _strata_of(dev, arrs))
+        flags = [f"{env}: {x}" for x in check_flags(check, settings.frr_limit)]
+        unchecked = [f"{env}: {x}" for x in check_unchecked(check)]
+        sens = environment_sensitivity(dev, settings, th, runner, arrs, pos)
+        rates = rates_by_lighting(env_rows, th)
+        gate = gate_pass_by_lighting(env_rows, th)
+        warn = alpha_warnings(rates, settings.alpha_clear, f"Step 1 ({env} views)", REPORT_LIGHTINGS)
+        warn += gate_pass_flags(gate, f"Step 1 (chosen setting, {env} dev views)")
+        if folds:
+            warn += alpha_warnings(held, settings.alpha_clear, f"Step 3 ({env}, held out)", (*REPORT_LIGHTINGS, POOLED))
+        out[env] = {"arrangements": sorted(arrs), "positions": pos,
+                    "travel_caps_cm": [cap_cm_from_steps(c, pos) for c in settings.cap_settings],
+                    "view_rates": rates, "gate_pass": gate, "cv_held_out": held,
+                    "no_diagnostic_view_share": no_diagnostic_shares(dev, arrs),
+                    "stratification": stratification(dev.strata, arrs),
+                    "check": check, "flags": flags, "unchecked": unchecked,
+                    "all_within_limit": all_within_limit(flags, unchecked), "sensitivity": sens,
+                    "lam_grid_check": check_lam_grid((LAM_FIXED, *settings.lam_sensitivity), pos, lookahead=False),
+                    "warnings": warn}
+    return out
+
+
+def environment_sensitivity(dev: DevData, settings: SelectionSettings, th: Thresholds, runner: PolicyRunner,
+                            arrs: set[str], pos: Positions) -> dict[str, list[CheckRow]]:
+    """Step 5 split by environment (pooled dev data; DECISIONS 2026-11-04, choice 4): the k- and lam-sensitivity rows
+    on one environment's episodes, point estimates from the runner's cached runs (run_sensitivity ran them all), with
+    that environment's positions for the cap in cm. Reported only, never selected."""
+    out: dict[str, list[CheckRow]] = {"k": [], "lam": []}
+    for kind, values, policies in (("k", settings.k_sensitivity, k_sensitivity_policies(dev)),
+                                   ("lam", settings.lam_sensitivity, LAM_SENSITIVITY_POLICIES)):
+        for v in values:
+            t = dataclasses.replace(th, **{kind: v})
+            for p in policies:
+                for cap in settings.cap_settings:
+                    budget = run_budget(p, cap, settings, dev.positions)
+                    outs = [Outcome.of(r, dev.truth) for r in runner.results(p, t, budget) if r.arrangement_id in arrs]
+                    out[kind] += rows_from_outcomes(p, rule_k(p, t), t.lam, run_budget(p, cap, settings, pos), cap,
+                                                    outs, settings, _strata_of(dev, arrs), with_bounds=False)
+    return out
 
 
 def _num(x: float | int | None) -> str:
@@ -1791,22 +2129,26 @@ def setting_label(r: CheckRow) -> str:
         return "1 view (S: no budget, no cap)"
     if base == "FULL":
         return "all 5 views (FULL: b = 4, uncapped)"
-    cap = "uncapped" if r.cap_steps is None else f"cap {_steps(r.cap_steps)} ({r.travel_cap_cm:.2f} cm)"
+    cap = ("uncapped" if r.cap_steps is None else f"cap {_steps(r.cap_steps)} ({r.travel_cap_cm:.2f} cm)"
+           if r.travel_in_cm else f"cap {_steps(r.cap_steps)}")
     return f"b = {r.budget}, {cap}"
 
 
-def check_flags(rows: Sequence[CheckRow], frr_limit: float) -> list[str]:
+DEV_CHECK, HELDOUT_CHECK = "dev check", "held-out check"
+
+
+def check_flags(rows: Sequence[CheckRow], frr_limit: float, what: str = DEV_CHECK) -> list[str]:
     """Every (policy, setting, lighting) of the dev check whose FRR is above the limit (L1 and L2 rows)."""
-    return [f"dev check: {r.policy}, {setting_label(r)}, {r.lighting} queries: FRR {r.counts.frr:.3f} "
+    return [f"{what}: {r.policy}, {setting_label(r)}, {r.lighting} queries: FRR {r.counts.frr:.3f} "
             f"({_num(r.counts.n_false_removal)}/{r.counts.n_present}) > frr_limit {frr_limit:g}; the thresholds "
             "were not changed (FRR is a check, not an objective)"
             for r in rows if r.lighting in REPORT_LIGHTINGS and r.over_limit]
 
 
-def check_unchecked(rows: Sequence[CheckRow]) -> list[str]:
+def check_unchecked(rows: Sequence[CheckRow], what: str = DEV_CHECK) -> list[str]:
     """Every L1 / L2 row of the dev check whose FRR is undefined (no present-target episode at that lighting): the FRR
     limit was not checked there, so the check cannot pass on it."""
-    return [f"dev check: {r.policy}, {setting_label(r)}, {r.lighting} queries: FRR undefined (no present-target "
+    return [f"{what}: {r.policy}, {setting_label(r)}, {r.lighting} queries: FRR undefined (no present-target "
             "episode), so the FRR limit was not checked"
             for r in rows if r.lighting in REPORT_LIGHTINGS and r.over_limit is None]
 
@@ -1831,10 +2173,10 @@ def run_selection(dev: DevData, settings: SelectionSettings, context: RunContext
     Step 5, a copy with k or lam replaced); the held-out check gives each fold's runner that fold's thresholds. If
     Step 1 is infeasible on all dev arrangements, CalibrationInfeasible propagates before any fold or policy runs.
     trainables: factories of fold-trained policies for the held-out check (FoldTrainableFactory, e.g. a FoldTrainable
-    class; ranker A later), each built fresh and trained in every fold's own process.
+    class, such as verify.ranker.RankerA), each built fresh and trained in every fold's own process.
     """
     refuse_non_dev(dev.specs)
-    heldout_policies(trainables)                          # a bad name fails before anything runs
+    heldout_policies(trainables, dev.side is not None)    # a bad name fails before anything runs
     rows = view_rows(dev)
     arrs = dev.arrangements
     table = ViewTable(rows, settings)
@@ -1883,7 +2225,18 @@ def run_selection(dev: DevData, settings: SelectionSettings, context: RunContext
     st = stratification(dev.strata, dev.arrangements)
     if not st["stratified"]:
         extra.append(f"bootstrap: {st['note']}")
-    return {"calibration": cal, "thresholds": th, "curves": curves, "view_rates": rates, "folds": folds,
+    by_env = environment_breakdown(dev, settings, rows, th, folds, runner) if dev.pooled else None
+    if by_env is not None:
+        for env, b in by_env.items():
+            extra += [*b["warnings"], *(f"Step 4 per environment: {x}" for x in b["flags"]),
+                      *(f"held-out check per environment: {x}" for x in (*heldout["by_environment"][env]["flags"],
+                                                                         *heldout["by_environment"][env]["unchecked"]))]
+            for w in b["warnings"]:
+                log.warning(w)
+            for w in b["lam_grid_check"].warnings:
+                extra.append(f"lam check ({env} positions): {w}")
+    verdicts = environment_verdicts(by_env) if by_env is not None else {}
+    return {"by_environment": by_env, **verdicts, "calibration": cal, "thresholds": th, "curves": curves, "view_rates": rates, "folds": folds,
             "gate_pass": gate_pass, "gate_pass_flags": gate_flags,
             "cv_held_out": held, "check": check, "flags": flags, "unchecked": unchecked,
             "all_within_limit": all_within_limit(flags, unchecked),
@@ -1979,6 +2332,7 @@ def candidate_doc(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
                      "checks: they never touch eligibility or any threshold. Rows for L1 and L2 queries are the "
                      "result; 'pooled' is a secondary line."),
             "policies": ho["policies"], "trainable_policies": ho["trainable_policies"],
+            "trainable_modules_sha256": ho["trainable_modules_sha256"],
             "primary_budget": settings.budget, "cap_steps": list(settings.cap_settings),
             "complete": ho["complete"], "arrangements_run": ho["arrangements_run"], "folds": ho["folds"],
             "flags": ho["flags"], "rows": [r.to_dict() for r in ho["rows"]]},
@@ -1989,7 +2343,7 @@ def candidate_doc(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
             "frr_limit": settings.frr_limit, "primary_budget": settings.budget,
             "cap_steps": list(settings.cap_settings),
             "travel_caps_cm": [cap_cm_from_steps(c, dev.positions) for c in settings.cap_settings],
-            "policies": list(CHECK_POLICIES), "g_lookahead": {"G": False, "G-lookahead": True},
+            "policies": list(check_policies(dev)), "g_lookahead": {"G": False, "G-lookahead": True},
             "g_myopic_lam_deg": GMYOPIC_LAM_DEG, "r_seeds": settings.r_seeds,
             "note": ("FRR <= frr_limit is a check, not an objective: flags are reported and nothing is changed to "
                      "fix them. Rows for L1 and L2 queries are the result; 'pooled' is a secondary line. "
@@ -2001,16 +2355,47 @@ def candidate_doc(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
             "rows": [r.to_dict() for r in res["check"]]},
         "sensitivity": {
             "note": "reported only, never selected; the frozen taus with k or lam replaced (point estimates)",
-            "k_values": list(settings.k_sensitivity), "k_policies": list(K_SENSITIVITY_POLICIES),
+            "k_values": list(settings.k_sensitivity), "k_policies": list(k_sensitivity_policies(dev)),
             "lam_values": list(settings.lam_sensitivity), "lam_policies": list(LAM_SENSITIVITY_POLICIES),
             "k": [r.to_dict() for r in res["sensitivity"]["k"]],
             "lam": [r.to_dict() for r in res["sensitivity"]["lam"]]},
         "lam_grid_check": res["lam_grid_check"].to_dict(),
         "warnings": res["warnings"],
     }
+    if dev.pooled:                         # one-environment dev data keep the document's keys
+        del doc["dev_check"]["travel_caps_cm"]   # the first set's cm; per environment: environments.breakdown
+        for k, r in (("dev_check", res), ("held_out_check", res["held_out_check"])):
+            doc[k]["pooled_note"] = POOLED_FRR_NOTE
+            doc[k]["frr_within_limit_by_environment"] = r["frr_within_limit_by_environment"]
+            doc[k]["all_environments_within_limit"] = r["all_environments_within_limit"]
+        doc["environments"] = environments_doc(dev, res, conf)
     if provenance is not None:
         doc["synthetic_provenance"] = dict(provenance)
     return to_jsonable(doc)
+
+
+def environments_doc(dev: DevData, res: Mapping[str, Any], conf: float) -> dict[str, Any]:
+    """The candidate's "environments" block (pooled dev data): what was pooled and the per-environment breakdown."""
+    ho = res["held_out_check"]["by_environment"]
+    return {"note": POOLED_NOTE, "pooled": list(dev.environments), "reference_environment": dev.reference_environment,
+            "environment_of": dict(dev.environment_of or {}),
+            "breakdown": {env: {
+                "arrangements": b["arrangements"], "positions": b["positions"].to_dict(),
+                "travel_caps_cm": b["travel_caps_cm"],
+                "per_view_rates": {k: v.to_dict(conf) for k, v in b["view_rates"].items()},
+                "gate_pass_by_lighting": _gate_pass_dict(b["gate_pass"]),
+                "held_out_per_view_rates": {k: v.to_dict(conf) for k, v in b["cv_held_out"].items()},
+                "no_diagnostic_view_share": b["no_diagnostic_view_share"],
+                "bootstrap_stratification": b["stratification"],
+                "dev_check": {"flags": b["flags"], "unchecked": b["unchecked"], "all_within_limit": b["all_within_limit"],
+                              "rows": [r.to_dict() for r in b["check"]]},
+                "held_out_check": {"flags": ho[env]["flags"], "unchecked": ho[env]["unchecked"],
+                                   "all_within_limit": ho[env]["all_within_limit"],
+                                   "rows": [r.to_dict() for r in ho[env]["rows"]]},
+                "sensitivity": {"note": "reported only, never selected; point estimates on this environment's episodes",
+                                "k": [r.to_dict() for r in b["sensitivity"]["k"]],
+                                "lam": [r.to_dict() for r in b["sensitivity"]["lam"]]},
+                "lam_grid_check": b["lam_grid_check"].to_dict()} for env, b in res["by_environment"].items()}}
 
 
 # ---------------------------------------------------------------- the freeze step's gate
@@ -2066,6 +2451,12 @@ def require_freeze_eligible(candidate: str | Path) -> dict[str, Any]:
     return doc
 
 
+def candidate_thresholds(doc: Mapping[str, Any]) -> Thresholds:
+    """The Thresholds of a candidate document that require_freeze_eligible returned (verify.run, verify.ranker)."""
+    keys = ("tau_match", "tau_q", "tau_occ", "k", "lam", "travel_norm_cm")
+    return Thresholds(**{k: doc["thresholds"][k] for k in keys})
+
+
 # ---------------------------------------------------------------- report
 
 def _f(x: float | None, nd: int = 3) -> str:
@@ -2108,7 +2499,14 @@ def _cap_cell(r: CheckRow) -> str:
         return "n/a (1 view)"
     if base == "FULL":
         return "n/a (FULL, uncapped)"
-    return "uncapped" if r.cap_steps is None else f"{_steps(r.cap_steps)} ({r.travel_cap_cm:.1f} cm)"
+    if r.cap_steps is None:
+        return "uncapped"
+    return f"{_steps(r.cap_steps)} ({r.travel_cap_cm:.1f} cm)" if r.travel_in_cm else _steps(r.cap_steps)
+
+
+def _travel_cell(r: CheckRow) -> str:
+    """Mean travel in cm; a row pooled over environments has none (CheckRow.travel_in_cm)."""
+    return _f(r.counts.mean_travel_cm, 1) if r.travel_in_cm else "per environment"
 
 
 def _arr_frr(c: Counts) -> str:
@@ -2136,7 +2534,28 @@ def _check_table(rows: Sequence[CheckRow], conf: float) -> list[str]:
                  f"| {_bound(b['recall'] if b else None, 'lower')} | {_ci(r.bootstrap, 'recall')} "
                  f"| {_f(c.coverage)} ({_num(c.n_resolved)}/{c.n_episodes}) "
                  f"| {_bound(b['coverage'] if b else None, 'lower')} | {_ci(r.bootstrap, 'coverage')} "
-                 f"| {_f(c.mean_views, 2)} | {_f(c.mean_travel_cm, 1)} | {flag} |")
+                 f"| {_f(c.mean_views, 2)} | {_travel_cell(r)} | {flag} |")
+    return L
+
+
+def _trained_report_lines(ho: Mapping[str, Any]) -> list[str]:
+    """Per fold-trained policy: how often each C was chosen over the folds, and each coefficient's mean and range
+    (standardised features). Every fold's full report is in frozen_candidate.json (held_out_check.folds)."""
+    L: list[str] = []
+    for name in ho.get("trainable_policies") or ():
+        reps = [f["trained_reports"][name] for f in ho["folds"]
+                if f.get("ran") and f.get("trained_reports", {}).get(name)]
+        if not reps:
+            continue
+        chosen = sorted({r["C"] for r in reps})
+        coefs = {k: [r["coef"][k] for r in reps] for k in reps[0]["coef"]}
+        L += ["", f"Fold-trained {name}: {len(reps)} folds; C chosen "
+              + ", ".join(f"{c:g} in {sum(r['C'] == c for r in reps)}" for c in chosen)
+              + f"; training rows {min(r['n_rows'] for r in reps)}-{max(r['n_rows'] for r in reps)}; label rate "
+              f"{min(r['label_rate'] for r in reps):.3f}-{max(r['label_rate'] for r in reps):.3f}. Coefficients "
+              "(standardised features), mean [min, max] over folds:", "",
+              "| feature | mean | min | max |", "| --- | --- | --- | --- |"]
+        L += [f"| {k} | {np.mean(v):+.3f} | {min(v):+.3f} | {max(v):+.3f} |" for k, v in coefs.items()]
     return L
 
 
@@ -2150,7 +2569,8 @@ def _sens_table(rows: Sequence[CheckRow], primary: Mapping[tuple[str, float | No
             return f"{_f(get(p), nd) if p else '-'} -> {_f(get(r), nd)}"
         flag = "undef" if r.over_limit is None else ("yes" if r.over_limit else "no")
         L.append(f"| {r.policy} | {_cap_cell(r)} | {arrow(lambda x: x.counts.frr)} | {arrow(lambda x: x.counts.recall)} "
-                 f"| {arrow(lambda x: x.counts.coverage)} | {arrow(lambda x: x.counts.mean_travel_cm, 1)} | {flag} |")
+                 f"| {arrow(lambda x: x.counts.coverage)} "
+                 f"| {arrow(lambda x: x.counts.mean_travel_cm, 1) if r.travel_in_cm else _travel_cell(r)} | {flag} |")
     return L
 
 
@@ -2270,6 +2690,7 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
           f"- dev check (Step 4): {len(flags)} flag(s) above FRR {settings.frr_limit:g}"
           + (f"; **INCOMPLETE**: FRR undefined in {len(unchecked)} L1 / L2 row(s), which were not checked"
              if unchecked else "") + f"; `all_within_limit` {within}",
+          *(_pooled_frr_lines(res) if dev.pooled else []),
           f"- cluster bootstrap: {_strat_text(dev)}", "",
           "## Frozen candidate", "",
           "| tau_q | tau_occ | tau_match | k | lam |", "| --- | --- | --- | --- | --- |",
@@ -2382,12 +2803,15 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
     L += ["### (b) Held-out policy check (each fold's thresholds on its held-out arrangement)", "",
           f"Policies: {', '.join(ho['policies'])}; at b = {settings.budget}, {_caps_text(settings)} (S one view, FULL "
           "all five, uncapped). Fold-trained policies: "
-          + (", ".join(ho["trainable_policies"]) or "none yet (ranker A plugs in through the FoldTrainable hook)")
+          + (", ".join(ho["trainable_policies"]) or "none")
           + f". Outcomes are pooled over the {len(ho['arrangements_run'])} folds that ran"
           + ("" if ho["complete"] else " (**INCOMPLETE**: infeasible folds did not run)")
           + f". Rates above FRR {settings.frr_limit:g} are reported checks: they never touch eligibility or a "
           "threshold.", ""]
     L += [f"- **FLAG** {f}" for f in ho["flags"]]
+    L += _trained_report_lines(ho)
+    if dev.pooled:
+        L.append("- these rows pool both environments' held-out episodes: " + _pooled_frr_text(ho))
     for light in REPORT_LIGHTINGS:
         L += ["", f"#### Held out, {light} queries", ""]
         L += _check_table([r for r in ho["rows"] if r.lighting == light], conf)
@@ -2414,6 +2838,8 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
     elif not flags:   # an incomplete check never reads as a pass (review: an L1-only dev set did)
         L.append(f"- no policy is above FRR {settings.frr_limit:g} where FRR is defined, but the check is incomplete "
                  "(`all_within_limit` is null): it says nothing about the rows not checked")
+    if dev.pooled:
+        L.append("- these rows pool both environments' dev episodes: " + _pooled_frr_text(res))
     for light in REPORT_LIGHTINGS:
         L += ["", f"### {light} queries", ""]
         L += _check_table([r for r in check if r.lighting == light], conf)
@@ -2423,7 +2849,7 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
     sens = res["sensitivity"]
     for k in settings.k_sensitivity:
         for light in REPORT_LIGHTINGS:
-            L += [f"### k = {k} ({', '.join(K_SENSITIVITY_POLICIES)}), {light} queries", ""]
+            L += [f"### k = {k} ({', '.join(k_sensitivity_policies(dev))}), {light} queries", ""]
             L += _sens_table([r for r in sens["k"] if r.k == k and r.lighting == light], primary)
             L.append("")
     for lam in settings.lam_sensitivity:
@@ -2450,12 +2876,14 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
     pooled_line = (lambda r: f"| {r.policy} | {_cap_cell(r)} | {_f(r.counts.frr)} ({_num(r.counts.n_false_removal)}/"
                    f"{r.counts.n_present}) | {_arr_frr(r.counts)} | {_f(r.counts.recall)} "
                    f"({_num(r.counts.n_true_removal)}/{r.counts.n_removed}) | {_f(r.counts.coverage)} "
-                   f"({_num(r.counts.n_resolved)}/{r.counts.n_episodes}) | {_f(r.counts.mean_travel_cm, 1)} |")
+                   f"({_num(r.counts.n_resolved)}/{r.counts.n_episodes}) | {_travel_cell(r)} |")
     L += [pooled_line(r) for r in check if r.lighting == POOLED]
     L += ["", "### Held-out policy check", "",
           "| policy | travel cap | FRR (x/n) | FRR per arrangement (x/n) | recall (x/n) | coverage (x/n) "
           "| mean travel cm |", "| --- | --- | --- | --- | --- | --- | --- |"]
     L += [pooled_line(r) for r in ho["rows"] if r.lighting == POOLED]
+    if dev.pooled:
+        L += _environment_section(dev, settings, res)
     L += ["", "## Reading these numbers", "",
           "- Views and episodes of one arrangement share an occluder and lighting, so they are not independent: "
           "view- and episode-level bounds are optimistic, and the arrangement-level FRR bound is the more honest one.",
@@ -2473,6 +2901,76 @@ def render_report(dev: DevData, settings: SelectionSettings, res: dict[str, Any]
     if dev.label:
         L += [f"_{dev.label}._", ""]
     return "\n".join(L)
+
+
+def _verdicts_text(r: Mapping[str, Any]) -> str:
+    within = {True: "true", False: "false", None: "null"}
+    return (", ".join(f"{env} `{within[v]}`" for env, v in r["frr_within_limit_by_environment"].items())
+            + f"; `all_environments_within_limit` {within[r['all_environments_within_limit']]}")
+
+
+def _pooled_frr_text(r: Mapping[str, Any]) -> str:
+    """Pooled dev data: what a pooled FRR result does and does not say, with each environment's own result."""
+    return ("a pooled pass does NOT imply that each environment passed. `all_within_limit` per environment: "
+            + _verdicts_text(r) + " (reported: FRR is a policy check; it retunes no threshold and gates no freeze)")
+
+
+def _pooled_frr_lines(res: Mapping[str, Any]) -> list[str]:
+    """The report's summary lines for pooled dev data: the per-environment FRR results next to the pooled ones."""
+    return ["- per environment (pooled calibration; the pooled `all_within_limit` above stays the headline, and a pooled "
+            "pass does NOT imply that each environment passed): dev check " + _verdicts_text(res)
+            + "; held-out check " + _verdicts_text(res["held_out_check"])
+            + ". FRR is a reported policy check: no per-environment result retunes a threshold or gates freeze."]
+
+
+def _environment_section(dev: DevData, settings: SelectionSettings, res: Mapping[str, Any]) -> list[str]:
+    """The report's per-environment breakdown of pooled dev data."""
+    conf = settings.conf
+    lights = [("pooled", "L1 + L2 views"), ("L1", "L1 views"), ("L2", "L2 views")]
+    within = {True: "true", False: "false", None: "null"}
+    L = ["", "## Per environment (pooled calibration)", "",
+         f"{POOLED_NOTE} Environments: {', '.join(dev.environments)}; reference positions: "
+         f"{dev.reference_environment}.", ""]
+    for env, b in res["by_environment"].items():
+        pos: Positions = b["positions"]
+        ho = res["held_out_check"]["by_environment"][env]
+        nd = b["no_diagnostic_view_share"]
+        L += [f"### {env}: {len(b['arrangements'])} arrangements", "",
+              f"- positions: radius {pos.radius_cm:g} cm, azimuths "
+              + ", ".join(f"{s.azimuth_deg:g}" for s in pos.stops) + f" deg; nominal step {pos.nominal_step_cm():.2f} cm; "
+              "travel caps " + ", ".join("uncapped" if c is None else f"{c:.1f} cm" for c in b["travel_caps_cm"]),
+              f"- bootstrap: {b['stratification']['note']}",
+              "- no-diagnostic-view share: " + "; ".join(f"{k} {_f(nd[k]['share'])} ({nd[k]['x']}/{nd[k]['n']})"
+                                                       for k in (*REPORT_LIGHTINGS, POOLED)),
+              "- gate pass at the chosen setting (all views): " + "; ".join(
+                  f"{k} {_rate_xn(b['gate_pass'][k]['all'])}" for k in (*REPORT_LIGHTINGS, POOLED)),
+              f"- dev check: {len(b['flags'])} flag(s) above FRR {settings.frr_limit:g}; "
+              f"`all_within_limit` for {env}: {within[b['all_within_limit']]} (reported; the pooled "
+              "`all_within_limit` stays the headline, and a pooled pass does not imply this environment passed)",
+              f"- held-out check: {len(ho['flags'])} flag(s) above FRR {settings.frr_limit:g}; `all_within_limit` for "
+              f"{env}: {within[ho['all_within_limit']]} (reported)",
+              *[f"- **FLAG** {x}" for x in (*b["flags"], *ho["flags"])],
+              *[f"- **NOT CHECKED** {x}" for x in (*b["unchecked"], *ho["unchecked"])], "",
+              f"#### {env}: per-view rates at the frozen thresholds (resubstitution)", ""]
+        L += _view_table(b["view_rates"], conf, lights)
+        L += ["", f"#### {env}: held-out per-view rates", ""]
+        L += _view_table(b["cv_held_out"], conf, lights)
+        for light in REPORT_LIGHTINGS:
+            L += ["", f"#### {env}: held-out policy check, {light} queries", ""]
+            L += _check_table([r for r in ho["rows"] if r.lighting == light], conf)
+        for light in REPORT_LIGHTINGS:
+            L += ["", f"#### {env}: dev check, {light} queries", ""]
+            L += _check_table([r for r in b["check"] if r.lighting == light], conf)
+        primary = {(r.policy, r.cap_steps, r.lighting): r for r in b["check"]}   # this environment's primary rows
+        for kind, values in (("k", settings.k_sensitivity), ("lam", settings.lam_sensitivity)):
+            for v in values:
+                for light in REPORT_LIGHTINGS:
+                    rows_kv = [r for r in b["sensitivity"][kind] if getattr(r, kind) == v and r.lighting == light]
+                    if rows_kv:
+                        L += ["", f"#### {env}: sensitivity {kind} = {v:g}, {light} queries (reported only)", ""]
+                        L += _sens_table(rows_kv, primary)
+        L.append("")
+    return L
 
 
 # ---------------------------------------------------------------- CLI
@@ -2512,12 +3010,14 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="verify.select", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--synthetic", action="store_true", help="calibrate on the synthetic generator's DEV split")
-    p.add_argument("--manifest", default=None,
+    p.add_argument("--manifest", action="append", default=None,
                    help="sim/real dev data: manifest.json (every arrangement must be split dev); needs --evidence, "
-                        "--view-labels and --positions")
-    p.add_argument("--evidence", default=None, help="evidence.jsonl from perception/evidence.py (jobs_refL1.json)")
-    p.add_argument("--view-labels", default=None,
-                   help=f"view_labels.json ({SIM_VIEW_LABELS_SCHEMA}): the geometric per-view labels")
+                        "--view-labels and --positions. Give the four flags once per dev set to pool sets of different "
+                        "environments (pooled calibration; the first set's positions are the reference)")
+    p.add_argument("--evidence", action="append", default=None,
+                   help="evidence.jsonl from perception/evidence.py (jobs_refL1.json); one per --manifest")
+    p.add_argument("--view-labels", action="append", default=None,
+                   help=f"view_labels.json ({SIM_VIEW_LABELS_SCHEMA}): the geometric per-view labels; one per --manifest")
     p.add_argument("--model-id", default="perception.evidence-v0", help="sim/real data: perception model id (logs)")
     p.add_argument("--n-arr", type=int, default=30)
     p.add_argument("--n-dev", type=int, default=None)
@@ -2542,11 +3042,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lam-sensitivity", type=_optional(_floats, "float list"), default=d.lam_sensitivity,
                    help="lam values run as a reported sensitivity only (default 0.7,0.9,1.2; 'none'); lam = 0 is fixed")
     p.add_argument("--bootstrap-B", type=int, default=d.bootstrap_B)
-    p.add_argument("--positions", default=None,
-                   help="positions JSON (default configs/positions.json; required with --manifest)")
+    p.add_argument("--positions", action="append", default=None,
+                   help="positions JSON (default configs/positions.json; required with --manifest, one per --manifest)")
     p.add_argument("--lam-breakpoints", action="store_true",
                    help="print primary G's lam breakpoints on the positions file, check lam = 0 and --lam-sensitivity "
                         "against them, and exit")
+    p.add_argument("--side", action="append", default=None,
+                   help="side descriptors (perception/side_descriptor.py rows on the same jobs) per dev set, in "
+                        "--manifest order: adds the direction-rule control Dir and lets the rankers train")
+    p.add_argument("--ranker", action="append", default=None, choices=("A", "A-nocue"),
+                   help="fold-trained ranker for the held-out check (verify/ranker.py; needs --side); repeatable")
     p.add_argument("--tag", default=None)
     p.add_argument("--out", default=None, help="output dir (default runs/select-v4-<tag>/)")
     return p
@@ -2555,14 +3060,16 @@ def build_parser() -> argparse.ArgumentParser:
 def check_episodes(runner: PolicyRunner, th: Thresholds, settings: SelectionSettings) -> list[dict[str, Any]]:
     """Per-episode decisions of the Step 4 check (cached runs; for selection_details.json)."""
     out = []
-    for p in CHECK_POLICIES:
+    for p in check_policies(runner.dev):
         for cap in policy_caps(p, settings):
             budget = run_budget(p, cap, settings, runner.dev.positions)
             for r in runner.results(p, th, budget):
-                out.append({"policy": p, "cap_steps": cap, "travel_cap_cm": budget.travel_cap_cm,
+                out.append({"policy": p, "cap_steps": cap,
+                            "travel_cap_cm": _episode_cap_cm(runner.dev, budget, r.arrangement_id),
                             "episode_id": r.episode_id, "lighting": r.lighting.value,
                             "decision_frac": {d.value: r.frac(d) for d in Decision},
-                            "mean_views": r.mean_views, "mean_travel_cm": r.mean_travel_cm})
+                            "mean_views": r.mean_views, "mean_travel_cm": r.mean_travel_cm,
+                            **_environment_key(runner.dev, r.arrangement_id)})
     return out
 
 
@@ -2580,12 +3087,17 @@ def settings_sha256(settings: SelectionSettings, provenance: Mapping[str, Any] |
 
 
 def data_provenance(dev: DevData) -> dict[str, Any] | None:
-    """What the settings hash records about sim / real dev data: the simulation flag and the input file hashes."""
+    """What the settings hash records about sim / real dev data: the simulation flag and the input file hashes, and the
+    side descriptors' hash when there are any (fold-trained policies are recorded by the held-out check)."""
     if dev.synthetic:
         return None
-    return {"simulation": dev.simulation,
-            "inputs": {k: v["sha256"] for k, v in (dev.inputs or {}).items() if isinstance(v, Mapping) and "sha256" in v},
-            "dev_evidence_sha256": dev.evidence_sha256, "view_labels_sha256": dev.view_labels_sha256}
+    out = {"simulation": dev.simulation,
+           "inputs": {k: v["sha256"] for k, v in (dev.inputs or {}).items()
+                      if isinstance(v, Mapping) and "sha256" in v},
+           "dev_evidence_sha256": dev.evidence_sha256, "view_labels_sha256": dev.view_labels_sha256}
+    if dev.side is not None:   # a hash of the descriptor values (inputs["side"] is the file's sha256)
+        out["side_values_sha256"] = dev.side.sha256()
+    return out
 
 
 def _write_atomic(path: Path, text: str) -> None:
@@ -2708,14 +3220,17 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.lam_breakpoints:
-        pos = Positions.load(args.positions) if args.positions else Positions.load()
-        chk = check_lam_grid((LAM_FIXED, *args.lam_sensitivity), pos, lookahead=False)   # primary G
-        print("G (primary, lookahead off) lam breakpoints (geometry only): "
-              + ", ".join(f"{b.lam:.6f} ({b.n_states_changed} states)" for b in chk.breakpoints))
-        print("behaviour classes of lam = 0 and the sensitivity values: "
-              + "; ".join(str(list(c)) for c in chk.classes))
-        for w in chk.warnings:
-            print("WARNING: " + w)
+        for i, path in enumerate(args.positions or [None]):
+            pos = Positions.load(path) if path else Positions.load()
+            chk = check_lam_grid((LAM_FIXED, *args.lam_sensitivity), pos, lookahead=False)   # primary G
+            if i:
+                print(f"--- {path}")
+            print("G (primary, lookahead off) lam breakpoints (geometry only): "
+                  + ", ".join(f"{b.lam:.6f} ({b.n_states_changed} states)" for b in chk.breakpoints))
+            print("behaviour classes of lam = 0 and the sensitivity values: "
+                  + "; ".join(str(list(c)) for c in chk.classes))
+            for w in chk.warnings:
+                print("WARNING: " + w)
         return 0
     files = (args.manifest, args.evidence, args.view_labels)
     if args.synthetic == any(x is not None for x in files):
@@ -2725,6 +3240,21 @@ def main(argv: list[str] | None = None) -> int:
     if not args.synthetic and (None in files or args.positions is None):
         print("--manifest needs --evidence, --view-labels and --positions", file=sys.stderr)
         return 2
+    if not args.synthetic and len({len(x) for x in (*files, args.positions)}) != 1:
+        print("give --manifest, --evidence, --view-labels and --positions once per dev set (the same number of each)",
+              file=sys.stderr)
+        return 2
+    if args.synthetic and args.positions and len(args.positions) > 1:
+        print("--synthetic takes one --positions", file=sys.stderr)
+        return 2
+    if args.side is not None and (args.synthetic or len(args.side) != len(args.manifest)):
+        print("--side needs sim / real dev sets, once per --manifest", file=sys.stderr)
+        return 2
+    if args.ranker and args.side is None:
+        print("--ranker needs --side (the rankers read the side descriptor)", file=sys.stderr)
+        return 2
+    from verify.ranker import RANKERS   # lazily: verify.ranker.train_frozen imports this module (no import cycle)
+    trainables = [RANKERS[n] for n in dict.fromkeys(args.ranker or ())]
     try:
         settings = SelectionSettings(budget=args.budget, cap_steps=args.cap_steps, r_seeds=args.r_seeds,
                                      tau_match_grid=args.tau_match_grid, tau_q_grid=args.tau_q_grid,
@@ -2736,7 +3266,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(e))
     provenance: dict[str, Any] | None = None
     if args.synthetic:
-        positions = Positions.load(args.positions) if args.positions else Positions.load()
+        positions = Positions.load(args.positions[0]) if args.positions else Positions.load()
         params = SyntheticParams(n_dev=args.n_dev, block_includes_start=not args.block_anywhere)
         dev = synthetic_dev_data(args.n_arr, args.seed, params, positions)
         tag = args.tag or f"synthetic-n{args.n_arr}-s{args.seed}"
@@ -2745,18 +3275,22 @@ def main(argv: list[str] | None = None) -> int:
         context = RunContext(model_id="synthetic-no-model", config_version=PROCEDURE_VERSION,
                              config_sha256=settings_sha256(settings, provenance), synthetic=True)
     else:
+        sets = list(zip(args.manifest, args.evidence, args.view_labels, args.positions, *([args.side] if args.side
+                                                                                           else [])))
         try:
-            dev = sim_dev_data(args.manifest, args.evidence, args.view_labels, args.positions)
+            dev = sim_dev_data(*sets[0]) if len(sets) == 1 else sim_dev_data_pooled(sets)
         except (OSError, ValueError, KeyError) as e:   # SplitRefused is a ManifestError, i.e. a ValueError
             print(f"bad dev input: {type(e).__name__}: {e}", file=sys.stderr)
             return 2
-        tag = args.tag or f"{'sim' if dev.simulation else 'real'}-{Path(args.manifest).resolve().parent.name}"
+        tag = args.tag or (f"{'sim' if dev.simulation else 'real'}-"
+                           + "+".join(Path(m).resolve().parent.name for m in args.manifest)
+                           + ("-pooled" if len(sets) > 1 else ""))
         context = RunContext(model_id=args.model_id, config_version=PROCEDURE_VERSION,
                              config_sha256=settings_sha256(settings, None, data_provenance(dev)), synthetic=False)
     out = Path(args.out) if args.out else REPO_ROOT / "runs" / f"{PROCEDURE_VERSION}-{tag}"
     who = dev.label or "REAL DEV DATA"
     try:
-        res = run_selection(dev, settings, context)
+        res = run_selection(dev, settings, context, trainables)
     except CalibrationInfeasible as e:   # fail loudly: no candidate, a failure record, a non-zero exit
         path = write_infeasible(out, dev, settings, e.failure, provenance)
         print(f"{who}: CALIBRATION INFEASIBLE, no frozen candidate written. {e}", file=sys.stderr)
@@ -2769,7 +3303,9 @@ def main(argv: list[str] | None = None) -> int:
           f"k {th.k} (fixed), lam {th.lam:g} (fixed); dev check: {len(res['flags'])} flag(s) above FRR "
           f"{settings.frr_limit:g}" + (f", {len(res['unchecked'])} row(s) not checked (FRR undefined)"
                                        if res["unchecked"] else "")
-          + f"; held-out check: {len(res['held_out_check']['flags'])} flag(s)")
+          + f"; held-out check: {len(res['held_out_check']['flags'])} flag(s)"
+          + (f"; per environment (a pooled pass does not imply each passed): dev check {_verdicts_text(res)}"
+             if dev.pooled else ""))
     if not res["eligible_for_freeze"]:
         print(f"{who}: candidate NOT eligible for freeze: "
               + "; ".join(r["reason"] for r in res["ineligible_reasons"]), file=sys.stderr)

@@ -1,125 +1,91 @@
-# Occlusion Aware Active Verification for Robot Scene Memory
+# Proposal: evidence-aware verification of a remembered object
 
-CMPE 249 Project Proposal | Fall 2026  
-Adithya Rajendran | Solo project | September 8, 2026  
-Instructor Kaikai Liu  
-Selected track 4 VLA / robotics | Research project  
-Secondary alignment with track 6 Safety and evaluation
+**Revised 2026-11-17 Pacific. Development design, not a frozen protocol or a result.**
 
-## Abstract
+## Question and scope
 
-A robot that revisits a workspace may fail to detect a remembered object because it was removed, it is occluded, or the detector missed it. Visibility reasoning helps interpret a miss, but deciding whether to acquire another view also requires a sensing policy. I propose a bounded study of that decision using five calibrated camera positions and three possible outputs: present, removed from the monitored area, or unknown. A small learned view ranker will be compared with fixed, random, and geometric parallax selectors using the same perception front end, stopping rule, and observation and travel limits. A passive single-view rule provides a no-movement reference. The main question is whether learning improves on the geometric selector, and under which occlusion conditions. No experimental results are claimed at proposal time.
+When camera pose changes, can a verifier retain supported decisions about a remembered object without committing on unanswerable views?
 
-## Problem and motivation
+The input is a reference image, its target box and one revisit image.
+The outputs are PRESENT, REMOVED and UNKNOWN.
+The task concerns the remembered region. The primary scenes exclude relocation and substitution of an indistinguishable instance.
+The method cannot infer absence from the entire scene from an empty remembered region.
 
-Prematurely deleting a present object can trigger an unnecessary search or an incorrect downstream plan. Retaining an outdated record also has a cost. For this study, I prioritize avoiding false removals while requiring useful removal recall and decision coverage. Shelf inspection and household object memory motivate the task; transfer to those applications would need separate evaluation.
+The [method](METHOD.md) checks separate support for presence and removal.
+The [evaluation](EVALUATION_PLAN.md) measures both factual correctness and whether the supplied view supports an answer.
+The completed simulation measures image-only performance across camera displacements.
+The next engineering check compares fixed controls across Isaac Sim and MuJoCo with recorded simulator interventions.
+The researcher selected a simulation-only paper scope. Physical-camera transfer remains future work.
+A later cascade must recover useful answers beyond credible image-only controls without excessive unsupported commitments.
+Agreement veto is a separate error-reduction hypothesis. Neither mechanism is claimed as new.
 
-Existing systems already reason about changing object state. POCD combines per-object stationarity with geometric change in a Bayesian update [1]; Khronos separates short-term motion from long-term change [2]; Bore et al. model local and global object motion [3]. Persistence filters provide survival estimates [4, 5]. LT-Mem preserves alternative object histories [6], DynaMem updates a spatial memory and guides exploration [7], RoboStream maintains temporal context for manipulation [8], and Lost & Found tracks changes through observed interactions [9]. Bogenberger et al. prioritize exploration using object stationarity and task relevance [10]; Terashima et al. select distant-object inspection journeys [11]. SceneDiff detects changes from an acquired multiview sequence [12].
+## Candidate contribution
 
-The candidate contribution is a controlled comparison of view selection and stopping for one ambiguous object verification episode. The survey identifies substantial overlap; it does not establish that this decision has never been studied. The week-2 review will check the distinction against the closest active methods [7, 10, 11].
+The proposed contribution is a controlled evaluation of evidence for memory updates.
+Matched scenes separate physical state from observable evidence. A blocked target and a removed target can both require UNKNOWN.
+Clear controls measure the cost of abstention. A declared camera displacement tests dependence on reference alignment.
 
-## Problem formulation
+This is a candidate empirical contribution. The gate itself is not claimed as a new principle or a calibrated safety guarantee.
+A paper needs a reproducible finding that survives strong controls, fresh arrangements and an explicit generalization test.
+The planned claims concern rendered observations in the declared simulators, not deployed robot-memory performance.
+Simulator transfer alone is not novelty. A useful finding must survive strong controls and fresh arrangements.
 
-Research question: under a fixed observation and travel budget, does adaptive view selection with conservative stopping reduce false removals, at comparable coverage, relative to passive visibility reasoning and to fixed, random, and geometric inspection orders? Secondary question: does a learned ranker add anything over parallax geometry, and under which conditions?
+## Why the design changed
 
-**Decision model.** The hidden target state is present or removed. Five known camera positions have measured travel costs, and each episode starts at the same designated position. Reference captures from all positions are taken before the change. Each requested query view produces detector, instance-match, occlusion, and image-quality scores. The policy selects an unvisited view or returns present, removed, or unknown within observation and travel caps. The aim is to reduce false removals while maintaining removal recall and coverage. A budget-limited sequential rule confirms presence on a strong instance match and removal only after sufficient clear, unmatched evidence from at least two distinct positions. It returns unknown if evidence remains insufficient when no further view is affordable. This is an empirical evidence rule, not a test with guaranteed statistical error bounds.
+The first study had little room for a better view selector at its primary setting.
+Its frozen evidence could not produce the costly error under any view order in the completed test set.
+The learned ranker also used a visibility target instead of terminal decision value.
+The [post-hoc record](../notes/2026-11-12-posthoc-review.md) qualifies the completed results.
+Those findings do not establish that active perception or learning is ineffective.
 
-| **Element** | **Specification** |
-| --- | --- |
-| Inputs | Reference captures and target crops from every camera position; a named target; the current and previously requested query views only; position identifiers and travel costs. |
-| Outputs | Acquire-view actions and one terminal decision: present, removed from the monitored area, or unknown. A log of views used, evidence scores, and cumulative travel. |
-| Scope | One tabletop or shelf, 6 to 10 household objects, five fixed camera positions, a static scene within an episode. Within-area relocation is excluded from the primary task. Removed is a claim about the monitored area, not about the object's existence; unknown is an abstention and counts against coverage. |
+The new study changes the question and the decision unit.
+It does not revise the old results or reuse the old test as independent evidence.
 
-Reliable depth and a complete geometric model can simplify visibility checks. This study uses monocular RGB and reference image regions, without a complete 3D model of the changed scene. Known camera geometry still supports a parallax heuristic, which makes G an essential baseline. A result favoring G would support the simpler selector within the tested conditions.
+## Closest work and remaining uncertainty
 
-## Proposed technical approach
-
-The implementation will use Python, OpenCV, and PyTorch with locally runnable models. Fixed camera positions and reference captures reduce localization and matching demands. Every policy uses the same frozen perception front end.
-
-**1. Perception and matching.** A small YOLO-World checkpoint [13], prompted with the target and occluder catalog, proposes candidates. A frozen image encoder provides reference-crop similarity, combined with expected-region overlap for instance matching. The checkpoint and matching thresholds will be selected in the pilot and recorded. SAM 2 [14] is optional if masks improve the occlusion cue over boxes.
-
-**2. Evidence and the occlusion cue.** Each reference capture defines an expected target region. The initial cue measures its overlap with detected non-target objects that may obstruct it; optional masks refine this estimate. Raw image difference alone cannot identify occlusion, since removal and lighting changes also alter pixels. Absence evidence requires adequate image quality, low estimated obstruction, and no target match. Ambiguous visibility contributes no absence evidence. This 2D cue cannot prove depth order; its errors will be measured against visibility annotations, with any refinement decided during the pilot.
-
-**3. Passive visibility rule (baseline S).** Use the initial view only: present on a strong match; removed when the expected region is estimated clear, image quality is adequate, and no match is found; unknown otherwise. This is a deliberately simple project baseline inspired by geometric and persistence reasoning [1, 2, 4, 7], not a reproduction of those systems.
-
-**4. Geometric parallax selector (baseline G).** Among affordable unvisited positions, maximize the minimum angular separation from views flagged as occluded, measured about the reference workspace center, minus a normalized travel penalty. If no view is flagged, use all visited positions. Ties favor shorter travel. This geometric diversity heuristic does not assume that an unvisited view has a clear line of sight.
-
-**5. Learned view ranker (proposed A).** A regularized logistic regression predicts whether an unvisited position will provide diagnostic evidence. Inputs are observed evidence and image quality, reference information, and candidate geometry relative to observed views. Development annotations provide training labels. The score subtracts a travel penalty from predicted informativeness. A and G use normalized scores and costs with the same penalty coefficient. The small model limits learning demands; overfitting will still be checked across development arrangements. Future query images are never inputs.
-
-**6. Stopping.** F, R, G, and A share the sequential evidence rule, so their main comparison changes only view selection. Feature definitions, regularization, evidence thresholds, and the travel penalty will be selected using validation folds grouped by development arrangement, then frozen before final testing. Distinct camera views are not assumed to provide independent evidence.
-
-## Experiment and data
-
-A pilot of 24 to 30 episodes comes first and stays out of the test set. The main collection uses 30 physical arrangements, each captured under three target conditions (visible, present but occluded, removed) and two lighting conditions: 180 episodes, five query views each, about 900 query images plus references. Occluded-present and removed captures use matched occluder layouts, reducing label leakage; each scene remains static within an episode. A small, predeclared subset includes paired states that cannot be distinguished from any available view. Unknown is the intended response for these cases, while physical ground truth remains present or removed.
-
-Split by arrangement: 10 development, 20 held-out test, giving 60 development and 120 test episodes with all conditions of an arrangement in one split. This tests new arrangements, not unseen object identities. A replay interface serves only the requested view, so policy comparisons are repeatable and unvisited images cannot leak. SceneDiff [12] is a methodological reference and a source of extra examples, not a navigable environment.
-
-The 120 test episodes come from only 20 independent arrangements, so sensitivity to small effects is uncertain. The pilot will guide the collection plan and identify the coverage limit imposed by unobservable cases. A synthetic replica is an optional extension after the physical study; it cannot replace independent physical evidence.
-
-## Baselines and evaluation
-
-| **Policy** | **View choice** | **Decision rule** |
+| Source | Established overlap | Distinction to test |
 | --- | --- | --- |
-| S  Passive single view | Initial position only | Visibility rule, no movement |
-| F  Fixed order | Left to right | Shared sequential stopping |
-| R  Random order | Random unvisited position, repeated seeds | Shared sequential stopping |
-| G  Geometric parallax | Angular diversity minus travel penalty | Shared sequential stopping |
-| A  Learned ranker (proposed) | Logistic informativeness minus travel penalty | Shared sequential stopping |
-| Full sweep | All five positions | Higher-budget reference, reported separately |
+| [VA-TAMP, 2026 preprint](https://arxiv.org/html/2611.16213v1) | Observation-justified manipulation | Matched RGB verification of removal from a remembered region |
+| [Evidence-Gated TAMP, 2026 v2](https://arxiv.org/html/2608.20084v2) | Evidence acquisition, feasibility gating and absent-object halting | Perception errors and supported removal decisions under a controlled RGB boundary |
+| [CYWS-3D, 2023](https://arxiv.org/html/2308.10417v2) | Two-image change detection across viewpoints, with estimated-depth feature registration | Supported answers about a supplied region, rather than change boxes alone |
+| [SceneDiff, 2026 revision](https://arxiv.org/html/2512.16908v2) | Verifiable changes across viewpoints and occlusion, including two-image evaluation | Explicit support-scored UNKNOWN and useful target decisions, subject to direct comparison |
+| [GeoSCD, 2025](https://arxiv.org/html/2509.11292v1) | Two-image change masks with estimated geometric correspondences and explicit occlusion filtering | Selective target decisions need a declared adapter and direct comparison |
+| [FOCUS, 2026](https://arxiv.org/html/2610.05639v1) | Uncertain object-state updates from aligned RGB-D revisits and a reference map | A single RGB pair without replacement or temporal fusion |
+| [Jonathan, Paxton and Hager, 2017](https://arxiv.org/abs/1710.03948) | Robot scene reasoning retains objects through occlusion and checks evidence before removal. | Controlled paired evaluation of memory verification with explicit abstention |
+| [SpatialUncertain, v2](https://arxiv.org/html/2605.30557v2) | Controlled occlusion, perspective ambiguity and abstention. Its perspective experiments include a reference view. | Matched hidden and removed states for a previously identified object |
+| [VAD-R, 2026](https://arxiv.org/html/2609.32653v1) | Answerability, shortcut filtering, occlusion and absent information | A task-specific reference and revisit comparison, with useful memory decisions measured separately |
+| [Selective Commitment, 2026](https://arxiv.org/html/2609.23131v1) | Robot memory, hidden and absent hypotheses, VLM observations and abstention | Verification of removal, rather than a decision to grasp or defer |
+| [Absence Detection from Robot Memory, 2026](https://arxiv.org/html/2611.07493v1) | Retrieval plus visual verification for absent object queries | Removal since a supplied reference, with matched occlusion controls |
+| [Geifman and El-Yaniv, 2017](https://arxiv.org/abs/1705.08500) | Selective classification trades answer coverage against error | A fair rejection baseline for this task, not a new abstention principle |
 
-Budgets range from zero to four additional views from the same initial position, with common observation and cumulative travel caps; the primary operating point is three additional views. S uses no movement and is reported at its actual effort. A versus F, R, and G isolates selection under shared stopping. Ablations remove the occlusion cue from A and replace conservative removal with removal on the first clear miss for each multi-view policy. These tests separate the effects of view choice and stopping. The full sweep is a higher-budget reference, not a guaranteed accuracy upper bound.
+These distinctions are an interpretation of the cited methods. They do not prove an open publication opportunity.
+The [2026-11-17 research check](../notes/2026-11-17-research-and-stress-plan.md) adds primary-text comparisons and narrows the claim.
+The [VA-TAMP review](../notes/2026-11-17-va-tamp-and-simulation-scope.md) records the later reading and simulation-only decision.
+This targeted search does not establish an exhaustive literature gap.
 
-| **Metric** | **Definition and planning target** |
-| --- | --- |
-| False removal rate | Removed decisions over truly present episodes. Target at most 10% at three additional views. |
-| Removal recall | Correct removed decisions over truly removed episodes. Target at least 80%. |
-| Decision coverage | Present or removed decisions over all episodes. Target at least 80%; unknown stays in the denominator. |
-| Resolved accuracy | Correct decisions among non-unknown decisions. |
-| Inspection effort | Views requested and cumulative commanded travel; full error, coverage, and effort curves across budgets. |
+The review of Selective Commitment covered sections III and IV. Its defer action does not certify absence.
+The earlier numerical confidence in novelty is withdrawn.
 
-The three planning targets are evaluated jointly at the primary operating point; no target is a guaranteed outcome. Paired differences use arrangement-level bootstrap intervals, with counts alongside every rate. The primary selection comparison is A versus G. A small observed difference with a wide interval is inconclusive, not evidence of equivalence.
+The researcher's slot rule remains: check the closest work before a freeze and before submission.
+If a paper already tests the same matched task with scored UNKNOWN, stop this direction and select another topic.
+Otherwise, state the exact remaining question before building a larger study.
 
-## Hypotheses
+## Next work
 
-H1: conservative stopping reduces false removals relative to first-clear-miss removal for the same selector, potentially reducing coverage. H2: A improves the error, coverage, and effort trade-off over F and R. H3: any advantage of A over G depends on occlusion and image quality. I expect G to be competitive when occluders are compact and reference regions are reliable. These are hypotheses to test. Failure to detect a difference will not establish that learning has no value; sufficiently precise results may support choosing G for this bounded task.
+The [label audit](../notes/2026-11-16-development-support-audit.md) and [first development pilot](../notes/2026-11-16-development-pilot.md) are complete.
+The model prompts failed an obvious retained-target control, despite valid numeric scoring.
+The image-only control resolved all supported evaluation queries in the small cohort.
+These findings do not establish a language-model method advantage.
 
-## Devices
+The [full stress review](../notes/2026-11-17-scoring-and-label-review.md) is complete.
+The guard controls recover correct answers. AI support judgments still need validation.
+No support-based A/B/C decision follows from the sampled audit.
 
-ASUS Ascent GB10 for development, inference, image processing, and analysis; Jetson Orin Nano 8 GB for optional onboard perception; Raspberry Pi 5 with AI HAT+ and a Pi camera for capture and optional motor control. Accelerator deployment is optional until compatibility is verified. I, Adithya Rajendran, personally purchased, own, and maintain all listed devices and manage software installations and development access. The motorized camera stage remains an optional build.
+1. Qualify MuJoCo scene support, then run the [paired simulator check](../development/cross_sim/PLAN.md) with fixed image-only controls.
+2. Keep physical-state scores separate from provisional support judgments.
+3. Validate the support reference before any support-based model comparison.
+4. Compare a justified method with credible geometric and confidence controls.
+5. Plan fresh evaluation only after a repeatable benefit and a defensible contribution appear.
 
-## Milestones and feasibility gate
-
-| **Period** | **Deliverable or decision** |
-| --- | --- |
-| Weeks 1 to 2 | Read [1, 7, 10, 11]; run the front end on the GB10; collect the pilot; implement S and F and a basic G; verify that changing views resolves some occlusions. |
-| Weeks 3 to 4 | Reference catalog, capture protocol, replay interface, development split; implement the sequential stopping rule, G, and the ranker. |
-| Weeks 5 to 7 | Freeze settings; collect the held-out arrangements; run equal-budget comparisons; inspect failures. |
-| Weeks 8 to 10 | Ablations, uncertainty analysis, report, demonstration; motorized camera stage if the core study is stable. |
-
-Gate at the end of week 2: if the front end fails on clearly visible targets, shrink the object set or swap the detector. If no view change resolves occluded cases, change camera spacing or occluder geometry before final collection. If the closest work already contains this comparison, or no credible experiment survives the pilot, I revise the scope or the topic with the instructor.
-
-## Contribution and limitations
-
-Deliverables are a reproducible verification task, a replay interface, the view selectors and stopping rule, and an evaluation of their error and sensing costs. The intended contribution is the controlled comparison, with novelty rechecked against [7, 10, 11] at the early gate. Conclusions apply to the tested workspace, objects, viewpoints, and models. A well-supported negative result is acceptable; inconclusive results will be identified as such. No experiments have been completed. The repository will contain the README, literature survey, experiment protocol, and AI audit.
-
-## AI assistance
-
-**Proposal support:** ChatGPT and Claude assisted with drafting, literature review, and the AI audit.  
-**Testing automation:** Codex or Claude Code will help automate test runs and result checks under my review.
-
-## References
-
-[1] Jingxing Qian, Veronica Chatrath, Jun Yang, James Servos, Angela P. Schoellig, Steven L. Waslander (2022). [POCD: Probabilistic Object-Level Change Detection and Volumetric Mapping in Semi-Static Scenes](https://arxiv.org/abs/2205.01202). RSS 2022.
-[2] Lukas Schmid, Marcus Abate, Yun Chang, Luca Carlone (2024). [Khronos: A Unified Approach for Spatio-Temporal Metric-Semantic SLAM in Dynamic Environments](https://arxiv.org/abs/2402.13817). RSS 2024.
-[3] Nils Bore, Johan Ekekrantz, Patric Jensfelt, John Folkesson (2019). [Detection and Tracking of General Movable Objects in Large Three-Dimensional Maps](https://arxiv.org/abs/1712.08409). IEEE Transactions on Robotics 35(1).
-[4] David M. Rosen, Julian Mason, John J. Leonard (2016). [Towards Lifelong Feature-Based Mapping in Semi-Static Environments](https://research.google/pubs/towards-lifelong-feature-based-mapping-in-semi-static-environments/). ICRA 2016.
-[5] Amanda Adkins, Tarunvidyut Ravisankar, Joydeep Biswas (2026). [PreSIST: Vision-Language-Informed Object Persistence Prediction in Open-World Scenes](https://arxiv.org/abs/2607.04057).
-[6] Yumin Lee, Hyoseok Ju, Giseop Kim (2026). [LT-Mem: Volatility-Aware Spatio-Temporal Memory for Lifelong Scene Understanding](https://arxiv.org/abs/2608.19059).
-[7] Peiqi Liu et al. (2024). [DynaMem: Online Dynamic Spatio-Semantic Memory for Open World Mobile Manipulation](https://arxiv.org/abs/2411.04999).
-[8] Yuzhi Huang et al. (2026). [RoboStream: Weaving Spatio-Temporal Reasoning with Memory in Vision-Language Models for Robotics](https://arxiv.org/abs/2603.12939).
-[9] Tjark Behrens, Rene Zurbruegg, Marc Pollefeys, Zuria Bauer, Hermann Blum (2025). [Lost & Found: Tracking Changes from Egocentric Observations in 3D Dynamic Scene Graphs](https://arxiv.org/abs/2411.19162). IEEE RA-L 2025.
-[10] Benjamin Bogenberger et al. (2026). [Where Did I Leave My Glasses? Open-Vocabulary Semantic Exploration in Real-World Semi-Static Environments](https://arxiv.org/abs/2509.19851). IEEE RA-L 11(3).
-[11] Kouki Terashima, Kanji Tanaka, Ryogo Yamamoto, Jonathan Tay Yu Liang (2023). [Active Robot Vision for Distant Object Change Detection: A Lightweight Training Simulator Inspired by Multi-Armed Bandits](https://arxiv.org/abs/2307.14105).
-[12] Yuqun Wu et al. (2025). [SceneDiff: A Benchmark and Method for Multiview Object Change Detection](https://arxiv.org/abs/2512.16908).
-[13] Tianheng Cheng et al. (2024). [YOLO-World: Real-Time Open-Vocabulary Object Detection](https://arxiv.org/abs/2401.17270). CVPR 2024.
-[14] Nikhila Ravi et al. (2024). [SAM 2: Segment Anything in Images and Videos](https://arxiv.org/abs/2408.00714).
+The [freeze policy](FREEZE_POLICY.md) blocks a new confirmatory claim until the required decisions and records exist.
+Professor Liu wants to discuss the methodology. No fixed course deliverable or publication date is promised.

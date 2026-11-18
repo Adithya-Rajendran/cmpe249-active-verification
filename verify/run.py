@@ -7,13 +7,25 @@
 Every --synthetic output is labelled SYNTHETIC: the generator parameters and thresholds are
 placeholders, and the numbers are pipeline checks, not study results.
 
-Real or simulated data: --manifest MANIFEST.json --evidence evidence.jsonl [--view-labels view_labels.json]
-[--positions P], where the evidence file comes from perception/evidence.py (EvidenceStore.to_jsonl format). The
-same run stage replays it with no truth; the manifest is re-read for truth only after the run, and the optional sim
-view labels (cmpe249.sim-view-labels-set.v1) are read only after the run too, for the geometric
-no-diagnostic-view share. Thresholds are still the placeholders. A manifest with a top-level "simulation": true
-(sim/episodes.py) is labelled SIMULATION everywhere; any other is a REAL PILOT. It writes config.json, logs.jsonl,
-ground_truth.json, results.json and table.md (scored on test, or on dev when the manifest has no test arrangement).
+Real or simulated data:
+
+    uv run --no-sync python -m verify.run --manifest MANIFEST.json --evidence evidence.jsonl \\
+        [--view-labels view_labels.json] --positions P [--candidate frozen_candidate.json | --placeholder-thresholds] \\
+        [--side side.jsonl [--model A=model_A.json --model A-nocue=model_A-nocue.json]] [budgets, caps, B as above] \\
+        [--gate-off-ablation] [--tau-match-sweep]
+
+The evidence file comes from perception/evidence.py or evidence_v03.py (EvidenceStore.to_jsonl format). The same run
+stage replays it with no truth; the manifest is re-read for truth only after the run, and the optional sim view labels
+(cmpe249.sim-view-labels-set.v1) are read only after the run too, for the geometric no-diagnostic-view share.
+Thresholds: --candidate reads a frozen select-v4 candidate through verify.select.require_freeze_eligible (sidecar,
+eligibility, synthetic marks); without it the placeholders are used, which a simulation manifest with test arrangements
+refuses unless --placeholder-thresholds is given (pipeline tests on hand-built sets only). --side gives every env the
+left/right descriptor of each requested view (verify/side.py) and adds the direction-rule control Dir; each --model
+adds a frozen ranker (verify/ranker.py) whose recorded features, thresholds and candidate must match. A manifest with a
+top-level "simulation": true (sim/episodes.py) is labelled SIMULATION everywhere; any other is a REAL PILOT. It writes
+config.json, logs.jsonl, ground_truth.json, results.json and table.md (scored on test, or on dev when the manifest has
+no test arrangement). results.json and table.md lead with the primary contrast A - G (b = 3, uncapped, per lighting;
+inconclusive when its 95 % interval contains 0) and carry the predeclared common-target analysis.
 
 Uncertainty (docs/SIM_PREREGISTRATION.md section 8): the paired arrangement-level cluster bootstrap and the
 percentile intervals of the single rates (FRR, removal recall, coverage of each policy row on test, per lighting)
@@ -21,6 +33,22 @@ are stratified by quota slot class (occluder family, M16 split by side) when eve
 carries its family and every stratum holds at least two test arrangements; otherwise (the synthetic generator,
 legacy pilot manifests, singleton strata) they are unstratified and flagged as such. With no test arrangement no
 bootstrap runs, and the outputs say so. FRR is reported per episode and per arrangement (any false removal).
+Every interval is pointwise and unadjusted for the number of comparisons (INTERVAL_NOTE, results.json
+"interval_note"). Since real-v7 / synthetic-v9 every paired row and single rate also carries `zero_width` and a
+`degenerate_note` when its interval has zero width (analysis.bootstrap, "Zero-width intervals"), and every paired
+bootstrap row (overall, primary and per family) carries `same_decisions` and an `effort_note`, so equal decisions with
+different effort are flagged even when the runs are not identical. A zero-width interval is not evidence of zero risk,
+of a perfect rate or of equivalence.
+
+Declared test analyses (since real-v6; docs/SIM_PREREGISTRATION.md sections 1, 4, 9 and 10), all reported, none
+selected: each multi-view policy against S (BOOTSTRAP_PAIRS); per-family breakdowns at two levels, the occluder family
+(`by_occluder_family`, M16's sides pooled) and the quota slot class (`by_family`), each with metrics, the target
+composition and A - G per family on test; the occlusion-gate-off ablation (--gate-off-ablation: F and R with
+tau_occ = 1.0, logged as F-gateoff / R-gateoff, with F - F-gateoff and R - R-gateoff on test at the primary setting);
+the risk-coverage sweep of tau_match over the frozen candidate's predeclared grid plus a predeclared extension above
+the frozen point (--tau-match-sweep, needs --candidate; logged as <policy>-tm<value>); and, with --view-labels, the
+geometric diagnostic-view coverage and the gate's per-view rates against the geometric labels (verify.select's
+ViewRates). They are computed after the run, from the truth, the labels and the evidence file read again from disk.
 
 Every output is removed from the output directory before a run starts, so a run that fails part-way never leaves
 an earlier run's results next to its own config (RUN_OUTPUTS, REAL_OUTPUTS).
@@ -48,14 +76,19 @@ import argparse
 import dataclasses
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections import Counter
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from analysis.bootstrap import paired_diff, rate_intervals, resolve_strata
-from analysis.metrics import NO_DIAG_SOURCE_LABELS, compute_all, seed_decisions
+from analysis.bootstrap import MIN_STRATUM_SIZE, paired_diff, rate_intervals, resolve_strata
+from analysis.common_target import COMMON_TARGETS, common_target_diff
+from analysis.metrics import NO_DIAG_SOURCE_LABELS, compute_all, ratio, seed_decisions
 from verify.manifest import (
+    DEFAULT_ENVIRONMENT,
     UNSTRATIFIED_NOTE,
+    ArrangementRecord,
+    GeometricLabels,
     episodes_from_arrangements,
     load_geometric_labels,
     load_manifest_info,
@@ -63,10 +96,12 @@ from verify.manifest import (
 from verify.policies import (
     DEFAULT_R_SEEDS,
     GMYOPIC_LAM_DEG,
+    Dir,
     F,
     FullSweep,
     G,
     GMyopic,
+    Ranker,
     S,
     r_seed_salt,
     run_episode,
@@ -80,6 +115,7 @@ from verify.schema import (
     REPO_ROOT,
     SYNTHETIC_LABEL,
     Budget,
+    Condition,
     Decision,
     EpisodeLog,
     EpisodeResult,
@@ -95,27 +131,64 @@ from verify.schema import (
     as_results,
     cap_cm_from_steps,
     config_sha256,
+    derive_seed,
     file_sha256,
     to_jsonable,
 )
+from verify.side import SideData, SideEnv, SideStore
 from verify.stopping import StoppingRule
 from verify.synthetic import SyntheticParams, generate
 
-CONFIG_VERSION = "synthetic-v7"   # v7 (2026-11-03): single-rate CIs; singleton strata fall back to unstratified
+CONFIG_VERSION = "synthetic-v9"   # v9 (2026-11-06, before the freeze): zero-width flags and the interval note
+# v8 (2026-11-06): the new pairs against S (G-lookahead - S, G-myopic - S)
+# v7 (2026-11-03): single-rate CIs; singleton strata fall back to unstratified
 # v6 (2026-11-03): simulation flag hashed; stratified-bootstrap flag; FRR per arr.
 # v5 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
 # v4 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
 MODEL_ID = "synthetic-no-model"
 # G is primary G (D-norm, lookahead off; DECISIONS 2026-10-12). G-lookahead is the same scorer with the
 # reachability lookahead, so G - G-lookahead isolates the lookahead. G-myopic is the legacy pre-D-G ablation.
-MULTI_VIEW = ("F", "R", "G", "G-lookahead", "G-myopic")
+# Dir (the direction-rule control) runs with side descriptors (--side); A and A-nocue with their frozen model files
+# (--model). A pair or row whose policy did not run is skipped.
+MULTI_VIEW = ("F", "R", "G", "G-lookahead", "G-myopic", "Dir", "A", "A-nocue")
+OPTIONAL_POLICIES = ("Dir", "A", "A-nocue")   # run only with --side / --model
 G_LOOKAHEAD = {"G": False, "G-lookahead": True}   # recorded in the config (and its hash)
-BOOTSTRAP_PAIRS = (("G", "F"), ("G", "R"), ("G", "S"), ("F", "S"), ("R", "S"), ("G", "G-lookahead"),
+# A - G at the primary budget, uncapped, is THE primary contrast (SIM_PREREGISTRATION section 1); every other pair and
+# every capped setting is secondary. A - G-lookahead across the caps: researcher's decision 2026-11-05 item 4. A - Dir:
+# explanatory (post-hoc development origin, notes/2026-11-05-side-descriptor.md).
+PRIMARY_PAIR = ("A", "G")
+# Each multi-view policy against S (prereg sections 1 and 9): A, A-nocue, Dir, G-lookahead and G-myopic - S added in
+# real-v6 next to G, F and R - S.
+BOOTSTRAP_PAIRS = (PRIMARY_PAIR, ("A", "F"), ("A", "R"), ("A", "A-nocue"), ("A", "G-lookahead"), ("A", "Dir"),
+                   ("G", "F"), ("G", "R"), ("G", "S"), ("F", "S"), ("R", "S"), ("A", "S"), ("A-nocue", "S"),
+                   ("Dir", "S"), ("G-lookahead", "S"), ("G-myopic", "S"), ("G", "G-lookahead"),
                    ("G", "G-myopic"))
+# Occlusion-gate-off ablation (prereg sections 4 and 10.5; --gate-off-ablation): F and R only, with tau_occ = 1.0, so
+# no view is ever flagged occluded and the gate is the quality cut alone. G is left out because tau_occ is also G's
+# occlusion flag (it would change G's selection, not only the gate). Reported only, never selected; the paired
+# contrasts run on test at the primary setting only (primary budget, uncapped).
+GATE_OFF_SUFFIX = "gateoff"
+GATE_OFF_TAU_OCC = 1.0
+GATE_OFF_POLICIES = ("F", "R")
+GATE_OFF_PAIRS = tuple((p, f"{p}-{GATE_OFF_SUFFIX}") for p in GATE_OFF_POLICIES)
+# Risk-coverage sweep of tau_match (prereg section 9; --tau-match-sweep): every value of the frozen candidate's
+# predeclared tau_match grid except the frozen one, every other threshold frozen, at the primary budget, uncapped only;
+# logged as "<policy>-tm<value>". The frozen point of each curve is the policy's own primary row. Reported only.
+TM_SWEEP_PREFIX = "tm"
+# The sweep's extension above the frozen point, declared on 2026-11-06, before the freeze: the frozen tau_match 0.7 is
+# the top of the candidate's grid, so the grid alone gives curves that stop at the frozen point. The extension
+# continues the grid's 0.05 step up to 0.9, so the risk-coverage curve shows both sides. Reported only, never selected.
+TAU_MATCH_SWEEP_ABOVE = (0.75, 0.8, 0.85, 0.9)
+TM_SWEEP_POLICIES = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "Dir", "A", "A-nocue", "FULL")   # those that run
+# Per-family breakdowns (prereg section 9; H3) at two levels: the occluder family (S8, M16 with both sides pooled,
+# IND28, white_box, ycb_box; design cases apart) and the quota slot class, the bootstrap stratum
+# (verify.manifest.ArrangementRecord.stratum: M16 split by side). table.md shows these policies' uncapped
+# primary-budget rows.
+FAMILY_TABLE_POLICIES = ("F", "R", "G", "G-lookahead", "Dir", "A", "A-nocue", "FULL")
 # H1 (prereg sec. 10): the same selector with the k-distinct rule vs the first-clear-miss rule (k = 1).
 H1_PAIRS = tuple((x, f"{x}-fcm") for x in MULTI_VIEW)
 # "selection can matter" diagnostics (lit report sec. 4): G's path against these, per budget and cap
-DISAGREE_PAIRS = (("G", "F"), ("G", "R"), ("G", "G-lookahead"), ("G", "G-myopic"), ("G-myopic", "F"))
+DISAGREE_PAIRS = (("G", "F"), ("G", "R"), ("G", "G-lookahead"), ("G", "G-myopic"), ("G-myopic", "F"), ("A", "G"))
 BOOTSTRAP_METRICS = ("false_removal_rate", "removal_recall", "coverage")
 RATE_CI_METRICS = BOOTSTRAP_METRICS   # single rates with a percentile 95% interval (prereg section 8), test rows only
 SCOPES = (Split.TEST, Split.DEV)
@@ -125,7 +198,9 @@ REPORT_LIGHTINGS = tuple(x.value for x in Lighting)
 POOLED = "pooled"
 POOLED_DIAGNOSTIC = POOLED   # the lighting of a diagnostics row over both lightings (secondary section), as for metrics
 ROLE = {"S": "actual effort (1 view, budget-independent)",
-        "FULL": "higher-effort reference (5 views, ignores budget)"}
+        "FULL": "higher-effort reference (5 views, ignores budget)",
+        "A": "learned ranker (frozen model)", "A-nocue": "ablation: A without the obstruction-derived features",
+        "Dir": "explanatory control (post-hoc development origin)"}
 
 RunKey = tuple[str, int, float | None]  # (policy log name, budget, travel cap)
 
@@ -195,6 +270,38 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--tag", default=None, help="run tag (default n<N>-s<seed>)")
     p.add_argument("--out", default=None, help="output dir (default runs/synthetic-<tag>/ or runs/real-<tag>/)")
     p.add_argument("--model-id", default="perception.evidence-v0", help="real data: perception model id for the logs")
+    p.add_argument("--candidate", default=None,
+                   help="real/sim data: frozen_candidate.json from verify.select, read only through "
+                        "require_freeze_eligible (its .sha256 sidecar must match and it must be eligible); its "
+                        "thresholds replace the placeholders. Required for a simulation manifest with test "
+                        "arrangements")
+    p.add_argument("--k-sensitivity", type=lambda x: () if x == "none" else tuple(int(v) for v in x.split(",")),
+                   default=(3,), help="real/sim data: k values of the declared sensitivity runs (default 3, or none)")
+    p.add_argument("--lam-sensitivity", type=lambda x: () if x == "none" else tuple(float(v) for v in x.split(",")),
+                   default=(0.7, 0.9, 1.2),
+                   help="real/sim data: lam values of the declared sensitivity runs for G and G-lookahead "
+                        "(default 0.7,0.9,1.2, or none)")
+    p.add_argument("--placeholder-thresholds", action="store_true",
+                   help="real/sim data: allow a simulation manifest with test arrangements to run on the placeholder "
+                        "thresholds (pipeline tests on hand-built sets only; every output stays labelled 'placeholder "
+                        "thresholds, not frozen')")
+    p.add_argument("--side", default=None,
+                   help="real/sim data: side descriptors (perception/side_descriptor.py rows on the same jobs): every "
+                        "env then reveals each requested view's own descriptor, and the direction-rule control Dir "
+                        "runs")
+    p.add_argument("--model", action="append", default=None,
+                   help="real/sim data: NAME=PATH, a frozen ranker model file (verify/ranker.py save_model), e.g. "
+                        "A=model_A.json; needs --side and --candidate (the model's features, thresholds and "
+                        "candidate must match); "
+                        "repeatable")
+    p.add_argument("--gate-off-ablation", action="store_true",
+                   help="real/sim data: the occlusion-gate-off ablation, F and R only with tau_occ = 1.0 (logged as "
+                        "F-gateoff and R-gateoff), at the primary budget under every cap; reported only, never "
+                        "selected")
+    p.add_argument("--tau-match-sweep", action="store_true",
+                   help="real/sim data: the risk-coverage sweep of tau_match over the frozen candidate's predeclared "
+                        "tau_match_grid (needs --candidate), every other threshold frozen, at the primary budget, "
+                        "uncapped (logged as <policy>-tm<value>); reported only, never selected")
     return p
 
 
@@ -266,22 +373,37 @@ def write_scoring_files(n_arr: int, seed: int, params: SyntheticParams, position
 
 def run_stage(specs: Sequence[EpisodeSpec], store: EvidenceStore, positions: Positions, th: Thresholds,
               budgets: Sequence[int], caps: Sequence[float | None], r_seeds: Sequence[int],
-              context: RunContext) -> list[EpisodeLog]:
+              context: RunContext, side: SideData | None = None,
+              rankers: Sequence[Ranker] = (), sensitivity: Sequence[tuple[str, Thresholds]] = (),
+              primary_budget: int | None = None,
+              tau_match_sweep: Sequence[tuple[str, Thresholds]] = ()) -> list[EpisodeLog]:
     """Every policy x budget x cap on every episode, each run on a fresh ReplayEnv.
 
     Envs are built from opaque ReplayKeys (minted here, before the store is sealed), never from
-    the spec; the log header is joined onto each header-free run afterwards.
+    the spec; the log header is joined onto each header-free run afterwards. With side descriptors every env is a
+    SideEnv (each revealed view carries its own stop's descriptor, nothing else), and Dir runs; each frozen ranker
+    (A, A-nocue) runs like G, with the same rules, budgets and caps. sensitivity: (suffix, thresholds) pairs run at the
+    primary budget under every cap and logged as "<policy>-<suffix>" (SENSITIVITY_SUFFIX): a k value runs every
+    multi-view policy with that k-rule; a lam value runs G and G-lookahead with that weight (reported only); the
+    GATE_OFF_SUFFIX setting (gate_off_setting) runs F and R only. tau_match_sweep: (suffix, thresholds) pairs from
+    tau_match_sweep_settings, each run once at the primary budget, uncapped: S (first-clear-miss rule) and FULL at their
+    own budgets, then every multi-view policy with the k-rule, logged as "<policy>-<suffix>" (reported only).
     """
+    if rankers and side is None:
+        raise ValueError("the rankers read the side descriptor: pass side descriptors with ranker models")
     rule = StoppingRule(th)
     fcm = StoppingRule.first_clear_miss(th)  # F/G/R-fcm, and S (one view, removed on a single clear miss)
     keys = store.replay_keys()
+    side_store = side() if side is not None else None
     logs: list[EpisodeLog] = []
 
     for spec in specs:
         key = keys[spec.episode_id]
+        reveal = side_store.bind(spec.episode_id) if side_store is not None else None
 
-        def env(budget: Budget, key=key) -> ReplayEnv:
-            return ReplayEnv(key, store, positions, budget, context)
+        def env(budget: Budget, key=key, reveal=reveal) -> ReplayEnv | SideEnv:
+            e = ReplayEnv(key, store, positions, budget, context)
+            return e if reveal is None else SideEnv(e, reveal)
 
         logs.append(EpisodeLog.from_run(spec, run_episode(S(), env(Budget(0)), fcm)))
         logs.append(EpisodeLog.from_run(spec, run_episode(FullSweep(), env(Budget(4)), rule)))
@@ -291,12 +413,96 @@ def run_stage(specs: Sequence[EpisodeSpec], store: EvidenceStore, positions: Pos
                 for r in (rule, fcm):
                     for pol in (F(), G.from_thresholds(th, lookahead=G_LOOKAHEAD["G"]),
                                 G.from_thresholds(th, lookahead=G_LOOKAHEAD["G-lookahead"]),
-                                GMyopic.from_thresholds(th)):
+                                GMyopic.from_thresholds(th),
+                                *((Dir.from_thresholds(th),) if side_store is not None else ()), *rankers):
                         logs.append(EpisodeLog.from_run(spec, run_episode(pol, env(budget), r)))
                     seed_logs, _ = run_r_seeds(lambda bu=budget, e=env: e(bu), r, r_seeds, r_seed_salt(spec),
                                                spec=spec)
                     logs.extend(seed_logs)
+        for suffix, t in sensitivity:
+            k_run = suffix.startswith("k")
+            gate_off = suffix == GATE_OFF_SUFFIX   # F and R only (G reads tau_occ as its occlusion flag)
+            r = StoppingRule(t)
+            for cap in caps:
+                budget = Budget(primary_budget, cap)
+                pols = ((F(), G.from_thresholds(t, lookahead=False), G.from_thresholds(t, lookahead=True),
+                         GMyopic.from_thresholds(t), *((Dir.from_thresholds(t),) if side_store is not None else ()),
+                         *rankers) if k_run
+                        else (F(),) if gate_off
+                        else (G.from_thresholds(t, lookahead=False), G.from_thresholds(t, lookahead=True)))
+                for pol in pols:
+                    run = run_episode(pol, env(budget), r, name=f"{pol.name}-{suffix}")
+                    logs.append(EpisodeLog.from_run(spec, run))
+                if k_run or gate_off:
+                    seed_logs, _ = run_r_seeds(lambda bu=budget, e=env: e(bu), r, r_seeds, r_seed_salt(spec),
+                                               spec=spec, name=f"R-{suffix}")
+                    logs.extend(seed_logs)
+        for suffix, t in tau_match_sweep:   # only tau_match differs from th: the policies keep th's tau_occ and lam
+            r, r1 = StoppingRule(t), StoppingRule.first_clear_miss(t)
+            logs.append(EpisodeLog.from_run(spec, run_episode(S(), env(Budget(0)), r1, name=f"S-{suffix}")))
+            logs.append(EpisodeLog.from_run(spec, run_episode(FullSweep(), env(Budget(4)), r, name=f"FULL-{suffix}")))
+            budget = Budget(primary_budget, None)
+            for pol in (F(), G.from_thresholds(t, lookahead=G_LOOKAHEAD["G"]),
+                        G.from_thresholds(t, lookahead=G_LOOKAHEAD["G-lookahead"]), GMyopic.from_thresholds(t),
+                        *((Dir.from_thresholds(t),) if side_store is not None else ()), *rankers):
+                logs.append(EpisodeLog.from_run(spec, run_episode(pol, env(budget), r, name=f"{pol.name}-{suffix}")))
+            seed_logs, _ = run_r_seeds(lambda bu=budget, e=env: e(bu), r, r_seeds, r_seed_salt(spec),
+                                       spec=spec, name=f"R-{suffix}")
+            logs.extend(seed_logs)
     return logs
+
+
+def sensitivity_settings(th: Thresholds, ks: Sequence[int], lams: Sequence[float]) -> list[tuple[str, Thresholds]]:
+    """The declared sensitivity runs (SIM_PREREGISTRATION §0, §7): k in ks with lam fixed, lam in lams with k fixed."""
+    return ([(f"k{k}", dataclasses.replace(th, k=k)) for k in ks]
+            + [(f"lam{lam:g}", dataclasses.replace(th, lam=lam)) for lam in lams])
+
+
+def gate_off_setting(th: Thresholds) -> tuple[str, Thresholds]:
+    """The occlusion-gate-off ablation as a sensitivity setting (run_stage runs it for F and R only): tau_occ = 1.0,
+    so no view is flagged occluded (obstruction <= 1 always passes) and the clear-miss gate is the quality cut alone."""
+    return GATE_OFF_SUFFIX, dataclasses.replace(th, tau_occ=GATE_OFF_TAU_OCC)
+
+
+class SweepRefused(ValueError):
+    """--tau-match-sweep refused: no predeclared tau_match grid in the candidate, one that does not hold the frozen
+    value, or an extension value at or below the frozen value."""
+
+
+def tau_match_grid_of(candidate: Mapping[str, Any], th: Thresholds) -> tuple[float, ...]:
+    """The frozen candidate's predeclared tau_match grid (settings.tau_match_grid), sorted. SweepRefused when the
+    candidate has none, when a value is not a number in [0, 1], or when the frozen tau_match is not one of its values
+    (the candidate was chosen from that grid, so a grid without it is not the candidate's)."""
+    grid = (candidate.get("settings") or {}).get("tau_match_grid")
+    if not isinstance(grid, list) or not grid:
+        raise SweepRefused("the candidate records no predeclared tau_match grid (settings.tau_match_grid); the sweep "
+                           "never invents one")
+    if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not 0.0 <= v <= 1.0 for v in grid):
+        raise SweepRefused(f"the candidate's tau_match_grid {grid} is not a list of numbers in [0, 1]")
+    if th.tau_match not in grid:
+        raise SweepRefused(f"the frozen tau_match {th.tau_match:g} is not in the candidate's tau_match_grid {grid}")
+    return tuple(sorted({float(v) for v in grid}))
+
+
+def tau_match_sweep_values(th: Thresholds, grid: Sequence[float],
+                           above: Sequence[float] = TAU_MATCH_SWEEP_ABOVE) -> tuple[float, ...]:
+    """The tau_match values the sweep runs, sorted: the candidate's grid (tau_match_grid_of) without the frozen value,
+    plus the predeclared extension above it (TAU_MATCH_SWEEP_ABOVE). SweepRefused when an extension value is not a
+    number in [0, 1] or is at or below the frozen tau_match (the extension only continues the curve upwards)."""
+    if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not 0.0 <= v <= 1.0 for v in above):
+        raise SweepRefused(f"the sweep extension {list(above)} is not a list of numbers in [0, 1]")
+    low = [v for v in above if v <= th.tau_match]
+    if low:
+        raise SweepRefused(f"the sweep extension value(s) {low} are at or below the frozen tau_match {th.tau_match:g}: "
+                           "the extension continues the curve above the frozen point only")
+    return tuple(sorted({float(v) for v in (*grid, *above)} - {th.tau_match}))
+
+
+def tau_match_sweep_settings(th: Thresholds, grid: Sequence[float]) -> list[tuple[str, Thresholds]]:
+    """("tm<value>", th with that tau_match) for every given value except the frozen th.tau_match, in the given order
+    (main_real passes tau_match_sweep_values): the other thresholds, k and lam stay frozen."""
+    return [(f"{TM_SWEEP_PREFIX}{v:g}", dataclasses.replace(th, tau_match=float(v)))
+            for v in grid if float(v) != th.tau_match]
 
 
 # ---------------------------------------------------------------- stage 3: score
@@ -320,6 +526,13 @@ NO_BOOTSTRAP_REASON = ("this run has no test arrangement, and the paired and sin
 NO_BOOTSTRAP_NOTE = f"no bootstrap ran: {NO_BOOTSTRAP_REASON}"
 STRATIFIED_NOTE = ("stratified by quota slot class (occluder family, M16 split by side; design cases apart): each "
                    "replicate resamples arrangements within every stratum and keeps its count")
+INTERVAL_NOTE = ("Every interval is a pointwise percentile 95 % interval for one metric of one policy or policy pair, "
+                 "in one environment, lighting and setting. None is adjusted for the number of comparisons reported, "
+                 "and no simultaneous coverage is claimed: a conclusion holds only for the environment, lighting and "
+                 "metric it is reported for. A zero-width interval (zero_width) shows no sampling variation, e.g. no "
+                 "observed false removal, or no discordant episode between two policies (which can hold while their "
+                 "effort differs: same_decisions, effort_note). It is not evidence of zero risk, of a perfect rate or "
+                 "of equivalence.")
 
 
 def stratification_info(strata: Mapping[str, str] | None, arrangement_ids: Sequence[str]) -> dict[str, Any]:
@@ -342,7 +555,8 @@ def stratification_info(strata: Mapping[str, str] | None, arrangement_ids: Seque
 
 def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: int,
                 B: int, seed: int, *, strata: Mapping[str, str] | None = None,
-                no_diagnostic: Mapping[str, bool] | None = None) -> dict[str, Any]:
+                no_diagnostic: Mapping[str, bool] | None = None,
+                common_target: Mapping[str, tuple[str, str]] | None = None) -> dict[str, Any]:
     """Metrics per (scope, lighting, policy, budget, cap) and paired bootstraps at the primary budget, per lighting.
 
     lighting is the query's lighting (the episode's). The "L1" and "L2" rows are the primary report
@@ -359,6 +573,11 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
     spread), and R's episodes that share a random stream (one per arrangement and lighting) stay together.
     no_diagnostic (episode_id -> no diagnostic stop, from the view labels) feeds the geometric no-diagnostic-view
     share; None falls back to the predeclared indistinguishable flag (analysis.metrics).
+    "primary" lists the primary contrast's rows (PRIMARY_PAIR at the primary budget, uncapped, per lighting) with
+    "inconclusive" = the 95% interval contains 0 (never read as equivalence). common_target ({arrangement_id: (occluder
+    family, target id)}) adds the predeclared secondary A - G on common targets (analysis.common_target) at the same
+    setting, per lighting. GATE_OFF_PAIRS run with the other pairs at the primary budget, uncapped only, when the
+    gate-off rows exist.
     """
     groups = group_results(logs)
     # R's per-seed decisions, for its per-arrangement FRR (computed per base seed: R's condition-free salt makes the
@@ -390,19 +609,40 @@ def score_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, primary_budget: 
     for light in Lighting:
         sub = {k: [r for r in v if r.lighting is light] for k, v in test.items()}
         for cap in caps:
-            for a, b in pairs:
+            # the gate-off contrasts at the primary setting only (skipped, as any pair, when the ablation did not run)
+            for a, b in (pairs + list(GATE_OFF_PAIRS) if cap is None else pairs):
                 ka = _lookup(sub, a, primary_budget, cap)
                 kb = _lookup(sub, b, primary_budget, cap)
                 if ka is None or kb is None or not sub[ka] or not sub[kb]:
                     continue
                 same = identical_runs(sub[ka], sub[kb])
+                runs = run_flags(sub[ka], sub[kb])
                 for metric in BOOTSTRAP_METRICS:
                     br = paired_diff(sub[ka], sub[kb], truth, metric, B=B, seed=seed, strata=strata)
                     boots.append({"scope": Split.TEST.value, "lighting": light.value, "travel_cap_cm": cap,
-                                  "budget": primary_budget, "identical_runs": same, **br.to_dict()})
+                                  "budget": primary_budget, "identical_runs": same, **runs, **br.to_dict()})
     test_arrs = sorted({r.arrangement_id for v in test.values() for r in v})
-    return {"metrics": metrics, "bootstrap": boots,
-            "bootstrap_stratification": stratification_info(strata, test_arrs)}
+    primary = [{**r, "inconclusive": None if r["ci_lo"] is None else bool(r["ci_lo"] <= 0.0 <= r["ci_hi"])}
+               for r in boots if (r["policy_a"], r["policy_b"]) == PRIMARY_PAIR and r["travel_cap_cm"] is None]
+    common: list[dict[str, Any]] = []
+    if common_target is not None:
+        for light in Lighting:
+            sub = {k: [r for r in v if r.lighting is light] for k, v in test.items()}
+            ka = _lookup(sub, PRIMARY_PAIR[0], primary_budget, None)
+            kb = _lookup(sub, PRIMARY_PAIR[1], primary_budget, None)
+            if ka is None or kb is None or not sub[ka] or not sub[kb] or \
+                    not any(common_target[r.arrangement_id][1] in COMMON_TARGETS for r in sub[ka]):
+                continue
+            ca, cb = ([r for r in sub[k] if common_target[r.arrangement_id][1] in COMMON_TARGETS] for k in (ka, kb))
+            runs = {"identical_runs": identical_runs(ca, cb), **run_flags(ca, cb)}   # on the common-target episodes
+            for metric in BOOTSTRAP_METRICS:
+                common.append({"scope": Split.TEST.value, "lighting": light.value, "budget": primary_budget,
+                               "travel_cap_cm": None, **runs, **common_target_diff(
+                                   sub[ka], sub[kb], truth, {a: f for a, (f, _) in common_target.items()},
+                                   {a: t for a, (_, t) in common_target.items()}, metric, B=B, seed=seed,
+                                   strata=strata)})
+    return {"metrics": metrics, "bootstrap": boots, "primary": primary, "common_target": common,
+            "bootstrap_stratification": stratification_info(strata, test_arrs), "interval_note": INTERVAL_NOTE}
 
 
 def _rate_ci(results: Sequence[EpisodeResult], truth: GroundTruth, B: int, seed: int,
@@ -411,7 +651,8 @@ def _rate_ci(results: Sequence[EpisodeResult], truth: GroundTruth, B: int, seed:
     "stratified", "singleton_strata", "stratification_note"} for one policy row (rate_intervals)."""
     iv = rate_intervals(results, truth, RATE_CI_METRICS, B=B, seed=seed, strata=strata)
     one = next(iter(iv.values()))
-    return {**{m: {"estimate": r.estimate, "ci_lo": r.ci_lo, "ci_hi": r.ci_hi, "n_undefined": r.n_undefined}
+    return {**{m: {"estimate": r.estimate, "ci_lo": r.ci_lo, "ci_hi": r.ci_hi, "n_undefined": r.n_undefined,
+                   "zero_width": r.zero_width, "degenerate_note": r.degenerate_note}
                for m, r in iv.items()},
             "B": B, "seed": seed, "n_arrangements": one.n_arrangements, "n_episodes": one.n_episodes,
             "stratified": one.stratified, "singleton_strata": list(one.singleton_strata),
@@ -429,6 +670,31 @@ def identical_runs(a: Sequence[EpisodeResult], b: Sequence[EpisodeResult]) -> bo
                for e in da)
 
 
+def same_decisions(a: Sequence[EpisodeResult], b: Sequence[EpisodeResult]) -> bool:
+    """True if A and B made the same decisions (decision fractions) on every episode, whatever their effort. Then every
+    metric's paired interval is [0, 0] although identical_runs may be False (review 2026-11-06: A and Dir)."""
+    da = {r.episode_id: r for r in a}
+    db = {r.episode_id: r for r in b}
+    return set(da) == set(db) and all({d: da[e].frac(d) for d in Decision} == {d: db[e].frac(d) for d in Decision}
+                                      for e in da)
+
+
+def run_flags(a: Sequence[EpisodeResult], b: Sequence[EpisodeResult]) -> dict[str, Any]:
+    """{"same_decisions", "effort_note"} of a paired row. effort_note gives both runs' mean travel and views when they
+    made the same decisions with different effort, else ""."""
+    same = same_decisions(a, b)
+    note = ""
+    if same and not identical_runs(a, b):
+        db = {r.episode_id: r for r in b}
+        n = sum(1 for r in a if (r.mean_travel_cm, r.mean_views) != (db[r.episode_id].mean_travel_cm,
+                                                                    db[r.episode_id].mean_views))
+        ta, tb = (sum(r.mean_travel_cm for r in x) / len(x) for x in (a, b))
+        va, vb = (sum(r.mean_views for r in x) / len(x) for x in (a, b))
+        note = (f"same decisions on every episode, different effort on {n} of {len(a)} episodes: mean travel "
+                f"{ta:.1f} vs {tb:.1f} cm, mean views {va:.2f} vs {vb:.2f} ({a[0].policy} vs {b[0].policy})")
+    return {"same_decisions": same, "effort_note": note}
+
+
 def _lookup(groups: dict[RunKey, list[EpisodeResult]], policy: str, budget: int,
             cap: float | None) -> RunKey | None:
     """S and FULL are budget- and cap-independent: one run each, reused at every setting."""
@@ -438,6 +704,269 @@ def _lookup(groups: dict[RunKey, list[EpisodeResult]], policy: str, budget: int,
         return ("FULL", 4, None) if ("FULL", 4, None) in groups else None
     k = (policy, budget, cap)
     return k if k in groups else None
+
+
+# ---------------------------------------------------------------- declared test analyses (real-v6, after the run)
+
+FAMILY_ALL = "all"   # the row over every family in the diagnostic-view coverage
+SLOT_CLASS, OCCLUDER_FAMILY = "slot_class", "occluder_family"   # the two family levels (results keys below)
+FAMILY_LEVELS = {OCCLUDER_FAMILY: "by_occluder_family", SLOT_CLASS: "by_family"}
+FAMILY_LEVEL_TEXT = {
+    OCCLUDER_FAMILY: ("the occluder family (S8, M16 with both sides pooled, IND28, white_box, ycb_box; design cases "
+                      "and tabletop records apart, as in the strata)"),
+    SLOT_CLASS: ("the quota slot class (the bootstrap stratum: occluder family, M16 split by side, design cases "
+                 "apart)")}
+FAMILY_NOTE = ("Descriptive evidence for H3 (prereg section 1), not a new primary. The family is {level}. Each family "
+               "carries its target composition: a difference between families can reflect their targets as well as "
+               "their occluders")
+FAMILY_SKIPPED_NOTE = ("the manifest lacks occluder_family for some arrangement, so there is no per-family breakdown "
+                       "(the family is the occluder family or the quota slot class)")
+FAMILY_BOOTSTRAP_NOTE = ("paired arrangement-level cluster bootstrap of A - G per family and lighting at the primary "
+                         "budget, uncapped, on test, {strata}; the main bootstrap's B with a seed per family and "
+                         "lighting derived from the main seed (family_bootstrap_seed); inconclusive when the 95% "
+                         "interval contains 0. Descriptive (H3), not a new primary")
+FAMILY_STRATA_TEXT = {
+    OCCLUDER_FAMILY: ("stratified by slot class within the family (by side for M16, falling back to unstratified, "
+                      "flagged, when a side has fewer than 2 arrangements; a single stratum, i.e. unstratified, for "
+                      "the others)"),
+    SLOT_CLASS: "unstratified within the family (one slot class)"}
+FAMILY_ALL_SKIPPED_NOTE = (f"no per-family A - G bootstrap ran: every family with test episodes has fewer than "
+                           f"{MIN_STRATUM_SIZE} test arrangements")
+FAMILY_SINGLETON_REASON = (f"fewer than {MIN_STRATUM_SIZE} test arrangements: a cluster bootstrap over a single "
+                           "arrangement only redraws it and has no interval")
+NO_LABELS_NOTE = "needs --view-labels (the geometric labels, read after the run): not computed"
+
+
+def family_bootstrap_seed(seed: int, family: str, lighting: str) -> int:
+    """The per-family A - G bootstrap seed of one family and lighting, derived deterministically from the main seed
+    (verify.schema.derive_seed), so equal-size families never share draws. The same family name gets the same seed at
+    both levels (S8 is the same arrangements there)."""
+    return derive_seed(seed, "by-family", family, lighting)
+
+
+def _seed_removed(logs: Sequence[EpisodeLog]) -> dict[RunKey, dict[str, dict[int, bool]]]:
+    """(policy, budget, cap) -> R's per-seed decisions (seed_decisions), as score_stage builds them."""
+    seed_logs: dict[RunKey, list[EpisodeLog]] = {}
+    for g in logs:
+        if g.seed is not None:
+            seed_logs.setdefault((g.policy, g.budget_additional_views, g.travel_cap_cm), []).append(g)
+    return {k: seed_decisions(v) for k, v in seed_logs.items()}
+
+
+def _occluder_family(a: ArrangementRecord) -> str:
+    """The record's occluder family with the stratum's prefixes (tabletop:, design:) but M16's sides pooled."""
+    base = a.occluder_family if a.env == DEFAULT_ENVIRONMENT else f"{a.env}:{a.occluder_family}"
+    return f"design:{base}" if a.design_case else base   # type: ignore[return-value]
+
+
+def family_of_records(records: Iterable[ArrangementRecord], level: str = SLOT_CLASS) -> dict[str, str] | None:
+    """{arrangement_id: family}: at SLOT_CLASS the record's quota slot class (ArrangementRecord.stratum, the bootstrap
+    stratum); at OCCLUDER_FAMILY its occluder family (M16-L and M16-R pooled as M16, the same prefixes). None when any
+    record lacks its occluder family."""
+    records = list(records)
+    if not records or any(not a.has_slot for a in records):
+        return None
+    if level == SLOT_CLASS:
+        return {a.arrangement_id: a.stratum for a in records}   # type: ignore[misc]
+    if level == OCCLUDER_FAMILY:
+        return {a.arrangement_id: _occluder_family(a) for a in records}
+    raise ValueError(f"family level must be one of {sorted(FAMILY_LEVELS)}, got {level!r}")
+
+
+def target_composition(records: Sequence[ArrangementRecord], family_of: Mapping[str, str]) -> list[dict[str, Any]]:
+    """[{"scope", "family", "n_arrangements", "targets": {target_id: n_arrangements}}] per split and family, read from
+    the manifest (the targets are assigned per slot within what each family supports, prereg section 2)."""
+    out = []
+    for scope in SCOPES:
+        recs = [a for a in records if a.split is scope]
+        for fam in sorted({family_of[a.arrangement_id] for a in recs}):
+            mine = [a for a in recs if family_of[a.arrangement_id] == fam]
+            out.append({"scope": scope.value, "family": fam, "n_arrangements": len(mine),
+                        "targets": dict(sorted(Counter(a.target_id for a in mine).items()))})
+    return out
+
+
+def family_stage(logs: Sequence[EpisodeLog], truth: GroundTruth, records: Sequence[ArrangementRecord],
+                 primary_budget: int, B: int, seed: int, no_diagnostic: Mapping[str, bool] | None = None,
+                 level: str = SLOT_CLASS, groups: Mapping[RunKey, list[EpisodeResult]] | None = None,
+                 seed_removed: Mapping[RunKey, Mapping[str, Mapping[int, bool]]] | None = None) -> dict[str, Any]:
+    """Per-family breakdowns (prereg section 9) at one level (OCCLUDER_FAMILY or SLOT_CLASS): compute_all per scope,
+    lighting (L1, L2) and family for every policy row in ORDER (S and FULL at their own effort, the others at the
+    primary budget, uncapped and under every cap; not the sensitivity, gate-off or sweep rows), each family's target
+    composition, and on test the paired cluster bootstrap of A - G per family and lighting (FAMILY_BOOTSTRAP_NOTE;
+    at OCCLUDER_FAMILY stratified by slot class within the family when it has more than one, i.e. by side for M16),
+    skipped and listed for a family with fewer than MIN_STRATUM_SIZE test arrangements. With a record that lacks its
+    family nothing is computed ("ran" false). groups / seed_removed: group_results / _seed_removed of the logs, when
+    the caller has them already."""
+    family_of = family_of_records(records, level)
+    if family_of is None:
+        return {"ran": False, "level": level, "note": FAMILY_SKIPPED_NOTE, "composition": [], "metrics": [],
+                "bootstrap": [], "bootstrap_skipped": []}
+    slot_of = family_of_records(records, SLOT_CLASS)
+    groups = group_results(logs) if groups is None else groups
+    seed_removed = _seed_removed(logs) if seed_removed is None else seed_removed
+    fams = sorted(set(family_of.values()))
+    keys = sorted((k for k in groups if k[0] in ORDER and (k[1] == primary_budget or k[0] in ("S", "FULL"))),
+                  key=lambda k: (k[0], k[1], _cap_key(k[2])))
+    metrics: list[dict[str, Any]] = []
+    for scope in SCOPES:
+        for key in keys:
+            res = [r for r in groups[key] if r.split is scope]
+            for fam in fams:
+                for light in Lighting:
+                    sub = [r for r in res if r.lighting is light and family_of[r.arrangement_id] == fam]
+                    if sub:
+                        metrics.append({"scope": scope.value, "lighting": light.value, "family": fam,
+                                        "policy": key[0], "budget": key[1], "travel_cap_cm": key[2],
+                                        "role": ROLE.get(key[0], ""),
+                                        **compute_all(sub, truth, no_diagnostic, seed_removed.get(key))})
+    boots: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    ka, kg = ((p, primary_budget, None) for p in PRIMARY_PAIR)
+    if not any(a.split is Split.TEST for a in records):
+        how = NO_BOOTSTRAP_NOTE
+    elif ka not in groups or kg not in groups:
+        how = f"no per-family {' - '.join(PRIMARY_PAIR)} bootstrap: {PRIMARY_PAIR[0]} or {PRIMARY_PAIR[1]} did not run"
+    else:
+        for light in Lighting:
+            for fam in fams:
+                a, g = ([r for r in groups[k] if r.split is Split.TEST and r.lighting is light
+                         and family_of[r.arrangement_id] == fam] for k in (ka, kg))
+                if not a or not g:
+                    continue
+                arrs = sorted({r.arrangement_id for r in a})
+                if len(arrs) < MIN_STRATUM_SIZE:
+                    skipped.append({"scope": Split.TEST.value, "lighting": light.value, "family": fam,
+                                    "n_arrangements": len(arrs), "reason": FAMILY_SINGLETON_REASON})
+                    continue
+                strata = {x: slot_of[x] for x in arrs}   # type: ignore[index]
+                strata = strata if len(set(strata.values())) > 1 else None   # one slot class: unstratified
+                same = identical_runs(a, g)
+                runs = run_flags(a, g)
+                fseed = family_bootstrap_seed(seed, fam, light.value)
+                for metric in BOOTSTRAP_METRICS:
+                    br = paired_diff(a, g, truth, metric, B=B, seed=fseed, strata=strata).to_dict()
+                    boots.append({"scope": Split.TEST.value, "lighting": light.value, "family": fam,
+                                  "travel_cap_cm": None, "budget": primary_budget, "identical_runs": same, **runs, **br,
+                                  "inconclusive": None if br["ci_lo"] is None else
+                                  bool(br["ci_lo"] <= 0.0 <= br["ci_hi"])})
+        how = (FAMILY_BOOTSTRAP_NOTE.format(strata=FAMILY_STRATA_TEXT[level]) if boots or not skipped
+               else FAMILY_ALL_SKIPPED_NOTE)
+    return {"ran": True, "level": level, "note": FAMILY_NOTE.format(level=FAMILY_LEVEL_TEXT[level]), "families": fams,
+            "composition": target_composition(records, family_of), "metrics": metrics, "bootstrap": boots,
+            "bootstrap_skipped": skipped, "bootstrap_note": how, "bootstrap_B": B}
+
+
+def tau_match_sweep_curves(metrics: Sequence[Mapping[str, Any]], th: Thresholds, grid: Sequence[float],
+                           primary_budget: int) -> list[dict[str, Any]]:
+    """Risk-coverage curves over tau_match (prereg section 9) from the scored metrics rows: per scope, lighting (L1,
+    L2, pooled) and policy in TM_SWEEP_POLICIES, one point per grid value, the frozen value being the policy's own
+    primary row ("frozen": true; S and FULL at their own effort). Each point has FRR, removal recall, coverage, resolved
+    accuracy and the false-present rate among removed episodes (confusion removed -> present over n_removed), with
+    counts. A policy with no sweep row has no curve."""
+    index = {(m["scope"], m["lighting"], m["policy"], m["budget"], m["travel_cap_cm"]): m for m in metrics}
+    scopes = [s.value for s in SCOPES if any(m["scope"] == s.value for m in metrics)]
+    out = []
+    for scope in scopes:
+        for light in (*REPORT_LIGHTINGS, POOLED):
+            for p in TM_SWEEP_POLICIES:
+                b = 0 if p == "S" else 4 if p == "FULL" else primary_budget
+                points = []
+                for v in grid:
+                    name = p if v == th.tau_match else f"{p}-{TM_SWEEP_PREFIX}{v:g}"
+                    m = index.get((scope, light, name, b, None))
+                    if m is None:
+                        continue
+                    o = m["overall"]
+                    fp = o["confusion"]["removed"][Decision.PRESENT.value]
+                    points.append({"tau_match": v, "frozen": v == th.tau_match, "row": name,
+                                   **{k: o[k] for k in ("false_removal_rate", "removal_recall", "coverage",
+                                                        "resolved_accuracy")},
+                                   "false_present_removed": fp, "false_present_rate_removed": ratio(fp, o["n_removed"]),
+                                   **{k: o[k] for k in ("n_present", "n_removed", "n_arrangements", "n_episodes")}})
+                if any(not x["frozen"] for x in points):
+                    out.append({"scope": scope, "lighting": light, "policy": p, "budget": b, "travel_cap_cm": None,
+                                "points": points})
+    return out
+
+
+def diagnostic_view_coverage(specs: Sequence[EpisodeSpec], labels: GeometricLabels, start_stop: int, k: int,
+                             family_of: Mapping[str, str] | None = None) -> list[dict[str, Any]]:
+    """Geometric diagnostic-view coverage (prereg section 10.3), from the sim view labels (scoring only): per scope,
+    lighting (L1, L2, pooled) and family (FAMILY_ALL, then each family when family_of is given), the occluded-present
+    episodes with at least one geometrically diagnostic stop other than the start stop, and the removed episodes with
+    at least k such stops, with counts."""
+    def non_start(eid: str) -> int:
+        return sum(1 for st, d in enumerate(labels.episodes[eid]) if d and st != start_stop)
+    fams = [FAMILY_ALL, *(sorted(set(family_of.values())) if family_of else ())]
+    out = []
+    for scope in SCOPES:
+        for light in (*REPORT_LIGHTINGS, POOLED):
+            for fam in fams:
+                eps = [s for s in specs if s.split is scope and (light == POOLED or s.lighting.value == light)
+                       and (fam == FAMILY_ALL or family_of[s.arrangement_id] == fam)]   # type: ignore[index]
+                if not eps:
+                    continue
+                occ = [non_start(s.episode_id) for s in eps if s.condition is Condition.OCCLUDED]
+                rem = [non_start(s.episode_id) for s in eps if s.condition is Condition.REMOVED]
+                xo, xr = sum(n >= 1 for n in occ), sum(n >= k for n in rem)
+                out.append({"scope": scope.value, "lighting": light, "family": fam,
+                            "n_arrangements": len({s.arrangement_id for s in eps}),
+                            "occluded_with_diagnostic_non_start": {"x": xo, "n": len(occ), "rate": ratio(xo, len(occ))},
+                            "removed_with_k_diagnostic_non_start": {"x": xr, "n": len(rem), "rate": ratio(xr, len(rem)),
+                                                                    "k": k}})
+    return out
+
+
+def family_coverage(specs: Sequence[EpisodeSpec], labels: GeometricLabels, start_stop: int, k: int,
+                    records: Sequence[ArrangementRecord]) -> list[dict[str, Any]]:
+    """diagnostic_view_coverage over every family (FAMILY_ALL), each occluder family, then each slot class that is not
+    an occluder family too (M16-L, M16-R); "level" says which. Without families: the FAMILY_ALL rows only."""
+    occ, slot = family_of_records(records, OCCLUDER_FAMILY), family_of_records(records, SLOT_CLASS)
+    rows = [{**r, "level": None if r["family"] == FAMILY_ALL else OCCLUDER_FAMILY}
+            for r in diagnostic_view_coverage(specs, labels, start_stop, k, occ)]
+    if slot is not None:
+        have = set(occ.values())   # type: ignore[union-attr]
+        rows += [{**r, "level": SLOT_CLASS} for r in diagnostic_view_coverage(specs, labels, start_stop, k, slot)
+                 if r["family"] != FAMILY_ALL and r["family"] not in have]
+    return rows
+
+
+GATE_RATES = (("false_clear", "false-clear rate: views passing the tau_q / tau_occ gate", "non-diagnostic views of "
+               "occluded-present episodes"),
+              ("false_clear_miss", "false clear-miss rate", "diagnostic views of present episodes"),
+              ("clear_miss", "clear-miss rate", "diagnostic views of removed episodes"),
+              ("false_strong_match", "false strong-match rate (verify.select's: diagnostic views only)",
+               "diagnostic views of removed episodes"))
+STRONG_MATCH_ALL_REMOVED = "strong_match"   # gate_view_rates "all_removed_views": every view of a removed episode
+STRONG_MATCH_ALL_TEXT = ("strong-match rate on ALL views of removed episodes (each one decides PRESENT)",
+                         "every view of removed episodes, diagnostic or not")
+
+
+def gate_view_rates(specs: Sequence[EpisodeSpec], store: EvidenceStore, labels: GeometricLabels, positions: Positions,
+                    th: Thresholds) -> list[dict[str, Any]]:
+    """The gate's per-view rates against the geometric labels (prereg section 10.4) at the run's thresholds: per scope
+    and lighting (L1, L2, pooled), verify.select's ViewRates (rates_by_lighting) on the rows labelled_view_rows builds
+    from the (unsealed, re-read) evidence store and the labels, the same populations and StoppingRule predicates as the
+    calibration. Every view of the manifest's episodes carries a label (load_geometric_labels and main_real check).
+    Beside verify.select's false_strong_match (diagnostic removed views only), "all_removed_views" counts strong matches
+    on EVERY view of the removed episodes, diagnostic or not (STRONG_MATCH_ALL_REMOVED): any one decides PRESENT."""
+    from verify.select import count, labelled_view_rows, rates_by_lighting   # heavy; as for --candidate
+    rule = StoppingRule(th)
+    diagnostic = {(e, st): d for e, ds in labels.episodes.items() for st, d in enumerate(ds)}
+    rows = labelled_view_rows(specs, store, diagnostic, lambda _arr: positions)
+    out = []
+    for scope in SCOPES:
+        ids = {s.episode_id for s in specs if s.split is scope}
+        sub = [r for r in rows if r.episode_id in ids]
+        if not sub:
+            continue
+        for light, vr in rates_by_lighting(sub, th).items():
+            mine = [r for r in sub if light == POOLED or r.lighting.value == light]
+            x, n = count([r for r in mine if not r.present], rule.is_strong_match)
+            out.append({"scope": scope.value, "lighting": light, "n_views": len(mine), "rates": vr.to_dict(),
+                        "all_removed_views": {STRONG_MATCH_ALL_REMOVED: {"x": x, "n": n, "rate": ratio(x, n)}}})
+    return out
 
 
 # ---------------------------------------------------------------- diagnostics (no truth)
@@ -560,12 +1089,17 @@ def _arr_frr(o: dict) -> str:
     return f"{fmt(o['false_removal_rate_arrangement'])} ({'undef' if x is None else _cnt(x)}/{o['n_arr_with_present']})"
 
 
+ZERO_WIDTH_MARK = "(zero-width)"
+
+
 def _with_ci(o: dict, metric: str, ci: dict | None) -> str:
-    """The rate, then its percentile 95% interval when the row has one (test rows, per lighting)."""
+    """The rate, then its percentile 95% interval when the row has one (test rows, per lighting), marked when the
+    interval has zero width (not evidence of zero risk or of a perfect rate)."""
     if not ci:
         return fmt(o[metric])
     r = ci[metric]
-    return f"{fmt(o[metric])} [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}]"
+    mark = f" {ZERO_WIDTH_MARK}" if r.get("zero_width") else ""
+    return f"{fmt(o[metric])} [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}]{mark}"
 
 
 def _cells(o: dict, ci: dict | None = None) -> list[str]:
@@ -585,8 +1119,8 @@ def _md(cells: Sequence[str]) -> str:
 
 HEAD = ("| policy | FRR | FRR per arrangement (x/n) | recall | coverage | resolved acc | mean views | mean travel cm "
         "| n_arr/n_ep | note |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
-ORDER = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "F-fcm", "R-fcm", "G-fcm", "G-lookahead-fcm",
-         "G-myopic-fcm", "FULL")
+ORDER = ("S", "F", "R", "G", "G-lookahead", "G-myopic", "Dir", "A", "A-nocue", "F-fcm", "R-fcm", "G-fcm",
+         "G-lookahead-fcm", "G-myopic-fcm", "Dir-fcm", "A-fcm", "A-nocue-fcm", "FULL")   # rows that ran; others skipped
 FULL_OVER_CAP = "uncapped reference (exceeds cap)"
 
 
@@ -685,6 +1219,21 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
     pb, scope, caps = cfg["primary_budget"], table_scope(metrics), cfg["travel_caps_cm"]
     h = f"## {light} queries -"
     lines: list[str] = []
+    prim = [r for r in results.get("primary", []) if r["lighting"] == light]
+    if prim:
+        lines += [f"{h} PRIMARY CONTRAST: {' - '.join(PRIMARY_PAIR)} at b = {pb}, uncapped ({scope} split)", "",
+                  ("The preregistered primary comparison (SIM_PREREGISTRATION section 1), paired arrangement-level "
+                   "cluster bootstrap. A contrast whose 95% interval contains 0 is INCONCLUSIVE: it is never reported "
+                   "as equivalence, and no equivalence margin is declared. Every other row below is secondary. Each "
+                   "interval is pointwise and unadjusted across the environments, lightings and metrics: each cell is "
+                   "read on its own, and no claim is made for some cell or for all cells. A ZERO-WIDTH interval "
+                   "(no sampling variation, e.g. no discordant episode) is not evidence of equivalence or of zero "
+                   "risk."), "",
+                  "| metric | estimate | 95% CI | n_arr | n_ep | reading |", "| --- | --- | --- | --- | --- | --- |"]
+        for r in prim:
+            lines.append(f"| {r['metric']} | {fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | "
+                         f"{r['n_arrangements']} | {r['n_episodes']} | {'; '.join([_reading(r), *_run_level(r)])} |")
+        lines.append("")
     for cap in caps:
         lines += [f"{h} Primary table: b = {pb} additional views, {lab(cap)}", "", HEAD]
         for p in ORDER:
@@ -732,6 +1281,18 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
             m = _find(metrics, scope, p, pb, cap, light)
             if m:
                 lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_row_cells(m)]))
+    sens = cfg.get("sensitivity") or {}
+    sens_pols = sorted({m["policy"] for m in metrics if _is_sensitivity(m["policy"])})
+    if sens_pols:
+        lines += ["", f"{h} Sensitivity runs, b = {pb} ({scope} split; reported only, never selected)", "",
+                  (f"k = {', '.join(map(str, sens.get('k', [])))} with lam fixed (every multi-view policy, '-k<k>'); "
+                   f"lam = {', '.join(f'{x:g}' for x in sens.get('lam', []))} with k fixed (G and G-lookahead, "
+                   "'-lam<lam>'). The primary setting is k = 2, lam = 0."), "", CURVE_HEAD]
+        for p in sens_pols:
+            for cap in caps:
+                m = _find(metrics, scope, p, pb, cap, light)
+                if m:
+                    lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_row_cells(m)]))
     strat = _stratification(results)
     lines += ["", f"{h} Paired arrangement-level bootstrap, b = {pb} (test split)", ""]
     if not strat.get("ran", True):
@@ -742,23 +1303,81 @@ def _lighting_lines(results: dict[str, Any], light: str, lab) -> list[str]:
         lines += [(f"Difference A - B on {light} queries only; percentile 95% CI over resampled arrangements (an "
                    f"arrangement's {light} episodes are kept together; {how})."),
                   ("A row marked *identical* means A and B made the same decisions with the same effort on every "
-                   "episode: its [0, 0] CI is degenerate and is not evidence of equal performance."),
+                   "episode: its [0, 0] CI is degenerate and is not evidence of equal performance. A row marked "
+                   "*same decisions* means the same decisions with different effort: its [0, 0] CIs are degenerate "
+                   "too. ZERO-WIDTH marks any interval whose replicates all give one value (no discordant episode "
+                   "for that metric, or one difference in every replicate): not evidence of zero risk or of "
+                   "equivalence. Every interval is pointwise and unadjusted."),
                   "", "| setting | A - B | metric | estimate | 95% CI | n_arr | n_ep | B | undefined draws | note |",
                   "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
         for r in results["bootstrap"]:
             if r["lighting"] != light:
                 continue
-            notes = (["identical: A == B on every episode"] if r.get("identical_runs") else []) + \
-                (["unstratified: singleton strata " + ", ".join(r["singleton_strata"])]
-                 if r.get("singleton_strata") else [])
+            notes = _run_notes(r) + (["unstratified: singleton strata " + ", ".join(r["singleton_strata"])]
+                                     if r.get("singleton_strata") else [])
             lines.append(f"| {lab(r['travel_cap_cm'])} | {r['policy_a']} - {r['policy_b']} | {r['metric']} | "
                          f"{fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | {r['n_arrangements']} | "
                          f"{r['n_episodes']} | {r['B']} | {r['n_undefined']} | {'; '.join(notes)} |")
+        lines.append("")
+    ct = [r for r in results.get("common_target", []) if r["lighting"] == light]
+    if ct:
+        lines += [f"{h} Secondary (predeclared): {' - '.join(PRIMARY_PAIR)} on common targets, b = {pb}, uncapped", "",
+                  (f"Episodes of {', '.join(ct[0]['targets'])} only; within each occluder family these targets carry "
+                   "equal weight, recomputed on every bootstrap replicate (analysis/common_target.py). Secondary: it "
+                   "does not replace the primary contrast."), "",
+                  "| metric | estimate | 95% CI | n_arr | n_ep | single-target families | reading |",
+                  "| --- | --- | --- | --- | --- | --- | --- |"]
+        for r in ct:
+            lines.append(f"| {r['metric']} | {fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | "
+                         f"{r['n_arrangements']} | {r['n_episodes']} | "
+                         f"{', '.join(r['single_target_families']) or '-'} | "
+                         f"{'; '.join([_reading(r), *_run_level(r)])} |")
         lines.append("")
     diag = results.get("diagnostics")
     if diag:
         lines += _diagnostic_lines(diag, cfg, lab, light, f"{h} Diagnostic:", scope)
     return lines
+
+
+SENSITIVITY_SUFFIX = ("-k", "-lam")   # run_stage's log names for the declared sensitivity runs
+
+
+def _is_sensitivity(policy: str) -> bool:
+    return any(s in policy and policy.rsplit(s, 1)[1][:1].isdigit() for s in SENSITIVITY_SUFFIX)
+
+
+def _zero_width_text(r: Mapping[str, Any]) -> str:
+    """The short zero-width flag of a contrast row (its degenerate_note in results.json says more)."""
+    n = r.get("n_discordant_episodes") or 0
+    return ("ZERO-WIDTH interval, no discordant episode" if not n
+            else f"ZERO-WIDTH interval, {n} discordant episodes, one value in every replicate")
+
+
+def _run_level(r: Mapping[str, Any]) -> list[str]:
+    """The run-level flag of a paired row: identical runs, or the same decisions with different effort."""
+    return (["identical: A == B on every episode"] if r.get("identical_runs")
+            else [r["effort_note"]] if r.get("effort_note") else [])
+
+
+def _run_notes(r: Mapping[str, Any]) -> list[str]:
+    """The run-level and metric-level flags of a paired row, for the note column."""
+    return _run_level(r) + ([_zero_width_text(r)] if r.get("zero_width") else [])
+
+
+def _reading(r: Mapping[str, Any]) -> str:
+    """The declared reading of one contrast row: inconclusive when its 95% interval contains 0, never equivalence; a
+    zero-width interval is flagged as such (not evidence of equivalence or of zero risk)."""
+    if r.get("ci_lo") is None or r.get("estimate") is None:
+        return "undefined"
+    if r["ci_lo"] <= 0.0 <= r["ci_hi"]:
+        text = "inconclusive (the interval contains 0; not equivalence)"
+    else:
+        text = ("first policy higher" if r["estimate"] > 0 else "first policy lower") + " (the interval excludes 0)"
+    if r.get("zero_width"):
+        text += f"; {_zero_width_text(r)}: " + ("not evidence of equivalence or of zero risk"
+                                               if r["ci_lo"] <= 0.0 <= r["ci_hi"] else
+                                               "no sampling variation, not a measure of uncertainty")
+    return text
 
 
 def _pooled_lines(results: dict[str, Any], lab) -> list[str]:
@@ -790,15 +1409,19 @@ def _table_intro(results: dict[str, Any], scope: str) -> list[str]:
         data = (f"- {cfg['n_arr']} arrangements, seed {cfg['seed']}; scored on the **test** split only "
                 "(dev metrics are in results.json, scope \"dev\")")
     else:
+        frozen = cfg.get("thresholds_source") == "frozen candidate"
+        th_text = (f"The thresholds are the frozen select-v4 candidate's (`{cfg.get('candidate_file')}`, sha256 "
+                   f"`{cfg.get('candidate_sha256')}`)." if frozen
+                   else "The thresholds are the placeholders, not a frozen select-v4 candidate.")
         if cfg.get("simulation"):
             what = [("**SIMULATION.** Evidence from `perception/evidence.py` on Isaac Sim renders (the manifest says "
-                     "`\"simulation\": true`); every number here is a simulation result. The thresholds are the "
-                     "placeholders, not a frozen select-v4 candidate.")]
+                     "`\"simulation\": true`); every number here is a simulation result. " + th_text)]
         else:
-            what = [("**REAL PILOT.** Evidence from `perception/evidence.py` on real photos, with placeholder "
-                     "thresholds; not study results.")]
+            what = [("**REAL PILOT.** Evidence from `perception/evidence.py` on real photos; not study results. "
+                     + th_text)]
         other = "dev" if scope == Split.TEST.value else "test"
-        data = (f"- manifest `{cfg['manifest_file']}` (sha256 `{cfg['manifest_sha256']}`), evidence "
+        data = (f"- environment **{cfg.get('environment', 'shelf')}**; "
+                f"manifest `{cfg['manifest_file']}` (sha256 `{cfg['manifest_sha256']}`), evidence "
                 f"`{cfg['evidence_file']}` (sha256 `{cfg['evidence_sha256']}`); scored on the **{scope}** split"
                 + (" (the manifest has no test arrangement)" if scope != Split.TEST.value else "")
                 + f" ({other} metrics, if any, are in results.json)")
@@ -835,6 +1458,193 @@ def _rate_ci_line(results: dict[str, Any]) -> str | None:
             "seed-averaged decisions: arrangements are resampled, seeds are not (results.json `rate_ci95`).")
 
 
+def _interval_lines(results: dict[str, Any]) -> list[str]:
+    """The header bullets on reading the intervals: pointwise and unadjusted; zero-width intervals. Empty when the run
+    has no interval (no test arrangement)."""
+    if not results.get("bootstrap") and not any(m.get("rate_ci95") for m in results["metrics"]):
+        return []
+    return [("- **Intervals are pointwise and unadjusted.** Each 95 % interval covers one metric of one policy or pair "
+             "in one environment, lighting and setting; none is adjusted for the number of comparisons, and no "
+             "simultaneous coverage is claimed. Every cell is read on its own: no claim is made for some cell or for "
+             "all cells (results.json `interval_note`)."),
+            (f"- **{ZERO_WIDTH_MARK}** (single rates) and **ZERO-WIDTH** (contrasts) mark an interval whose bootstrap "
+             "replicates all give one value: a rate with no observed event (e.g. 0 false removals) or with every "
+             "episode an event, or a contrast with no discordant episode. That can hold while two runs differ in "
+             "effort or on other metrics (*same decisions* rows). It is not evidence of zero risk, of a perfect rate "
+             "or of equivalence; results.json gives each one's `degenerate_note` and the discordant counts.")]
+
+
+FAMILY_HEAD = ("| policy | FRR | FRR per arrangement (x/n) | recall | coverage | resolved acc | mean views "
+               "| mean travel cm | n_arr/n_ep |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+CONTRAST_HEAD = "| metric | estimate | 95% CI | n_arr | n_ep | reading |\n| --- | --- | --- | --- | --- | --- |"
+
+
+def _xn(d: Mapping[str, Any]) -> str:
+    return f"{_cnt(d['x'])}/{d['n']}"
+
+
+def _gate_off_lines(results: dict[str, Any], light: str, lab, h: str) -> list[str]:
+    """The gate-off rows next to F and R across the caps, when the ablation ran."""
+    cfg, metrics = results["config"], results["metrics"]
+    pb, scope = cfg["primary_budget"], table_scope(metrics)
+    if not any(m["policy"].endswith(f"-{GATE_OFF_SUFFIX}") for m in metrics):
+        return []
+    lines = [f"{h} Occlusion-gate-off ablation, b = {pb} ({scope} split; F and R only; reported only, never selected)",
+             "", (f"tau_occ = {GATE_OFF_TAU_OCC:.1f}: no view is flagged occluded, so a clear miss needs only "
+                  "quality >= tau_q and a match below tau_match. G is not run this way: tau_occ is also G's "
+                  f"occlusion flag. The paired F - F-{GATE_OFF_SUFFIX} and R - R-{GATE_OFF_SUFFIX} contrasts (test, "
+                  f"b = {pb}, uncapped) are in the bootstrap table."), "", CURVE_HEAD]
+    for p in (x for g in GATE_OFF_POLICIES for x in (g, f"{g}-{GATE_OFF_SUFFIX}")):
+        for cap in cfg["travel_caps_cm"]:
+            m = _find(metrics, scope, p, pb, cap, light)
+            if m:
+                lines.append(_md([p, lab(cap).replace("travel cap ", ""), *_row_cells(m)]))
+    return [*lines, ""]
+
+
+def _sweep_lines(results: dict[str, Any], light: str, h: str) -> list[str]:
+    """The tau_match risk-coverage curves of one lighting, frozen point marked."""
+    sw = results.get("tau_match_sweep")
+    scope = table_scope(results["metrics"])
+    curves = [c for c in (sw or {}).get("curves", []) if c["scope"] == scope and c["lighting"] == light]
+    if not curves:
+        return []
+    lines = [f"{h} Risk-coverage sweep of tau_match, b = {results['config']['primary_budget']}, uncapped ({scope} "
+             "split; reported only, never selected)", "",
+             (f"The frozen candidate's predeclared grid {', '.join(f'{v:g}' for v in sw['grid'])}, extended above "
+              f"the frozen point by {', '.join(f'{v:g}' for v in sw.get('extension', []))} (declared 2026-11-06, "
+              "before the freeze), every other threshold frozen. The frozen point (marked) is the policy's own "
+              "primary row; S is at its actual effort and FULL at all stops. False-present rate = removed episodes "
+              "decided present (x/n removed)."),
+             "", "| policy | tau_match | FRR | recall | coverage | resolved acc | false-present rate among removed "
+             "(x/n) | n_arr/n_ep |", "| --- | --- | --- | --- | --- | --- | --- | --- |"]
+    for c in curves:
+        for x in c["points"]:
+            tm = f"**{x['tau_match']:g} (frozen)**" if x["frozen"] else f"{x['tau_match']:g}"
+            lines.append(_md([c["policy"], tm, fmt(x["false_removal_rate"]), fmt(x["removal_recall"]),
+                              fmt(x["coverage"]), fmt(x["resolved_accuracy"]),
+                              f"{fmt(x['false_present_rate_removed'])} ({_cnt(x['false_present_removed'])}/"
+                              f"{x['n_removed']})", f"{x['n_arrangements']}/{x['n_episodes']}"]))
+    return [*lines, ""]
+
+
+def _arrangements(n: int, scope: str) -> str:
+    return f"{n} {scope} arrangement{'' if n == 1 else 's'}"
+
+
+def _family_lines(results: dict[str, Any], light: str, h: str, key: str, title: str,
+                  only: Sequence[str] | None = None) -> list[str]:
+    """One family level (results[key]): per family the uncapped primary-budget rows of FAMILY_TABLE_POLICIES, the
+    target composition and A - G; only: the families to show (None: all)."""
+    fam = results.get(key)
+    if not fam:
+        return []
+    cfg = results["config"]
+    pb, scope = cfg["primary_budget"], table_scope(results["metrics"])
+    head = f"{h} {title}, b = {pb}, uncapped ({scope} split; descriptive, H3)"
+    if not fam["ran"]:
+        return [head, "", f"Not computed: {fam['note']}.", ""]
+    shown = [f for f in fam["families"] if only is None or f in only]
+    if not shown:
+        return []
+    idx = {(m["scope"], m["lighting"], m["family"], m["policy"], m["budget"], m["travel_cap_cm"]): m
+           for m in fam["metrics"]}
+    comp = {(c["scope"], c["family"]): c for c in fam["composition"]}
+    lines = [head, "", f"{fam['note']}. Every cap is in results.json (`{key}`).", ""]
+    if scope == Split.TEST.value:
+        lines += [f"A - G per family: {fam.get('bootstrap_note', '')}.", ""]
+    for f in shown:
+        c = comp.get((scope, f))
+        if c is None:
+            continue
+        lines += [f"**{f}** ({_arrangements(c['n_arrangements'], scope)}; targets: "
+                  + ", ".join(f"{t} {n}" for t, n in c["targets"].items()) + ")", "", FAMILY_HEAD]
+        for p in FAMILY_TABLE_POLICIES:
+            b = 4 if p == "FULL" else pb
+            m = idx.get((scope, light, f, p, b, None))
+            if m:
+                lines.append(_md([p, *_cells(m["overall"])]))
+        lines.append("")
+        if scope != Split.TEST.value:
+            continue
+        rows = [r for r in fam["bootstrap"] if r["lighting"] == light and r["family"] == f]
+        skip = [r for r in fam["bootstrap_skipped"] if r["lighting"] == light and r["family"] == f]
+        if rows:
+            how = ("stratified by slot class" if rows[0].get("stratified") else
+                   "unstratified: " + rows[0]["stratification_note"] if rows[0].get("singleton_strata") else
+                   "unstratified within the family")
+            lines += [f"{' - '.join(PRIMARY_PAIR)} on {f}, {light} queries (B = {rows[0]['B']}, {how}):", "",
+                      CONTRAST_HEAD]
+            for r in rows:
+                note = (" (identical runs)" if r.get("identical_runs") else
+                        " (same decisions, different effort)" if r.get("effort_note") else "")
+                lines.append(f"| {r['metric']} | {fmt(r['estimate'])} | [{fmt(r['ci_lo'])}, {fmt(r['ci_hi'])}] | "
+                             f"{r['n_arrangements']} | {r['n_episodes']} | {_reading(r)}{note} |")
+            lines.append("")
+        for r in skip:
+            lines += [f"{' - '.join(PRIMARY_PAIR)} on {f}, {light} queries: not bootstrapped "
+                      f"({_arrangements(r['n_arrangements'], 'test')}): {r['reason']}.", ""]
+    return lines
+
+
+def _families_lines(results: dict[str, Any], light: str, h: str) -> list[str]:
+    """The five occluder families first, then the slot classes that are not an occluder family (M16-L, M16-R)."""
+    occ = results.get(FAMILY_LEVELS[OCCLUDER_FAMILY]) or {}
+    lines = _family_lines(results, light, h, FAMILY_LEVELS[OCCLUDER_FAMILY], "By occluder family")
+    split = None if not occ.get("ran") else [f for f in (results.get(FAMILY_LEVELS[SLOT_CLASS]) or {}).get(
+        "families", []) if f not in occ["families"]]
+    if occ.get("ran") or not occ:   # a family-less manifest says "Not computed" once, under the occluder families
+        lines += _family_lines(results, light, h, FAMILY_LEVELS[SLOT_CLASS],
+                               "By slot class (the occluder families split by M16 side)", split)
+    return lines
+
+
+def _view_diagnostic_lines(results: dict[str, Any], light: str, h: str) -> list[str]:
+    """Geometric diagnostic-view coverage (prereg 10.3) and the gate's per-view rates (10.4) for one lighting."""
+    cov, rates = results.get("diagnostic_view_coverage"), results.get("gate_view_rates")
+    if not cov or not rates:
+        return []
+    scope = table_scope(results["metrics"])
+    start = results["positions"]["start_stop"]
+    head1 = f"{h} Geometric diagnostic-view coverage ({scope} split)"
+    head2 = f"{h} Gate per-view rates against the geometric labels ({scope} split)"
+    if not cov["ran"]:
+        return [head1, "", f"Not computed: {cov['note']}.", "", head2, "", f"Not computed: {rates['note']}.", ""]
+    k = cov["k"]
+    lines = [head1, "",
+             (f"Occluded (present) episodes with at least one geometrically diagnostic stop other than the start stop "
+              f"{start}, and removed episodes with at least k = {k} such stops, from the view labels (geometric "
+              "labels, not recognisability; context, not a ceiling)."), "",
+             f"| family | n_arr | occluded: >= 1 diagnostic non-start stop (x/n) | share | removed: >= {k} diagnostic "
+             "non-start stops (x/n) | share |", "| --- | --- | --- | --- | --- | --- |"]
+    for r in cov["rows"]:
+        if r["scope"] == scope and r["lighting"] == light:
+            o, m = r["occluded_with_diagnostic_non_start"], r["removed_with_k_diagnostic_non_start"]
+            lines.append(_md([r["family"], str(r["n_arrangements"]), _xn(o), fmt(o["rate"]), _xn(m), fmt(m["rate"])]))
+    th = rates["thresholds"]
+    lines += ["", head2, "",
+              (f"At the run's thresholds (tau_match {th['tau_match']:g}, tau_q {th['tau_q']:g}, tau_occ "
+               f"{th['tau_occ']:g}), with the calibration's view populations and StoppingRule predicates "
+               "(verify.select ViewRates). Per view: the views of one arrangement are correlated."), "",
+              "| rate | views | x/n | rate |", "| --- | --- | --- | --- |"]
+    for r in rates["rows"]:
+        if r["scope"] == scope and r["lighting"] == light:
+            for name, what, pop in GATE_RATES:
+                d = r["rates"][name]
+                lines.append(_md([what, pop, _xn(d), fmt(d["rate"])]))
+            d = (r.get("all_removed_views") or {}).get(STRONG_MATCH_ALL_REMOVED)
+            if d:
+                lines.append(_md([*STRONG_MATCH_ALL_TEXT, _xn(d), fmt(d["rate"])]))
+    return [*lines, ""]
+
+
+def _test_analysis_lines(results: dict[str, Any], light: str, lab) -> list[str]:
+    """The real-v6 sections of one lighting: gate-off ablation, tau_match sweep, by family, view diagnostics."""
+    h = f"## {light} queries -"
+    return [*_gate_off_lines(results, light, lab, h), *_sweep_lines(results, light, h),
+            *_families_lines(results, light, h), *_view_diagnostic_lines(results, light, h)]
+
+
 def render_table(results: dict[str, Any]) -> str:
     cfg, metrics = results["config"], results["metrics"]
     pb, scope = cfg["primary_budget"], table_scope(metrics)
@@ -857,7 +1667,7 @@ def render_table(results: dict[str, Any]) -> str:
               "at the end."),
              *([_generator_caveat(cfg.get("generator", {}))] if results.get("synthetic") else []),
              *_cap_notes(cfg, Positions.from_dict(results["positions"])), _strat_line(results),
-             *(x for x in (_rate_ci_line(results),) if x)]
+             *(x for x in (_rate_ci_line(results),) if x), *_interval_lines(results)]
     for light in lights:
         ref = _find(metrics, scope, "S", pb, None, light)
         if ref:
@@ -865,18 +1675,24 @@ def render_table(results: dict[str, Any]) -> str:
     lines.append("")
     for light in lights:
         lines += _lighting_lines(results, light, lab)
+        lines += _test_analysis_lines(results, light, lab)
     lines += _pooled_lines(results, lab)
     lines += [f"_{results['label']}._", ""]
     return "\n".join(lines)
 
 
-USED_COLS = ("F", "G", "G-lookahead", "G-myopic", "R")
+USED_COLS = ("F", "G", "G-lookahead", "G-myopic", "R", "Dir", "A", "A-nocue")
 
 
 def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str, scope: str = "test") -> list[str]:
     """The two 'can selection matter?' tables for one query lighting ("L1", "L2", or POOLED_DIAGNOSTIC in the
     secondary section); head starts each heading."""
     caps, budgets = cfg["travel_caps_cm"], cfg["budgets"]
+    # columns only for the policies and pairs that ran (A and Dir need --model / --side), the same in every table
+    ran = {u["policy"] for u in diag["used_view_sets"]}
+    used_cols = [p for p in USED_COLS if p in ran or p not in OPTIONAL_POLICIES]
+    pairs_ran = {(d["policy_a"], d["policy_b"]) for d in diag["disagreement"]}
+    disagree_pairs = [p for p in DISAGREE_PAIRS if p in pairs_ran or not set(p) & set(OPTIONAL_POLICIES)]
     eps = f"{scope} episodes of both lightings" if light == POOLED_DIAGNOSTIC else f"{scope} episodes with {light} queries"
     used = {(u["policy"], u["budget"], u["travel_cap_cm"]): u["n_view_sets"]
             for u in diag["used_view_sets"] if u["scope"] == scope and u["lighting"] == light}
@@ -886,12 +1702,12 @@ def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str, scope: 
               f"size exist. *Used* counts the distinct view sets each policy actually ended with on the {eps} "
               "(early stopping included). This table describes paths only."),
              "", "| travel cap | b | max views | reachable sets at max | "
-             + " | ".join(f"used: {p}" for p in USED_COLS) + " |",
-             "| --- | --- | --- | --- | " + " | ".join("---" for _ in USED_COLS) + " |"]
+             + " | ".join(f"used: {p}" for p in used_cols) + " |",
+             "| --- | --- | --- | --- | " + " | ".join("---" for _ in used_cols) + " |"]
     for r in diag["reachable_view_sets"]:
         cap, b = r["travel_cap_cm"], r["budget"]
         lines.append(_md([lab(cap).replace("travel cap ", ""), str(b), str(r["max_views"]), str(r["n_max_view_sets"]),
-                          *(str(used.get((p, b, cap), "-")) for p in USED_COLS)]))
+                          *(str(used.get((p, b, cap), "-")) for p in used_cols)]))
     # Review: "the diagnostics describe paths, not outcomes" was wrong for the decision column, which compares
     # outcomes (without truth: it says how often two policies decide differently, not which one is right).
     lines += ["", f"{head} path and decision disagreement ({scope} split, k-rule policies)", "",
@@ -900,8 +1716,8 @@ def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str, scope: 
                "policies looked; decision disagreement compares what they decided, an outcome (read without truth, "
                "so it does not say which decision was right). 0 means the two policies are indistinguishable at "
                "that setting, so any paired difference there is degenerate. Counts are in results.json."), "",
-              "| travel cap | b | " + " | ".join(f"{a} vs {b} path / decision" for a, b in DISAGREE_PAIRS) + " |",
-              "| --- | --- | " + " | ".join("---" for _ in DISAGREE_PAIRS) + " |"]
+              "| travel cap | b | " + " | ".join(f"{a} vs {b} path / decision" for a, b in disagree_pairs) + " |",
+              "| --- | --- | " + " | ".join("---" for _ in disagree_pairs) + " |"]
     dis = {(d["policy_a"], d["policy_b"], d["budget"], d["travel_cap_cm"]): d
            for d in diag["disagreement"] if d["scope"] == scope and d["lighting"] == light}
     for cap in caps:
@@ -909,7 +1725,7 @@ def _diagnostic_lines(diag: dict, cfg: dict, lab, light: str, head: str, scope: 
             if b == 0:
                 continue
             cells = []
-            for a, bb in DISAGREE_PAIRS:
+            for a, bb in disagree_pairs:
                 d = dis.get((a, bb, b, cap))
                 cells.append("-" if d is None else
                              f"{d['path_disagreement_rate']:.2f} / {d['decision_disagreement_rate']:.2f}")
@@ -971,6 +1787,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.n_arr < 2 or args.r_seeds < 1 or args.bootstrap_B < 1:
         print("need --n-arr >= 2, --r-seeds >= 1, --bootstrap-B >= 1", file=sys.stderr)
         return 2
+    given = [f for f, v in (("--candidate", args.candidate), ("--placeholder-thresholds", args.placeholder_thresholds),
+                            ("--side", args.side), ("--model", args.model),
+                            ("--gate-off-ablation", args.gate_off_ablation),
+                            ("--tau-match-sweep", args.tau_match_sweep)) if v]
+    if given:   # the synthetic path never reads them: refuse instead of silently ignoring them
+        print(f"{', '.join(given)}: real/sim data only, not --synthetic", file=sys.stderr)
+        return 2
     if args.primary_budget not in args.budgets:
         print(f"--primary-budget {args.primary_budget} not in --budgets {args.budgets}", file=sys.stderr)
         return 2
@@ -1018,19 +1841,40 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-REAL_CONFIG_VERSION = "real-v4"   # v4 (2026-11-03): bootstrap_stratified is what the test bootstrap uses (singleton
-# strata fall back); single-rate CIs; SIMULATION-labelled logs and truth
+REAL_CONFIG_VERSION = "real-v7"
+# v7 (2026-11-06, the freeze review, before any test run): metric-level zero-width flags (zero_width, discordant counts,
+#   degenerate_note; same_decisions and effort_note per paired row) and the pointwise / unadjusted interval note. No
+#   estimate, interval, setting or analysis changes.
+# v6 (2026-11-05): multi-view policies vs S, by-family breakdowns, gate-off ablation, tau_match sweep, view diagnostics
+#   (review 2026-11-06, before any v6 test run: occluder-family level, sweep extension, per-family seeds; code_sha256)
+ANALYSIS_CODE = ("verify/*.py", "analysis/*.py")   # every module this run can import from the repository
+
+
+def code_sha256() -> dict[str, str]:
+    """{repo-relative path: sha256} of ANALYSIS_CODE as this run loads it (tools/test_validity.py compares it with the
+    freeze record)."""
+    return {p.relative_to(REPO_ROOT).as_posix(): file_sha256(p)
+            for pattern in ANALYSIS_CODE for p in sorted(REPO_ROOT.glob(pattern))}
+# v5 (2026-11-05): frozen candidate thresholds (--candidate), side descriptors, Dir and frozen rankers (--side,
+# --model), the primary contrast and the common-target secondary analysis
+# v4 (2026-11-03): bootstrap_stratified is what the test bootstrap uses (singleton strata fall back); single-rate CIs;
+# SIMULATION-labelled logs and truth
 # v3 (2026-11-03): simulation flag, view labels file and bootstrap strata hashed
 # v2 (2026-11-02): cap_steps hashed as floats; diagnostics per lighting
 # v1 (2026-11-02): primary G = lookahead off, G-lookahead added; per-lighting results
 REAL_LABEL = "REAL PILOT - placeholder thresholds, not frozen"
 SIM_LABEL = "SIMULATION - placeholder thresholds, not frozen"
+REAL_FROZEN_LABEL = "REAL PILOT - frozen candidate thresholds"
+SIM_FROZEN_LABEL = "SIMULATION - frozen candidate thresholds"
 
 
 def main_real(args: argparse.Namespace) -> int:
-    """Run S/FULL/F/R/G/G-lookahead/G-myopic on real or simulated evidence: same run and score stages as --synthetic.
+    """Run S/FULL/F/R/G/G-lookahead/G-myopic, with --side also Dir and with --model the frozen rankers, on real or
+    simulated evidence: same run and score stages as --synthetic.
     A manifest with "simulation": true is labelled SIMULATION (config.json, results.json, table.md); the bootstrap
-    is stratified by the manifest's quota slot classes when every arrangement has one."""
+    is stratified by the manifest's quota slot classes when every arrangement has one. After the run it adds the
+    declared test analyses (real-v6): by_occluder_family, by_family, tau_match_sweep (with --tau-match-sweep),
+    diagnostic_view_coverage and gate_view_rates (with --view-labels; otherwise "ran": false and a note)."""
     if args.primary_budget not in args.budgets or args.r_seeds < 1 or args.bootstrap_B < 1:
         print("need --primary-budget in --budgets, --r-seeds >= 1, --bootstrap-B >= 1", file=sys.stderr)
         return 2
@@ -1040,6 +1884,10 @@ def main_real(args: argparse.Namespace) -> int:
         del truth  # the run stage never sees it; re-read after the run
     except (OSError, ValueError, KeyError) as e:
         print(f"bad real-data input: {e}", file=sys.stderr)
+        return 2
+    if len(info.environments) != 1:   # split by environment (DECISIONS 2026-11-04, choice 4): one per run
+        print(f"{args.manifest}: one environment per run, this manifest has {list(info.environments)}; run each "
+              "environment's manifest with its own positions file", file=sys.stderr)
         return 2
     if info.simulation and args.positions is None:
         # configs/positions.json is the old close-spot arc: travel and caps would be wrong for a sim set
@@ -1068,7 +1916,70 @@ def main_real(args: argparse.Namespace) -> int:
     # the stratification the test bootstrap will use, from the manifest's splits and families (no truth): singleton
     # strata fall back to unstratified, and with no test arrangement no bootstrap runs
     planned = stratification_info(strata, [s.arrangement_id for s in specs if s.split is Split.TEST])
+    has_test = any(s.split is Split.TEST for s in specs)
+    if info.simulation and has_test and args.candidate is None and not args.placeholder_thresholds:
+        print("a simulation manifest with test arrangements needs --candidate: test is scored only with frozen "
+              "thresholds, never with the placeholders (--placeholder-thresholds: pipeline tests only)",
+              file=sys.stderr)
+        return 2
+    if args.candidate is not None and args.placeholder_thresholds:
+        print("--candidate and --placeholder-thresholds exclude each other", file=sys.stderr)
+        return 2
+    if args.model and (args.side is None or args.candidate is None):
+        print("--model needs --side (the rankers read the descriptor) and --candidate", file=sys.stderr)
+        return 2
+    if args.tau_match_sweep and args.candidate is None:
+        print("--tau-match-sweep needs --candidate: it sweeps the frozen candidate's predeclared tau_match grid",
+              file=sys.stderr)
+        return 2
     th = Thresholds()
+    cand_doc = None
+    tm_grid: tuple[float, ...] = ()
+    tm_values: tuple[float, ...] = ()
+    side_data: SideData | None = None
+    rankers: list[Ranker] = []
+    models: dict[str, dict[str, str]] = {}
+    try:
+        if args.candidate is not None:
+            from verify.select import NotEligibleForFreeze, candidate_thresholds, require_freeze_eligible   # heavy
+            try:
+                cand_doc = require_freeze_eligible(args.candidate)
+            except NotEligibleForFreeze as e:
+                raise ValueError(f"--candidate refused: {e}") from e
+            if bool(cand_doc.get("simulation")) != info.simulation:
+                raise ValueError(f"the candidate says simulation={cand_doc.get('simulation')} but the manifest says "
+                                 f"simulation={info.simulation}")
+            th = candidate_thresholds(cand_doc)
+            if args.tau_match_sweep:
+                try:
+                    tm_grid = tau_match_grid_of(cand_doc, th)
+                    tm_values = tau_match_sweep_values(th, tm_grid)
+                except SweepRefused as e:
+                    raise ValueError(f"--tau-match-sweep refused: {e}") from e
+        if args.side is not None:
+            side_data = SideData.from_store(SideStore.from_jsonl(args.side, positions.n_stops,
+                                                                 episode_ids=[s.episode_id for s in specs]),
+                                            [s.episode_id for s in specs], source=_rel(Path(args.side)))
+        for item in args.model or ():
+            from verify.ranker import RANKERS, load_model
+            name, sep, path = item.partition("=")
+            if not sep or name not in RANKERS or not path or name in models:
+                raise ValueError(f"--model takes NAME=PATH once per name, NAME one of {sorted(RANKERS)}; got {item!r}")
+            doc = json.loads(Path(path).read_text())
+            if doc.get("thresholds") != th.to_dict():
+                raise ValueError(f"model {path} was trained with thresholds {doc.get('thresholds')}, not the "
+                                 f"candidate's {th.to_dict()}")
+            if (doc.get("provenance") or {}).get("candidate_sha256") != file_sha256(args.candidate):
+                raise ValueError(f"model {path} was trained for another candidate than {args.candidate}")
+            r = load_model(path)
+            if r.name != name or r.features != RANKERS[name].features:
+                raise ValueError(f"model {path} is {r.name!r} with features {r.features}, not {name!r} with "
+                                 f"{RANKERS[name].features}")
+            rankers.append(r)
+            models[name] = {"file": _rel(Path(path)), "sha256": file_sha256(path)}
+    except (OSError, ValueError, KeyError) as e:
+        print(f"bad real-data input: {e}", file=sys.stderr)
+        return 2
     config = {"config_version": REAL_CONFIG_VERSION, "model_id": args.model_id, "synthetic": False,
               "simulation": info.simulation,
               "positions_file": _rel(Path(pos_path)), "positions_file_sha256": file_sha256(pos_path),
@@ -1085,18 +1996,58 @@ def main_real(args: argparse.Namespace) -> int:
               "g_myopic": {"lam_deg": GMYOPIC_LAM_DEG, "travel_norm_cm": th.travel_norm_cm},
               "r_seeds": list(range(args.r_seeds)), "bootstrap_B": args.bootstrap_B,
               "primary_budget": args.primary_budget, "thresholds": th.to_dict(), "positions": positions.to_dict(),
-              "scoring_split": Split.TEST.value}
+              "scoring_split": Split.TEST.value, "environment": info.environments[0],
+              "thresholds_source": "frozen candidate" if cand_doc is not None else "placeholders",
+              "candidate_file": None if args.candidate is None else _rel(Path(args.candidate)),
+              "candidate_sha256": None if args.candidate is None else file_sha256(args.candidate),
+              "side_file": None if args.side is None else _rel(Path(args.side)),
+              "side_file_sha256": None if args.side is None else file_sha256(args.side),
+              "ranker_models": models, "primary_contrast": list(PRIMARY_PAIR),
+              "sensitivity": {"k": list(args.k_sensitivity), "lam": list(args.lam_sensitivity),
+                              "note": "reported only, never selected; primary budget, every cap"},
+              "common_targets": list(COMMON_TARGETS),
+              # real-v6: the declared test analyses (prereg sections 1, 4, 9 and 10)
+              "bootstrap_pairs": [list(x) for x in BOOTSTRAP_PAIRS],
+              "by_family": {"levels": {FAMILY_LEVELS[lv]: {"family": FAMILY_LEVEL_TEXT[lv],
+                                                           "bootstrap_strata": FAMILY_STRATA_TEXT[lv]}
+                                       for lv in (OCCLUDER_FAMILY, SLOT_CLASS)},
+                            "lightings": list(REPORT_LIGHTINGS), "bootstrap_pair": list(PRIMARY_PAIR),
+                            "bootstrap_seed": f"derive_seed({args.seed}, 'by-family', family, lighting)",
+                            "bootstrap_min_arrangements": MIN_STRATUM_SIZE,
+                            "note": "descriptive (H3), not a new primary"},
+              "gate_off_ablation": None if not args.gate_off_ablation else {
+                  "policies": list(GATE_OFF_POLICIES), "tau_occ": GATE_OFF_TAU_OCC,
+                  "pairs": [list(x) for x in GATE_OFF_PAIRS],
+                  "note": "reported only, never selected; primary budget, every cap; contrasts at the primary setting"},
+              "tau_match_sweep": None if not args.tau_match_sweep else {
+                  "grid": list(tm_grid), "frozen_tau_match": th.tau_match, "extension": list(TAU_MATCH_SWEEP_ABOVE),
+                  "extension_note": ("declared 2026-11-06, before the freeze: the curve on both sides of the "
+                                     "frozen point"),
+                  "values_run": list(tm_values),
+                  "policies": list(TM_SWEEP_POLICIES),
+                  "note": "reported only, never selected; primary budget, uncapped; other thresholds frozen"},
+              "view_diagnostics": {"start_stop": positions.start_index, "k": th.k,
+                                   "source": "view labels and evidence file, read after the run"},
+              "code_sha256": code_sha256()}
+    if cand_doc is not None:
+        label = SIM_FROZEN_LABEL if info.simulation else REAL_FROZEN_LABEL
     sha = config_sha256(config)
     write_json(out / "config.json", {"label": label, "config": config, "config_sha256": sha})
     context = RunContext(model_id=args.model_id, config_version=REAL_CONFIG_VERSION, config_sha256=sha,
                          synthetic=False)
-    logs = run_stage(specs, store, positions, th, args.budgets, config["travel_caps_cm"], config["r_seeds"], context)
+    logs = run_stage(specs, store, positions, th, args.budgets, config["travel_caps_cm"], config["r_seeds"], context,
+                     side=side_data, rankers=rankers,
+                     sensitivity=[*sensitivity_settings(th, args.k_sensitivity, args.lam_sensitivity),
+                                  *((gate_off_setting(th),) if args.gate_off_ablation else ())],
+                     primary_budget=args.primary_budget,
+                     tau_match_sweep=tau_match_sweep_settings(th, tm_values) if args.tau_match_sweep else ())
     del store
     sim_label = label if info.simulation else None   # every output of a simulation manifest is labelled SIMULATION
     write_logs(out / "logs.jsonl", logs, simulation_label=sim_label)
     _, truth = episodes_from_arrangements(load_manifest_info(args.manifest).arrangements)
     save_truth(out / "ground_truth.json", truth, simulation_label=sim_label)
     no_diag = None
+    labels: GeometricLabels | None = None
     if args.view_labels is not None:   # scoring context only, read after every policy has run
         try:
             if file_sha256(args.view_labels) != config["view_labels_sha256"]:
@@ -1112,13 +2063,43 @@ def main_real(args: argparse.Namespace) -> int:
             print(f"bad --view-labels: {e}", file=sys.stderr)
             return 2
         no_diag = labels.no_diagnostic_view()
+        try:   # the gate's per-view rates read the evidence again, after the run, from the same (unchanged) file
+            if file_sha256(args.evidence) != config["evidence_sha256"]:
+                raise ValueError(f"{args.evidence} changed during the run")
+            view_store = EvidenceStore.from_jsonl(args.evidence, positions.n_stops)
+        except (OSError, ValueError, KeyError) as e:
+            print(f"bad --evidence after the run: {e}", file=sys.stderr)
+            return 2
+    common = ({a.arrangement_id: (a.occluder_family, a.target_id) for a in info.arrangements}
+              if all(a.occluder_family is not None for a in info.arrangements) else None)
     scored = score_stage(logs, truth, args.primary_budget, args.bootstrap_B, args.seed, strata=strata,
-                         no_diagnostic=no_diag)
+                         no_diagnostic=no_diag, common_target=common)
+    if common is None and any(m["policy"] == PRIMARY_PAIR[0] for m in scored["metrics"]):
+        scored["common_target_skipped"] = ("the manifest lacks occluder_family for some arrangement, so the "
+                                           "predeclared common-target analysis could not run")
+    # real-v6: the declared test analyses, all after the run (truth, labels and evidence re-read from disk)
+    groups, seed_removed = group_results(logs), _seed_removed(logs)
+    analyses: dict[str, Any] = {
+        key: family_stage(logs, truth, info.arrangements, args.primary_budget, args.bootstrap_B, args.seed, no_diag,
+                          level, groups, seed_removed) for level, key in FAMILY_LEVELS.items()}
+    if args.tau_match_sweep:
+        analyses["tau_match_sweep"] = {**config["tau_match_sweep"], "curves": tau_match_sweep_curves(
+            scored["metrics"], th, sorted({*tm_values, th.tau_match}), args.primary_budget)}
+    view_diag = {"start_stop": positions.start_index, "k": th.k}
+    if labels is None:
+        analyses["diagnostic_view_coverage"] = {"ran": False, "note": NO_LABELS_NOTE, **view_diag, "rows": []}
+        analyses["gate_view_rates"] = {"ran": False, "note": NO_LABELS_NOTE, "thresholds": th.to_dict(), "rows": []}
+    else:
+        analyses["diagnostic_view_coverage"] = {
+            "ran": True, **view_diag,
+            "rows": family_coverage(specs, labels, positions.start_index, th.k, info.arrangements)}
+        analyses["gate_view_rates"] = {"ran": True, "thresholds": th.to_dict(),
+                                       "rows": gate_view_rates(specs, view_store, labels, positions, th)}
     results = {"label": label, "synthetic": False, "simulation": info.simulation, "config": config,
                "config_sha256": sha, "positions": positions.to_dict(), "thresholds": th.to_dict(),
                "files": {n: file_sha256(out / n) for n in ("ground_truth.json", "logs.jsonl")},
                "n_logs": len(logs), **scored,
-               "diagnostics": diagnostics_stage(logs, positions, args.budgets, config["travel_caps_cm"])}
+               "diagnostics": diagnostics_stage(logs, positions, args.budgets, config["travel_caps_cm"]), **analyses}
     write_json(out / "results.json", results)
     (out / "table.md").write_text(render_table(results))
     print(f"{label}: wrote {out}")

@@ -8,4 +8,12 @@ checkpoints/
 runs/
 *.log
 .DS_Store
+# Local tool state and generated review previews.
+/.agents/
+/.aws/
+/.codex/
+.pytest_cache/
+.ruff_cache/
+/docs/**/previews/
 configs/pipeline/remote.local.json
+configs/pipeline/remote.test.local.json

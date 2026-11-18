@@ -65,6 +65,27 @@ clear-miss rule); IND28 must cover every stop (UNKNOWN is the right answer, pred
 always come from the rendered instance masks (sim/isaac_batch.py), never from this file. The analytic coverage is at the
 NOMINAL poses; the revisit poses move the images by a few tens of pixels.
 
+Environments (config 'environment', decision 2026-11-04). 'shelf' (every shelf config) is the behaviour above, unchanged
+byte for byte (tests/test_shelf_goldens.py). 'tabletop' (configs/sim/arrange_tabletop_v1.json; sim/tabletop.py scene and
+cameras) swaps the environment-specific rules and keeps everything else (slots, retries, reserves, families, M16 side rule,
+phases, revisit protocol, hashing):
+  - inside -> on_table: on the table top, table_edge (2 cm) from its edges, in front of every camera; no ceiling, no compartment;
+  - seen_whole: no opening test; the target's hull at least frame_margin_px (40) inside the frame at every stop, pinhole and k1;
+  - gap: the occluder's front face stays table_edge inside the table's near edge (_front_limit); boards are the family's own
+    width_m x thickness_m x height_m (board_dims: H_T and any tabletop variant), the white box has no height cap;
+  - distractors (place_distractors_table): 2-5 upright, about half with the base centre inside the 0.20 m workspace circle
+    (p_inner), the rest on the seen table, 1 cm between objects, never occluding the target;
+  - parking (park_occluder_table / parked_reason): on the table, seen, outside the target's context window, hiding nothing,
+    plus the parked-shadow NUISANCE control (decision 2026-11-04 item 6: shadows of the occluder moving between phases are
+    legitimate and kept; only a parked occluder's shadow on the target is avoided): an initial screen (the occluder's hull
+    projected from each light's centre onto z = 0 vs the target window's table footprint) and the real check, analytic rays
+    from a grid over each actual rect light (sim/tabletop.py lighting) to samples over the target's full-height hull;
+  - frame check: the tag-free workspace outline of sim/tabletop.py instead of the #3 outline; _scene: sim/tabletop.py's
+    scene spec; design cases TDES0-3 (design_arrangement_table, measured mug at the workspace centre);
+  - IDs from the config (ids.dev_prefix TD, design ids TDES*; the shelf configs say SD / DES, so shelf ids are unchanged);
+    random streams salted by environment (try_entropy / revisit_entropy: a leading ENTROPY_SALT, shelf lists unchanged);
+    the provenance gains 'tabletop_py' (sim/tabletop.py sha256) and 'mug_geometry', tabletop only.
+
 Integrity (docs/SIMULATION_STUDY.md): dev seeds are 0-9999 and are the only integers accepted. Seeds >= 100000 are
 reserved for test ([open]) and refused (check_dev_seed): slot_list(ctx, 'test') works, but no test arrangement is ever
 generated. arrangement_sha256 is the hash of the arrangement without its 'unhashed' block (the caller-spelled config path
@@ -93,6 +114,7 @@ from typing import Any
 import numpy as np
 
 from sim import rig as R
+from sim import tabletop as T
 
 GENERATOR_VERSION = "0.3.0"
 ARRANGEMENT_SCHEMA = "cmpe249.sim-arrangement.v1"
@@ -110,6 +132,12 @@ TEST_SEED_MIN = 100000           # reserved for test ([open]); never generated, 
 DEFAULT_CONFIG_PATH = R.REPO_ROOT / "configs" / "sim" / "arrange_shelf_v3.json"     # shelf_v1 (draw-per-try) and shelf_v2 stay loadable via --config
 THIS_FILE = Path(__file__).resolve()
 RIG_FILE = Path(R.__file__).resolve()
+TABLETOP_FILE = Path(T.__file__).resolve()
+ENVIRONMENTS = ("shelf", "tabletop")
+# Tabletop random streams are salted with a leading constant so a tabletop seed never shares a stream with the same shelf
+# seed: numpy's SeedSequence treats trailing zeros as absent ([s] == [s, 0]), so the salt goes FIRST. The shelf's entropy
+# lists stay exactly [seed] / [seed, attempt] (placement) and [seed] / [2**31 + n] (revisit). 0x54414254 = ASCII "TABT".
+ENTROPY_SALT = {"tabletop": 0x54414254}
 
 # (phase, role, condition): capture/run_arrangement.py PHASES (tests/test_sim_arrange.py checks they agree)
 PHASES = (("reference", "reference", "visible"), ("visible", "query", "visible"),
@@ -142,6 +170,11 @@ def check_dev_seed(seed: Any) -> int:
 
 def arrangement_id(seed: int, prefix: str = "SD") -> str:
     return f"{prefix}{check_dev_seed(seed):04d}"
+
+
+def dev_prefix(cfg: Mapping) -> str:
+    """The config's ids.dev_prefix (SD for every shelf config, TD for the tabletop); SD if the config has no ids block."""
+    return str(cfg.get("ids", {}).get("dev_prefix", "SD"))
 
 
 def parse_seeds(text: str) -> list[int]:
@@ -428,6 +461,16 @@ class Context:
     def start_index(self) -> int:
         return [c.name for c in self.rig.cameras].index(self.positions.get("start_stop", "P3"))
 
+    @property
+    def env(self) -> str:
+        """'shelf' or 'tabletop' (config 'environment'). On the tabletop `rig` is a sim/tabletop.py TabletopScene."""
+        return self.config.get("environment", "shelf")
+
+    @property
+    def target_comp(self) -> str:
+        """The region the target and the placed occluder stand in: compartment 'c3' on the shelf, 'table' on the tabletop."""
+        return "table" if self.env == "tabletop" else "c3"
+
     hulls: dict = field(default_factory=dict)
 
     def item(self, obj: int | str) -> dict:
@@ -483,11 +526,41 @@ def load_config(config: str | Path | Mapping = DEFAULT_CONFIG_PATH) -> tuple[dic
     check_slot_config(cfg)
     if "scene" in cfg and not isinstance(cfg["scene"].get("tags"), bool):
         raise ValueError("config scene.tags must be a boolean when the scene block is present")
+    env = cfg.get("environment", "shelf")
+    if env not in ENVIRONMENTS:
+        raise ValueError(f"config environment must be one of {ENVIRONMENTS}, got {env!r}")
+    if env == "tabletop":
+        check_tabletop_config(cfg)
     return cfg, path, sha
+
+
+def check_tabletop_config(cfg: Mapping) -> None:
+    """Tabletop-only checks: its own ID prefixes (not the shelf's SD / DES), design ids carry the design prefix, no tags,
+    and every board family gives its own dimensions (there are no geometry-file occluders on the table)."""
+    ids = cfg.get("ids", {})
+    dp, gp = ids.get("dev_prefix"), ids.get("design_prefix")
+    if not dp or not gp or dp in ("SD", "DES") or gp in ("SD", "DES") or dp == gp:
+        raise ValueError(f"a tabletop config needs its own ids.dev_prefix / design_prefix (got {dp!r} / {gp!r})")
+    if cfg.get("scene", {}).get("tags") is not False:
+        raise ValueError("a tabletop config must set scene.tags false (no fiducials)")
+    for c in (cfg.get("design_cases") or {}).get("cases", []):
+        if not str(c["arrangement_id"]).startswith(gp):
+            raise ValueError(f"design case id {c['arrangement_id']!r} must start with the design prefix {gp!r}")
+    for fam, spec in cfg["occluder"]["families"].items():
+        if spec["kind"] == "board" and not all(k in spec for k in ("width_m", "thickness_m", "height_m")):
+            raise ValueError(f"tabletop board family {fam} needs width_m, thickness_m and height_m")
+
+
+def table_regions(geometry: Mapping) -> dict:
+    """The tabletop's one placement region, in the shape of compartments(): the table top (no ceiling)."""
+    e = T.table_extent(geometry)
+    return {"table": {"x": (e["x_min"], e["x_max"]), "y": (e["y_min"], e["y_max"]), "z": (e["z_top"], math.inf)}}
 
 
 def load_context(config: str | Path | Mapping = DEFAULT_CONFIG_PATH) -> Context:
     cfg, cfg_path, cfg_sha = load_config(config)
+    if cfg.get("environment", "shelf") == "tabletop":
+        return _load_tabletop_context(cfg, cfg_path, cfg_sha)
     gpath, ppath = _repo_path(cfg["geometry"]), _repo_path(cfg["positions"])
     geometry = R.load_geometry(gpath)
     positions = json.loads(ppath.read_text())
@@ -514,6 +587,45 @@ def load_context(config: str | Path | Mapping = DEFAULT_CONFIG_PATH) -> Context:
                 "python": platform.python_version(),
                 "note": "caller-dependent metadata; deliberately outside arrangement_sha256"}
     return Context(cfg, cfg_path, geometry, positions, rig, compartments(geometry), prov, unhashed, hulls)
+
+
+def _load_hulls(cfg: Mapping) -> tuple[dict, dict | None]:
+    hc = cfg["objects"].get("hulls")
+    if not hc:
+        return {}, None
+    hpath = _repo_path(hc["path"])
+    sha = sha256_file(hpath)
+    if sha != hc["sha256"]:
+        raise ValueError(f"{hc['path']}: sha256 {sha} != the config's {hc['sha256']}")
+    return json.loads(hpath.read_text())["items"], {"path": hc["path"], "sha256": sha}
+
+
+def _load_tabletop_context(cfg: dict, cfg_path: str | None, cfg_sha: str) -> Context:
+    """The tabletop context: geometry = configs/sim/tabletop_geometry.json, rig = a sim/tabletop.py TabletopScene (cameras of
+    the positions file), one region 'table'. The provenance adds sim/tabletop.py's sha256 ('tabletop_py') and, when the
+    design cases use the measured mug, the file its profile comes from ('mug_geometry'); the shelf provenance has neither."""
+    gpath, ppath = _repo_path(cfg["geometry"]), _repo_path(cfg["positions"])
+    geometry = T.load_geometry(gpath)
+    positions = json.loads(ppath.read_text())
+    scene = T.load_scene(gpath, ppath)
+    hulls, hull_prov = _load_hulls(cfg)
+    prov = {
+        "generator": {"path": "sim/arrange.py", "version": GENERATOR_VERSION, "sha256": sha256_file(THIS_FILE)},
+        "rig_py": {"path": "sim/rig.py", "sha256": sha256_file(RIG_FILE)},
+        "tabletop_py": {"path": "sim/tabletop.py", "sha256": sha256_file(TABLETOP_FILE)},
+        "config": {"name": cfg.get("name"), "sha256": cfg_sha},
+        "geometry": {"path": cfg["geometry"], "sha256": sha256_file(gpath)},
+        "positions": {"path": cfg["positions"], "sha256": sha256_file(ppath)},
+        "hulls": hull_prov,
+        "numpy": np.__version__,
+    }
+    mg = (cfg.get("design_cases") or {}).get("mug_geometry")
+    if mg:
+        prov["mug_geometry"] = {"path": mg, "sha256": sha256_file(_repo_path(mg))}
+    unhashed = {"config_path": cfg_path, "config_file_sha256": None if cfg_path is None else sha256_file(_repo_path(cfg_path)),
+                "python": platform.python_version(),
+                "note": "caller-dependent metadata; deliberately outside arrangement_sha256"}
+    return Context(cfg, cfg_path, geometry, positions, scene, table_regions(geometry), prov, unhashed, hulls)
 
 
 # ---------------------------------------------------------------- quota slots
@@ -653,7 +765,9 @@ def rest_extents(item: Mapping, rest: np.ndarray) -> tuple[float, float, float]:
 
 def inside(ctx: Context, body: Body, comp: str, front: float | None = None) -> bool:
     """Footprint inside the compartment's walls with the configured clearances, standing on its floor, below its
-    ceiling clearance."""
+    ceiling clearance. Tabletop: on_table (comp and front are ignored)."""
+    if ctx.env == "tabletop":
+        return on_table(ctx, body)
     c, cl = ctx.comps[comp], ctx.config["clearances_m"]
     fp = body.footprint()
     front = cl["front"] if front is None else front
@@ -665,10 +779,48 @@ def inside(ctx: Context, body: Body, comp: str, front: float | None = None) -> b
                 and fp[:, 1].min() >= c["y"][0] + front and fp[:, 1].max() <= c["y"][1] - cl["back"])
 
 
+def in_front_of_cameras(ctx: Context, body: Body) -> bool:
+    """Tabletop: every hull point at least clearances_m.camera_depth in front of every stop's camera (a stop above the
+    table's near corners could otherwise have an object beside or behind it; projection needs positive depth)."""
+    m = float(ctx.config["clearances_m"]["camera_depth"])
+    pts = body.shape_points()
+    return all(float(_depths(cam, pts).min()) >= m for cam in ctx.cams)
+
+
+def on_table(ctx: Context, body: Body) -> bool:
+    """Tabletop: standing on the table top (base z = 0), footprint at least clearances_m.table_edge inside the table's
+    edges, and in front of every camera (in_front_of_cameras). No ceiling."""
+    c, cl = ctx.comps["table"], ctx.config["clearances_m"]
+    if abs(float(body.base[2]) - c["z"][0]) > 1e-9:
+        return False
+    fp, e = body.footprint(), float(cl["table_edge"])
+    if not (fp[:, 0].min() >= c["x"][0] + e and fp[:, 0].max() <= c["x"][1] - e
+            and fp[:, 1].min() >= c["y"][0] + e and fp[:, 1].max() <= c["y"][1] - e):
+        return False
+    return in_front_of_cameras(ctx, body)
+
+
+def _front_limit(ctx: Context) -> float:
+    """The smallest y an occluder's front face may have: occluder_front behind the shelf's front plane (y = 0); on the
+    tabletop, table_edge inside the table's near edge."""
+    cl = ctx.config["clearances_m"]
+    if ctx.env == "tabletop":
+        return ctx.comps["table"]["y"][0] + float(cl["table_edge"])
+    return cl["occluder_front"]
+
+
 def seen_whole(ctx: Context, cam: R.Camera, body: Body) -> bool:
     """Every point of the body's convex hull (shape_points) has a sight line through the #3 opening (front plane) with
-    opening_margin_m to spare and projects frame_margin_px inside the frame: the stop sees the object whole."""
+    opening_margin_m to spare and projects frame_margin_px inside the frame: the stop sees the object whole.
+    Tabletop: there is no opening; every hull point projects frame_margin_px inside the frame, pinhole and with the fitted
+    k1 (the revisit frame check uses k1)."""
     tc = ctx.config["target"]
+    if ctx.env == "tabletop":
+        pts = body.shape_points()
+        try:
+            return min(cam.frame_margin(pts, False), cam.frame_margin(pts, True)) >= float(tc["frame_margin_px"])
+        except ValueError:                      # a point behind the camera
+            return False
     m = tc["opening_margin_m"]
     c3 = ctx.comps["c3"]
     c = np.asarray(cam.position, float)
@@ -693,9 +845,10 @@ def place_target(ctx: Context, d: Draw, obj: int) -> dict | None:
     if size[2] > tc["max_height_m"]:
         raise ValueError(f"target object {obj} ({item['name']}) is {size[2]:.3f} m tall > max_height_m")
     pts = ctx.local_points(obj, "upright")
+    min_front = tc.get("min_front_y_m")              # shelf: room for an occluder in front; the tabletop has none
     for _ in range(int(tc["tries"])):
         body = Body(size, (d.u(*tc["region_m"]["x"]), d.u(*tc["region_m"]["y"]), 0.0), d.u(0.0, 360.0), pts)
-        if not inside(ctx, body, "c3") or body.footprint()[:, 1].min() < tc["min_front_y_m"]:
+        if not inside(ctx, body, ctx.target_comp) or (min_front is not None and body.footprint()[:, 1].min() < min_front):
             continue
         if all(seen_whole(ctx, cam, body) for cam in ctx.cams):
             return {"obj_id": obj, "item": item, "rest": "upright", "body": body}
@@ -704,14 +857,17 @@ def place_target(ctx: Context, d: Draw, obj: int) -> dict | None:
 
 def _occluder_ok(ctx: Context, body: Body, target: Body) -> bool:
     cl = ctx.config["clearances_m"]
+    if ctx.env == "tabletop":
+        return on_table(ctx, body) and separated(body.footprint(), target.footprint(), 0.0)
     return (inside(ctx, body, "c3", front=cl["occluder_front"])
             and separated(body.footprint(), target.footprint(), 0.0))
 
 
 def _gap(ctx: Context, d: Draw, spec: Mapping, target: Body, depth: float) -> float | None:
     """Distance from the target's front to the occluder's back face, drawn from the family's gap_m range clipped to
-    the room in front of the target (the occluder's front face stays occluder_front behind the front plane)."""
-    room = float(target.footprint()[:, 1].min()) - ctx.config["clearances_m"]["occluder_front"] - depth
+    the room in front of the target (the occluder's front face stays occluder_front behind the front plane; tabletop:
+    table_edge inside the table's near edge, _front_limit)."""
+    room = float(target.footprint()[:, 1].min()) - _front_limit(ctx) - depth
     lo, hi = float(spec["gap_m"][0]), min(float(spec["gap_m"][1]), room)
     return None if hi < lo else d.u(lo, hi)
 
@@ -723,21 +879,32 @@ def side_sign(side: str | None) -> float:
     return 1.0 if side == "R" else -1.0
 
 
-def _board(ctx: Context, d: Draw, spec: Mapping, target: Body, side: str | None = None) -> dict | None:
+def board_dims(ctx: Context, spec: Mapping) -> tuple[str | None, float, float, float]:
+    """(geometry occluder name or None, width, thickness, height) of a board family. Shelf: the geometry file's design
+    occluder (spec geometry_occluder), the height overridable by height_m (M16 in shelf_v2). Tabletop: the family's own
+    width_m / thickness_m / height_m (H_T and any recorded tabletop variant), no geometry-file occluder."""
+    if ctx.env == "tabletop":
+        return None, float(spec["width_m"]), float(spec["thickness_m"]), float(spec["height_m"])
     o = R.occluder_spec(ctx.geometry, spec["geometry_occluder"])
-    height = float(spec.get("height_m", o.height))           # a family may override the geometry file's height (M16 in shelf_v2)
-    gap = _gap(ctx, d, spec, target, o.thickness)
+    return o.name, o.width, o.thickness, float(spec.get("height_m", o.height))
+
+
+def _board(ctx: Context, d: Draw, spec: Mapping, target: Body, side: str | None = None) -> dict | None:
+    name, width, thickness, height = board_dims(ctx, spec)
+    gap = _gap(ctx, d, spec, target, thickness)
     if gap is None:
         return None
     # a sided family (M16): shift = side sign x a magnitude from side_shift_m; else a signed range about the sight line
     shift = side_sign(side) * d.u(*spec["side_shift_m"]) if "side_shift_m" in spec else d.u(*spec["shift_m"])
     y_back = float(target.footprint()[:, 1].min()) - gap
-    y_front = y_back - o.thickness
+    y_front = y_back - thickness
     yc = (y_front + y_back) / 2
     x = sightline_x(ctx.start_cam, target.centre(), yc) + shift
-    body = Body((o.width, o.thickness, height), (x, yc, 0.0), 0.0)
-    return {"kind": "box", "material": "occluder", "geometry_occluder": o.name, "body": body,
-            "gap_m": gap, "shift_m": shift}
+    body = Body((width, thickness, height), (x, yc, 0.0), 0.0)
+    out = {"kind": "box", "material": "occluder", "body": body, "gap_m": gap, "shift_m": shift}
+    if name is not None:
+        out["geometry_occluder"] = name
+    return out
 
 
 def _white_box(ctx: Context, d: Draw, spec: Mapping, target: Body, cov_min: float) -> dict | None:
@@ -747,7 +914,7 @@ def _white_box(ctx: Context, d: Draw, spec: Mapping, target: Body, cov_min: floa
         return None
     depth, shift = d.u(*spec["depth_m"]), d.u(*spec["shift_m"])
     y_back = float(target.footprint()[:, 1].min()) - gap
-    y_front = max(y_back - depth, cl["occluder_front"])
+    y_front = max(y_back - depth, _front_limit(ctx))
     if y_back - y_front < 0.02:
         return None
     yc = (y_front + y_back) / 2
@@ -759,7 +926,7 @@ def _white_box(ctx: Context, d: Draw, spec: Mapping, target: Body, cov_min: floa
     pad_w, pad_h = d.u(*spec["pad_m"]), d.u(*spec["pad_m"])
     w = float(q[:, 0].max() - q[:, 0].min()) + 2 * pad_w
     h = float(q[:, 2].max()) + pad_h
-    if h > ctx.comps["c3"]["z"][1] - cl["ceiling"]:
+    if ctx.env != "tabletop" and h > ctx.comps["c3"]["z"][1] - cl["ceiling"]:          # the tabletop has no ceiling
         return None
     x = float(q[:, 0].max() + q[:, 0].min()) / 2 + max(-pad_w, min(pad_w, shift))
     return {"kind": "box", "material": spec.get("material", "white_box"),
@@ -849,6 +1016,8 @@ def side_rule_ok(covs: Sequence[float], start: int, side: str, rule: Mapping, cl
 
 
 def place_distractors(ctx: Context, d: Draw, target: dict, occ: dict) -> list[dict] | None:
+    if ctx.env == "tabletop":
+        return place_distractors_table(ctx, d, target, occ)
     dc = ctx.config["distractors"]
     clr = ctx.config["clearances_m"]["between_objects"]
     n = d.integer(*dc["count"])
@@ -894,6 +1063,8 @@ def park_occluder(ctx: Context, d: Draw, occ: dict, target: Body, others: Sequen
     """A pose for the occluder that occludes nothing: inside a compartment, footprint clear of every object, hiding no
     object (target, distractors) from any stop, and outside the target's context window at every stop (so moving it
     later does not change the target's own background between phases)."""
+    if ctx.env == "tabletop":
+        return park_occluder_table(ctx, d, occ, target, others)
     pc = ctx.config["occluder"]["parked"]
     clr = ctx.config["clearances_m"]["between_objects"]
     size, pts = occ["body"].size, occ["body"].local_points
@@ -911,6 +1082,261 @@ def park_occluder(ctx: Context, d: Draw, occ: dict, target: Body, others: Sequen
             if any(may_occlude(cam, body, b) for cam in ctx.cams for b in objs):
                 continue
             return body, comp
+    return None
+
+
+# ---------------------------------------------------------------- tabletop: distractors, parking, parked-occluder shadow
+
+def base_in_frame(cam: R.Camera, body: Body) -> bool:
+    """Whether the body's base centre (on z = 0) projects inside the frame (pinhole, margin >= 0)."""
+    try:
+        uv = project(cam, np.array([[body.base[0], body.base[1], body.base[2]]], float))[0]
+    except ValueError:
+        return False
+    return bool(0.0 <= uv[0] <= cam.width and 0.0 <= uv[1] <= cam.height)
+
+
+def place_distractors_table(ctx: Context, d: Draw, target: dict, occ: dict) -> list[dict] | None:
+    """Tabletop distractors: distractors.count (2-5) upright models from distractors.objects, never the target's or the
+    occluder's model, all distinct. Per try a region is drawn: 'inner' with probability p_inner (base centre uniform over the
+    workspace disc of radius inner_radius_m, so about half the distractors stand inside the 0.20 m circle, like the shelf's
+    p_c3) or 'outer' (base centre uniform over outer_region_m, kept only outside that disc and with the base centre inside the
+    frame at >= outer_min_stops_in_frame stops: on the seen table). Accepted if on_table (table_edge from every edge), its
+    footprint >= between_objects from the target's, the placed occluder's and every earlier distractor's, and it may not
+    occlude the target from any stop (may_occlude, the shelf's #3 rule)."""
+    dc = ctx.config["distractors"]
+    clr = ctx.config["clearances_m"]["between_objects"]
+    n = d.integer(*dc["count"])
+    used = {target["obj_id"]} | ({occ["obj_id"]} if occ["kind"] == "ycbv" else set())
+    fps = [target["body"].footprint(), occ["body"].footprint()]
+    rin, reg = float(dc["inner_radius_m"]), dc["outer_region_m"]
+    out: list[dict] = []
+    for _ in range(n):
+        for _ in range(int(dc["tries_each"])):
+            region = "inner" if d.u() < float(dc["p_inner"]) else "outer"
+            pool = [int(o) for o in dc["objects"] if int(o) not in used]
+            if not pool:
+                continue
+            obj = d.choice(pool)
+            item = ctx.item(obj)
+            size = rest_extents(item, ctx.rest("upright"))
+            if region == "inner":
+                r, th = rin * math.sqrt(d.u()), d.u(0.0, 2 * math.pi)
+                x, y = r * math.cos(th), r * math.sin(th)
+            else:
+                x, y = d.u(*reg["x"]), d.u(*reg["y"])
+            body = Body(size, (x, y, 0.0), d.u(0.0, 360.0), ctx.local_points(obj, "upright"))
+            if region == "outer" and (math.hypot(x, y) <= rin
+                                      or sum(base_in_frame(c, body) for c in ctx.cams) < int(dc["outer_min_stops_in_frame"])):
+                continue
+            if not on_table(ctx, body) or not _clear_of(body.footprint(), fps, clr):
+                continue
+            if any(may_occlude(cam, body, target["body"]) for cam in ctx.cams):
+                continue
+            out.append({"obj_id": obj, "item": item, "rest": "upright", "body": body, "compartment": "table", "region": region})
+            used.add(obj)
+            fps.append(body.footprint())
+            break
+    return out if len(out) >= int(dc["count"][0]) else None
+
+
+def scene_lights(ctx: Context) -> list[dict]:
+    """The rect lights that are on in at least one lighting preset of the tabletop geometry (sim/tabletop.py lighting_spec:
+    position, forward toward the aim point, square side size_m), once each, sorted by name."""
+    spec = T.lighting_spec(ctx.geometry)
+    out: dict = {}
+    for k in sorted(spec["presets"]):
+        for lt in spec["presets"][k]["lights"]:
+            if lt["on"]:
+                out.setdefault((lt["name"], tuple(lt["position"])), lt)
+    return [out[k] for k in sorted(out)]
+
+
+def light_samples(light: Mapping, n: int) -> np.ndarray:
+    """n x n points (row-major) on a square rect light's emitting area: centre `position`, normal `forward`, side size_m,
+    its in-plane axes right = forward x z (normalised) and up = right x forward; edges and corners included."""
+    f = np.asarray(light["forward"], float)
+    f = f / np.linalg.norm(f)
+    right = np.cross(f, [0.0, 0.0, 1.0])
+    if np.linalg.norm(right) < 1e-9:
+        right = np.array([1.0, 0.0, 0.0])
+    right = right / np.linalg.norm(right)
+    up = np.cross(right, f)
+    s = float(light["size_m"])
+    off = np.linspace(-s / 2, s / 2, int(n)) if int(n) > 1 else np.zeros(1)
+    p = np.asarray(light["position"], float)
+    return np.array([p + a * right + b * up for b in off for a in off], float)
+
+
+def _inside_convex(poly: np.ndarray, pts: np.ndarray) -> np.ndarray:
+    """Points (N x 2) inside or on the convex polygon `poly` (counter-clockwise, convex_hull)."""
+    ok = np.ones(len(pts), bool)
+    for i in range(len(poly)):
+        a, b = poly[i], poly[(i + 1) % len(poly)]
+        ok &= (b[0] - a[0]) * (pts[:, 1] - a[1]) - (b[1] - a[1]) * (pts[:, 0] - a[0]) >= -1e-12
+    return ok
+
+
+def target_shadow_samples(target: Body, step_m: float, n_levels: int) -> np.ndarray:
+    """Sample points over the target's FULL-HEIGHT hull: the vertical prism over the convex hull of its hull points' xy
+    (contains the model), from its base to its top. Points every <= step_m along that outline at n_levels heights spread
+    evenly from base to top (both included), plus a step_m grid over the top face."""
+    pts = target.shape_points()
+    hull = convex_hull(pts[:, :2])
+    z0, z1 = float(target.base[2]), float(pts[:, 2].max())
+    ring = []
+    for i in range(len(hull)):
+        a, b = hull[i], hull[(i + 1) % len(hull)]
+        k = max(1, int(math.ceil(float(np.linalg.norm(b - a)) / step_m)))
+        ring += [a + (b - a) * j / k for j in range(k)]
+    ring = np.asarray(ring, float)
+    out = [np.c_[ring, np.full(len(ring), z)] for z in np.linspace(z0, z1, int(n_levels))]
+    (x0, y0), (x1, y1) = hull.min(0), hull.max(0)
+    gx, gy = np.meshgrid(np.arange(x0, x1 + 1e-12, step_m), np.arange(y0, y1 + 1e-12, step_m))
+    g = np.c_[gx.ravel(), gy.ravel()]
+    g = g[_inside_convex(hull, g)]
+    out.append(np.c_[g, np.full(len(g), z1)])
+    return np.vstack(out)
+
+
+def segments_hit_box(p0: np.ndarray, p1: np.ndarray, body: Body) -> np.ndarray:
+    """For segments p0[i] -> p1[i] (N x 3): whether each meets the body's oriented bounding box (closed; slab method in the
+    box frame). Exact for the box, which contains the model's hull."""
+    a = math.radians(body.yaw_deg)
+    c, s = math.cos(a), math.sin(a)
+    m = np.array([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]])          # world = local @ m (Body.shape_points)
+    ctr = body.centre()
+    q0, q1 = (np.asarray(p0, float) - ctr) @ m.T, (np.asarray(p1, float) - ctr) @ m.T
+    dq, h = q1 - q0, np.asarray(body.size, float) / 2
+    tmin, tmax = np.zeros(len(q0)), np.ones(len(q0))
+    for k in range(3):
+        par = np.abs(dq[:, k]) < 1e-15
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t1, t2 = (-h[k] - q0[:, k]) / dq[:, k], (h[k] - q0[:, k]) / dq[:, k]
+        lo, hi = np.where(par, -np.inf, np.minimum(t1, t2)), np.where(par, np.inf, np.maximum(t1, t2))
+        outside = par & (np.abs(q0[:, k]) > h[k])
+        tmin, tmax = np.maximum(tmin, lo), np.minimum(tmax, hi)
+        tmax = np.where(outside, -1.0, tmax)
+    return tmax >= tmin
+
+
+def shadow_rays_blocked(lsamples: Sequence[np.ndarray], tsamples: np.ndarray, body: Body) -> int:
+    """The ray check: the number of segments from every light sample point (each light's light_samples) to every target sample
+    point (target_shadow_samples) that the body's box meets. 0 = the body shadows no sampled point of the target from any
+    sampled point of any light."""
+    n = 0
+    for ls in lsamples:
+        p0 = np.repeat(ls, len(tsamples), axis=0)
+        p1 = np.tile(tsamples, (len(ls), 1))
+        n += int(segments_hit_box(p0, p1, body).sum())
+    return n
+
+
+def window_footprint(cam: R.Camera, window: np.ndarray, far_m: float = 20.0) -> np.ndarray:
+    """The target's context window (4 pixel corners, target_window) back-projected through the pinhole camera onto the table
+    plane z = 0: the table area the window shows. A corner ray that does not descend is cut at far_m."""
+    right, up, fwd = cam.axes()
+    pos = np.asarray(cam.position, float)
+    out = []
+    for u, v in np.asarray(window, float):
+        dvec = fwd + ((u - cam.width / 2) / cam.f_px) * right - ((v - cam.height / 2) / cam.f_px) * up
+        t = -pos[2] / dvec[2] if dvec[2] < -1e-12 else far_m / float(np.linalg.norm(dvec))
+        p = pos + t * dvec
+        out.append((float(p[0]), float(p[1])))
+    return convex_hull(np.asarray(out))
+
+
+def shadow_polygon(light_pos: Sequence[float], pts: np.ndarray) -> np.ndarray:
+    """Convex hull of `pts` projected from the point light_pos onto z = 0 (the hard shadow a point light there would cast on
+    the table; every point must be below the light)."""
+    L = np.asarray(light_pos, float)
+    P = np.asarray(pts, float)
+    if np.any(P[:, 2] >= L[2]):
+        raise ValueError("a shadow point is not below the light")
+    t = L[2] / (L[2] - P[:, 2])
+    return convex_hull(L[:2] + t[:, None] * (P[:, :2] - L[:2]))
+
+
+def shadow_screen(lights: Sequence[Mapping], body: Body, feet: Sequence[np.ndarray]) -> bool:
+    """The cheap initial screen: True (flagged) if the body's hull projected from any light's CENTRE onto z = 0 overlaps
+    the target window's table footprint (window_footprint) of any stop."""
+    pts = body.shape_points()
+    for lt in lights:
+        sh = shadow_polygon(lt["position"], pts)
+        if any(not separated(sh, f, 0.0) for f in feet):
+            return True
+    return False
+
+
+@dataclass
+class ShadowSetup:
+    lights: list
+    lsamples: list
+    tsamples: np.ndarray
+    feet: list
+    windows: list
+
+
+def shadow_setup(ctx: Context, target: Body) -> ShadowSetup:
+    """The light samples, target samples and window footprints of one target (occluder.parked.shadow sampling density)."""
+    sc = ctx.config["occluder"]["parked"]["shadow"]
+    lights = scene_lights(ctx)
+    windows = [target_window(cam, target, float(ctx.config["occluder"]["parked"]["target_window_context"])) for cam in ctx.cams]
+    return ShadowSetup(lights, [light_samples(lt, int(sc["light_grid_n"])) for lt in lights],
+                       target_shadow_samples(target, float(sc["target_step_m"]), int(sc["target_levels"])),
+                       [window_footprint(cam, w) for cam, w in zip(ctx.cams, windows)], windows)
+
+
+def parked_reason(ctx: Context, body: Body, target: Body, others: Sequence[Body], ss: ShadowSetup) -> str | None:
+    """Why a tabletop parked pose is refused (None = accepted). In order: 'table' (not on_table, or footprint closer than
+    between_objects to the target or a distractor), 'frame' (base centre in frame at fewer than min_stops_in_frame stops),
+    'window' (its projected hull overlaps the target's context window at some stop, >= 1 px^2), 'occludes' (may hide the
+    target or a distractor from some stop), 'shadow_screen' (shadow_screen), 'shadow_rays' (shadow_rays_blocked > 0)."""
+    pc = ctx.config["occluder"]["parked"]
+    clr = ctx.config["clearances_m"]["between_objects"]
+    objs = [target, *others]
+    if not on_table(ctx, body) or not _clear_of(body.footprint(), [b.footprint() for b in objs], clr):
+        return "table"
+    if sum(base_in_frame(c, body) for c in ctx.cams) < int(pc["min_stops_in_frame"]):
+        return "frame"
+    if any(overlap_area(projected_hull(cam, body.shape_points()), win) >= 1.0 for cam, win in zip(ctx.cams, ss.windows)):
+        return "window"
+    if any(may_occlude(cam, body, b) for cam in ctx.cams for b in objs):
+        return "occludes"
+    if shadow_screen(ss.lights, body, ss.feet):
+        return "shadow_screen"
+    if shadow_rays_blocked(ss.lsamples, ss.tsamples, body):
+        return "shadow_rays"
+    return None
+
+
+PARK_REASONS = ("table", "frame", "window", "occludes", "shadow_screen", "shadow_rays")
+
+
+def _shadow_record(ctx: Context, ss: ShadowSetup) -> dict:
+    sc = ctx.config["occluder"]["parked"]["shadow"]
+    n_rays = sum(len(ls) for ls in ss.lsamples) * len(ss.tsamples)
+    return {"lights": [lt["name"] for lt in ss.lights], "light_grid_n": int(sc["light_grid_n"]),
+            "target_samples": int(len(ss.tsamples)), "rays": int(n_rays), "rays_blocked": 0, "screen_flagged": False}
+
+
+def park_occluder_table(ctx: Context, d: Draw, occ: dict, target: Body, others: Sequence[Body]) -> tuple[Body, str] | None:
+    """Tabletop parking: the occluder at yaw 0 (its placed size and hull), base centre uniform over occluder.parked.region_m,
+    first draw that parked_reason accepts (on the table and clear of the objects, in frame, outside the target's context
+    window at every stop, hiding no object, and free of the parked-shadow nuisance: the light-centre screen and the ray
+    check). The counts of refused draws by reason are kept in occ['parking'] (recorded in the arrangement), also on failure."""
+    pc = ctx.config["occluder"]["parked"]
+    size, pts = occ["body"].size, occ["body"].local_points
+    ss = shadow_setup(ctx, target)
+    refused = {k: 0 for k in PARK_REASONS}
+    for k in range(int(pc["tries"])):
+        body = Body(size, (d.u(*pc["region_m"]["x"]), d.u(*pc["region_m"]["y"]), 0.0), 0.0, pts)
+        why = parked_reason(ctx, body, target, others, ss)
+        if why is None:
+            occ["parking"] = {"draws": k + 1, "refused": refused, "shadow_check": _shadow_record(ctx, ss)}
+            return body, "table"
+        refused[why] += 1
+    occ["parking"] = {"draws": int(pc["tries"]), "refused": refused, "shadow_check": None}
     return None
 
 
@@ -964,13 +1390,28 @@ def _analytic(ctx: Context, target: Body, placed: Body, parked: Body) -> dict:
 
 # ---------------------------------------------------------------- revisit noise
 
-def revisit_entropy(seed: int | str) -> list[int]:
-    """Entropy of an arrangement's revisit stream: [seed] for a dev seed, [2**31 + n] for the design case 'design-n'."""
+def revisit_entropy(seed: int | str, environment: str = "shelf") -> list[int]:
+    """Entropy of an arrangement's revisit stream: [seed] for a dev seed, [2**31 + n] for the design case 'design-n' (the
+    shelf, unchanged); on the tabletop the same list after the leading ENTROPY_SALT['tabletop'], so equal seeds in the two
+    environments never share draws."""
     if isinstance(seed, str):
         if not (seed.startswith("design-") and seed[7:].isdigit()):
             raise SeedError(f"{seed!r} is not a design seed")
-        return [2 ** 31 + int(seed[7:])]
-    return [check_dev_seed(seed)]
+        base = [2 ** 31 + int(seed[7:])]
+    else:
+        base = [check_dev_seed(seed)]
+    if environment == "shelf":
+        return base
+    if environment not in ENTROPY_SALT:
+        raise ValueError(f"unknown environment {environment!r}")
+    return [ENTROPY_SALT[environment], *base]
+
+
+def try_entropy(seed: int, attempt: int, environment: str = "shelf") -> list[int]:
+    """Entropy of one placement try: [seed] for attempt 0 and [seed, attempt] for the retries (the shelf, unchanged); on
+    the tabletop the same list after the leading ENTROPY_SALT['tabletop']."""
+    base = [int(seed)] if attempt == 0 else [int(seed), int(attempt)]
+    return base if environment == "shelf" else [ENTROPY_SALT[environment], *base]
 
 
 def _cam_pose(cam: R.Camera) -> dict:
@@ -1003,7 +1444,14 @@ def frame_check(ctx: Context, rig: R.Rig, cam: R.Camera, target_pts: np.ndarray 
     """In-frame margins (px, negative = outside) of one camera. With tags (shelf_v1 / v2): the #3 outline and the four tags'
     corners (sim/rig.py frame_margins). Tag-free scenes (shelf_v3, scene.tags false): the #3 outline (the front opening) and the
     target's projected convex hull (its hull points, the same set the generator tests visibility with), both with the fitted
-    k1 when `distort`. 'min' is the smallest margin."""
+    k1 when `distort`. 'min' is the smallest margin. Tabletop: the workspace outline (sim/tabletop.py workspace_outline: 24 points on
+    the 0.20 m circle at z = 0 and z = 0.12) instead of the #3 outline, key 'workspace'."""
+    if ctx.env == "tabletop":
+        if target_pts is None:
+            raise ValueError("a tag-free frame check needs the target's points")
+        out = {"workspace": cam.frame_margin(T.workspace_outline(ctx.geometry), distort), "target": cam.frame_margin(target_pts, distort)}
+        out["min"] = min(out["workspace"], out["target"])
+        return out
     if tags_enabled(ctx.config):
         return R.frame_margins(rig, cam, distort=distort)
     if target_pts is None:
@@ -1014,6 +1462,8 @@ def frame_check(ctx: Context, rig: R.Rig, cam: R.Camera, target_pts: np.ndarray 
 
 
 def _margin_rec(m: Mapping) -> dict:
+    if "workspace" in m:                                  # tabletop
+        return {"workspace": round(float(m["workspace"]), 3), "target": round(float(m["target"]), 3), "min": round(float(m["min"]), 3)}
     rec = {"c3": round(float(m["c3"]), 3)}
     if "tags" in m:
         rec["tags"] = {str(k): round(float(v), 3) for k, v in m["tags"].items()}
@@ -1029,7 +1479,7 @@ def revisit_cameras(ctx: Context, rig: R.Rig, seed: int | str, target_pts: np.nd
     used; each rejected draw is logged with its margin. RuntimeError if max_redraws draws are all rejected. The nominal pose must
     pass too in a tag-free scene (RuntimeError otherwise)."""
     rc = ctx.config["revisit"]
-    entropy = revisit_entropy(seed)
+    entropy = revisit_entropy(seed, ctx.env)
     distort, floor = bool(rc["distort"]), float(rc["min_margin_px"])
     tag_free = not tags_enabled(ctx.config)
     stops, cams = {}, []
@@ -1059,12 +1509,17 @@ def revisit_cameras(ctx: Context, rig: R.Rig, seed: int | str, target_pts: np.nd
            "stream": "Draw([*entropy, stream_salt, stop_index, attempt]); six uniform draws: dx, dy, dz (world axes, m), dyaw (heading), "
                      "dpitch (pitch_down), droll (deg)",
            "entropy": entropy, "stream_salt": int(rc["stream_salt"]), "stops": stops}
-    if tag_free:
+    if ctx.env == "tabletop":
+        rec["frame_check"] = ("tabletop (no tags): the workspace outline (sim/tabletop.py workspace_outline) and the target's projected "
+                              "hull inside the frame")
+    elif tag_free:
         rec["frame_check"] = "tag-free scene: the #3 outline (front opening) and the target's projected hull inside the frame"
     return rec, cams
 
 
-def _scene(ctx: Context, rig: R.Rig, keep_mug: bool, revisit_cams: Sequence[R.Camera]) -> dict:
+def _scene(ctx: Context, rig: R.Rig, keep_mug: bool, revisit_cams: Sequence[R.Camera], mug_meshes: Sequence | None = None) -> dict:
+    if ctx.env == "tabletop":
+        return _scene_table(ctx, rig, revisit_cams, mug_meshes if keep_mug else None)
     spec = R.export_scene_spec(rig)
     spec["boxes"] = [b for b in spec["boxes"] if b["role"] != "occluder"]
     if not tags_enabled(ctx.config):                     # tag-free scene: no tag quads, no tag cards
@@ -1082,12 +1537,34 @@ def _scene(ctx: Context, rig: R.Rig, keep_mug: bool, revisit_cams: Sequence[R.Ca
     return spec
 
 
+def _scene_table(ctx: Context, scene: T.TabletopScene, revisit_cams: Sequence[R.Camera], mug_meshes: Sequence | None) -> dict:
+    """The tabletop scene spec (sim/tabletop.py export_scene_spec: table, room, the tag-free frame, lighting, workspace) with
+    the generator's additions as for the shelf: the config's materials plus the occluder's and (design cases) the mug's render
+    colours, repo-relative geometry / positions paths, the revisit cameras, and for a design case the measured mug's meshes
+    (role 'target', label 'mug', world coordinates) and the 'mug' block."""
+    spec = T.export_scene_spec(scene)
+    spec["materials"]["occluder"] = {"rgba": list(R.RGBA["occluder"])}
+    spec["materials"].update({k: {"rgba": v["rgba"]} for k, v in ctx.config.get("materials", {}).items()})
+    spec["provenance"]["geometry_file"] = ctx.config["geometry"]
+    spec["provenance"]["positions_file"] = ctx.config["positions"]
+    if mug_meshes:
+        dc = ctx.config["design_cases"]
+        spec["materials"]["mug"] = {"rgba": list(R.RGBA["mug"])}
+        spec["labels"] = list(spec["labels"]) + ["mug"]
+        spec["meshes"] += [{"name": m.name, "role": "target", "label": m.label, "vertices": [R._vec(v) for v in m.world_vertices()],
+                            "faces": [[int(i) for i in f] for f in m.faces], "material": "mug"} for m in mug_meshes]
+        spec["mug"] = {"axis_xy": [float(dc["mug_x"]), float(dc["mug_y"])], "handle": dc["handle"]}
+        spec["provenance"]["meshes (mug)"] = f"measured study mug profile + handle plate of {dc['mug_geometry']} (sim/rig.py mug_spec)"
+    spec["revisit_cameras"] = [T.camera_spec(c) for c in revisit_cams]
+    return spec
+
+
 def arrangement_hash(arr: Mapping) -> str:
     """sha256 of the arrangement without its UNHASHED_KEYS (itself and the caller-dependent 'unhashed' block)."""
     return sha256_json({k: v for k, v in arr.items() if k not in UNHASHED_KEYS})
 
 
-def _finish(ctx: Context, arr: dict, rig: R.Rig, keep_mug: bool) -> dict:
+def _finish(ctx: Context, arr: dict, rig: R.Rig, keep_mug: bool, mug_meshes: Sequence | None = None) -> dict:
     arr["phases"] = _phases(ctx)
     arr["lightings"] = list(LIGHTINGS)
     arr["stops"] = [c.name for c in ctx.cams]
@@ -1095,7 +1572,7 @@ def _finish(ctx: Context, arr: dict, rig: R.Rig, keep_mug: bool) -> dict:
     arr["provenance"] = ctx.provenance
     tp = body_of(arr["objects"]["target"], ctx=ctx).shape_points()
     arr["revisit"], rcams = revisit_cameras(ctx, rig, arr["seed"], tp)
-    arr["scene"] = _scene(ctx, rig, keep_mug, rcams)
+    arr["scene"] = _scene(ctx, rig, keep_mug, rcams, mug_meshes)
     arr["unhashed"] = dict(ctx.unhashed)
     arr["arrangement_sha256"] = arrangement_hash(arr)
     return arr
@@ -1130,7 +1607,7 @@ def try_place(ctx: Context, seed: int, attempt: int, family: str, side: str | No
     if assigned != (target is not None):
         raise ValueError("a target model is given if and only if the config assigns targets per slot "
                          f"(slots.target_assignment {'set' if assigned else 'absent'}, target={target!r})")
-    d = Draw([seed] if attempt == 0 else [seed, int(attempt)])
+    d = Draw(try_entropy(seed, int(attempt), ctx.env))
     if assigned:
         obj = int(target)
         if obj not in {int(v) for v in ctx.config["target"]["objects"]}:
@@ -1254,21 +1731,25 @@ def generate_set(ctx: Context, split: str = "dev", indices: Sequence[int] | None
 def _assemble(ctx: Context, seed: int, target: dict, occ: dict, dis: list[dict], parked: tuple[Body, str],
               draws: dict, slot: Mapping | None = None) -> dict:
     tb = target["body"]
-    t_rec = _object("target", "target", target["item"]["name"], "ycbv", tb, "c3", obj_id=target["obj_id"],
+    comp = ctx.target_comp
+    t_rec = _object("target", "target", target["item"]["name"], "ycbv", tb, comp, obj_id=target["obj_id"],
                     item=target["item"], rest=target["rest"], rest_matrix=ctx.rest(target["rest"]))
     o_kind = occ["kind"]
     o_rec = _object("occluder", "occluder", occ["family"] if o_kind == "box" else occ["item"]["name"], o_kind,
-                    occ["body"], "c3", obj_id=occ.get("obj_id"), item=occ.get("item"), rest=occ.get("rest"),
+                    occ["body"], comp, obj_id=occ.get("obj_id"), item=occ.get("item"), rest=occ.get("rest"),
                     rest_matrix=None if o_kind != "ycbv" else ctx.rest(occ["rest"]), material=occ.get("material"),
                     family=occ["family"], side=occ.get("side"), gap_m=_r(occ["gap_m"]), shift_m=_r(occ["shift_m"]),
                     p3_coverage=_r(occ["p3_coverage"], 4))
     if "geometry_occluder" in occ:
         o_rec["geometry_occluder"] = occ["geometry_occluder"]
     o_rec["poses"] = {"placed": o_rec.pop("pose"), "parked": _pose(parked[0], parked[1])}
+    if "parking" in occ:                                  # tabletop: refused parking draws by reason + the shadow check
+        o_rec["parking"] = occ["parking"]
     d_recs = [_object(f"distractor_{i}", "distractor", x["item"]["name"], "ycbv", x["body"], x["compartment"],
-                      obj_id=x["obj_id"], item=x["item"], rest=x["rest"], rest_matrix=ctx.rest(x["rest"]))
+                      obj_id=x["obj_id"], item=x["item"], rest=x["rest"], rest_matrix=ctx.rest(x["rest"]),
+                      **({"region": x["region"]} if "region" in x else {}))
               for i, x in enumerate(dis)]
-    arr = {"schema": ARRANGEMENT_SCHEMA, "arrangement_id": arrangement_id(seed), "seed": seed, "split": "dev",
+    arr = {"schema": ARRANGEMENT_SCHEMA, "arrangement_id": arrangement_id(seed, dev_prefix(ctx.config)), "seed": seed, "split": "dev",
            "kind": "random", "environment": ctx.config["environment"], "target_id": t_rec["label"],
            "occluder_family": occ["family"], "m16_side": occ.get("side"), "design_case": False,
            "predeclared_indistinguishable": bool(occ["predeclared_indistinguishable"]),
@@ -1280,8 +1761,11 @@ def _assemble(ctx: Context, seed: int, target: dict, occ: dict, dis: list[dict],
 def design_arrangement(index: int, config: str | Path | Mapping = DEFAULT_CONFIG_PATH, ctx: Context | None = None) -> dict:
     """Design case `index` (0..3): option A, measured mug at design z 0.24 (handle toward the camera), design occluder
     placed as in configs/rig_geometry.json, parked in #4 at the configured spot. No distractors. Predeclared dev
-    arrangements outside the 60 slots (design_case true); with revisit cameras like every arrangement."""
+    arrangements outside the 60 slots (design_case true); with revisit cameras like every arrangement. Tabletop:
+    design_arrangement_table."""
     ctx = ctx or load_context(config)
+    if ctx.env == "tabletop":
+        return design_arrangement_table(index, ctx)
     dc = ctx.config["design_cases"]
     case = dc["cases"][index]
     rig = R.load_rig(_repo_path(ctx.config["geometry"]), _repo_path(ctx.config["positions"]), occluder=case["occluder"],
@@ -1314,6 +1798,133 @@ def design_arrangement(index: int, config: str | Path | Mapping = DEFAULT_CONFIG
            "objects": {"target": t_rec, "occluder": o_rec, "distractors": []},
            "analytic": _analytic(ctx, mug, placed, parked), "design_note": dc["note"]}
     return _finish(ctx, arr, rig, keep_mug=True)
+
+
+# ---------------------------------------------------------------- tabletop design cases
+
+def design_mug(ctx: Context) -> tuple[Body, list]:
+    """The measured study mug of design_cases.mug_geometry (sim/rig.py mug_spec: profile + handle plate) at (mug_x, mug_y) on
+    the table, handle `handle` ('toward' = -y, toward P3): (its Body, with the mesh support points as hull points; meshes)."""
+    dc = ctx.config["design_cases"]
+    g = R.load_geometry(_repo_path(dc["mug_geometry"]))
+    meshes = R.mug_spec(g, mug_z=float(dc["mug_y"]), mug_x=float(dc["mug_x"]), handle=dc["handle"]).meshes()
+    verts = np.vstack([m.world_vertices() for m in meshes])
+    lo, hi = verts.min(0), verts.max(0)
+    base = np.array([(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, lo[2]])
+    return Body(tuple(hi - lo), tuple(base), 0.0, support_points(verts) - base), meshes
+
+
+def design_board(ctx: Context, family: str, target: Body, gap: float, shift: float) -> Body:
+    """A design case's board: the family's board (board_dims), its back face `gap` in front of the target's front face, its
+    centre `shift` from the target's centre line x (= the start stop's sight line for a target on x = 0)."""
+    _, w, t, h = board_dims(ctx, ctx.config["occluder"]["families"][family])
+    y_back = float(target.footprint()[:, 1].min()) - gap
+    return Body((w, t, h), (float(target.base[0]) + shift, y_back - t / 2, 0.0), 0.0)
+
+
+def _sat_gap(p: np.ndarray, q: np.ndarray) -> float:
+    """Signed separation of two convex polygons along their edge normals: > 0 separated by at least that much, < 0 the
+    smallest penetration depth."""
+    best = -math.inf
+    for poly in (p, q):
+        for i in range(len(poly)):
+            e = poly[(i + 1) % len(poly)] - poly[i]
+            n = np.array([-e[1], e[0]], float)
+            nn = float(np.linalg.norm(n))
+            if nn == 0:
+                continue
+            n /= nn
+            pa, qa = p @ n, q @ n
+            best = max(best, float(qa.min() - pa.max()), float(pa.min() - qa.max()))
+    return best
+
+
+def _inset(inner: np.ndarray, outer: np.ndarray) -> float:
+    """Smallest signed distance of inner's vertices to outer's edges (> 0 all inside the convex polygon outer)."""
+    sgn = 1.0 if polygon_area(outer) > 0 else -1.0
+    best = math.inf
+    for i in range(len(outer)):
+        a, b = outer[i], outer[(i + 1) % len(outer)]
+        e = b - a
+        n = sgn * np.array([-e[1], e[0]], float) / float(np.linalg.norm(e))
+        best = min(best, float(((inner - a) @ n).min()))
+    return best
+
+
+def pattern_margins(ctx: Context, target: Body, occ: Body, pattern: str, target_hulls: Sequence[np.ndarray] | None = None) -> list[float]:
+    """Per stop (arc order), the pixel margin by which the occluder's projected hull realises `pattern`: for an H stop how far
+    the target's projected hull lies inside the occluder's (_inset), for a C stop how far apart the two hulls are (_sat_gap).
+    All > 0 means the analytic pattern is exactly `pattern` (coverage 1 at H stops, 0 at C stops)."""
+    if len(pattern) != len(ctx.cams) or set(pattern) - {"H", "C"}:
+        raise ValueError(f"pattern {pattern!r} must be one H or C per stop")
+    th = target_hulls if target_hulls is not None else [projected_hull(cam, target.shape_points()) for cam in ctx.cams]
+    out = []
+    for cam, ch, t in zip(ctx.cams, pattern, th):
+        o = projected_hull(cam, occ.shape_points())
+        out.append(_inset(t, o) if ch == "H" else _sat_gap(t, o))
+    return out
+
+
+def design_margin_scan(ctx: Context, family: str, pattern: str, target: Body | None = None) -> dict:
+    """The margin-maximising scan of a design case: over the grid design_cases.margin_scan (gap_m and shift_m as [lo, hi, step]),
+    the (gap, shift) whose board (design_board) is on the table, clear of the mug, and maximises the smallest per-stop margin
+    of `pattern` (pattern_margins); ties keep the first in (gap, shift) grid order. Returns gap, shift, margin and per-stop margins."""
+    target = target if target is not None else design_mug(ctx)[0]
+    sc = ctx.config["design_cases"]["margin_scan"]
+    gaps = np.round(np.arange(sc["gap_m"][0], sc["gap_m"][1] + 1e-9, sc["gap_m"][2]), 6)
+    shifts = np.round(np.arange(sc["shift_m"][0], sc["shift_m"][1] + 1e-9, sc["shift_m"][2]), 6)
+    th = [projected_hull(cam, target.shape_points()) for cam in ctx.cams]
+    best = None
+    for g in gaps:
+        for s in shifts:
+            b = design_board(ctx, family, target, float(g), float(s))
+            if not on_table(ctx, b) or not separated(b.footprint(), target.footprint(), 0.0):
+                continue
+            ms = pattern_margins(ctx, target, b, pattern, th)
+            if best is None or min(ms) > best["margin_px"]:
+                best = {"gap_m": float(g), "shift_m": float(s), "margin_px": round(min(ms), 3),
+                        "stop_margins_px": [round(v, 3) for v in ms]}
+    if best is None:
+        raise ValueError(f"no on-table board for the {family} design case on the scan grid")
+    best["grid"] = {"gap_m": list(sc["gap_m"]), "shift_m": list(sc["shift_m"]), "n": int(len(gaps) * len(shifts))}
+    return best
+
+
+def design_arrangement_table(index: int, ctx: Context) -> dict:
+    """Tabletop design case `index` (0..3, TDES0..TDES3): the measured study mug at (mug_x, mug_y) = the workspace centre,
+    handle toward P3; the family's board at H_T at the case's predeclared gap / shift (design_margin_scan's result, stored in
+    the config) giving the intended pattern (S8 CCHCC, M16-R CCHHC, M16-L CHHCC, IND28 HHHHH predeclared indistinguishable);
+    parked at the fixed spot design_cases.parked, checked by parked_reason (ValueError if refused or if the stored gap /
+    shift does not give the intended pattern with a positive margin). No distractors."""
+    dc = ctx.config["design_cases"]
+    case = dc["cases"][index]
+    mug, meshes = design_mug(ctx)
+    placed = design_board(ctx, case["family"], mug, float(case["gap_m"]), float(case["shift_m"]))
+    ms = pattern_margins(ctx, mug, placed, case["intended_pattern"])
+    if not on_table(ctx, placed) or min(ms) <= 0:
+        raise ValueError(f"{case['arrangement_id']}: gap {case['gap_m']} / shift {case['shift_m']} does not give "
+                         f"{case['intended_pattern']} (per-stop margins {ms})")
+    pk = dc["parked"]
+    parked = Body(placed.size, (float(pk["x"]), float(pk["y"]), 0.0), 0.0)
+    ss = shadow_setup(ctx, mug)
+    why = parked_reason(ctx, parked, mug, [], ss)
+    if why is not None:
+        raise ValueError(f"design parking spot {pk} is not valid for {case['arrangement_id']} ({why})")
+    t_rec = _object("target", "target", dc["target_name"], "mesh", mug, "table", meshes=[m.name for m in meshes],
+                    mug={"x": dc["mug_x"], "y": dc["mug_y"], "handle": dc["handle"]}, local_points=_r(mug.local_points))
+    o_rec = _object("occluder", "occluder", case["family"], "box", placed, "table", material="occluder",
+                    family=case["family"], side=case["m16_side"], gap_m=_r(case["gap_m"]), shift_m=_r(case["shift_m"]),
+                    p3_coverage=_r(coverage(ctx.start_cam, mug, placed), 4), intended_pattern=case["intended_pattern"],
+                    design_margin_px=round(min(ms), 3))
+    o_rec["poses"] = {"placed": o_rec.pop("pose"), "parked": _pose(parked, "table")}
+    o_rec["parking"] = {"fixed": True, "shadow_check": _shadow_record(ctx, ss)}
+    arr = {"schema": ARRANGEMENT_SCHEMA, "arrangement_id": case["arrangement_id"], "seed": case["seed"], "split": "dev",
+           "kind": "design", "environment": ctx.config["environment"], "target_id": dc["target_name"],
+           "occluder_family": case["family"], "m16_side": case["m16_side"], "design_case": True,
+           "predeclared_indistinguishable": bool(case.get("predeclared_indistinguishable", False)),
+           "objects": {"target": t_rec, "occluder": o_rec, "distractors": []},
+           "analytic": _analytic(ctx, mug, placed, parked), "design_note": dc["note"]}
+    return _finish(ctx, arr, ctx.rig, keep_mug=True, mug_meshes=meshes)
 
 
 def n_design_cases(config: str | Path | Mapping = DEFAULT_CONFIG_PATH) -> int:

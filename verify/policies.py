@@ -1,4 +1,5 @@
-"""View-selection policies (S, F, R, G, G-lookahead, G-myopic, FULL) and the episode driver (verify/README.md sec. 3).
+"""View-selection policies (S, F, R, G, G-lookahead, G-myopic, FULL; Dir and Ranker A in development) and the episode
+driver (verify/README.md sec. 3).
 
 A policy only ever sees the Observations of stops it requested, the affordable candidate
 stops, the Positions and the current stop. It never sees the ReplayEnv, the evidence store,
@@ -322,6 +323,140 @@ def _g_better(a: tuple[float, float, int], b: tuple[float, float, int]) -> bool:
     if abs(a[1] - b[1]) > EPS:
         return a[1] < b[1]
     return a[2] < b[2]
+
+
+# ---------------------------------------------------------------- descriptor-reading policies (DEVELOPMENT)
+# notes/2026-11-05-side-descriptor.md and notes/2026-11-05-ranker-a-design.md. They read `side` from the observations:
+# verify/side.py's SideEnv builds a SideObservation, with the descriptor of its own (requested) stop, for every view it
+# reveals. A plain Observation has no `side`, so running them without descriptors fails loudly.
+
+DIR_NAME = "Dir"
+
+
+def _start_observation(observations: Sequence[Observation]) -> Observation:
+    for o in observations:
+        if o.step == 0:
+            return o
+    raise ValueError("no initial observation (step 0)")
+
+
+class Dir:
+    """Direction-rule control (explanatory; post-hoc development origin, notes/2026-11-05-side-descriptor.md).
+
+    1. d3 = the start view's descriptor.
+    2. d3 missing or exactly 0: choose as primary G (lambda 0, lookahead off) at every step.
+    3. Otherwise prefer increasing azimuth if d3 > 0, decreasing if d3 < 0: among the affordable candidates on that
+       side of the start stop, the one nearest the current stop (ties: lower stop index); none there: as primary G.
+    """
+    name = DIR_NAME
+    max_additional_views: int | None = None
+    early_stop = True
+
+    def __init__(self, tau_occ: float) -> None:
+        self.g = G(0.0, tau_occ)
+
+    @classmethod
+    def from_thresholds(cls, th: Thresholds) -> Dir:
+        return cls(th.tau_occ)
+
+    def select(self, observations: Sequence[Observation], candidates: Sequence[int],
+               positions: Positions, current_stop: int) -> int:
+        if not observations:
+            raise ValueError("Dir needs at least the initial observation")
+        start = _start_observation(observations)
+        d3 = start.side
+        if d3 is not None and d3 != 0.0:
+            a0 = positions.azimuth(start.stop)
+            side = [c for c in sorted(candidates) if (positions.azimuth(c) - a0) * d3 > 0]
+            if side:
+                return min(side, key=lambda c: (positions.travel_cm(current_stop, c), c))
+        return self.g.select(observations, candidates, positions, current_stop)
+
+
+# Ranker A's features (the design note's table, in its order) and A-nocue's subset: A-nocue drops the side descriptor
+# and every other obstruction-derived feature.
+RANKER_FEATURES = ("az_from_start", "sep_visited", "sep_occluded", "obstruction_start", "side_toward", "side_missing",
+                   "match_max", "quality_min")
+NOCUE_FEATURES = ("az_from_start", "sep_visited", "match_max", "quality_min")
+OBSTRUCTION_DERIVED = tuple(f for f in RANKER_FEATURES if f not in NOCUE_FEATURES)
+
+
+def half_span_deg(positions: Positions) -> float:
+    """The arc's half-span S: the largest |azimuth - start azimuth| over the stops."""
+    a0 = positions.azimuth(positions.start_index)
+    return max(abs(positions.azimuth(s) - a0) for s in range(positions.n_stops))
+
+
+def ranker_features(observations: Sequence[Observation], c: int, positions: Positions,
+                    tau_occ: float) -> dict[str, float]:
+    """The eight features of candidate stop c (notes/2026-11-05-ranker-a-design.md), from the observations of
+    requested views and the geometry only. Nothing of c's own view is read."""
+    if not observations:
+        raise ValueError("ranker features need at least the initial observation")
+    if any(o.stop == c for o in observations):
+        raise ValueError(f"stop {c} has been visited; features are for unvisited candidates")
+    span = half_span_deg(positions)
+    az_c = positions.azimuth(c)
+    start = _start_observation(observations)
+
+    def dist(stop: int) -> float:
+        return abs(az_c - positions.azimuth(stop)) / span
+    sep_visited = min(dist(o.stop) for o in observations)
+    occluded = [o for o in observations if o.obstruction > tau_occ]
+    with_side = [o for o in observations if o.side is not None]
+    toward = [o.side * (1.0 if az_c > positions.azimuth(o.stop) else -1.0) for o in with_side]
+    return {"az_from_start": dist(start.stop),
+            "sep_visited": sep_visited,
+            "sep_occluded": min(dist(o.stop) for o in occluded) if occluded else sep_visited,
+            "obstruction_start": float(start.obstruction),
+            "side_toward": sum(toward) / len(toward) if toward else 0.0,
+            "side_missing": 0.0 if with_side else 1.0,
+            "match_max": max(float(o.match_score) for o in observations),
+            "quality_min": min(float(o.quality) for o in observations)}
+
+
+def _sigmoid(z: float) -> float:
+    if z >= 0:
+        return float(1.0 / (1.0 + np.exp(-z)))
+    e = float(np.exp(z))
+    return e / (1.0 + e)
+
+
+class Ranker:
+    """Ranker A (or A-nocue) at decision time: a fitted logistic model over ranker_features of each affordable
+    candidate (G's candidate set, no lookahead), argmax of the probability with G's tie-break (scores within EPS ->
+    shorter travel -> lower stop index); lambda 0. Fitted by verify/ranker.py; nothing is learned here."""
+    max_additional_views: int | None = None
+    early_stop = True
+
+    def __init__(self, name: str, features: Sequence[str], mean: Sequence[float], scale: Sequence[float],
+                 coef: Sequence[float], intercept: float, tau_occ: float) -> None:
+        self.name = str(name)
+        self.features = tuple(features)
+        if not self.features or any(f not in RANKER_FEATURES for f in self.features) \
+                or len(set(self.features)) != len(self.features):
+            raise ValueError(f"features must be distinct names of RANKER_FEATURES, got {self.features}")
+        vals = [tuple(float(x) for x in v) for v in (mean, scale, coef)]
+        if any(len(v) != len(self.features) for v in vals):
+            raise ValueError("mean, scale and coef need one value per feature")
+        self.mean, self.scale, self.coef = vals
+        self.intercept = float(intercept)
+        self.tau_occ = float(tau_occ)
+        if not all(np.isfinite(x) for v in vals for x in v) or not np.isfinite(self.intercept) \
+                or any(s <= 0 for s in self.scale):
+            raise ValueError("the model's numbers must be finite and every scale > 0")
+
+    def probability(self, observations: Sequence[Observation], c: int, positions: Positions) -> float:
+        f = ranker_features(observations, c, positions, self.tau_occ)
+        z = self.intercept + sum(w * (f[n] - m) / s
+                                 for n, m, s, w in zip(self.features, self.mean, self.scale, self.coef))
+        return _sigmoid(z)
+
+    def select(self, observations: Sequence[Observation], candidates: Sequence[int],
+               positions: Positions, current_stop: int) -> int:
+        if not observations:
+            raise ValueError("the ranker needs at least the initial observation")
+        return _argmax({c: self.probability(observations, c, positions) for c in candidates}, positions, current_stop)
 
 
 class FullSweep:

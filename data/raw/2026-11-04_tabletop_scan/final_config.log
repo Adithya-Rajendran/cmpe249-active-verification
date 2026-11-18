@@ -1,0 +1,6 @@
+TDES0 S8 CCHCC: gap 0.08 shift 0.0 margin 30.729 px [214.961, 35.506, 30.729, 35.022, 214.961]
+TDES1 M16-R CCHHC: gap 0.065 shift 0.045 margin 10.883 px [164.819, 14.98, 31.08, 10.883, 44.958]
+TDES2 M16-L CHHCC: gap 0.065 shift -0.045 margin 10.883 px [44.958, 10.883, 31.08, 14.54, 164.819]
+TDES3 IND28 HHHHH: gap 0.005 shift -0.02 margin 3.435 px [3.435, 61.652, 61.292, 61.652, 3.435]
+design parked {'x': -0.35, 'y': 0.4, 'note': 'first accepted spot of the 5 cm grid nearest (-0.4, 0.35) (checked by design_arrangement)'}
+wrote /home/jetson/Projects/SJSU/Fall26/CMPE249/wt/tabletop/configs/sim/arrange_tabletop_v1.json

@@ -45,7 +45,7 @@ The simulated rig ([notes](../notes/2026-11-02-simulation.md), [`sim/`](../sim/R
 
 ## Integrity rules specific to simulation
 
-1. **Seeds.** Dev and test seeds come from disjoint ranges that are fixed here before rendering starts. No test seed is rendered, scored or viewed before the freeze ([`FREEZE.md`, to be written]).
+1. **Seeds.** Dev and test seeds come from disjoint ranges that are fixed here before rendering starts. No test seed is rendered, scored or viewed before the freeze ([`FREEZE.md`](FREEZE.md)).
 2. **Freeze the generator too.** The generator's code, object set, parameter ranges, renderer settings and the Isaac Sim version are frozen, with a recorded hash, before test rendering. Changing any of them after a test render means new test seeds.
 3. **No tuning on test.** If dev and test look different after the freeze, that is a finding, not a reason to tune.
 4. **Reporting.**
@@ -67,14 +67,14 @@ The simulated rig ([notes](../notes/2026-11-02-simulation.md), [`sim/`](../sim/R
 
 ## Design choices confirmed by the student (2026-11-02 / 11-03)
 
-The analysis rules are in [`SIM_PREREGISTRATION.md`](SIM_PREREGISTRATION.md). It gets a final review after the development loop (including A) and is frozen before any test scene is generated.
+The analysis rules are in [`SIM_PREREGISTRATION.md`](SIM_PREREGISTRATION.md). It gets a final review after the development loop (including A) and is frozen before any test scene is generated. (One shelf test arrangement was generated temporarily by a unit test on 2026-11-05 and deleted without being rendered, scored or viewed: [`notes/2026-11-06-test-seed-incident.md`](../notes/2026-11-06-test-seed-incident.md).)
 
-- **Counts:** 60 dev + 100 test random arrangements per environment (shelf and tabletop), with DES0–DES3 as separate dev checks. This is a practical allocation, not a power guarantee. Dev throughput is measured end to end before the counts are frozen.
+- **Counts:** 60 dev + 100 test random arrangements per environment (shelf and tabletop), with DES0–DES3 as separate dev checks. This is a practical allocation, not a power guarantee. Dev throughput was measured end to end before the freeze, and the counts stand (SIM_PREREGISTRATION, Decisions in force: shelf 128.6 s and tabletop 176.0 s median render time per arrangement).
 - **Occluder quotas:** S8 20 %, M16 30 % (left/right balanced), IND28 10 %, white box 20 %, YCB box 20 %. They are fixed as slot lists before rendering; retries and replacements stay within the family.
 - **α_clear = 0.10:** an empirical per-view calibration constraint, with no guarantee that any policy's FRR is ≤ 10 %. If no setting meets it, calibration fails loudly and nothing is relaxed.
 - **Primary operating point:** uncapped, b = 3 (view-budgeted verification), with travel reported alongside. The finite caps and b = 1 / 2 are secondary and are not promoted on the basis of dev results.
 - **No third environment.** Claims concern new arrangements in the shelf and tabletop environments.
 - **Labels:** mask-derived labels are *geometric* (visibility), not recognisability, and set no theoretical ceiling on coverage.
-- **Uncertainty:** the paired arrangement-level cluster bootstrap, stratified by occluder family, is primary.
+- **Uncertainty:** the paired arrangement-level cluster bootstrap, stratified by occluder family, is primary. A stratum is a quota slot class, with M16 split by side (SIM_PREREGISTRATION §8). Every interval is pointwise and unadjusted for the number of comparisons.
 - **Occlusion-gate-off ablation:** F and R only.
 - **The 2026-10-10 design cases** (option-A picks, DES0–DES3) are kept as separate dev checks.

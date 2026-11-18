@@ -1,0 +1,79 @@
+{
+ "schema": "cmpe249.tabletop-height-scan-amendment.v1",
+ "title": "Tabletop board height: post-hoc development amendment (the researcher, 2026-11-04)",
+ "kind": "POST-HOC DEVELOPMENT AMENDMENT",
+ "made_by": "the researcher",
+ "made_after": "inspecting the committed board-height scan results (results.json, decision.json, commit a63ad64 on branch tabletop). It is not the outcome of the predeclared rule.",
+ "decision_record": "progress/DECISIONS.md, entry '2026-11-04 - Tabletop board height: development amendment after inspecting the scan (the researcher)' (the researcher's local notes, not in the repository)",
+ "original": {
+  "outcome": "no height satisfies (a) and (b)",
+  "outcome_note": "verbatim from decision.json 'outcome'; the scan picked no height (H_T_m null, ind28_width_m null). The scan's committed outputs are unchanged by this amendment and stay the record, including the original statistical output (the per-cell Fisher p-values in decision.json).",
+  "commit": "a63ad64",
+  "decision": {"file": "data/raw/2026-11-04_tabletop_scan/decision.json", "sha256": "6c97acc027b98eeb7c761bb2166001a672b543bac2d3c000562417e98cc7a957", "H_T_m": null, "ind28_width_m": null},
+  "plan": {"file": "data/raw/2026-11-04_tabletop_scan/scan_plan.json", "sha256": "84fe4030df31d9c32546d2386a443bc77c7572b53fc22a7aa4e5e7c2d343f13b", "commit": "f245bef"},
+  "results": {"file": "data/raw/2026-11-04_tabletop_scan/results.json", "sha256": "13e5f09f38e731f67aeaa685e6ff479dc54e8c51c289726b9171a9f8bfdcef1f"},
+  "cells": {"file": "data/raw/2026-11-04_tabletop_scan/cells.jsonl", "sha256": "99d2b73ef4dda8c63f88e713e60e7833c3e896aca59294a80271f9751198c117"},
+  "base_config": {"file": "data/raw/2026-11-04_tabletop_scan/base_config.json", "sha256": "c2f38707973d6a15919e5185759d60a872f8a218eeb0bf712351c387b3b1c719"}
+ },
+ "amendment": {
+  "H_T_m": 0.18,
+  "H_T_applies_to": ["S8", "M16", "IND28"],
+  "ind28_width_m": 0.36,
+  "ind28_variant": "TABLETOP VARIANT 0.36 m wide x 0.18 m tall x 0.005 m thick (the physical IND28 is 0.28 m wide)",
+  "ycb_box_choices": [[2, "upright"], [3, "upright"], [16, "upright"], [7, "edge"]],
+  "ycb_box_note": "all four choices, as kept by the scan's own ycb_box rule (decision.json ycb_box: each admits >= 1 target); the class matrix decides the target lists",
+  "parking_min_stops_in_frame": 1,
+  "parking_note": "the parked occluder's base centre inside the frame at >= 1 stop: the rule the scan already used (base_config.json occluder.parked.min_stops_in_frame = 1). Unchanged: the full footprint on the table (table_edge clearance), clear of the target and distractors, outside the target's context window at every stop, hiding nothing from any stop, and the parked-shadow nuisance control (light-centre screen + analytic area-light ray check)."
+ },
+ "reasons": [
+  "Identity support and placement rates were conflated. The researcher's earlier wording did not separate target support (which identities can be placed) from placement success rates; the committed rule (b) added a statistical requirement comparing each target's count with its best cell across DIFFERENT IND28 widths. IND28's maxima are split across widths (soup 69 and meat 51 at 0.28 m; brick 90, tuna 87 and mug 30 at 0.36 m), so no single cell holds all five and no height could pass.",
+  "All five target identities are admitted at 0.18 m: S8, M16-L, M16-R and IND28 at both 0.28 m and 0.36 m (decision.json per_height['0.18']).",
+  "Within-width comparison: at IND28 width 0.36 m, 0.18 m has at least as many observed successes as every other scanned height, for every target (decision.json per_height[h].ind28_by_width['0.36']: soup 42 vs <= 14, meat 34 vs <= 14, mug 30 vs <= 12, brick 90 vs <= 84, tuna 87 vs <= 87).",
+  "IND28 width 0.36 m is chosen for the DESIGN-CASE GEOMETRY, not because its 0.18 m total (283) exceeds 0.28 m's (279): in the researcher's analytic check at 0.18 m the 0.28 m board cannot fully hide the design mug (nominal margin -48.762 px at P1/P5), while 0.36 m fits with a tight nominal margin of 3.435 px (gap 0.005 m, shift -0.02 m); at the fixed TDES3 revisit poses the analytic coverage stays >= 0.998 (P5 margin -3.5 px). Some sampled extreme revisit-box corners fall below 95 % (P1 96.9 %, P5 93.5 %); the rendered-mask check stays in place before the full batch.",
+  "Parking at >= 1 stop: requiring the parked object in every frame adds a restriction unrelated to the verification question (smoke runs on seeds 9900-9911, disclosed in scan_plan.json: an all-five-stops rule let 5 of 12 S8 parks succeed)."
+ ],
+ "statistics_disclosure": [
+  "The committed one-sided Fisher comparisons treat outcomes on the shared probe seeds 7000-7099 as independent samples; the cells are paired by seed, so a paired comparison would be needed.",
+  "A non-significant difference does not establish equivalent placement rates.",
+  "Each cell was compared with a maximum selected from the same scan (a sample-selected best).",
+  "This amendment therefore rests on the observed support (which identities are admitted) and on the design-case geometry, not on that test. The original statistical output is retained unchanged in decision.json."
+ ],
+ "evidence": {
+  "label": "POST-HOC DEVELOPMENT GEOMETRY CHECKS",
+  "note": "the researcher's post-hoc review after inspecting the scan: analytic geometry only (convex-hull pinhole projections), no rendering, no policy result or test scene inspected; made at commit 1782efa. Copied unchanged (byte-identical, sha256 below) from the main checkout's gitignored runs/2026-11-03-tabletop-scan-review/ into posthoc_review/.",
+  "limitations": [
+   "Analytic convex-hull pinhole checks only; exact rendered masks and pixels are not computed.",
+   "Sampled revisit-box corners are not a proof of a bound over the continuous revisit range (sampled minimum 93.5 % at TDES3 P5).",
+   "The design margin check uses nominal projections; the revisit check uses the fixed TDES3 revisit draws.",
+   "Rendered mask labels remain authoritative: the rendered-mask check stays before the full batch.",
+   "audit.json's recommendation uses descriptive per-seed results, not the scan's inferential gate.",
+   "Absolute paths inside the files (source_scan, python) are kept as written; they describe the researcher's machine when the checks ran."
+  ],
+  "dir": "posthoc_review/",
+  "files": {
+   "posthoc_review/audit.json": "70c832649f725d19e4ccf22b6c1535dfcbe530b369aba828d171f064330f20ad",
+   "posthoc_review/ind_design_margin.json": "de6a36a0ac4ac4259ab5d2ab3330ef89d03c80b95e11dc6148ad63c1af0e8162",
+   "posthoc_review/ind_design_revisit.json": "799c0471f494142bce5b9b7d43cf3a4c314b90e78550bec11cc88c88afd18c3b"
+  },
+  "original_location": "runs/2026-11-03-tabletop-scan-review/ (main checkout, gitignored)"
+ },
+ "amendment_history": [
+  {
+   "version": 1,
+   "commit": "ef8d168",
+   "sha256": "43bf4087f0542b720bc33506ddbbcd1bfcdab00072810b82d9941dbdfd5b1cc8",
+   "note": "committed before the class matrix ran (matrix_started_utc.txt); evidence referenced by path in the gitignored runs/ folder"
+  },
+  {
+   "version": 2,
+   "note": "only the evidence block changed: the three review files were copied into posthoc_review/ (sha256 verified equal to version 1's), with relative links, the label and the limitations. H_T, the IND28 width, the parking rule, the reasons and the statistics disclosure are unchanged; decision.json, scan_plan.json and the other scan outputs are unchanged."
+  }
+ ],
+ "next": {
+  "fixed_before": "This file is committed BEFORE the class matrix is run on the pre-planned fresh dev probe seeds 7200-7299 (scan_plan.json class_matrix_probe_seeds), so the configuration is fixed before those seeds are seen. No re-scan of the height grid.",
+  "class_matrix": "scan_plan.json after_the_scan.class_matrix, unchanged, at this amendment's configuration: 100 real generator tries per (slot class, target) on probe seeds 7200-7299 (try_place, attempt 0), base_config.json with the overrides occluder.families.{S8,M16,IND28}.height_m = 0.18, occluder.families.IND28.width_m = 0.36, occluder.families.ycb_box.choices = the four above; a class's target list = the targets with >= 1 success; the others are excluded with the reason 'no valid placement found in 100 tries' (0 of N, as on the shelf). Run by run_matrix.sh -> matrix.json.",
+  "config": "make_tabletop_config.py final --decision decision.json --amendment amendment_2026-11-04.json --matrix matrix.json -> configs/sim/arrange_tabletop_v1.json (DEV, not frozen)",
+  "slots": "balanced target assignments (sim/arrange.py assign_targets) stay fixed through retries and reserve seeds",
+  "then": "design cases TDES0-3 checked; staged rendering plan: representative renders, a 10-slot transfer diagnostic, go/no-go, then the full 60"
+ }
+}

@@ -8,6 +8,11 @@ For every evidence variant in the spec's `summary` section it reports, from file
     - select-v4's outcome and, from selection_details.json, the held-out policy FRR, removal recall,
       false present (a removed target answered 'present') and coverage per lighting (uncapped, primary k and lam);
     - the DES design cases separately (they are never part of calibration).
+Optional spec keys (summary section): `design: false` for a set without design cases (no DES files are read), and
+`fixed_thresholds` {variant: {tau_q, tau_occ, tau_match, source, sha256} | null} to report each variant at thresholds
+fixed elsewhere (e.g. the shelf candidate on a tabletop diagnostic) instead of the run's own select output; `source`
+must still have the recorded sha256, and null means the variant has no such thresholds (reported at the illustrative
+setting only).
 View classes come from view_labels*.json (renderer masks; evaluation only): present = a visible-condition stop;
 occluded C / p / H = an occluded-condition stop with visible fraction >= 0.9 / between / <= 0.05; removed diag /
 removed non-diag = a removed-condition stop whose region the occluder covers < 0.1 / more.
@@ -21,6 +26,7 @@ Writes RUN_DIR/summary.md and RUN_DIR/summary.json. Stdlib only. Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from collections import defaultdict
 from pathlib import Path
@@ -113,7 +119,9 @@ def main() -> int:
     root, sm = Path(spec["set_root"]), spec["summary"]
     prov = provenance.load(args.run_dir)
     labels = json.loads((root / "view_labels.json").read_text())["episodes"]
-    labels_des = json.loads((root / "view_labels_design.json").read_text())["episodes"]
+    design = sm.get("design", True)
+    labels_des = json.loads((root / "view_labels_design.json").read_text())["episodes"] if design else {}
+    fixed = sm.get("fixed_thresholds")
     truth = {k: v["truth"] for k, v in labels.items()}
     illustrative = sm["illustrative"]
     report = {"set_root": str(root), "illustrative": illustrative, "variants": {}}
@@ -124,31 +132,43 @@ def main() -> int:
           f"masks (evaluation only).", ""]
     for name, v in sm["variants"].items():
         diag = provenance.output(prov, v["diag"], part="refL1")
-        diag_des = provenance.output(prov, v["diag"], part="design_refL1")
         views = load_views(diag, labels, v["obstruction"])
-        des = load_views(diag_des, labels_des, v["obstruction"])
+        des = load_views(provenance.output(prov, v["diag"], part="design_refL1"), labels_des, v["obstruction"]) \
+            if design else []
         sel = args.run_dir / "select" / name
         cand_path, details_path = sel / "frozen_candidate.json", sel / "selection_details.json"
         chosen, eligible = None, None
-        if cand_path.exists():
-            c = json.loads(cand_path.read_text())
-            chosen = {k: c["thresholds"][k] for k in ("tau_q", "tau_occ", "tau_match")}
-            eligible = bool(c.get("eligible_for_freeze"))
-        outcome = ("calibration infeasible" if (sel / "calibration_infeasible.json").exists()
-                   else "no select output" if chosen is None
-                   else "candidate written, eligible for freeze" if eligible
-                   else "candidate written, NOT eligible for freeze (select exit 4)")
+        if fixed is not None:   # thresholds fixed elsewhere: nothing is calibrated on this set
+            f = fixed[name]
+            if f is not None:
+                got = hashlib.sha256(Path(f["source"]).read_bytes()).hexdigest()
+                if got != f["sha256"]:
+                    raise SystemExit(f"{f['source']}: sha256 {got}, not the recorded {f['sha256']}")
+                chosen = {k: f[k] for k in ("tau_q", "tau_occ", "tau_match")}
+            outcome = (f"fixed thresholds from {f['source']} (not calibrated on this set)" if f is not None
+                       else "no fixed thresholds for this variant (reported at the illustrative setting only)")
+        else:
+            if cand_path.exists():
+                c = json.loads(cand_path.read_text())
+                chosen = {k: c["thresholds"][k] for k in ("tau_q", "tau_occ", "tau_match")}
+                eligible = bool(c.get("eligible_for_freeze"))
+            outcome = ("calibration infeasible" if (sel / "calibration_infeasible.json").exists()
+                       else "no select output" if chosen is None
+                       else "candidate written, eligible for freeze" if eligible
+                       else "candidate written, NOT eligible for freeze (select exit 4)")
         r = {"diag": str(diag), "outcome": outcome, "chosen": chosen, "eligible_for_freeze": eligible,
              "align_refused": {L: [sum(not x["align_ok"] for x in views if x["lighting"] == L),
                                    sum(x["lighting"] == L for x in views)] for L in LIGHTINGS},
              "gate_illustrative": gate_table(views, illustrative),
              "gate_chosen": gate_table(views, chosen) if chosen else None,
-             "held_out": held_out(json.loads(details_path.read_text()), truth) if details_path.exists() else None}
+             "held_out": held_out(json.loads(details_path.read_text()), truth)
+             if fixed is None and details_path.exists() else None}
         report["variants"][name] = r
         md += [f"## {name}", "", f"- evidence: `{diag}` (obstruction field `{v['obstruction']}`)",
-               f"- select-v4: {outcome}" + (f"; thresholds {chosen}" if chosen else ""),
+               f"- {'thresholds' if fixed is not None else 'select-v4'}: {outcome}"
+               + (f"; thresholds {chosen}" if chosen else ""),
                "- registration refused: " + ", ".join(f"{L} {frac(*r['align_refused'][L])}" for L in LIGHTINGS), ""]
-        for label, tab in (("variant's select-v4 thresholds", r["gate_chosen"]),
+        for label, tab in (("fixed thresholds" if fixed is not None else "variant's select-v4 thresholds", r["gate_chosen"]),
                            ("illustrative setting", r["gate_illustrative"])):
             if tab is None:
                 continue
@@ -179,7 +199,9 @@ def main() -> int:
                     x, n = by[L]["accuracy_resolved"]
                     md.append(f"| {pol} | {L} | " + " | ".join(cells) + f" | {frac(x, n)} |")
             md.append("")
-        # DES cases always: at the variant's thresholds when calibration gave some, else at the illustrative setting
+        if not design:
+            continue
+        # DES cases: at the variant's thresholds when calibration gave some, else at the illustrative setting
         des_th, des_label = (chosen, "the variant's thresholds") if chosen else (illustrative, "the illustrative setting")
         md += [f"DES cases (not calibrated on), gate at {des_label}; per stop P1..P5 the class (C/p/H "
                "present-occluded, R removed) and + where the gate passes:", "", "| episode | stops |", "|---|---|"]

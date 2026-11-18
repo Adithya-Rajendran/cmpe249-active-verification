@@ -898,6 +898,45 @@ class TestEpisodeSetIntegrity(unittest.TestCase):
                 with contextlib.redirect_stderr(io.StringIO()):
                     self.assertEqual(E.main(["--root", str(root), "--positions", str(POS)]), 2)
 
+    @staticmethod
+    def _to_test(root: Path, arr_id: str, seed: int, freeze_sha: str) -> None:
+        """A stub arrangement turned into a frozen test arrangement of a synthetic block (never a study seed)."""
+        d = root / arr_id
+        arr = json.loads((d / "arrangement.json").read_text())
+        arr.update(split="test", seed=seed, freeze={"sha256": freeze_sha, "freeze_id": "freeze-test"})
+        b = json.dumps(arr).encode()
+        (d / "arrangement.json").write_bytes(b)
+        lab = json.loads((d / "labels.json").read_text())
+        lab["hashes"]["arrangement_file_sha256"] = hashlib.sha256(b).hexdigest()
+        (d / "labels.json").write_text(json.dumps(lab))
+
+    def test_a_test_set_needs_its_freeze_and_says_test(self):
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t) / "set"
+            _write_set(root, [("ST900000", 1002, "random", "mug", False), ("ST900001", 1003, "random", "mug", False)])
+            for i, arr_id in enumerate(("ST900000", "ST900001")):
+                self._to_test(root, arr_id, 900000 + i, "f" * 64)
+            with self.assertRaises(A.SeedError):                                    # no --freeze
+                E.build(root, positions=None)
+            with self.assertRaises(A.SeedError):                                    # another FREEZE.md
+                E.build(root, positions=None, freeze_sha256="0" * 64)
+            doc = E.build(root, positions=None, freeze_sha256="f" * 64)
+            self.assertEqual(doc["split"], "test")
+            self.assertEqual(json.loads((root / "set.json").read_text())["split"], "test")
+            man = json.loads((root / "manifest.json").read_text())
+            self.assertEqual({a["split"] for a in man["arrangements"]}, {"test"})
+            readme = (root / "README.md").read_text()
+            self.assertIn("simulated TEST set", readme)
+            self.assertNotIn("Dev split only", readme)
+
+    def test_a_set_mixing_dev_and_test_is_refused(self):
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t) / "set"
+            _write_set(root, [("SD1002", 1002, "random", "mug", False), ("ST900001", 1003, "random", "mug", False)])
+            self._to_test(root, "ST900001", 900001, "f" * 64)
+            with self.assertRaisesRegex(ValueError, "one split"):
+                E.build(root, positions=None, freeze_sha256="f" * 64)
+
     def test_a_design_case_from_another_version_is_refused_too(self):
         with tempfile.TemporaryDirectory() as t:
             root = Path(t) / "set"

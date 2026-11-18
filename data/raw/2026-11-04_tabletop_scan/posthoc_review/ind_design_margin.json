@@ -1,0 +1,61 @@
+{
+  "scope": "Post-hoc geometry-only design-mug check; no rendering; nominal pinhole projections; no revisit or parking validation.",
+  "source_branch": "tabletop",
+  "source_commit": "1782efa",
+  "rows": [
+    {
+      "height_m": 0.18,
+      "width_m": 0.28,
+      "gap_m": 0.005,
+      "shift_m": 0.0,
+      "margin_px": -48.762,
+      "stop_margins_px": [
+        -48.591,
+        61.652,
+        61.292,
+        61.652,
+        -48.762
+      ],
+      "grid": {
+        "gap_m": [
+          0.005,
+          0.25,
+          0.005
+        ],
+        "shift_m": [
+          -0.15,
+          0.15,
+          0.005
+        ],
+        "n": 3050
+      }
+    },
+    {
+      "height_m": 0.18,
+      "width_m": 0.36,
+      "gap_m": 0.005,
+      "shift_m": -0.02,
+      "margin_px": 3.435,
+      "stop_margins_px": [
+        3.435,
+        61.652,
+        61.292,
+        61.652,
+        3.435
+      ],
+      "grid": {
+        "gap_m": [
+          0.005,
+          0.25,
+          0.005
+        ],
+        "shift_m": [
+          -0.15,
+          0.15,
+          0.005
+        ],
+        "n": 3050
+      }
+    }
+  ]
+}

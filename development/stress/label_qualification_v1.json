@@ -1,0 +1,236 @@
+{
+  "id": "label-qualification-v1",
+  "declared_utc": "2026-11-17T19:00:13.415536+00:00",
+  "scope": "development labeler qualification, not independent human validation or a population accuracy estimate",
+  "source_prepared": "full-prepared-v1",
+  "input_size": [
+    1200,
+    675
+  ],
+  "exclude": "All IDs in the fixed180-query AI audit and all60 smoke IDs.",
+  "seed": 20261117,
+  "rank_text": "label-qualification-v1|20261117|ID",
+  "selection": "Process cells in listed order. Within each exact cell, repeatedly choose the remaining base with the fewest already selected candidates in that cell, then SHA256(rank_text), then ID. Save the full ordered candidate list.",
+  "cells": [
+    {
+      "environment": "shelf",
+      "label": "PRESENT",
+      "level": "D0",
+      "physical_state": "PRESENT",
+      "count": 3
+    },
+    {
+      "environment": "shelf",
+      "label": "PRESENT",
+      "level": "D4",
+      "physical_state": "PRESENT",
+      "count": 3
+    },
+    {
+      "environment": "shelf",
+      "label": "PRESENT",
+      "level": "D6",
+      "physical_state": "PRESENT",
+      "count": 2
+    },
+    {
+      "environment": "shelf",
+      "label": "REMOVED",
+      "level": "D0",
+      "physical_state": "REMOVED",
+      "count": 3
+    },
+    {
+      "environment": "shelf",
+      "label": "REMOVED",
+      "level": "D4",
+      "physical_state": "REMOVED",
+      "count": 3
+    },
+    {
+      "environment": "shelf",
+      "label": "REMOVED",
+      "level": "D6",
+      "physical_state": "REMOVED",
+      "count": 2
+    },
+    {
+      "environment": "shelf",
+      "label": "UNKNOWN",
+      "level": "D0",
+      "physical_state": "PRESENT",
+      "count": 2
+    },
+    {
+      "environment": "shelf",
+      "label": "UNKNOWN",
+      "level": "D0",
+      "physical_state": "REMOVED",
+      "count": 1
+    },
+    {
+      "environment": "shelf",
+      "label": "UNKNOWN",
+      "level": "D4",
+      "physical_state": "PRESENT",
+      "count": 1
+    },
+    {
+      "environment": "shelf",
+      "label": "UNKNOWN",
+      "level": "D4",
+      "physical_state": "REMOVED",
+      "count": 2
+    },
+    {
+      "environment": "shelf",
+      "label": "UNKNOWN",
+      "level": "D6",
+      "physical_state": "PRESENT",
+      "count": 1
+    },
+    {
+      "environment": "shelf",
+      "label": "UNKNOWN",
+      "level": "D6",
+      "physical_state": "REMOVED",
+      "count": 1
+    },
+    {
+      "environment": "tabletop",
+      "label": "PRESENT",
+      "level": "D0",
+      "physical_state": "PRESENT",
+      "count": 3
+    },
+    {
+      "environment": "tabletop",
+      "label": "PRESENT",
+      "level": "D4",
+      "physical_state": "PRESENT",
+      "count": 3
+    },
+    {
+      "environment": "tabletop",
+      "label": "PRESENT",
+      "level": "D6",
+      "physical_state": "PRESENT",
+      "count": 2
+    },
+    {
+      "environment": "tabletop",
+      "label": "REMOVED",
+      "level": "D0",
+      "physical_state": "REMOVED",
+      "count": 3
+    },
+    {
+      "environment": "tabletop",
+      "label": "REMOVED",
+      "level": "D4",
+      "physical_state": "REMOVED",
+      "count": 3
+    },
+    {
+      "environment": "tabletop",
+      "label": "REMOVED",
+      "level": "D6",
+      "physical_state": "REMOVED",
+      "count": 2
+    },
+    {
+      "environment": "tabletop",
+      "label": "UNKNOWN",
+      "level": "D0",
+      "physical_state": "PRESENT",
+      "count": 2
+    },
+    {
+      "environment": "tabletop",
+      "label": "UNKNOWN",
+      "level": "D0",
+      "physical_state": "REMOVED",
+      "count": 1
+    },
+    {
+      "environment": "tabletop",
+      "label": "UNKNOWN",
+      "level": "D4",
+      "physical_state": "PRESENT",
+      "count": 1
+    },
+    {
+      "environment": "tabletop",
+      "label": "UNKNOWN",
+      "level": "D4",
+      "physical_state": "REMOVED",
+      "count": 2
+    },
+    {
+      "environment": "tabletop",
+      "label": "UNKNOWN",
+      "level": "D6",
+      "physical_state": "PRESENT",
+      "count": 1
+    },
+    {
+      "environment": "tabletop",
+      "label": "UNKNOWN",
+      "level": "D6",
+      "physical_state": "REMOVED",
+      "count": 1
+    }
+  ],
+  "candidate_predicates": {
+    "PRESENT": "phase==visible and visible_fraction>=0.99",
+    "REMOVED": "phase==removed and region_obstruction==0",
+    "UNKNOWN_PRESENT": "phase==occluded and visible_fraction==0 and region_obstruction>=0.99",
+    "UNKNOWN_REMOVED": "phase==removed and region_obstruction>=0.99"
+  },
+  "reference_review": {
+    "required": true,
+    "reviewer": "main Codex AI, with geometry and physical state visible",
+    "rule": "Inspect both exact images. Accept only clear target identification, clear absence, or clearly unresolved blocked evidence. Geometry is candidate selection only. Exclude contrary or ambiguous visual cues before labelers see the controls.",
+    "maximum_replacements": 12,
+    "new_reviewers_may_start_only_after": "Main reference labels and all image/box/presentation hashes are saved and locked.",
+    "human_reference": false
+  },
+  "arms": {
+    "original": "Identify the remembered object in the red reference rectangle using only this image pair. PRESENT requires identifying evidence at the remembered region. REMOVED requires a sufficiently exposed region and distinguishing absence evidence. UNKNOWN means insufficient visual evidence. DISPUTED means judgment remains unresolved. Fragments, shadows, and reflections count only if they identify the target or absence. Do not infer from filenames, another query, or state balance.",
+    "localize_then_label_v2": "Identify the remembered object in the red reference rectangle using only this image pair. First report the target identity and briefly locate its remembered region in the query using visible surrounding objects or surface features. The query camera may move. The reference rectangle is not a query rectangle. Then state the visible evidence in that query region and return PRESENT, REMOVED, UNKNOWN or DISPUTED. PRESENT requires identifying evidence of the target at the remembered region. REMOVED requires a sufficiently exposed remembered region and visible evidence that the target is absent there. A blocker near that region is not by itself evidence that the region is hidden. Check its actual position and extent. UNKNOWN applies when the image pair cannot distinguish target presence from removal. Use DISPUTED if your judgment remains unresolved. Fragments, shadows and reflections count only if they distinguish the target or its absence. Do not infer from filenames, another query or state balance. Give only concise observations, not a detailed reasoning trace."
+  },
+  "qualification": {
+    "all_inputs_and_presentations_complete": true,
+    "minimum_correct_by_label": {
+      "PRESENT": 15,
+      "REMOVED": 15,
+      "UNKNOWN": 14
+    },
+    "denominator_each_label": 16,
+    "minimum_correct_by_environment_and_label": {
+      "PRESENT": 7,
+      "REMOVED": 7,
+      "UNKNOWN": 6
+    },
+    "denominator_each_environment_label": 8,
+    "maximum_opposite_definite_errors_on_clear_controls": 0,
+    "DISPUTED": "Counts as not correct on qualification controls.",
+    "scope_of_pass": "Permission for provisional AI review of development images, not established support truth or paper claims."
+  },
+  "decision": {
+    "preferred_arm": "localize_then_label_v2",
+    "if_v2_passes": "Retain original labels. Review the fixed180-query audit again with the qualified instructions, as a separate version, blind to predictions and old judgments. Inspect disagreements before any research decision.",
+    "if_v2_fails": "Do not use Terra as the sole support labeler. Do not tune again on this control set. Preserve factual/proxy results and qualify a separate reviewer protocol before support-based triage.",
+    "no_task_model_release": "Qualification alone does not release Stage2. The full-cohort support and strong-control gates still apply."
+  },
+  "primary_sources": [
+    {
+      "url": "https://proceedings.mlr.press/v235/chen24h.html",
+      "relevance": "Multimodal judging can show biases, hallucinations and inconsistent judgments. This supports validating the judge on the actual task; no pass threshold is taken from that paper."
+    },
+    {
+      "url": "https://vizwiz.org/tasks-and-datasets/vqa/",
+      "relevance": "Answerability is evaluated separately from answering. Its human annotations do not validate this simulator task."
+    }
+  ]
+}

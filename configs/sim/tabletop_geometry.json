@@ -1,0 +1,90 @@
+{
+ "schema": "cmpe249.tabletop_geometry.v1",
+ "status": "DEV 2026-11-04 (tabletop environment, researcher's decisions of 2026-11-04, progress/drafts/2026-11-04-tabletop-design.md). NOT FROZEN. The table finish (texture, scale, orientation, material settings) and the lighting layout are FIXED before any evidence result is seen (decision item 3).",
+ "frame": {
+  "units": "m",
+  "axes": "x right as seen from the start stop P3, y away from P3 (across the table, toward the far edge and the wall), z up. Right-handed.",
+  "origin": "the workspace centre on the table top (z = 0 is the top surface)",
+  "note": "sim/rig.py arc_stops works in this frame with arc_centre_behind_front_cm = 0: a stop at azimuth a sits at (R sin a, -R cos a) facing the origin."
+ },
+ "table": {
+  "size_x": 1.20,
+  "size_y": 0.80,
+  "top_height_above_floor": 0.75,
+  "slab_thickness": 0.03,
+  "workspace_centre_from_near_edge": 0.30,
+  "workspace_centre_x": "centred left-right (x = 0 is the table's centre line)",
+  "legs": {"size": 0.05, "inset_from_corner": 0.05, "note": "four square legs from the floor to the slab's underside, their outer faces inset 0.05 m from the slab's edges"},
+  "provenance": "design proposal section 1 (table 1.20 x 0.80 m, top 0.75 m, 3 cm slab on legs, workspace centre 0.30 m from the near edge); legs: a plain table, dimensions chosen here"
+ },
+ "room": {
+  "wall_gap_behind_far_edge": 1.00,
+  "wall_height": 2.40,
+  "wall_thickness": 0.10,
+  "side_wall_x": 2.00,
+  "floor_near_y": -2.00,
+  "floor_thickness": 0.02,
+  "baseboard": {"height": 0.08, "thickness": 0.012},
+  "ceiling": false,
+  "note": "A plain room: the floor (the shelf's 'floor' render colour), matte off-white walls (the back wall 1 m behind the table's far edge, and two side walls at x = +-side_wall_x that close the room so no frame sees past the floor: every camera ray points downward at ~39 deg pitch and meets the floor or a wall, tests/test_sim_tabletop.py), a baseboard along each wall, no ceiling (the dome light is the ambient). Side walls and their position are a choice made here, not in the design proposal.",
+  "provenance": "design proposal section 1 (floor colour sim/isaac_rig.py MATERIALS['floor'], matte off-white walls 1 m behind the far edge, baseboard, no ceiling)"
+ },
+ "materials": {
+  "table_top": {
+   "rgba": [0.795, 0.657, 0.486, 1.0],
+   "roughness": 0.5,
+   "metallic": 0.0,
+   "texture": {
+    "generator": "python -m sim.wood_texture --out <path> (sim/wood_texture.py PARAMS, seed 20261104)",
+    "name": "tabletop_light_oak_v1",
+    "width_px": 2400,
+    "height_px": 1600,
+    "pixels_sha256": "cfdd3b67db5375d72dd303c836fa45a32530abecaedf116a76469505adf91947",
+    "file_sha256": "eb6d7caca3ea9796fa5c824a6eae9aa6d530d5dabec718febead91cc130f2d24",
+    "file_sha256_note": "the PNG bytes from sim/wood_texture.py png_bytes (zlib level 9) under Python 3.13.5 (uv); the pixel sha256 is the binding pin",
+    "physical_size_m": [1.20, 0.80],
+    "m_per_px": 0.0005,
+    "tile": "one tile covers the whole table top (no repeat); UV u = (x - x_min) / 1.20 along +x, v = (y - y_min) / 0.80 along +y; image row 0 = the far edge (v = 1)",
+    "grain_orientation": "along +x (the image width): stripes and fibres run left-right as seen from P3",
+    "wrap": "clamp (sim/isaac_rig.py _material); UVs stay in [0, 1]",
+    "colour_space": "sRGB"
+   },
+   "note": "rgba = the texture's mean colour (sRGB 202.6, 167.4, 123.8 / 255) for backends without textures; roughness 0.5 (satin-finished light oak), not randomised"
+  },
+  "table_edge": {"rgba": [0.795, 0.657, 0.486, 1.0], "roughness": 0.5, "note": "the slab's sides and underside carry the same texture (sim/tabletop.py maps them onto thin strips of it); this colour is the textureless fallback"},
+  "table_leg": {"rgba": [0.30, 0.25, 0.20, 1.0], "roughness": 0.6, "note": "dark stained wood"},
+  "floor": {"rgba": [0.50, 0.47, 0.43, 1.0], "roughness": 0.8, "note": "= sim/isaac_rig.py MATERIALS['floor']"},
+  "wall": {"rgba": [0.88, 0.87, 0.83, 1.0], "roughness": 0.9, "note": "matte off-white"},
+  "baseboard": {"rgba": [0.95, 0.95, 0.93, 1.0], "roughness": 0.6, "note": "white, semi-matte"}
+ },
+ "lighting": {
+  "aim": [0.0, 0.0, 0.05],
+  "presets": {
+   "L1": {"dome_intensity": 300.0, "lights": [
+    {"name": "key_left", "position": [-0.6, -1.0, 1.4], "size_m": 0.4, "intensity": 20000.0, "on": true},
+    {"name": "key_right", "position": [0.6, -1.0, 1.4], "size_m": 0.4, "intensity": 20000.0, "on": true}]},
+   "L2": {"dome_intensity": 300.0, "lights": [
+    {"name": "key_left", "position": [-0.6, -1.0, 1.4], "size_m": 0.4, "intensity": 20000.0, "on": true},
+    {"name": "key_right", "position": [0.6, -1.0, 1.4], "size_m": 0.4, "intensity": 20000.0, "on": false}]}
+  },
+  "note": "The shelf presets (sim/isaac_rig.py LIGHTING: two 0.4 m square rect lights + a dome; L2 = key_right off) with the same numbers, now relative to the tabletop frame (the workspace centre on the table top), each rect light aimed at 'aim'. Parity with the shelf, not aesthetics. The shelf's own lights stay where they are (aimed at (0, 0.15, 0.1) in the shelf frame).",
+  "provenance": "design proposal section 1 (lighting) and sim/isaac_rig.py LIGHTING; tests/test_sim_tabletop.py checks the numbers equal LIGHTING's"
+ },
+ "workspace": {
+  "radius": 0.20,
+  "outline_heights": [0.0, 0.12],
+  "outline_points_per_circle": 24,
+  "note": "The frame check's outline: 24 points every 15 deg on the 0.20 m circle about the origin at each height (48 points). It replaces the shelf's #3 outline (design proposal section 2).",
+  "provenance": "design proposal section 2"
+ },
+ "camera": {
+  "model": "pinhole, square pixels, principal point at the image centre (W/2, H/2); continuous pixel coordinates with pixel i covering [i, i + 1)",
+  "f_px": 1731.26,
+  "width_px": 2304,
+  "height_px": 1296,
+  "k1": 0.056385,
+  "k1_note": "radial term of the far pose fit, applied only in frame checks (renderers draw a pinhole), as for the shelf",
+  "provenance": "copied from configs/rig_geometry.json camera (the same Pi Camera Module 3 intrinsics; tests/test_sim_tabletop.py checks they are equal)"
+ },
+ "visibility_classes": {"H_max": 0.05, "C_min": 0.9, "provenance": "= configs/rig_geometry.json visibility_classes"}
+}

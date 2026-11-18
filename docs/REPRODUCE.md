@@ -195,6 +195,7 @@ $UV_RUN -m sim.check_batch --root $SET            # writes $SET/check/check.json
 ```
 
 - Exit 0 if no arrangement is flagged. Exit 1 if one is flagged.
+- Tabletop sets only: the table-clipping check adds 4 (fail) or 8 (incomplete) to that status; see `sim/README.md`.
 - Runtime: 16 s for the 12 arrangements of `shelf_dev_v3_check`.
 - Checks (tag checks are skipped, and say so, for tag-free sets):
   - frame margins of every capture, revisit pose deltas (+-10 mm, +-0.5 deg), visible fractions and patterns;
@@ -286,11 +287,11 @@ $UV_PY tools/watch.py runs/shelf_dev_v3 --stale-minutes 20 --resume        # --f
 - **Run spec** (`configs/pipeline/shelf_dev_v3.json`): `render.launch_script` (the launch command and its arguments), `arrangements_dir`, `log`, `rc_file`, `expected` (64), and `set_root` / `generation_log` (absolute paths on the shared data folder).
 - **Launch script.** `sim/run_render.sh` is the committed launcher. Copy it to `remote.run_dir` next to `isaac_batch.py` and `isaac_rig.py`. It takes `ARR_DIR OUT_SET LOG RC_FILE [isaac_batch args]`, writes stdout and stderr to the log, and writes the exit code to the rc file when the render ends. (The first shelf_dev_v3 render was started with an equivalent GB10-only `run_v3.sh`.)
 
-- The driver attaches to a running render by `pgrep` on `isaac_batch.py --arrangements <arrangements_dir>/`, follows the log, and waits for `v3.rc`. Without `--launch` it fails if nothing is running.
+- The driver attaches to a running render by `pgrep -f` on `isaac_batch.py --arrangements <arrangements_dir>/`, follows the log, and waits for `v3.rc`. Without `--launch` it fails if nothing is running. The probe pattern has its first character in brackets (`[i]saac_batch.py ...`) so the probe's own shell, whose command line contains the pattern, never matches itself; the old unbracketed probe always said "running", so `--launch` attached to renders that did not exist and the "process gone" alert could not fire. The remote command prints `RUNNING=0|1`, `RC=`, `LINES=` and `PROBE_END`. Outcomes: RUNNING; STOPPED (the probe ran and found nothing); PROBE_FAILED (ssh failure, non-zero exit, timeout, unreadable output). PROBE_FAILED is retried like an ssh failure (5 in a row is a terminal alert) and never counts as stopped: no launch, no "gone" alert. After `--launch` the driver waits up to `render.launch_wait_seconds` (default 60) for the process or its rc file to appear.
 - It then runs `sim.episodes` and `sim.check_batch` locally with `local_python` from the spec.
 - Output in `runs/<run_id>/`: `events.jsonl` (one JSON object per event), `status.json` (stage, progress, ETA, driver pid), `episodes.out`, `check.out`.
 - Event levels: `info`, `alert` (a person must look), `done`. A terminal failure is an alert with `terminal: true`, and the driver exits non-zero.
-- Render alerts: error line in the log, failed label sanity, an arrangement slower than 2.5 x the running median, no arrangement for 10 min, process gone without an rc file, non-zero rc, or fewer arrangements than expected, and 5 failed ssh polls in a row.
+- Render alerts: error line in the log, failed label sanity, an arrangement slower than 2.5 x the running median, no arrangement for 10 min, process gone without an rc file (confirmed stopped, not a failed probe), non-zero rc, or fewer arrangements than expected, and 5 failed ssh polls or probes in a row.
 - **Evidence, select and summary stages** (`configs/pipeline/shelf_dev_v3_evidence.json`, run with `--from-stage evidence`):
   - `evidence` ships `git archive` of the last commit that changed a `.py` file under `perception/`, `verify/` or `capture/`, or `pyproject.toml` or `uv.lock`, to `<code_dir>/<job>` on the GB10, links the checkpoints, and runs one step per (jobs file, variant) in the GB10 project env. It refuses a dirty tree and a `perception/evidence.py` that is not the frozen v0.2.1. The job is keyed on the run id, that commit, and a hash of the steps and the jobs files. Rerunning after a driver-only or docs change re-attaches instead of recomputing. Any change to the code, steps or jobs launches a new job. Each job (`evidence_<run_id>_<commit>_<steps hash>`) has its own code dir and its own output dir, so two jobs never share or overwrite files. Provenance also records the GB10 env: its `uv.lock` sha256 and the installed package versions.
   - Variants: `v021_frozen` (perception/evidence.py, tag registration; on tag-free scenes it refuses every view), `v03_image` (evidence v0.3 on ECC image registration) and, from the same pass (`--out-v021-aligned`), `v021_image`: v0.2.1's match, quality and obstruction on v0.3's registration. That is an ablation, not unchanged v0.2.1.
@@ -303,6 +304,7 @@ $UV_PY tools/watch.py runs/shelf_dev_v3 --stale-minutes 20 --resume        # --f
   1. `shelf_dev_v3_evidence.json --from-stage evidence`;
   2. `shelf_dev_v3_truealign.json --from-stage evidence`. Its summary reads `runs/shelf_dev_v3_evidence/select/v03_image/frozen_candidate.json`, a run output of step 1, by a path relative to the repo root.
 - **True-alignment diagnostic** (`shelf_dev_v3_truealign.json`): `sim/true_align_evidence.py` on the true target and front planes. Its `summary.script` is `tools/quality_resampling.py`, which compares every view's quality, quality parts and gate / clear-miss / strong-match decisions with the image-registered v0.3 run, and writes `quality_resampling.md`. Its `evidence.code_paths` adds that tool to the shipped code.
+- **Tabletop transfer diagnostic** (check (c); `configs/sim/tabletop_transfer11.json` pins TD5000-TD5010, the hashes and the shelf thresholds): `tabletop_transfer11_evidence.json` runs unchanged v0.3 (and v021_image from the same pass) on the L1-reference jobs with no select stage; its summary uses `design: false` and `fixed_thresholds` (the shelf v03_image candidate, checked by sha256; v021_image has none). `tabletop_transfer11_truealign.json` then runs the true table- and target-plane diagnostic (evaluation only) and `quality_resampling.py` at the same shelf thresholds (`v03_candidate_sha256`).
 - **Retrying a failed evidence job.** A job that exited non-zero leaves its rc file, and a rerun re-attaches and fails again. After fixing the cause, rerun with `--retry`, which clears that job's rc file and relaunches.
 - **Offline env.** The evidence specs run the local stages with `uv run --offline`. Run the section 3.1 test command once first, so uv's cache holds the same pins.
 - Watcher output: `ALERT ...`, `DONE ...` (exit 0), `FAILED ...` (exit 1). It also alerts if the driver pid died or no event came for `--stale-minutes`. `--resume` continues from `RUN_DIR/watch.offset`.
@@ -349,25 +351,31 @@ $UV_RUN -m verify.select --synthetic --n-arr 30 --seed 0 --bootstrap-B 200 --tag
 
 ## 9. The test-split rule
 
-**No test seed is generated, rendered or scored before `docs/FREEZE.md` exists.** [SIM_PREREGISTRATION.md](SIM_PREREGISTRATION.md) section 12 lists what the freeze records.
+**No test seed is generated, rendered or scored before `docs/FREEZE.md` is committed.** [SIM_PREREGISTRATION.md](SIM_PREREGISTRATION.md) section 12 lists what the freeze records.
 
-- `docs/FREEZE.md` does **not exist** yet. So no test scene exists.
-- In code today the refusal does not look for the file. It is unconditional:
-  - `sim.arrange --split test` exits 2 (`seed 100000 is in the reserved TEST range`).
-  - `sim.isaac_batch` refuses arrangements with seeds outside 0-9999 before Isaac starts.
+One exception happened while the gate was being built. On 2026-11-05 a unit test, under a mocked freeze, generated the shelf test arrangement of slot 0 in a temporary directory and deleted it; it was not rendered, scored or viewed ([`notes/2026-11-06-test-seed-incident.md`](../notes/2026-11-06-test-seed-incident.md)). The gate now refuses that route: a study seed opens only against the committed `docs/FREEZE.md` itself.
+
+- Until the freeze, every route refuses test seeds (>= 100000):
+  - `sim.arrange` exits 2 (`seed 100000 is in the reserved TEST range`);
+  - `sim.isaac_batch` refuses any arrangement that is not a dev arrangement before Isaac starts;
+  - `sim.episodes` refuses a test arrangement without `--freeze`;
   - `verify.select` accepts only dev arrangements.
-- How the guard is lifted at the freeze is not written yet.
-- Do not work around the guard. A test scene made before the freeze invalidates the test split.
+- After the freeze, test seeds open only against the committed `docs/FREEZE.md` (`sim/freeze.py`):
+  - generation through `sim/testsplit.py`, with `sim/arrange.py` byte-identical;
+  - episodes through `sim/episodes.py --freeze docs/FREEZE.md`;
+  - rendering through `sim/render_test.py` (`sim/run_render_test.sh`) in a GB10 run dir of its own, with `sim/isaac_batch.py` byte-identical.
+
+  `tools/test_validity.py` checks the outputs against the freeze record. The runbook is in `docs/FREEZE.md`.
+- Do not work around the gate. A test scene made before the freeze invalidates the test split.
 
 ## 10. Known gaps: not yet reproducible
 
-- **Ranker A is not built.** Policies S, F, R, G (and ablations) run. The held-out check has a per-fold hook for A. No A exists, so the primary contrast A - G cannot be run.
-- **Evidence v0.3 is not frozen.** It is the development evidence step (section 5.5). Freezing it is part of the final pre-registration review.
-- **No feasible frozen thresholds.** The only select-v4 run on rendered data (6 arrangements, v0.2.1) was infeasible (exit 3). `verify.run` uses placeholder thresholds.
-- **Dev results only, shelf only.** Evidence and select-v4 on `shelf_dev_v3` (`notes/2026-11-04-dev60-evidence-variants.md`) are development numbers.
-- **The tabletop environment does not exist in the repo.** No config, positions file or scene. Results are not yet split by environment.
-- **`docs/FREEZE.md` and the test split do not exist.** The pre-registration is a draft. A final review comes after A.
-- **No results.** Nothing in this repo is a study result.
+- **The test has not run.** `docs/FREEZE.md` is committed with the freeze (simulation-freeze-1, 2026-11-06, after the researcher's final review of the preregistration). The test sets are generated only after that, by its runbook.
+- **Development only.** Every number in this repository is a development (simulation) result:
+  - the pooled calibration over both environments' 120 development arrangements, with A, A-nocue and Dir held out (`notes/2026-11-06-pooled-calibration.md`);
+  - the tabletop transfer diagnostic (`notes/2026-11-06-tabletop-dev49-transfer.md`).
+- **The frozen candidate and the A / A-nocue model files** are in `frozen/`, copied from untracked run folders. The development evidence they were fitted on is on the shared volume, recorded by sha256 in the candidate. The rendered development images are not in the repository.
+- **Registration.** C0 (evidence v0.3's image registration) fails its pre-set tabletop refusal criterion on the first 11 tabletop arrangements. The study continues with C0 unchanged by an explicit amendment (`notes/2026-11-04-registration-repair-plan.md`, Amendment 2).
 - **The generators of the geometry files are not in git.** `configs/rig_geometry.json` and `configs/sim/positions_shelf_A.json` are committed outputs. Their scripts (`make_rig_geometry.py`, `make_positions_shelf_A.py`) and the measurements are in the author's gitignored `data/raw/`. So the geometry can be used, but not regenerated from the measurements.
 - **`tools/pipeline.py` needs the GB10 launch script**, which is not in the repo (section 6). The committed run spec holds the author's host details.
 - **`uv sync` works only on linux aarch64**, and rendering is tested only on the GB10.
