@@ -10,6 +10,7 @@
 | [Simulator plan](../development/cross_sim/PLAN.md) | MuJoCo qualification and the next paired development experiment |
 | [Freeze policy](FREEZE_POLICY.md) | Requirements for a future confirmatory study |
 | [Development guide](../development/README.md) | Current and completed software paths |
+| [Progress feedback PDF](feedback/2026-11-17/Rajendran-CMPE249-progress-feedback-2026-11-17.pdf) | Course update with links to the research revision and [editable source](feedback/2026-11-17/progress-feedback.md) |
 
 Read the [completed scoring review](../notes/2026-11-17-scoring-and-label-review.md) before interpreting the method.
 Read the [VA-TAMP review](../notes/2026-11-17-va-tamp-and-simulation-scope.md) for the current literature assessment.

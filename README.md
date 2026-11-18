@@ -83,6 +83,7 @@ The pilot uses existing simulator images. It does not establish an implemented r
 
 ## Course work
 
+Read the [two-page progress feedback PDF](docs/feedback/2026-11-17/Rajendran-CMPE249-progress-feedback-2026-11-17.pdf) for the results and questions for Professor Liu.
 Professor Liu's optional Canvas check-in invites feedback on project progress and technical questions.
 The discussion focuses on support labels, the strongest comparison and transfer between simulators.
 
