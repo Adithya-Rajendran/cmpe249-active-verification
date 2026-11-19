@@ -1,0 +1,2602 @@
+{
+  "case_count": 320,
+  "layout_count_per_engine": 8,
+  "groups": [
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "clear_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "clear_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "clear_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 6,
+      "definite": 8,
+      "wrong_definite": 2,
+      "answers": {
+        "PRESENT": 6,
+        "REMOVED": 2
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "clear_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "clear_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "clear_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "placed_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 2,
+      "definite": 2,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 6,
+        "PRESENT": 2
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "placed_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "placed_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 8
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "placed_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "placed_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "state": "placed_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 8
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "clear_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "clear_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 7,
+      "definite": 8,
+      "wrong_definite": 1,
+      "answers": {
+        "PRESENT": 7,
+        "REMOVED": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "clear_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 7,
+      "definite": 8,
+      "wrong_definite": 1,
+      "answers": {
+        "PRESENT": 7,
+        "REMOVED": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "clear_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "clear_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "clear_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "placed_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 1,
+      "definite": 1,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 7,
+        "PRESENT": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "placed_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "placed_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 8
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "placed_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "placed_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "state": "placed_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 8
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "clear_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "clear_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "clear_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 7,
+      "definite": 8,
+      "wrong_definite": 1,
+      "answers": {
+        "PRESENT": 7,
+        "REMOVED": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "clear_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "clear_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "clear_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "placed_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "placed_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "placed_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 8
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "placed_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "placed_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "state": "placed_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 8
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "clear_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "clear_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "clear_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 7,
+      "definite": 8,
+      "wrong_definite": 1,
+      "answers": {
+        "PRESENT": 7,
+        "REMOVED": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "clear_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "clear_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "clear_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "placed_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 4,
+      "definite": 4,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 4,
+        "PRESENT": 4
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "placed_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 3,
+      "definite": 3,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 5,
+        "PRESENT": 3
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "placed_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 2,
+      "definite": 3,
+      "wrong_definite": 1,
+      "answers": {
+        "UNKNOWN": 5,
+        "REMOVED": 1,
+        "PRESENT": 2
+      },
+      "registration_gate": 5
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "placed_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 4,
+      "definite": 4,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 4,
+        "REMOVED": 4
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "placed_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 3,
+      "definite": 3,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 5,
+        "REMOVED": 3
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "state": "placed_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 4,
+      "definite": 4,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 4,
+        "REMOVED": 4
+      },
+      "registration_gate": 4
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "clear_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 7,
+      "definite": 7,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 7,
+        "UNKNOWN": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "clear_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 4,
+      "definite": 5,
+      "wrong_definite": 1,
+      "answers": {
+        "PRESENT": 4,
+        "UNKNOWN": 3,
+        "REMOVED": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "clear_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 6,
+      "definite": 7,
+      "wrong_definite": 1,
+      "answers": {
+        "PRESENT": 6,
+        "REMOVED": 1,
+        "UNKNOWN": 1
+      },
+      "registration_gate": 1
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "clear_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "clear_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "clear_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "placed_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 4,
+      "definite": 4,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 4,
+        "PRESENT": 4
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "placed_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 1,
+      "definite": 1,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 7,
+        "PRESENT": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "placed_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 2,
+      "definite": 2,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 6,
+        "PRESENT": 2
+      },
+      "registration_gate": 6
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "placed_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 4,
+      "definite": 4,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 4,
+        "REMOVED": 4
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "placed_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 1,
+      "definite": 1,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 7,
+        "REMOVED": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "state": "placed_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 4,
+      "definite": 4,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 4,
+        "REMOVED": 4
+      },
+      "registration_gate": 4
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "clear_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "clear_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 7,
+      "definite": 7,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 7,
+        "UNKNOWN": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "clear_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 6,
+      "definite": 8,
+      "wrong_definite": 2,
+      "answers": {
+        "PRESENT": 6,
+        "REMOVED": 2
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "clear_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "clear_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 7,
+      "definite": 7,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 7,
+        "UNKNOWN": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "clear_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "placed_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 2,
+      "definite": 3,
+      "wrong_definite": 1,
+      "answers": {
+        "UNKNOWN": 5,
+        "PRESENT": 2,
+        "REMOVED": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "placed_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "placed_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 0,
+      "definite": 2,
+      "wrong_definite": 2,
+      "answers": {
+        "UNKNOWN": 6,
+        "REMOVED": 2
+      },
+      "registration_gate": 6
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "placed_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 3,
+      "definite": 3,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 5,
+        "REMOVED": 3
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "placed_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "state": "placed_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 2,
+      "definite": 2,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 6,
+        "REMOVED": 2
+      },
+      "registration_gate": 6
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "clear_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "clear_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 6,
+      "definite": 6,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 6,
+        "UNKNOWN": 2
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "clear_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 7,
+      "definite": 7,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 7,
+        "UNKNOWN": 1
+      },
+      "registration_gate": 1
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "clear_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "clear_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "clear_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "placed_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 1,
+      "definite": 1,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 7,
+        "PRESENT": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "placed_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "placed_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 0,
+      "definite": 1,
+      "wrong_definite": 1,
+      "answers": {
+        "UNKNOWN": 7,
+        "REMOVED": 1
+      },
+      "registration_gate": 7
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "placed_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 2,
+      "definite": 2,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 6,
+        "REMOVED": 2
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "placed_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 1,
+      "definite": 1,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 7,
+        "REMOVED": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "state": "placed_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 1,
+      "definite": 1,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 7,
+        "REMOVED": 1
+      },
+      "registration_gate": 7
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "clear_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "clear_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "clear_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 7,
+      "definite": 8,
+      "wrong_definite": 1,
+      "answers": {
+        "PRESENT": 7,
+        "REMOVED": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "clear_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "clear_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "clear_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "placed_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "placed_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "placed_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 8
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "placed_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "placed_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "state": "placed_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 8
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "clear_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 4,
+      "definite": 4,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 4,
+        "PRESENT": 4
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "clear_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 5,
+      "definite": 5,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 3,
+        "PRESENT": 5
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "clear_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 7,
+      "definite": 7,
+      "wrong_definite": 0,
+      "answers": {
+        "PRESENT": 7,
+        "UNKNOWN": 1
+      },
+      "registration_gate": 1
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "clear_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 4,
+      "definite": 4,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 4,
+        "REMOVED": 4
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "clear_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "clear_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "placed_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 2,
+      "definite": 2,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 6,
+        "PRESENT": 2
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "placed_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 2,
+      "definite": 3,
+      "wrong_definite": 1,
+      "answers": {
+        "UNKNOWN": 5,
+        "PRESENT": 2,
+        "REMOVED": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "placed_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 1,
+      "definite": 5,
+      "wrong_definite": 4,
+      "answers": {
+        "REMOVED": 4,
+        "UNKNOWN": 3,
+        "PRESENT": 1
+      },
+      "registration_gate": 3
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "placed_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 2,
+      "definite": 2,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 6,
+        "REMOVED": 2
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "placed_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 5,
+      "definite": 5,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 3,
+        "REMOVED": 5
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "state": "placed_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 6,
+      "definite": 6,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 6,
+        "UNKNOWN": 2
+      },
+      "registration_gate": 2
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "clear_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 4,
+      "definite": 4,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 4,
+        "PRESENT": 4
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "clear_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 2,
+      "definite": 3,
+      "wrong_definite": 1,
+      "answers": {
+        "PRESENT": 2,
+        "UNKNOWN": 5,
+        "REMOVED": 1
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "clear_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 5,
+      "definite": 7,
+      "wrong_definite": 2,
+      "answers": {
+        "PRESENT": 5,
+        "REMOVED": 2,
+        "UNKNOWN": 1
+      },
+      "registration_gate": 1
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "clear_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 5,
+      "definite": 5,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 3,
+        "REMOVED": 5
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "clear_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "clear_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 8,
+      "definite": 8,
+      "wrong_definite": 0,
+      "answers": {
+        "REMOVED": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "placed_present",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 2,
+      "definite": 2,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 6,
+        "PRESENT": 2
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "placed_present",
+      "method": "geometry",
+      "n": 8,
+      "correct": 0,
+      "definite": 0,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 8
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "placed_present",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 1,
+      "definite": 2,
+      "wrong_definite": 1,
+      "answers": {
+        "UNKNOWN": 6,
+        "PRESENT": 1,
+        "REMOVED": 1
+      },
+      "registration_gate": 6
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "placed_removed",
+      "method": "baseline_200",
+      "n": 8,
+      "correct": 2,
+      "definite": 2,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 6,
+        "REMOVED": 2
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "placed_removed",
+      "method": "geometry",
+      "n": 8,
+      "correct": 2,
+      "definite": 2,
+      "wrong_definite": 0,
+      "answers": {
+        "UNKNOWN": 6,
+        "REMOVED": 2
+      },
+      "registration_gate": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "state": "placed_removed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "correct": 3,
+      "definite": 4,
+      "wrong_definite": 1,
+      "answers": {
+        "UNKNOWN": 4,
+        "REMOVED": 3,
+        "PRESENT": 1
+      },
+      "registration_gate": 4
+    }
+  ],
+  "pair_groups": [
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "placement": "clear",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "placement": "clear",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "placement": "clear",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "placement": "placed",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "placement": "placed",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P1",
+      "placement": "placed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "placement": "clear",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "placement": "clear",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "placement": "clear",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "placement": "placed",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "placement": "placed",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P2",
+      "placement": "placed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "placement": "clear",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "placement": "clear",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "placement": "clear",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "placement": "placed",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 8,
+      "partially_visible": 0,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "placement": "placed",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 8,
+      "partially_visible": 0,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P3",
+      "placement": "placed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 8,
+      "partially_visible": 0,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "placement": "clear",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "placement": "clear",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "placement": "clear",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "placement": "placed",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "placement": "placed",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P4",
+      "placement": "placed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "placement": "clear",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "placement": "clear",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "placement": "clear",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "placement": "placed",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "placement": "placed",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "isaac",
+      "stop": "P5",
+      "placement": "placed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "placement": "clear",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "placement": "clear",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "placement": "clear",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "placement": "placed",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 4,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "placement": "placed",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 4,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P1",
+      "placement": "placed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 4,
+      "exact_committing_pairs": 2,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "placement": "clear",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "placement": "clear",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "placement": "clear",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "placement": "placed",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 4,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "placement": "placed",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 4,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P2",
+      "placement": "placed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 4,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 4,
+      "partially_visible": 4,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "placement": "clear",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "placement": "clear",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "placement": "clear",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "placement": "placed",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 8,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 8,
+      "partially_visible": 0,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "placement": "placed",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 8,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 8,
+      "partially_visible": 0,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P3",
+      "placement": "placed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 8,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 8,
+      "partially_visible": 0,
+      "fully_visible": 0,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "placement": "clear",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "placement": "clear",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "placement": "clear",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "placement": "placed",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 3,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "placement": "placed",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 3,
+      "exact_committing_pairs": 1,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P4",
+      "placement": "placed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 3,
+      "exact_committing_pairs": 2,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "placement": "clear",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "placement": "clear",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "placement": "clear",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 0,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 0,
+      "partially_visible": 0,
+      "fully_visible": 8,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "placement": "placed",
+      "method": "baseline_200",
+      "n": 8,
+      "exact_pairs": 3,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "placement": "placed",
+      "method": "geometry",
+      "n": 8,
+      "exact_pairs": 3,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    },
+    {
+      "engine": "mujoco",
+      "stop": "P5",
+      "placement": "placed",
+      "method": "vggt_qwen",
+      "n": 8,
+      "exact_pairs": 3,
+      "exact_committing_pairs": 0,
+      "exact_inconsistent_pairs": 0,
+      "zero_visible": 3,
+      "partially_visible": 1,
+      "fully_visible": 4,
+      "missing_visible_fraction": 0
+    }
+  ],
+  "cases_sha256": "899f166dd7941feba7b027d0e5c3cbc017aeff85d0532680cf3e21b235fd4ee0",
+  "records_sha256": {
+    "baseline_200": "5e73d69bf482bb8e91ca5a3b0946514762d276ae100851259d7364cf4dc28c3f",
+    "geometry": "42605eb9bba1841b507b99e744cef6ee4f4a6f1afb393b45ecc98fa6ec080ad8",
+    "vggt_qwen": "2752b611bdde00e2b02d8f62c52603169c0a34e4ff2a1383dc21e69b5f8fd264"
+  },
+  "evaluator_sha256": "d33cd6688feac7c81f109a8aaf68c306c32b02f66761d635431e8ee74fd19266",
+  "note": "Descriptive sensitivity check on reused layouts; cases are not independent."
+}

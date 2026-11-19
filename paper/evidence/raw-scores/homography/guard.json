@@ -1,0 +1,21 @@
+{
+  "clip_actual_path": "/home/ascent/Projects/SJSU/Fall26/CMPE249/cmpe249-active-verification/checkpoints/clip/ViT-B-32.pt",
+  "clip_sha256": "40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af",
+  "text_model_source": "/home/ascent/Projects/SJSU/Fall26/CMPE249/cmpe249-active-verification/development/geoscd-rgb-runtime-v1/.venv/lib/python3.13/site-packages/ultralytics/nn/text_model.py",
+  "text_model_sha256": "4fda286c9434b5810c2368dd3044e14faa0f7f8544489a9fec8855dece2bb953",
+  "guard_sha256": "d55e63527c675b852b2115ca7fb2b09678e5d78653857d73e72cfea3ba023e1d",
+  "script": "/home/ascent/cmpe249-sim/paper-audit-v1/development/paper_audit/score_technical.py",
+  "argv": [
+    "--cases",
+    "/home/ascent/cmpe249-sim/paper-audit-v1/fresh-packet/cases.json",
+    "--out",
+    "/home/ascent/cmpe249-sim/paper-audit-v1/production-baseline_200",
+    "--method",
+    "baseline_200",
+    "--geometry-config",
+    "/home/ascent/cmpe249-sim/paper-audit-v1/candidate-config.json",
+    "--baseline-manifest",
+    "/mnt/bench-data/datasets/cmpe249-active-verification/cross-sim-dev-20261117/geoscd-rgb-development-v1/baseline-replay-v1/manifest.json"
+  ],
+  "python_socket_policy": "IPv4/IPv6 connect and send disabled; DNS disabled"
+}

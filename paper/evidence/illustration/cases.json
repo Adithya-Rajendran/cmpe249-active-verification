@@ -1,0 +1,187 @@
+{
+  "selection": "Two post-hoc illustrations from the prior recurring MuJoCo tabletop removals and the prior certified shelf error.",
+  "rows": [
+    {
+      "base_id": "CSPT05",
+      "level": "D6",
+      "stop": "P4",
+      "setting": "clear",
+      "target_ycb": "007_tuna_fish_can",
+      "crop_xyxy": [
+        148,
+        82,
+        822,
+        376
+      ],
+      "reference_box_xyxy": [
+        385,
+        212,
+        511,
+        317
+      ],
+      "reference_rgb_sha256": "6dcf8c14b023aa8a75edededa58eb57c42c8d2a8eaaf59fec01498bfd8892088",
+      "revisit_pixels_changed_in_full_1200x675_rgb": 12159,
+      "cases": [
+        {
+          "id": "Iea9f094701c2c8876683e4aa76e350b7",
+          "pair_id": "I497424e7c5ebea1cb892d6e1",
+          "state": "clear_present",
+          "physical_state": "PRESENT",
+          "baseline": "UNKNOWN",
+          "baseline_gate": "correlation",
+          "candidate": "PRESENT",
+          "candidate_gate": "accepted",
+          "query_rgb_sha256": "dad47b4a7bb967bd4e554bf75ab96ec8c96106d3c04e630e46fc9bf4c31c401d"
+        },
+        {
+          "id": "I1c13783afb7f55f1effae3650e7235c7",
+          "pair_id": "I497424e7c5ebea1cb892d6e1",
+          "state": "clear_removed",
+          "physical_state": "REMOVED",
+          "baseline": "UNKNOWN",
+          "baseline_gate": "correlation",
+          "candidate": "REMOVED",
+          "candidate_gate": "accepted",
+          "query_rgb_sha256": "7bd41a03f9757f250694e568976f7ce4cbe70b66827f45a3764cb60a3c8a16f9"
+        }
+      ],
+      "files": [
+        {
+          "role": "reference",
+          "state": "clear_present",
+          "file": "clear-reference.png",
+          "size": [
+            1200,
+            675
+          ],
+          "file_sha256": "6dcf8c14b023aa8a75edededa58eb57c42c8d2a8eaaf59fec01498bfd8892088",
+          "decoded_sha256": "f7567794c4d42b7f6779f50685bf59123123fa3260d84558d03e7bf116b5e346"
+        },
+        {
+          "role": "query",
+          "state": "clear_present",
+          "file": "clear_present.png",
+          "size": [
+            1200,
+            675
+          ],
+          "file_sha256": "dad47b4a7bb967bd4e554bf75ab96ec8c96106d3c04e630e46fc9bf4c31c401d",
+          "decoded_sha256": "559e3db3086231cfba2cceb0aed98f7d5b9da59f2d5e55c2ae7ad6a8f4c46c79"
+        },
+        {
+          "role": "reference",
+          "state": "clear_removed",
+          "file": "clear-reference.png",
+          "size": [
+            1200,
+            675
+          ],
+          "file_sha256": "6dcf8c14b023aa8a75edededa58eb57c42c8d2a8eaaf59fec01498bfd8892088",
+          "decoded_sha256": "f7567794c4d42b7f6779f50685bf59123123fa3260d84558d03e7bf116b5e346"
+        },
+        {
+          "role": "query",
+          "state": "clear_removed",
+          "file": "clear_removed.png",
+          "size": [
+            1200,
+            675
+          ],
+          "file_sha256": "7bd41a03f9757f250694e568976f7ce4cbe70b66827f45a3764cb60a3c8a16f9",
+          "decoded_sha256": "b25118e070eb9d2a5cacbfbe7db50d37f087e0757abe5280d4f474cb13224b2c"
+        }
+      ]
+    },
+    {
+      "base_id": "CSPS04",
+      "level": "D4",
+      "stop": "P3",
+      "setting": "placed",
+      "target_ycb": "007_tuna_fish_can",
+      "crop_xyxy": [
+        300,
+        385,
+        735,
+        575
+      ],
+      "reference_box_xyxy": [
+        522,
+        479,
+        578,
+        515
+      ],
+      "reference_rgb_sha256": "1054d7d86b80c3ca6a23a40cc74636c4fc608a07cacc5cd55b98dacb94570e50",
+      "revisit_pixels_changed_in_full_1200x675_rgb": 0,
+      "cases": [
+        {
+          "id": "If40d26e5a86cc1260ab7853679aa391a",
+          "pair_id": "Ie432e860f1cb362edf2310a0",
+          "state": "placed_present",
+          "physical_state": "PRESENT",
+          "baseline": "REMOVED",
+          "baseline_gate": "accepted",
+          "candidate": "UNKNOWN",
+          "candidate_gate": "target_valid_fraction_below_threshold",
+          "query_rgb_sha256": "abc99f29efbba11b57fc53d6e80c09859ee43a0838846a9de9260515ddbe27f3"
+        },
+        {
+          "id": "I0e19d2d7427127feec70e93af76ee53a",
+          "pair_id": "Ie432e860f1cb362edf2310a0",
+          "state": "placed_removed",
+          "physical_state": "REMOVED",
+          "baseline": "REMOVED",
+          "baseline_gate": "accepted",
+          "candidate": "UNKNOWN",
+          "candidate_gate": "target_valid_fraction_below_threshold",
+          "query_rgb_sha256": "abc99f29efbba11b57fc53d6e80c09859ee43a0838846a9de9260515ddbe27f3"
+        }
+      ],
+      "files": [
+        {
+          "role": "reference",
+          "state": "placed_present",
+          "file": "placed-reference.png",
+          "size": [
+            1200,
+            675
+          ],
+          "file_sha256": "1054d7d86b80c3ca6a23a40cc74636c4fc608a07cacc5cd55b98dacb94570e50",
+          "decoded_sha256": "564a09956ffd1e96be74a1b59732f36e085c7a1300b80cea791c6dd8d3e3eb2d"
+        },
+        {
+          "role": "query",
+          "state": "placed_present",
+          "file": "placed_present.png",
+          "size": [
+            1200,
+            675
+          ],
+          "file_sha256": "abc99f29efbba11b57fc53d6e80c09859ee43a0838846a9de9260515ddbe27f3",
+          "decoded_sha256": "baf0e35e3c9ea5d6eef6aa368e44860e4ed0f6c6cef3e6eb79cdbec934274f38"
+        },
+        {
+          "role": "reference",
+          "state": "placed_removed",
+          "file": "placed-reference.png",
+          "size": [
+            1200,
+            675
+          ],
+          "file_sha256": "1054d7d86b80c3ca6a23a40cc74636c4fc608a07cacc5cd55b98dacb94570e50",
+          "decoded_sha256": "564a09956ffd1e96be74a1b59732f36e085c7a1300b80cea791c6dd8d3e3eb2d"
+        },
+        {
+          "role": "query",
+          "state": "placed_removed",
+          "file": "placed_removed.png",
+          "size": [
+            1200,
+            675
+          ],
+          "file_sha256": "abc99f29efbba11b57fc53d6e80c09859ee43a0838846a9de9260515ddbe27f3",
+          "decoded_sha256": "baf0e35e3c9ea5d6eef6aa368e44860e4ed0f6c6cef3e6eb79cdbec934274f38"
+        }
+      ]
+    }
+  ]
+}

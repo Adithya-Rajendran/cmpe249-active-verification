@@ -1,0 +1,14 @@
+{
+  "study_id": "cross-sim-dev-v1",
+  "synthetic": false,
+  "analysis_path": "/mnt/bench-data/datasets/cmpe249-active-verification/cross-sim-dev-20261117/pilot/scoring-v1/analysis.json",
+  "analysis_sha256": "38a3918d9c5f7a519e9549ccf7396167126e8a1380baad3be3f75b8c50812fd9",
+  "exporter_sha256": "0411c3c54235dbc9d3db5b361fdab37fb70b5437d8e992973c169f79e878ea90",
+  "matplotlib_version": "3.5.1",
+  "outputs_sha256": {
+    "arrangement_metrics.csv": "eb5d74c564f22be945fd31cf645916c1494910c1ce7fc548bf7a0f560738a003",
+    "clear_correct_counts.png": "eb49dd3c67458ced4424d38ef0fb5083dfb77eb0d0a58f7ec4399000c09e3d3c"
+  },
+  "figure": "Clear-state correct counts; 25 per aggregate cell, five arrangements per cell.",
+  "csv_rows": 216
+}

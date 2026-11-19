@@ -1,0 +1,19 @@
+{
+  "study_id": "support-label-qualification-v1",
+  "status": "development",
+  "capture_split": "qualification",
+  "stops": ["P1", "P2", "P3", "P4", "P5"],
+  "states": ["clear_present", "clear_removed", "placed_present", "placed_removed"],
+  "lighting": "L1",
+  "levels": [{"id":"D0","translation_m":0.0,"yaw_deg":0.0},{"id":"D6","translation_m":0.06,"yaw_deg":3.0}],
+  "arrangements": [{"base_id":"LQS01","environment":"shelf","class":"M16-L","seed_start":9500},{"base_id":"LQS02","environment":"shelf","class":"M16-R","seed_start":9532},{"base_id":"LQT01","environment":"tabletop","class":"M16-L","seed_start":9700},{"base_id":"LQT02","environment":"tabletop","class":"M16-R","seed_start":9732}],
+  "seeds_per_arrangement": 32,
+  "attempts_per_seed": 21,
+  "valid_candidates_to_rank": 16,
+  "slot_rule": "For each arrangement, walk the configured development slot list in its deterministic order. Select the first slot of the declared class whose target identity differs from all earlier selected slots in the same environment.",
+  "sign_rule": "For arrangement i in declared order and stop j in P1-P5 order, select translation/yaw signs from [(+,+),(+,-),(-,+),(-,-)] at index (5*i+j) modulo 4. Reuse signs across levels.",
+  "candidate_rule": "Visit each seed in ascending reserved order, and attempts 0 through 20 in ascending order. Keep the first 16 valid nonhistorical, nonduplicate generated candidates, or all valid candidates if the reserve is exhausted. Reject generation failures, frame-margin failures and duplicate historical/selected layouts. Score target-occluder projected-hull coverage separately at every D0/D6 revisit camera using sim.arrange.coverage; strict 0.10 < coverage < 0.90 counts as middle. Rank first by meeting at least two middle level-stop locations, then by having at least one middle location in each level, then by number of middle locations, then lowest seed, then lowest attempt. If fewer than two locations qualify, retain the best candidate and record that failure. Fail if no valid candidate exists.",
+  "information_boundary": "Only deterministic source geometry and frame checks are used; no rendered RGB, labels, support judgments, model predictions or score outcomes.",
+  "historical_inventory": "runs/2026-11-17-cross-sim/cohort-qualification/provenance.json",
+  "historical_additional_manifests": ["runs/2026-11-17-cross-sim/cohort-qualification/manifest.json","runs/2026-11-17-cross-sim/cohort-pilot/manifest.json","runs/2026-11-17-stress-dev-v1/geometry-v3/cohort_manifest.json"]
+}

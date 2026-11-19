@@ -1,0 +1,11 @@
+{
+  "design_locked": false,
+  "study_id": "paper-audit-v1",
+  "stops": ["P1", "P2", "P3", "P4", "P5"],
+  "states": ["clear_present", "clear_removed", "placed_present", "placed_removed"],
+  "qualification_levels": ["D0"],
+  "pilot_levels": ["D0", "D6"],
+  "image_size": [2304, 1296],
+  "fixture_seeds": [7400, 7401, 7402, 7405, 7406, 7407, 7420, 7421, 7422, 7425, 7426, 7427, 7440, 7441, 7442, 7445, 7446, 7447, 7500, 7501, 7502, 7505, 7506, 7507, 7520, 7521, 7522, 7525, 7526, 7527, 7540, 7541, 7542, 7545, 7546, 7547],
+  "levels": [{"id":"D0","translation_m":0.0,"yaw_deg":0.0},{"id":"D6","translation_m":0.06,"yaw_deg":3.0}]
+}

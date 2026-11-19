@@ -1,0 +1,211 @@
+{
+  "overall": {
+    "n": 32,
+    "terra": {
+      "PRESENT": 12,
+      "UNKNOWN": 16,
+      "REMOVED": 4
+    },
+    "physical_states": {
+      "PRESENT": 16,
+      "REMOVED": 16
+    },
+    "same_answer": 28,
+    "corroborated_definite": 16,
+    "certificate_confirmed_unknown": 4,
+    "corroborated": 20,
+    "exact_ambiguity": 4,
+    "terra_wrong_definite": 0,
+    "terra_definite_on_exact": 0
+  },
+  "unit": "base arrangement, paired across engines",
+  "arrangements": 4,
+  "engines": {
+    "isaac": {
+      "outcome": "fail",
+      "checks": {
+        "planned_counts": true,
+        "minimum_partial": false,
+        "minimum_clear": true,
+        "both_partial_definite_classes": false,
+        "no_wrong_definite": true,
+        "no_definite_on_exact_ambiguity": true
+      },
+      "partial_corroborated_by_answer": {
+        "PRESENT": 4
+      },
+      "overall": {
+        "n": 16,
+        "terra": {
+          "PRESENT": 6,
+          "UNKNOWN": 8,
+          "REMOVED": 2
+        },
+        "physical_states": {
+          "PRESENT": 8,
+          "REMOVED": 8
+        },
+        "same_answer": 14,
+        "corroborated_definite": 8,
+        "certificate_confirmed_unknown": 0,
+        "corroborated": 8,
+        "exact_ambiguity": 0,
+        "terra_wrong_definite": 0,
+        "terra_definite_on_exact": 0
+      },
+      "conditions": {
+        "partial": {
+          "n": 8,
+          "terra": {
+            "UNKNOWN": 4,
+            "PRESENT": 4
+          },
+          "physical_states": {
+            "REMOVED": 4,
+            "PRESENT": 4
+          },
+          "same_answer": 6,
+          "corroborated_definite": 4,
+          "certificate_confirmed_unknown": 0,
+          "corroborated": 4,
+          "exact_ambiguity": 0,
+          "terra_wrong_definite": 0,
+          "terra_definite_on_exact": 0
+        },
+        "clear": {
+          "n": 4,
+          "terra": {
+            "PRESENT": 2,
+            "REMOVED": 2
+          },
+          "physical_states": {
+            "PRESENT": 2,
+            "REMOVED": 2
+          },
+          "same_answer": 4,
+          "corroborated_definite": 4,
+          "certificate_confirmed_unknown": 0,
+          "corroborated": 4,
+          "exact_ambiguity": 0,
+          "terra_wrong_definite": 0,
+          "terra_definite_on_exact": 0
+        },
+        "hidden": {
+          "n": 4,
+          "terra": {
+            "UNKNOWN": 4
+          },
+          "physical_states": {
+            "REMOVED": 2,
+            "PRESENT": 2
+          },
+          "same_answer": 4,
+          "corroborated_definite": 0,
+          "certificate_confirmed_unknown": 0,
+          "corroborated": 0,
+          "exact_ambiguity": 0,
+          "terra_wrong_definite": 0,
+          "terra_definite_on_exact": 0
+        }
+      }
+    },
+    "mujoco": {
+      "outcome": "fail",
+      "checks": {
+        "planned_counts": true,
+        "minimum_partial": false,
+        "minimum_clear": true,
+        "both_partial_definite_classes": false,
+        "no_wrong_definite": true,
+        "no_definite_on_exact_ambiguity": true
+      },
+      "partial_corroborated_by_answer": {
+        "PRESENT": 4
+      },
+      "overall": {
+        "n": 16,
+        "terra": {
+          "PRESENT": 6,
+          "UNKNOWN": 8,
+          "REMOVED": 2
+        },
+        "physical_states": {
+          "PRESENT": 8,
+          "REMOVED": 8
+        },
+        "same_answer": 14,
+        "corroborated_definite": 8,
+        "certificate_confirmed_unknown": 4,
+        "corroborated": 12,
+        "exact_ambiguity": 4,
+        "terra_wrong_definite": 0,
+        "terra_definite_on_exact": 0
+      },
+      "conditions": {
+        "partial": {
+          "n": 8,
+          "terra": {
+            "UNKNOWN": 4,
+            "PRESENT": 4
+          },
+          "physical_states": {
+            "REMOVED": 4,
+            "PRESENT": 4
+          },
+          "same_answer": 6,
+          "corroborated_definite": 4,
+          "certificate_confirmed_unknown": 0,
+          "corroborated": 4,
+          "exact_ambiguity": 0,
+          "terra_wrong_definite": 0,
+          "terra_definite_on_exact": 0
+        },
+        "clear": {
+          "n": 4,
+          "terra": {
+            "PRESENT": 2,
+            "REMOVED": 2
+          },
+          "physical_states": {
+            "PRESENT": 2,
+            "REMOVED": 2
+          },
+          "same_answer": 4,
+          "corroborated_definite": 4,
+          "certificate_confirmed_unknown": 0,
+          "corroborated": 4,
+          "exact_ambiguity": 0,
+          "terra_wrong_definite": 0,
+          "terra_definite_on_exact": 0
+        },
+        "hidden": {
+          "n": 4,
+          "terra": {
+            "UNKNOWN": 4
+          },
+          "physical_states": {
+            "REMOVED": 2,
+            "PRESENT": 2
+          },
+          "same_answer": 4,
+          "corroborated_definite": 0,
+          "certificate_confirmed_unknown": 4,
+          "corroborated": 4,
+          "exact_ambiguity": 4,
+          "terra_wrong_definite": 0,
+          "terra_definite_on_exact": 0
+        }
+      }
+    }
+  },
+  "case_review_sha256": "be05bad27bdc6a43b6e6c8b8f2ebc00d996b5d17423726e7158805518d7d6cf8",
+  "measurements_sha256": "c1cfaa33aed739a350a1ec9d16a6a0c2e1bb5aab0d83de93dca965a50e5dec8f",
+  "adjudication_sha256": "c5f3482dc02fdb0eb43c40ae7378d0719972431cb736d1676e103438f3940fdf",
+  "reader_sha256": {
+    "terra": "633ae49898557be4c1a9fd106789e3fc7df09a79a8d51fb43f06ccafe1422142",
+    "main": "c406ed2d5cfacbc46af397aef4cf57682bc278cf49b601b49f81129a6c9e4e53"
+  },
+  "protocol_sha256": "28ee8fa32aedbe6f373bce1b50f984f26738a53edb8f944ed010dced5ed7ce80",
+  "witness_sha256": "639e8643d66c2eaf1511617df3ae9c7737dd14ae5c41d6d19bf70476024ca825",
+  "release_sha256": "f5d31690242e511c49c6f772f1335ae2aa83b2796ac5a1581873df8751bd6935"
+}

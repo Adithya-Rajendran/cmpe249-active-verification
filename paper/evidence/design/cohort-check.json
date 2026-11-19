@@ -1,0 +1,16 @@
+{
+  "checked_utc": "2026-11-18T22:54:09.359267+00:00",
+  "scope": "layout-only independent recomputation; no verifier outcomes",
+  "layouts": 20,
+  "design_sha256": "84e7de4559567187b4a26971a3d0ffc8f467e4c644e0cd441ee156d74bd0d9f8",
+  "arrangements_csv_sha256": "aaed66a30c0c1ddb5b4b6deca1b7687100f1acf4eb84374106c88acbaaf2532c",
+  "unique_seeds": 20,
+  "unique_canonical_layouts": 20,
+  "checks": [
+    "factor order and target and blocker identities",
+    "source digest for each manifest entry",
+    "one physical layout over all camera levels",
+    "camera translation norm and signed yaw at every stop",
+    "fresh non-overlapping seed blocks and unique cross-split object layouts"
+  ]
+}

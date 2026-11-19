@@ -1,0 +1,46 @@
+{
+  "tradeoff_free_improvement_supported": false,
+  "engines": [
+    {
+      "engine": "isaac",
+      "primary_n": 80,
+      "primary_gain_correct_cases": 9,
+      "strict_primary_gain": true,
+      "tabletop_gain_layouts": [
+        "PAM09",
+        "PAM10",
+        "PAM12",
+        "PAM13",
+        "PAM15",
+        "PAM16"
+      ],
+      "at_least_two_tabletop_gain_layouts": true,
+      "newly_wrong_definite_all_cases": 0,
+      "zero_newly_wrong_definite": true,
+      "certified_pairs": 0,
+      "geometry_committing_certified_pairs": 0,
+      "zero_certified_commitments": null
+    },
+    {
+      "engine": "mujoco",
+      "primary_n": 80,
+      "primary_gain_correct_cases": 15,
+      "strict_primary_gain": true,
+      "tabletop_gain_layouts": [
+        "PAM09",
+        "PAM10",
+        "PAM12",
+        "PAM13",
+        "PAM14",
+        "PAM15",
+        "PAM16"
+      ],
+      "at_least_two_tabletop_gain_layouts": true,
+      "newly_wrong_definite_all_cases": 2,
+      "zero_newly_wrong_definite": false,
+      "certified_pairs": 88,
+      "geometry_committing_certified_pairs": 1,
+      "zero_certified_commitments": false
+    }
+  ]
+}

@@ -1,0 +1,196 @@
+{
+  "design_locked": true,
+  "study_id": "paper-audit-v1",
+  "stops": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5"
+  ],
+  "states": [
+    "clear_present",
+    "clear_removed",
+    "placed_present",
+    "placed_removed"
+  ],
+  "qualification_levels": [
+    "D0"
+  ],
+  "pilot_levels": [
+    "D0",
+    "D6"
+  ],
+  "image_size": [
+    2304,
+    1296
+  ],
+  "fixture_seeds": [
+    7400,
+    7401,
+    7402,
+    7405,
+    7406,
+    7407,
+    7420,
+    7421,
+    7422,
+    7425,
+    7426,
+    7427,
+    7440,
+    7441,
+    7442,
+    7445,
+    7446,
+    7447,
+    7500,
+    7501,
+    7502,
+    7505,
+    7506,
+    7507,
+    7520,
+    7521,
+    7522,
+    7525,
+    7526,
+    7527,
+    7540,
+    7541,
+    7542,
+    7545,
+    7546,
+    7547
+  ],
+  "levels": [
+    {
+      "id": "D0",
+      "translation_m": 0.0,
+      "yaw_deg": 0.0
+    },
+    {
+      "id": "D6",
+      "translation_m": 0.06,
+      "yaw_deg": 3.0
+    }
+  ],
+  "seeds_per_arrangement": 32,
+  "attempts_per_seed": 21,
+  "split": "pilot",
+  "arrangements": [
+    {
+      "base_id": "PAM01",
+      "environment": "shelf",
+      "target": 8,
+      "family": "IND28",
+      "seed_start": 3328
+    },
+    {
+      "base_id": "PAM02",
+      "environment": "shelf",
+      "target": 8,
+      "family": "IND28",
+      "seed_start": 3360
+    },
+    {
+      "base_id": "PAM03",
+      "environment": "shelf",
+      "target": 8,
+      "family": "white_box",
+      "seed_start": 3392
+    },
+    {
+      "base_id": "PAM04",
+      "environment": "shelf",
+      "target": 8,
+      "family": "white_box",
+      "seed_start": 3424
+    },
+    {
+      "base_id": "PAM05",
+      "environment": "shelf",
+      "target": 18,
+      "family": "IND28",
+      "seed_start": 3456
+    },
+    {
+      "base_id": "PAM06",
+      "environment": "shelf",
+      "target": 18,
+      "family": "IND28",
+      "seed_start": 3488
+    },
+    {
+      "base_id": "PAM07",
+      "environment": "shelf",
+      "target": 18,
+      "family": "white_box",
+      "seed_start": 3520
+    },
+    {
+      "base_id": "PAM08",
+      "environment": "shelf",
+      "target": 18,
+      "family": "white_box",
+      "seed_start": 3552
+    },
+    {
+      "base_id": "PAM09",
+      "environment": "tabletop",
+      "target": 8,
+      "family": "IND28",
+      "seed_start": 3584
+    },
+    {
+      "base_id": "PAM10",
+      "environment": "tabletop",
+      "target": 8,
+      "family": "IND28",
+      "seed_start": 3616
+    },
+    {
+      "base_id": "PAM11",
+      "environment": "tabletop",
+      "target": 8,
+      "family": "white_box",
+      "seed_start": 3648
+    },
+    {
+      "base_id": "PAM12",
+      "environment": "tabletop",
+      "target": 8,
+      "family": "white_box",
+      "seed_start": 3680
+    },
+    {
+      "base_id": "PAM13",
+      "environment": "tabletop",
+      "target": 18,
+      "family": "IND28",
+      "seed_start": 3712
+    },
+    {
+      "base_id": "PAM14",
+      "environment": "tabletop",
+      "target": 18,
+      "family": "IND28",
+      "seed_start": 3744
+    },
+    {
+      "base_id": "PAM15",
+      "environment": "tabletop",
+      "target": 18,
+      "family": "white_box",
+      "seed_start": 3776
+    },
+    {
+      "base_id": "PAM16",
+      "environment": "tabletop",
+      "target": 18,
+      "family": "white_box",
+      "seed_start": 3808
+    }
+  ],
+  "design_release_sha256": "84e7de4559567187b4a26971a3d0ffc8f467e4c644e0cd441ee156d74bd0d9f8"
+}

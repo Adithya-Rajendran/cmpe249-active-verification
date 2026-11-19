@@ -1,0 +1,24 @@
+{
+  "stage": "candidate-pilot-released",
+  "timestamp_utc": "2026-11-18T08:23:09.410789+00:00",
+  "scope": "all 1200 existing opaque primary inputs; one fixed candidate configuration and no pilot tuning",
+  "protocol_sha256": "378fc2536cb4505a24ec9352d9e76782bb4d5f4b801306b6851e8f6564124dbb",
+  "candidate_config_sha256": "0c3e9e7b778f3b0f2a314cd0f74eaeb3c8f7f930e5fb4e2e1685483938047126",
+  "pre_score_sha256": "cec35c169394c589d758b3d1bbf092ec758731b66e6e85580f4d4c6eb2c6ba18",
+  "source_sha256": {
+    "development/cross_sim/geometry_protocol.json": "378fc2536cb4505a24ec9352d9e76782bb4d5f4b801306b6851e8f6564124dbb",
+    "development/cross_sim/geometry_run.py": "2033a30ad44c4416e689b642e7882f07ae3b7a23d01ee4bebd9a2cca2baec66b",
+    "development/cross_sim/geoscd_geometry.py": "e3df38aa229b17fc0b410c07ca4c8a476b590077502acae3cecba3dc220c25b3",
+    "development/cross_sim/dense_alignment.py": "2f07125c77ac2e8369a98e83897d1b5d305d4e48c380afadaa089c58f766aa59",
+    "development/cross_sim/scoring_protocol.json": "b032fca2e72c9dfcf798c3f96d77c107038f49c62f0609554b4cd664a4a7e887",
+    "development/cross_sim/PLAN.md": "7098bec7d92d320e25fc69386d58c3f9bfa6921e435716d1beae72a3da84865e"
+  },
+  "driver_sha256": "0b9789885513fe1b7d9d63542bcce11c7ad9874bb60b400e4467490cedc62544",
+  "replay_manifest_sha256": "b87630d9b354df05c504cf0f988e740d3c902c8ddd38c950e0c52c579be15387",
+  "evidence_sha256": {
+    "baseline_parity": "f719551b5bfafcbabc438f64045eb7741517873f6ee0a79f3f401339e82c60be",
+    "two_offline_repeats": "0e49787b36be1ecf8a3be6e1f7a47399c46d0340895d9e322300afff0fe2c33f",
+    "signed_fixture": "74ef11c298d305304d0da21f47e19303d541c1450e0c05ba4ec39bcf601a9ee5"
+  },
+  "fixture_interpretation": "Analytic tests verify direction; learned planar example estimated the correct horizontal sign with too little displacement. This is measured model behavior and does not invalidate the coordinate interface."
+}

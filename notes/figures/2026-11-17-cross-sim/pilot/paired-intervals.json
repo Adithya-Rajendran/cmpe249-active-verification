@@ -1,0 +1,1706 @@
+{
+  "study_id": "cross-sim-dev-v1",
+  "scope": "exploratory descriptive development intervals; not confirmatory population inference",
+  "bootstrap": {
+    "unit": "base arrangement",
+    "clusters_per_environment": 5,
+    "arrangements": {
+      "shelf": [
+        "CSPS01",
+        "CSPS02",
+        "CSPS03",
+        "CSPS04",
+        "CSPS05"
+      ],
+      "tabletop": [
+        "CSPT01",
+        "CSPT02",
+        "CSPT03",
+        "CSPT04",
+        "CSPT05"
+      ]
+    },
+    "draws": 2000,
+    "seed": 20261117,
+    "generator": "NumPy PCG64",
+    "draw_order": [
+      "shelf",
+      "tabletop"
+    ],
+    "draws_sha256": "5472a7d87d007f8bd47a24b19de10bb37e47e83ecb323e03bdf267ac9246f33c",
+    "pairing": "same draws across engines, controls, states and levels; environments sampled independently",
+    "interval": "two-sided 95% percentile, linear interpolation (NumPy percentile method=linear / Hyndman-Fan type 7)",
+    "balanced_combined": "equal mean of the two environment strata; combined engines average paired engine effects within each arrangement"
+  },
+  "engine_difference_direction": "mujoco_minus_isaac",
+  "guard_difference_direction": "relaxed_guard_minus_primary",
+  "engine_differences": [
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        -0.02999999999999996,
+        0.02999999999999996
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        -0.02999999999999996,
+        0.02999999999999996
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.04,
+      "interval_95_percentile": [
+        0.0,
+        0.12000000000000002
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        -0.02999999999999996,
+        0.02999999999999996
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": -0.009999999999999986,
+      "interval_95_percentile": [
+        -0.02999999999999996,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.04,
+      "interval_95_percentile": [
+        0.0,
+        0.12000000000000002
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.01,
+      "interval_95_percentile": [
+        0.0,
+        0.030000000000000006
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": -0.08,
+      "interval_95_percentile": [
+        -0.16999999999999998,
+        -0.010000000000000009
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": -0.08,
+      "interval_95_percentile": [
+        -0.16999999999999998,
+        -0.010000000000000009
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": -0.11999999999999997,
+      "interval_95_percentile": [
+        -0.19999999999999996,
+        -0.039999999999999994
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": -0.039999999999999994,
+      "interval_95_percentile": [
+        -0.11999999999999997,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.039999999999999994,
+      "interval_95_percentile": [
+        0.0,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 0.040000000000000036,
+      "interval_95_percentile": [
+        0.0,
+        0.08000000000000007
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.040000000000000036,
+      "interval_95_percentile": [
+        0.0,
+        0.08000000000000007
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.039999999999999994,
+      "interval_95_percentile": [
+        0.0,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": -0.039999999999999994,
+      "interval_95_percentile": [
+        -0.11999999999999997,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 0.030000000000000047,
+      "interval_95_percentile": [
+        -0.009999999999999964,
+        0.07000000000000006
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.030000000000000047,
+      "interval_95_percentile": [
+        -0.009999999999999964,
+        0.07000000000000006
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.039999999999999994,
+      "interval_95_percentile": [
+        0.0,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": -1.1102230246251566e-17,
+      "interval_95_percentile": [
+        -0.12000000000000004,
+        0.12000000000000002
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 0.06,
+      "interval_95_percentile": [
+        0.019999999999999997,
+        0.1
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.06,
+      "interval_95_percentile": [
+        0.019999999999999997,
+        0.1
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.039999999999999994,
+      "interval_95_percentile": [
+        0.0,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.039999999999999994,
+      "interval_95_percentile": [
+        0.0,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": -0.08,
+      "interval_95_percentile": [
+        -0.16000000000000003,
+        0.0
+      ]
+    },
+    {
+      "control": "primary",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        -0.02999999999999996,
+        0.02999999999999996
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        -0.02999999999999996,
+        0.02999999999999996
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.04,
+      "interval_95_percentile": [
+        0.0,
+        0.12000000000000002
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        -0.02999999999999996,
+        0.02999999999999996
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": -0.009999999999999986,
+      "interval_95_percentile": [
+        -0.02999999999999996,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.04,
+      "interval_95_percentile": [
+        0.0,
+        0.12000000000000002
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.01,
+      "interval_95_percentile": [
+        0.0,
+        0.030000000000000006
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": -0.08,
+      "interval_95_percentile": [
+        -0.16999999999999998,
+        -0.010000000000000009
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": -0.08,
+      "interval_95_percentile": [
+        -0.16999999999999998,
+        -0.010000000000000009
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": -0.11999999999999997,
+      "interval_95_percentile": [
+        -0.19999999999999996,
+        -0.039999999999999994
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": -0.039999999999999994,
+      "interval_95_percentile": [
+        -0.11999999999999997,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.039999999999999994,
+      "interval_95_percentile": [
+        0.0,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 0.040000000000000036,
+      "interval_95_percentile": [
+        0.0,
+        0.08000000000000007
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.040000000000000036,
+      "interval_95_percentile": [
+        0.0,
+        0.08000000000000007
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.039999999999999994,
+      "interval_95_percentile": [
+        0.0,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": -0.039999999999999994,
+      "interval_95_percentile": [
+        -0.11999999999999997,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 0.010000000000000054,
+      "interval_95_percentile": [
+        -0.06999999999999992,
+        0.07000000000000006
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.010000000000000054,
+      "interval_95_percentile": [
+        -0.06999999999999992,
+        0.07000000000000006
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.039999999999999994,
+      "interval_95_percentile": [
+        0.0,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.039999999999999994,
+      "interval_95_percentile": [
+        -0.12000000000000004,
+        0.24000000000000005
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": -0.009999999999999976,
+      "interval_95_percentile": [
+        -0.08999999999999996,
+        0.06000000000000001
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": -0.009999999999999976,
+      "interval_95_percentile": [
+        -0.08999999999999996,
+        0.06000000000000001
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": -0.07999999999999999,
+      "interval_95_percentile": [
+        -0.19999999999999996,
+        0.07999999999999999
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": -0.039999999999999994,
+      "interval_95_percentile": [
+        -0.15999999999999998,
+        0.07999999999999999
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        -0.11999999999999997,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "relaxed_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": -2.2204460492503132e-17,
+      "interval_95_percentile": [
+        -0.06000000000000005,
+        0.059999999999999984
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": -2.2204460492503132e-17,
+      "interval_95_percentile": [
+        -0.06000000000000005,
+        0.059999999999999984
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": -0.039999999999999994,
+      "interval_95_percentile": [
+        -0.11999999999999997,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": -0.039999999999999994,
+      "interval_95_percentile": [
+        -0.11999999999999997,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": -0.04,
+      "interval_95_percentile": [
+        -0.12000000000000002,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": -0.14,
+      "interval_95_percentile": [
+        -0.25,
+        -0.030000000000000006
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": -0.13,
+      "interval_95_percentile": [
+        -0.24000000000000005,
+        -0.019999999999999997
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": -0.12000000000000002,
+      "interval_95_percentile": [
+        -0.32,
+        0.07999999999999999
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": -0.16,
+      "interval_95_percentile": [
+        -0.32,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.2,
+      "interval_95_percentile": [
+        0.08,
+        0.32
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": -0.01,
+      "interval_95_percentile": [
+        -0.030000000000000006,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 2.2204460492503132e-17,
+      "interval_95_percentile": [
+        -0.059999999999999984,
+        0.06000000000000005
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 2.2204460492503132e-17,
+      "interval_95_percentile": [
+        -0.059999999999999984,
+        0.06000000000000005
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.039999999999999994,
+      "interval_95_percentile": [
+        0.0,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.039999999999999994,
+      "interval_95_percentile": [
+        0.0,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        -0.08,
+        0.06000000000000001
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        -0.08,
+        0.06000000000000001
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        -0.11999999999999997,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        -0.11999999999999997,
+        0.11999999999999997
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.08000000000000002,
+      "interval_95_percentile": [
+        0.0,
+        0.16000000000000003
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "coverage",
+      "arrangements": 5,
+      "estimate": -0.039999999999999994,
+      "interval_95_percentile": [
+        -0.08,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": -0.039999999999999994,
+      "interval_95_percentile": [
+        -0.08,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "clear_present_resolution",
+      "arrangements": 5,
+      "estimate": -0.07999999999999999,
+      "interval_95_percentile": [
+        -0.16,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "clear_removed_resolution",
+      "arrangements": 5,
+      "estimate": -0.07999999999999999,
+      "interval_95_percentile": [
+        -0.16,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "placed_both_unknown",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "control": "native_normalized_guard",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "physical_error_rate",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "guard_correct_yield_differences": [
+    {
+      "engine": "isaac",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "environment": "balanced_combined",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "environment": "balanced_combined",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "combined",
+      "environment": "shelf",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "combined",
+      "environment": "tabletop",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "combined",
+      "environment": "balanced_combined",
+      "level": "D0",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.019999999999999997,
+      "interval_95_percentile": [
+        0.0,
+        0.059999999999999984
+      ]
+    },
+    {
+      "engine": "isaac",
+      "environment": "balanced_combined",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.009999999999999998,
+      "interval_95_percentile": [
+        0.0,
+        0.029999999999999992
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "environment": "balanced_combined",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "combined",
+      "environment": "shelf",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "combined",
+      "environment": "tabletop",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.009999999999999998,
+      "interval_95_percentile": [
+        0.0,
+        0.029999999999999992
+      ]
+    },
+    {
+      "engine": "combined",
+      "environment": "balanced_combined",
+      "level": "D4",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.004999999999999999,
+      "interval_95_percentile": [
+        0.0,
+        0.014999999999999996
+      ]
+    },
+    {
+      "engine": "isaac",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.18,
+      "interval_95_percentile": [
+        0.029999999999999992,
+        0.37
+      ]
+    },
+    {
+      "engine": "isaac",
+      "environment": "balanced_combined",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.09,
+      "interval_95_percentile": [
+        0.014999999999999996,
+        0.185
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.11000000000000001,
+      "interval_95_percentile": [
+        0.0,
+        0.27
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "environment": "balanced_combined",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.05500000000000001,
+      "interval_95_percentile": [
+        0.0,
+        0.135
+      ]
+    },
+    {
+      "engine": "combined",
+      "environment": "shelf",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.0,
+      "interval_95_percentile": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "combined",
+      "environment": "tabletop",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 5,
+      "estimate": 0.145,
+      "interval_95_percentile": [
+        0.014999999999999996,
+        0.32
+      ]
+    },
+    {
+      "engine": "combined",
+      "environment": "balanced_combined",
+      "level": "D6",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.0725,
+      "interval_95_percentile": [
+        0.007499999999999998,
+        0.16
+      ]
+    }
+  ],
+  "guard_correct_yield_all_levels": [
+    {
+      "engine": "isaac",
+      "environment": "balanced_combined",
+      "level": "all_fixed_levels",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.03333333333333333,
+      "interval_95_percentile": [
+        0.004999999999999999,
+        0.07166666666666667
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "environment": "balanced_combined",
+      "level": "all_fixed_levels",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.018333333333333333,
+      "interval_95_percentile": [
+        0.0,
+        0.045
+      ]
+    },
+    {
+      "engine": "combined",
+      "environment": "balanced_combined",
+      "level": "all_fixed_levels",
+      "metric": "correct_yield",
+      "arrangements": 10,
+      "estimate": 0.02583333333333333,
+      "interval_95_percentile": [
+        0.0024999999999999996,
+        0.058333333333333334
+      ]
+    }
+  ],
+  "protocol_sha256": "b032fca2e72c9dfcf798c3f96d77c107038f49c62f0609554b4cd664a4a7e887",
+  "analysis_sha256": "38a3918d9c5f7a519e9549ccf7396167126e8a1380baad3be3f75b8c50812fd9",
+  "postprocessor_sha256": "83d4088ba546ad1861a48774f3e8074d392af9a48892a7d47afc76debb145ec8",
+  "runtime": {
+    "python": "3.13.5",
+    "numpy": "2.5.3"
+  }
+}

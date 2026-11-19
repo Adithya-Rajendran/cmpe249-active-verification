@@ -1,7 +1,10 @@
 # Isaac Sim and MuJoCo development plan
 
 Adopted 2026-11-17 after the researcher selected simulation-only evaluation.
-All counts and thresholds below are prospective development choices, not results.
+Both engines completed qualification and the paired pilot on November 17.
+Read the [pilot results](../../notes/2026-11-17-cross-sim-pilot.md) for observed counts and the engineering decision.
+The [RGB geometry comparison](../../notes/2026-11-18-rgb-geometry-comparison.md) ended on November 18 after two new false removals.
+The original pilot design and [comparison rules](#rgb-only-alignment-comparison) follow.
 The [research review](../../notes/2026-11-17-va-tamp-and-simulation-scope.md) records the rationale.
 
 ## Scope and question
@@ -18,10 +21,10 @@ Hide simulator identity, state, masks, poses, filenames and pair membership from
 
 ## Backend work before scoring
 
-The current MuJoCo backend renders the legacy shelf rig with flat materials.
-It does not load the textured Isaac arrangement cohort.
-Implement a separate development adapter for shared scene specifications before comparing scores.
-Keep the historical renderers and frozen inputs intact.
+The separate development adapters now read the same textured shelf and tabletop arrangements.
+Both passed the [dated qualification](../../notes/2026-11-17-cross-sim-qualification.md) on November 17, 2026.
+Use the [capture checks](QUALIFICATION.md) and the declared limits for future adapter changes.
+The legacy shelf renderer has a separate interface.
 
 The adapter must preserve target identity, mesh scale, transforms, background geometry and camera calibration.
 It must support the same target and blocker interventions as Isaac Sim.
@@ -35,8 +38,7 @@ Do not copy current online documentation assumptions into an older runtime witho
 ## Terra qualification
 
 Terra implements and operates the development adapters under main review.
-Its completed Isaac qualification does not automatically qualify the new MuJoCo adapter.
-The read-only source review confirms the implementation gap. It is not a rendering result.
+The main reviewer checks each engine's rendered evidence before authorizing the paired pilot.
 
 Use two declared development arrangements, one per environment, for the first smoke.
 Include all five stops, D0 and D6, and all four query states defined below.
@@ -117,13 +119,101 @@ Stop the added veto/cascade claim on this axis if one fixed control meets both r
 - No observed physical error across the complete pilot.
 
 This is an engineering stop rule. It does not establish supported correctness on every blocked view or a population risk bound.
-A continuing mechanism must recur in at least three arrangements within an environment and level.
-It must persist across applicable guard controls before a stronger geometric comparator is justified.
+
+A wrong definite answer in any state can identify a failure. An unresolved clear control can also identify a failure.
+Report abstention on the placed-blocker states as a separate outcome.
+
+Count each distinct failure pattern within one engine, environment, level and state.
+The same pattern must recur in at least three common arrangements across all three fixed controls.
+Use the observed verifier gate to describe a refusal. Check the evidence before assigning a physical cause.
 
 An effect seen in only one engine needs a renderer-specific explanation before any transfer claim.
 An inconclusive pilot remains inconclusive. Do not add arrangements until a desired result appears.
 
+## RGB-only alignment comparison
+
+Only MuJoCo met the pilot recurrence rule. All three affected tabletop arrangements used the same tuna-can asset.
+At the corresponding stops, the 200-pixel guard resolved two of the three clear removals in Isaac.
+The new experiment tests whether a geometry estimate from the two RGB images improves target alignment.
+The [November 18 protocol](geometry_protocol.json) fixes the input hashes, model, visibility rule, thresholds and acceptance criteria.
+
+1. Compare the primary 200-pixel guard with the geometry stage from GeoSCD.
+2. Use the same reference image, reference box and query image on all 1,200 pilot cases.
+3. Pin the VGGT-1B checkpoint, upstream revision, precision, coordinate transforms and validity rules before scoring.
+4. Estimate depth, camera pose and visible overlap from the two RGB images.
+5. Map query pixels into reference coordinates with the predicted correspondences.
+6. Pass the registered image and valid-pixel mask to the existing evidence calculations.
+7. Preserve the target matcher, quality score, obstruction calculation and decision thresholds.
+8. Return UNKNOWN if the map fails its declared visibility or validity rule.
+9. Qualify the mapping direction, image padding, missing pixels and repeatability on separate fixtures.
+10. Check the original registration path through the same interface against its saved decisions.
+
+The original interface accepts one homography. The [geometry adapter](geoscd_geometry.py) computes one correspondence per reference pixel.
+It interpolates displacements from the model grid. Each contributing grid point must have a usable projection.
+
+The verifier requires usable projections for at least 60% of the reference target box.
+This engineering threshold uses the complement of the existing 40% obstruction ceiling.
+Predicted overlap measures the model's estimated coverage of the box.
+
+The authors' geometry stage predicts correspondences and occlusion. Their complete change detector also uses SAM.
+The adapter retains subpixel projections. It gives the scorer both linear and nearest-neighbor image samples.
+
+The [shared scorer](geometry_run.py) uses the original appearance, quality and obstruction calculations.
+The replay on Ascent matched every decision and every evidence score on all 1,200 original baseline cases.
+Use the [pinned geometry implementation](https://github.com/ZilingLiu/GeoSCD/blob/dd31369654e96d6843cc4bbcebce854a8bc2159b/src/pixel_match.py) and the [pinned VGGT checkpoint](https://huggingface.co/facebook/VGGT-1B/tree/860abec7937da0a4c03c41d3c269c366e82abdf9).
+
+Count correct clear removals on the MuJoCo tabletop at D6. The baseline resolved 16/25.
+Require a higher total with a net gain in at least two arrangements.
+Require at least 17/25 on the corresponding Isaac cell.
+
+Require zero newly wrong definite answers across all cases.
+Require UNKNOWN on both members of all 40 certified ambiguous pairs.
+Report paired gains and losses in every cell, including clear presence and the other camera displacements.
+Keep simulator poses and masks in the independent evaluation only.
+
+A miss ends this adapter revision. A pass supports a development replication on fresh arrangements balanced by target identity.
+This rule follows inspection of the pilot. A paper claim needs a separately fixed evaluation on fresh arrangements.
+
+The [paired evaluator](geometry_evaluation.py) compares answers after the complete run.
+It checks the saved inputs, both sets of case records and the dated release.
+The [landmark diagnostic](geometry_residuals.py) measures target-position errors only where each method supplies a map.
+
+### Completed decision on November 18
+
+The geometry verifier resolved all 25 clear tabletop removals at D6 in each simulator.
+It abstained on both inputs of all 40 certified ambiguous pairs.
+It also declared a present shelf target removed in two related views. The 200-pixel control correctly retained it in both.
+These new errors ended this revision under the declared rule.
+The [comparison report](../../notes/2026-11-18-rgb-geometry-comparison.md) gives the paired outcomes, target-position errors and case images.
+
+## Visual support on partly occluded views
+
+The [blind label pilot](support_labels/PROTOCOL.md) used four fresh arrangements in both simulators.
+Terra identified all four retained objects per engine. It abstained on all four partial removals per engine.
+Both engines failed the qualification rule. The [case review](../../notes/2026-11-18-support-label-qualification.md) includes the matched images and all independent readings.
+
+The [matched instruction comparison](localization/PROTOCOL.md) used four new layouts and 16 blind Terra sessions.
+The two-step readers recovered two partial removals in MuJoCo and zero in Isaac Sim.
+Only MuJoCo passed its screen. The tabletop sample also lacked a partial retained target at the original camera pose.
+The rule ends this revision. The [casebook](../../notes/2026-11-18-label-localization.md) gives each reading and its evidence.
+
+<a id="next-development-experiment"></a>
+
+### Fixed-camera calibration
+
+The [paper protocol](../paper_audit/PROTOCOL.md) fixed the patch rule, contrast threshold and minimum yield.
+Four fresh layouts used the same panel across target states and repeats.
+In each engine, the patch detected all 20 clear changes. None of the 132 eligible negative controls triggered.
+
+The shelf can missed the required partial yield in both engines.
+The [calibration measurements](../../paper/evidence/calibration.json) retain all pairs and the reasons for missing coverage.
+General support judgments for partly hidden regions remain open.
+
 ## Paper evaluation after development
+
+The [prospective paper comparison](../paper_audit/PROTOCOL.md) uses 16 fresh arrangements.
+It reports physical decisions and exact-input ambiguity under fixed settings.
+The following requirements concern a later confirmatory study.
 
 Choose the primary mechanism and credible change-detection comparator from development evidence.
 Keep method and calibration choices fixed before transfer evaluation.

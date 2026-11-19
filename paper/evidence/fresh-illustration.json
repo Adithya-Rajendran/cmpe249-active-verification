@@ -1,0 +1,41 @@
+{
+  "selection_rank": 0,
+  "pair": {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "arrangement": "PAM01",
+    "level": "D6",
+    "stop": "P5",
+    "placement": "placed",
+    "present_id": "3336c3b9d8dcaea5e4e2174d",
+    "removed_id": "dc80fe037ef611ea06a48d48",
+    "exact": "1",
+    "native_exact": "1"
+  },
+  "target": "gelatin_box",
+  "crop_xyxy": [
+    456,
+    390,
+    801,
+    585
+  ],
+  "input_file_sha256": [
+    "43ac2140d7af4fb9cbd3c06eb349ddbdf340c3cdbbac9c04b5ec9534b1b49bd0",
+    "e35dd959ccb68fc50a5bf1ea6465d6442e95bddd91060e15fc1efae48ff0e428",
+    "e35dd959ccb68fc50a5bf1ea6465d6442e95bddd91060e15fc1efae48ff0e428"
+  ],
+  "answers": {
+    "homography": {
+      "retained": "UNKNOWN",
+      "removed": "UNKNOWN"
+    },
+    "dense": {
+      "retained": "UNKNOWN",
+      "removed": "UNKNOWN"
+    },
+    "registered": {
+      "retained": "REMOVED",
+      "removed": "REMOVED"
+    }
+  }
+}

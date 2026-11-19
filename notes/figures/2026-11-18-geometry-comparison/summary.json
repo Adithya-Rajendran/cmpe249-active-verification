@@ -1,0 +1,1340 @@
+{
+  "study_id": "cross-sim-geometry-development-v1",
+  "scope": "engine-paired comparison on previously inspected development arrangements",
+  "criteria": {
+    "more_clear_mujoco_removals_across_arrangements": true,
+    "retain_clear_isaac_removals": true,
+    "no_new_physical_errors": false,
+    "all_certified_pairs_both_unknown": true
+  },
+  "decision": "stop_this_revision",
+  "clear_tabletop_d6_removed": {
+    "isaac": {
+      "cases": 25,
+      "baseline_correct": 17,
+      "baseline_unknown": 8,
+      "baseline_false_present": 0,
+      "baseline_false_removed": 0,
+      "candidate_correct": 25,
+      "candidate_unknown": 0,
+      "candidate_false_present": 0,
+      "candidate_false_removed": 0,
+      "gained_correct": 8,
+      "lost_correct": 0,
+      "newly_wrong": 0,
+      "prior_errors_avoided": 0,
+      "net_correct": 8
+    },
+    "mujoco": {
+      "cases": 25,
+      "baseline_correct": 16,
+      "baseline_unknown": 9,
+      "baseline_false_present": 0,
+      "baseline_false_removed": 0,
+      "candidate_correct": 25,
+      "candidate_unknown": 0,
+      "candidate_false_present": 0,
+      "candidate_false_removed": 0,
+      "gained_correct": 9,
+      "lost_correct": 0,
+      "newly_wrong": 0,
+      "prior_errors_avoided": 0,
+      "net_correct": 9
+    }
+  },
+  "mujoco_primary_by_arrangement": {
+    "CSPT01": {
+      "cases": 5,
+      "baseline_correct": 5,
+      "baseline_unknown": 0,
+      "baseline_false_present": 0,
+      "baseline_false_removed": 0,
+      "candidate_correct": 5,
+      "candidate_unknown": 0,
+      "candidate_false_present": 0,
+      "candidate_false_removed": 0,
+      "gained_correct": 0,
+      "lost_correct": 0,
+      "newly_wrong": 0,
+      "prior_errors_avoided": 0,
+      "net_correct": 0
+    },
+    "CSPT02": {
+      "cases": 5,
+      "baseline_correct": 1,
+      "baseline_unknown": 4,
+      "baseline_false_present": 0,
+      "baseline_false_removed": 0,
+      "candidate_correct": 5,
+      "candidate_unknown": 0,
+      "candidate_false_present": 0,
+      "candidate_false_removed": 0,
+      "gained_correct": 4,
+      "lost_correct": 0,
+      "newly_wrong": 0,
+      "prior_errors_avoided": 0,
+      "net_correct": 4
+    },
+    "CSPT03": {
+      "cases": 5,
+      "baseline_correct": 4,
+      "baseline_unknown": 1,
+      "baseline_false_present": 0,
+      "baseline_false_removed": 0,
+      "candidate_correct": 5,
+      "candidate_unknown": 0,
+      "candidate_false_present": 0,
+      "candidate_false_removed": 0,
+      "gained_correct": 1,
+      "lost_correct": 0,
+      "newly_wrong": 0,
+      "prior_errors_avoided": 0,
+      "net_correct": 1
+    },
+    "CSPT04": {
+      "cases": 5,
+      "baseline_correct": 4,
+      "baseline_unknown": 1,
+      "baseline_false_present": 0,
+      "baseline_false_removed": 0,
+      "candidate_correct": 5,
+      "candidate_unknown": 0,
+      "candidate_false_present": 0,
+      "candidate_false_removed": 0,
+      "gained_correct": 1,
+      "lost_correct": 0,
+      "newly_wrong": 0,
+      "prior_errors_avoided": 0,
+      "net_correct": 1
+    },
+    "CSPT05": {
+      "cases": 5,
+      "baseline_correct": 2,
+      "baseline_unknown": 3,
+      "baseline_false_present": 0,
+      "baseline_false_removed": 0,
+      "candidate_correct": 5,
+      "candidate_unknown": 0,
+      "candidate_false_present": 0,
+      "candidate_false_removed": 0,
+      "gained_correct": 3,
+      "lost_correct": 0,
+      "newly_wrong": 0,
+      "prior_errors_avoided": 0,
+      "net_correct": 3
+    }
+  },
+  "improved_mujoco_arrangements": [
+    "CSPT02",
+    "CSPT03",
+    "CSPT04",
+    "CSPT05"
+  ],
+  "candidate_both_unknown": 40,
+  "certified_pairs": [
+    {
+      "pair_id": "Ie8739c10a8d2527ed7695cfb",
+      "engine": "mujoco",
+      "base_id": "CSPT01",
+      "level": "D4",
+      "stop": "P3",
+      "ids": [
+        "Ifd3117b91aa193ccfbe726da08b65f6b",
+        "I286d197ecd830eab579544397525d0b2"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I8ceca95e5b7f5f38c9d017f8",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D6",
+      "stop": "P5",
+      "ids": [
+        "I40e9e51923ee7c31aa4549b5df5e33a1",
+        "I3e108b240de90d216e2ae8ab24d9d558"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I6237252a04adf33f4e7c182d",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D6",
+      "stop": "P3",
+      "ids": [
+        "Ic426d43ad2f07a47c4709e7358fb64d8",
+        "Ib945c4e35306c0931c7087c6e9e4217c"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "Ie432e860f1cb362edf2310a0",
+      "engine": "mujoco",
+      "base_id": "CSPS04",
+      "level": "D4",
+      "stop": "P3",
+      "ids": [
+        "If40d26e5a86cc1260ab7853679aa391a",
+        "I0e19d2d7427127feec70e93af76ee53a"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "REMOVED",
+        "REMOVED"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "Ib4e76355295386543f6a09b9",
+      "engine": "mujoco",
+      "base_id": "CSPS03",
+      "level": "D6",
+      "stop": "P5",
+      "ids": [
+        "I3280478dcdf7e58d5ee084e67176b275",
+        "I759a0c38cd096d7c9cdf662354b9c834"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I41d279955d7ccac48a2ec1a2",
+      "engine": "mujoco",
+      "base_id": "CSPS01",
+      "level": "D4",
+      "stop": "P2",
+      "ids": [
+        "I2435e3a094cf27f29cf91d2a43690096",
+        "I5983546f94cebdaf049ef81b83fea4cb"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I0970e0c214ff5feee32fb394",
+      "engine": "mujoco",
+      "base_id": "CSPS03",
+      "level": "D0",
+      "stop": "P2",
+      "ids": [
+        "I5dd0405e133a0138e2f1b53a74e0c5b1",
+        "Ib067c6ffba2d096f753a113f392b7308"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I5eea80beab7b48bb0b36fcd8",
+      "engine": "mujoco",
+      "base_id": "CSPS03",
+      "level": "D4",
+      "stop": "P2",
+      "ids": [
+        "I2ff001489fae35d4b0e20f0299f07021",
+        "Iee603a65d7a375e3ad4803e3b1fff372"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I9c7fe3262cbb105a02fbb402",
+      "engine": "mujoco",
+      "base_id": "CSPS03",
+      "level": "D4",
+      "stop": "P4",
+      "ids": [
+        "Ieb66b2069f5870609bcc9bb04d6a192e",
+        "I368aea903fc280f3cb9b6e3b3e4fb7b1"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I2df7ed4b26ab45b483c500fb",
+      "engine": "mujoco",
+      "base_id": "CSPT05",
+      "level": "D0",
+      "stop": "P3",
+      "ids": [
+        "Ic04347c7d0de1acd946e5bea43689463",
+        "I84a84549b4ece6c10cdaf0d5bfa4da74"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I8d0a21d15487a4ac1d096313",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D4",
+      "stop": "P5",
+      "ids": [
+        "I4b51547d3762a189c606d9b1fbbb1c4b",
+        "I2f25f6106588b5e8fd3b127b4a9eb2e3"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I2bef1f7f90f91ec568776193",
+      "engine": "mujoco",
+      "base_id": "CSPS03",
+      "level": "D0",
+      "stop": "P4",
+      "ids": [
+        "I3d275f8913fc06235815e866b3432bae",
+        "Ic391152a09233e88c034fc52a58747c6"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I12214ed892b2cdd0cfc24f8a",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D6",
+      "stop": "P4",
+      "ids": [
+        "If69faac2e2724f866e5ca862a0a648d5",
+        "I8313b9aee3e49811aa0907ac0fd797c4"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I554aca86f7765ece21492c5d",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D0",
+      "stop": "P2",
+      "ids": [
+        "I6c0eb7d79d055be78aee9cdcb75cfe11",
+        "If12185e8a0a3da667546b46a5ecd8f47"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "Ife56963d4a8cb683bb0a8a37",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D4",
+      "stop": "P2",
+      "ids": [
+        "Ic47bcf3e52526de47a5116279090009e",
+        "I4359ce9d5678e1f049eefaef770b4142"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "Ide7519662ce84bb4fb3fb862",
+      "engine": "mujoco",
+      "base_id": "CSPS01",
+      "level": "D4",
+      "stop": "P3",
+      "ids": [
+        "Ifa1b058ae8becdfad077448499fa2f3a",
+        "Ie785052b9ad29391b1522b9810ba4fd4"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I01a423fba8fcb6906a4a3ec6",
+      "engine": "mujoco",
+      "base_id": "CSPS04",
+      "level": "D0",
+      "stop": "P3",
+      "ids": [
+        "I863c04b76014150b24a1125f3abf7c80",
+        "I356c1bd5c65fb2a21bf38cac5e52bc90"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I298cb91a63f29509a4641886",
+      "engine": "mujoco",
+      "base_id": "CSPS01",
+      "level": "D6",
+      "stop": "P3",
+      "ids": [
+        "I56fb4d943d7648578b0c5eadeb182206",
+        "I0ff1a72f12a7f24987dc2207ea2fc4f8"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I426be99f7542dc2984ede527",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D4",
+      "stop": "P3",
+      "ids": [
+        "I1198d2d33eeca3337390de18209ada24",
+        "I88d7d476e0e40a734cfddd5c6c64f0e1"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I84ebb6c1d7af90bc2435d626",
+      "engine": "mujoco",
+      "base_id": "CSPS05",
+      "level": "D4",
+      "stop": "P3",
+      "ids": [
+        "I1b366aa6e76031d98a7df3a0efad7e0f",
+        "I066c35f2d2b5d871c876e4a98ae603e6"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I50ce5d861307c8a54f68273a",
+      "engine": "mujoco",
+      "base_id": "CSPS01",
+      "level": "D0",
+      "stop": "P2",
+      "ids": [
+        "I30ff1e0a37550590c22a6e803135355c",
+        "I561f4111522ae2bd35876b4ec2312543"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "Ib95fe72942329025cc56051d",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D4",
+      "stop": "P4",
+      "ids": [
+        "I564672ac83b8bf560b371bceb0cfe4fb",
+        "I6d4192919545980a4909d5c2eb9e17bf"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I42bbb6b08b904f5a6c9464f2",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D6",
+      "stop": "P2",
+      "ids": [
+        "Ic4c4c03aa7fecd559767224df37ff5e5",
+        "Iac3f3e39ca2d315467d54000a8134888"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I6e3a2223e503a61e237e800f",
+      "engine": "mujoco",
+      "base_id": "CSPT04",
+      "level": "D0",
+      "stop": "P3",
+      "ids": [
+        "Ib25f7e307cfddcb3c8b4b6203b2e1492",
+        "I36818ef7f7daf274f527b5442d00b205"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "Ie37d1749d5cc2a5b5b7522a7",
+      "engine": "mujoco",
+      "base_id": "CSPS02",
+      "level": "D4",
+      "stop": "P3",
+      "ids": [
+        "Ibccd303489082ce70a91059b413431b1",
+        "I8a400a1c76554adf789d31fe4826dc21"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "Ic583289eba007e8132e5343b",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D0",
+      "stop": "P1",
+      "ids": [
+        "I00b873e5a6478997bb7dd93182442cc8",
+        "Iea3ec84bb3a5fac16c33a2600613ab77"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I417751ea83f0502d861fe11e",
+      "engine": "mujoco",
+      "base_id": "CSPS02",
+      "level": "D6",
+      "stop": "P3",
+      "ids": [
+        "I29c12d8677945e36bc5e28c00a52db0b",
+        "Ibc348fca5c7864beb2b3813fc0203658"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I4be5ff555b18616a47921d47",
+      "engine": "mujoco",
+      "base_id": "CSPS04",
+      "level": "D6",
+      "stop": "P3",
+      "ids": [
+        "I47a3fc95df45a9dacbe778a76ee9f7e9",
+        "Idf1a7344970b03cade8fdc69d8708a0f"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I6679e37a1e16217f87423492",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D0",
+      "stop": "P3",
+      "ids": [
+        "Ibdd30933cc6435dfa21aa9fac917e956",
+        "Ia185e245ba9f0cd26749e6117da13e11"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "Ie6e01d3797630f1b3d9cb2fd",
+      "engine": "mujoco",
+      "base_id": "CSPS02",
+      "level": "D0",
+      "stop": "P3",
+      "ids": [
+        "Id3511d081d7ccd3950fc150df96c6f87",
+        "I87cd62e25c2f368090386b23bde21b8b"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "Id0da57d015412a9fc6015791",
+      "engine": "mujoco",
+      "base_id": "CSPS03",
+      "level": "D0",
+      "stop": "P3",
+      "ids": [
+        "Ic70d2b629fca0317831d7fdf9f0af960",
+        "Idc0874807032ed58397b05ebec67cb95"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I694ed01fadf7e28b73ea56bf",
+      "engine": "mujoco",
+      "base_id": "CSPS03",
+      "level": "D4",
+      "stop": "P5",
+      "ids": [
+        "If776ddcceb0f509e7e4b39148cad47b6",
+        "I8002b1cb45ea621fd3a023a3440032eb"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I5a271641dd415f8260e7b322",
+      "engine": "mujoco",
+      "base_id": "CSPS03",
+      "level": "D6",
+      "stop": "P3",
+      "ids": [
+        "I09c3af3ed50c3ba54470b5eda5c345d8",
+        "I6fba3695ad7b656a8c0bc94d7ea541c6"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "Iae6effb9747e84003f61be0f",
+      "engine": "mujoco",
+      "base_id": "CSPS03",
+      "level": "D4",
+      "stop": "P3",
+      "ids": [
+        "I3a9a3ea8dd574958ccd2ab247c47f118",
+        "I7cce6eb7f1210897a406d6cb97cf762a"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I83e5080ccfb002703e483f02",
+      "engine": "mujoco",
+      "base_id": "CSPT03",
+      "level": "D0",
+      "stop": "P4",
+      "ids": [
+        "Iedf9124df9a1a0c1389bcd2b5365cc6f",
+        "I99957849e3fc3dcc7835bb56d82827b4"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I1625193c8ee60e9b10848170",
+      "engine": "mujoco",
+      "base_id": "CSPS01",
+      "level": "D6",
+      "stop": "P2",
+      "ids": [
+        "Ia15c29182a23d8d0c6ce3a4ed53b0dee",
+        "Ieefbccf5a178557f4e8e7d75da28431d"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "Ic546003366ce91e935532697",
+      "engine": "mujoco",
+      "base_id": "CSPS03",
+      "level": "D6",
+      "stop": "P2",
+      "ids": [
+        "Ic61b1f613a86f7842228db805a9e42a3",
+        "I62499fdcd465a1aff7f03362bc77cf3b"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I54d675905d4ac0eda3ae8575",
+      "engine": "mujoco",
+      "base_id": "CSPS03",
+      "level": "D6",
+      "stop": "P4",
+      "ids": [
+        "I4a198f897b8a3530ee1501a0073d094a",
+        "I66c78f118b9c12e0547cf89ee1fd32b9"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I7978a2459ecc2777fd72315c",
+      "engine": "mujoco",
+      "base_id": "CSPS01",
+      "level": "D0",
+      "stop": "P3",
+      "ids": [
+        "I1adc3eee1a68a739bad9e920df617564",
+        "I9294e99fdd8c50d011968fd75e0fd5f1"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "pair_id": "I5a5d1b624b26ff451c74d9a1",
+      "engine": "mujoco",
+      "base_id": "CSPT01",
+      "level": "D6",
+      "stop": "P3",
+      "ids": [
+        "I39795ae333a01c04be7bffd38f759a7c",
+        "I55b58f58d07710568136058a5d720463"
+      ],
+      "states": [
+        "placed_present",
+        "placed_removed"
+      ],
+      "baseline": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "candidate": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    }
+  ],
+  "totals": {
+    "cases": 1200,
+    "baseline_correct": 803,
+    "baseline_unknown": 396,
+    "baseline_false_present": 0,
+    "baseline_false_removed": 1,
+    "candidate_correct": 846,
+    "candidate_unknown": 352,
+    "candidate_false_present": 0,
+    "candidate_false_removed": 2,
+    "gained_correct": 113,
+    "lost_correct": 70,
+    "newly_wrong": 2,
+    "prior_errors_avoided": 1,
+    "net_correct": 43
+  },
+  "by_engine": {
+    "isaac": {
+      "cases": 600,
+      "baseline_correct": 404,
+      "baseline_unknown": 196,
+      "baseline_false_present": 0,
+      "baseline_false_removed": 0,
+      "candidate_correct": 425,
+      "candidate_unknown": 175,
+      "candidate_false_present": 0,
+      "candidate_false_removed": 0,
+      "gained_correct": 53,
+      "lost_correct": 32,
+      "newly_wrong": 0,
+      "prior_errors_avoided": 0,
+      "net_correct": 21
+    },
+    "mujoco": {
+      "cases": 600,
+      "baseline_correct": 399,
+      "baseline_unknown": 200,
+      "baseline_false_present": 0,
+      "baseline_false_removed": 1,
+      "candidate_correct": 421,
+      "candidate_unknown": 177,
+      "candidate_false_present": 0,
+      "candidate_false_removed": 2,
+      "gained_correct": 60,
+      "lost_correct": 38,
+      "newly_wrong": 2,
+      "prior_errors_avoided": 1,
+      "net_correct": 22
+    }
+  },
+  "prior_recurring_refusals_and_matching_isaac_views": [
+    {
+      "id": "I1b9ed54a7821eaf3e71274de0f27f600",
+      "engine": "isaac",
+      "environment": "tabletop",
+      "base_id": "CSPT03",
+      "stop": "P3",
+      "level": "D6",
+      "state": "clear_removed",
+      "pair_id": "I0cd3baf15bd9760695772141",
+      "physical_state": "REMOVED",
+      "baseline": "UNKNOWN",
+      "baseline_gate": "correlation",
+      "baseline_seconds": 0.3278057952411473,
+      "candidate": "REMOVED",
+      "candidate_gate": "accepted",
+      "geometry_box_valid_fraction": 1.0,
+      "candidate_seconds": 0.5439711031503975
+    },
+    {
+      "id": "I1c13783afb7f55f1effae3650e7235c7",
+      "engine": "mujoco",
+      "environment": "tabletop",
+      "base_id": "CSPT05",
+      "stop": "P4",
+      "level": "D6",
+      "state": "clear_removed",
+      "pair_id": "I497424e7c5ebea1cb892d6e1",
+      "physical_state": "REMOVED",
+      "baseline": "UNKNOWN",
+      "baseline_gate": "correlation",
+      "baseline_seconds": 0.1678529311902821,
+      "candidate": "REMOVED",
+      "candidate_gate": "accepted",
+      "geometry_box_valid_fraction": 1.0,
+      "candidate_seconds": 0.4905133335851133
+    },
+    {
+      "id": "I84c203849c9125b2bdece96c4d285bc0",
+      "engine": "mujoco",
+      "environment": "tabletop",
+      "base_id": "CSPT04",
+      "stop": "P5",
+      "level": "D6",
+      "state": "clear_removed",
+      "pair_id": "I343914ffa809108241a3ae09",
+      "physical_state": "REMOVED",
+      "baseline": "UNKNOWN",
+      "baseline_gate": "correlation",
+      "baseline_seconds": 0.1269211210310459,
+      "candidate": "REMOVED",
+      "candidate_gate": "accepted",
+      "geometry_box_valid_fraction": 1.0,
+      "candidate_seconds": 0.5118244709447026
+    },
+    {
+      "id": "Ib1fed3a27942e87486ca65bdfe5858ef",
+      "engine": "isaac",
+      "environment": "tabletop",
+      "base_id": "CSPT04",
+      "stop": "P5",
+      "level": "D6",
+      "state": "clear_removed",
+      "pair_id": "Ib77a6b96a42f6ed21a8dc30a",
+      "physical_state": "REMOVED",
+      "baseline": "REMOVED",
+      "baseline_gate": "accepted",
+      "baseline_seconds": 0.13728114496916533,
+      "candidate": "REMOVED",
+      "candidate_gate": "accepted",
+      "geometry_box_valid_fraction": 1.0,
+      "candidate_seconds": 0.5123119987547398
+    },
+    {
+      "id": "Ieaaff11f6c2df5249dea5d247ba59d17",
+      "engine": "mujoco",
+      "environment": "tabletop",
+      "base_id": "CSPT03",
+      "stop": "P3",
+      "level": "D6",
+      "state": "clear_removed",
+      "pair_id": "Ie1ed272d0c90923396b21f69",
+      "physical_state": "REMOVED",
+      "baseline": "UNKNOWN",
+      "baseline_gate": "correlation",
+      "baseline_seconds": 0.35058396216481924,
+      "candidate": "REMOVED",
+      "candidate_gate": "accepted",
+      "geometry_box_valid_fraction": 1.0,
+      "candidate_seconds": 0.5052749421447515
+    },
+    {
+      "id": "Ifd4f8f12c77fa780561ab5676e45e475",
+      "engine": "isaac",
+      "environment": "tabletop",
+      "base_id": "CSPT05",
+      "stop": "P4",
+      "level": "D6",
+      "state": "clear_removed",
+      "pair_id": "I7f3235f5c6c5aedf27f04879",
+      "physical_state": "REMOVED",
+      "baseline": "REMOVED",
+      "baseline_gate": "accepted",
+      "baseline_seconds": 0.10832800669595599,
+      "candidate": "REMOVED",
+      "candidate_gate": "accepted",
+      "geometry_box_valid_fraction": 1.0,
+      "candidate_seconds": 0.5000438108108938
+    }
+  ],
+  "balanced_change_in_correct_yield": {
+    "isaac": {
+      "estimate": 0.03499999999999999,
+      "interval_95_percentile": [
+        -0.03,
+        0.11
+      ]
+    },
+    "mujoco": {
+      "estimate": 0.03666666666666666,
+      "interval_95_percentile": [
+        -0.03333333333333333,
+        0.11504166666666643
+      ]
+    },
+    "combined": {
+      "estimate": 0.03583333333333333,
+      "interval_95_percentile": [
+        -0.029166666666666667,
+        0.11083333333333334
+      ]
+    }
+  },
+  "candidate_abstention_gates": {
+    "target_valid_fraction_below_threshold": 314,
+    "obstruction": 18,
+    "intermediate_match": 8,
+    "low_quality": 12
+  },
+  "timing_seconds_per_input": {
+    "baseline": 0.09261173801496625,
+    "candidate": 0.5006049952935427
+  },
+  "transition_counts": {
+    "PRESENT_to_PRESENT": 369,
+    "PRESENT_to_REMOVED": 2,
+    "PRESENT_to_UNKNOWN": 42,
+    "REMOVED_to_REMOVED": 364,
+    "REMOVED_to_UNKNOWN": 27,
+    "UNKNOWN_to_PRESENT": 56,
+    "UNKNOWN_to_REMOVED": 57,
+    "UNKNOWN_to_UNKNOWN": 283
+  },
+  "wrong_definite_cases": [
+    {
+      "id": "I0a4384b27d274900f01ff39596efb118",
+      "engine": "mujoco",
+      "environment": "shelf",
+      "base_id": "CSPS05",
+      "stop": "P4",
+      "level": "D4",
+      "state": "placed_present",
+      "pair_id": "I28d6a5c7753b8a1a93a115c1",
+      "physical_state": "PRESENT",
+      "baseline": "PRESENT",
+      "baseline_gate": "accepted",
+      "baseline_seconds": 0.07898148940876126,
+      "candidate": "REMOVED",
+      "candidate_gate": "accepted",
+      "geometry_box_valid_fraction": 0.6282467532467533,
+      "candidate_seconds": 0.49033077200874686
+    },
+    {
+      "id": "Ia48298bb838a8ecb2e05724fb53a01f6",
+      "engine": "mujoco",
+      "environment": "shelf",
+      "base_id": "CSPS05",
+      "stop": "P4",
+      "level": "D4",
+      "state": "clear_present",
+      "pair_id": "I74954d40f658503726c23901",
+      "physical_state": "PRESENT",
+      "baseline": "PRESENT",
+      "baseline_gate": "accepted",
+      "baseline_seconds": 0.06219910969957709,
+      "candidate": "REMOVED",
+      "candidate_gate": "accepted",
+      "geometry_box_valid_fraction": 0.8630952380952381,
+      "candidate_seconds": 0.4910773760639131
+    },
+    {
+      "id": "If40d26e5a86cc1260ab7853679aa391a",
+      "engine": "mujoco",
+      "environment": "shelf",
+      "base_id": "CSPS04",
+      "stop": "P3",
+      "level": "D4",
+      "state": "placed_present",
+      "pair_id": "Ie432e860f1cb362edf2310a0",
+      "physical_state": "PRESENT",
+      "baseline": "REMOVED",
+      "baseline_gate": "accepted",
+      "baseline_seconds": 0.32402599789202213,
+      "candidate": "UNKNOWN",
+      "candidate_gate": "target_valid_fraction_below_threshold",
+      "geometry_box_valid_fraction": 0.0,
+      "candidate_seconds": 0.49084502318874
+    }
+  ],
+  "protocol_sha256": "378fc2536cb4505a24ec9352d9e76782bb4d5f4b801306b6851e8f6564124dbb",
+  "release_sha256": "23d3cf32b78f4aa99a12af68795f970ee687a633b5d47c7f47d5403be2733e73",
+  "manifest_sha256": {
+    "baseline": "b87630d9b354df05c504cf0f988e740d3c902c8ddd38c950e0c52c579be15387",
+    "candidate": "0c51b3a88b5c3fa30e9080b989e25f43da6fe482e62d45684c08edfc42c883da"
+  },
+  "record_inventory_sha256": {
+    "baseline": "e19125a2afd031f98fa5cdb172bd323a7a8a786049cfbb6934cb3e42d4897872",
+    "candidate": "83bac8f99f7113e76f1f90972b4922a99f22bfa910978eb4bc23c2f5fcd0b47d"
+  },
+  "evaluator_sha256": "0805e64b410a484b73bb865d60167d800ac3d5ce8dc97f96a6c61ace4e296783",
+  "bootstrap": {
+    "draws": 2000,
+    "seed": 20261117,
+    "strata": [
+      "shelf",
+      "tabletop"
+    ],
+    "method": "paired arrangement percentile; descriptive"
+  },
+  "output_sha256": {
+    "arrangements.csv": "4b72771a17cf8f8a27a34456632d7b0a18454af81cdac31c7c932fbf2f2ad5e9",
+    "case_decisions.csv": "149f1d473c50a6e66803158d0317fd8f5d60136fa06d6714ed00ab35f07fb3c0",
+    "cells.csv": "7f317072062df4c135a7185f92a04ab62dd2f37b727d32abb22e18f73b5ddc93"
+  }
+}

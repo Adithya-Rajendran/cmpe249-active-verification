@@ -1,0 +1,63 @@
+{
+  "align_params": {
+    "border": 24,
+    "eps": 1e-06,
+    "excl_f": 0.5,
+    "iters": 200,
+    "levels": 4,
+    "max_scale_dev": 0.1,
+    "max_shift_px": 200.0,
+    "min_cc": 0.5,
+    "sigma": 1.5,
+    "stop_level": 1
+  },
+  "baseline_manifest_sha256": "b87630d9b354df05c504cf0f988e740d3c902c8ddd38c950e0c52c579be15387",
+  "cases_sha256": "cbae7ad26f772d3cdb363f53cf17b79295b4e80b7ae40c05af0d9630f3dd6a00",
+  "checkpoint_digests": {
+    "clip": {
+      "ViT-B-32.pt": "40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af"
+    },
+    "dinov2": {
+      "config.json": "1809f83e3bdb1609a501a610ad4a742f4fd8ae44d72ca4aa0df52d1f2ac8628d",
+      "model.safetensors": "ae1e99fcefd534ed978cdeb8326f08030c96e28b7a81ffcbc98a857c84d14be1",
+      "preprocessor_config.json": "14e780d86fa1861f8751f868d7f45425b5feb55c38ca26f152ca5097ab30f828"
+    },
+    "yolo": {
+      "yolov8s-worldv2.pt": "9b2c17ab6124a913e9b3a5c170617920d91b0f01111a8479da69f00e2cf27792"
+    }
+  },
+  "cross_sim_scorer_sha256": "2033a30ad44c4416e689b642e7882f07ae3b7a23d01ee4bebd9a2cca2baec66b",
+  "geometry_config_sha256": "0c3e9e7b778f3b0f2a314cd0f74eaeb3c8f7f930e5fb4e2e1685483938047126",
+  "gpu": "NVIDIA GB10",
+  "method": "baseline_200",
+  "params": {
+    "change_delta": 25.0,
+    "change_sigma": 2.0,
+    "clip_hi": 251,
+    "clip_lo": 4,
+    "context": 1.0,
+    "det_conf": 0.25,
+    "det_context": 2.0,
+    "det_imgsz": 640,
+    "max_area_ratio": 10.0,
+    "min_ring_kept": 0.2,
+    "novel_cos": 0.5,
+    "search_pad": 0.25,
+    "sharp_dilate": 9,
+    "target_iou": 0.5
+  },
+  "protocol_sha256": "b032fca2e72c9dfcf798c3f96d77c107038f49c62f0609554b4cd664a4a7e887",
+  "provider": null,
+  "script_sha256": "ab09918abeda7e7743a7e6cca5e58fb2dc4d19afe3f952b55c68999d94592829",
+  "thresholds": {
+    "absent": 0.6,
+    "obstruction": 0.4,
+    "present": 0.7,
+    "quality": 0.3
+  },
+  "torch": "2.12.1+cu130",
+  "v03_params": {
+    "edge_px": 4,
+    "gain_context": 2.0
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "case_csv_sha256": "4f697db58830fd3dc87f8de6caec8e4d1933fac69827fe493ba7d75187971ea3",
+  "recount_script_sha256": "7a96322d48dd0c879b8c6506252088e993aa649bbd93e5767e71b755ac4ab7a4",
+  "groups": [
+    {
+      "engine": "isaac",
+      "method": "always_REMOVED",
+      "rows": 640,
+      "definite": 640,
+      "wrong_definite": 320,
+      "primary_n": 80,
+      "primary_correct": 80
+    },
+    {
+      "engine": "isaac",
+      "method": "always_UNKNOWN",
+      "rows": 640,
+      "definite": 0,
+      "wrong_definite": 0,
+      "primary_n": 80,
+      "primary_correct": 0
+    },
+    {
+      "engine": "isaac",
+      "method": "baseline_200",
+      "rows": 640,
+      "definite": 387,
+      "wrong_definite": 0,
+      "primary_n": 80,
+      "primary_correct": 67
+    },
+    {
+      "engine": "isaac",
+      "method": "geometry",
+      "rows": 640,
+      "definite": 397,
+      "wrong_definite": 0,
+      "primary_n": 80,
+      "primary_correct": 76
+    },
+    {
+      "engine": "isaac",
+      "method": "vggt_qwen",
+      "rows": 640,
+      "definite": 415,
+      "wrong_definite": 24,
+      "primary_n": 80,
+      "primary_correct": 80
+    },
+    {
+      "engine": "mujoco",
+      "method": "always_REMOVED",
+      "rows": 640,
+      "definite": 640,
+      "wrong_definite": 320,
+      "primary_n": 80,
+      "primary_correct": 80
+    },
+    {
+      "engine": "mujoco",
+      "method": "always_UNKNOWN",
+      "rows": 640,
+      "definite": 0,
+      "wrong_definite": 0,
+      "primary_n": 80,
+      "primary_correct": 0
+    },
+    {
+      "engine": "mujoco",
+      "method": "baseline_200",
+      "rows": 640,
+      "definite": 390,
+      "wrong_definite": 1,
+      "primary_n": 80,
+      "primary_correct": 63
+    },
+    {
+      "engine": "mujoco",
+      "method": "geometry",
+      "rows": 640,
+      "definite": 402,
+      "wrong_definite": 2,
+      "primary_n": 80,
+      "primary_correct": 78
+    },
+    {
+      "engine": "mujoco",
+      "method": "vggt_qwen",
+      "rows": 640,
+      "definite": 417,
+      "wrong_definite": 27,
+      "primary_n": 80,
+      "primary_correct": 79
+    }
+  ]
+}

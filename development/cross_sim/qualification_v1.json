@@ -1,0 +1,33 @@
+{
+  "id": "cross-sim-qualification-v1",
+  "study_id": "cross-sim-dev-v1",
+  "scope": "development, before task predictions",
+  "image_size": [2304, 1296],
+  "stops": ["P1", "P2", "P3", "P4", "P5"],
+  "states": ["clear_present", "clear_removed", "placed_present", "placed_removed"],
+  "qualification_levels": ["D0", "D6"],
+  "pilot_levels": ["D0", "D4", "D6"],
+  "requirements": {
+    "max_position_error_m": 0.0001,
+    "max_axis_angle_error_deg": 0.02,
+    "max_intrinsics_error_px": 0.1,
+    "max_landmark_error_px": 1.0,
+    "mask_edge_band_px": 2,
+    "max_mask_error_outside_band_over_expected_area": 0.005,
+    "min_reference_and_clear_target_pixels": 64,
+    "min_clear_target_fraction_of_alone": 0.5,
+    "max_removed_target_pixels": 0,
+    "min_clear_target_rgb_change_mae": 6.0,
+    "max_repeat_rgb_mae": 3.0,
+    "max_repeat_clear_target_rgb_mae": 6.0,
+    "max_repeat_mask_xor_over_union": 0.005
+  },
+  "repeat": "Repeat clear_present after the removal and blocker transitions at every qualification stop and level; compare decoded RGB and binary masks.",
+  "projection": "Use the native, undistorted pinhole at (W/2,H/2), +u right, +v down. Compare independently projected source geometry with observed backend cameras and object transforms.",
+  "mask_reference": "Rasterize the supplied target triangles in isolation and the occluder silhouette from original geometry. Allow a two-pixel boundary on both sides. Count false inside and outside pixels beyond that band, normalized by projected area. For an occluded object only excess outside its projected silhouette is an error.",
+  "photometry": "RGB MAE is the mean absolute channel change in 8-bit units. Evaluate the clear target inside its two-pixel-eroded mask. Renderer-to-renderer RGB equality is not required.",
+  "texture": "Check source image digests, UV mapping and a front-facing asymmetric test image. Top left, top right, bottom left, bottom right must appear red, green, blue and yellow. Inspect actual target textures in both engines.",
+  "interventions": "All removed target masks must be empty. Check observed target and blocker poses and state observations, including the two matched placed states. Export reference at D0 only.",
+  "operation": "Verify source, runtime, assets and per-file hashes; same-input resume preserves outputs. Changed input and reserved seed must fail before capture. Preserve failed attempts separately.",
+  "release": "Both engines must pass at every qualification view, including operator checks and main visual review, before expansion or scoring. Keep the original inputs and diagnostics when a check fails."
+}

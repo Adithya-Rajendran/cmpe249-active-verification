@@ -1,0 +1,12 @@
+{
+  "verified_utc": "2026-11-18T23:33:20.938464+00:00",
+  "native_independent_recount_pairs": 80,
+  "eligible_second_repeat_and_distractor_tests": 264,
+  "numeric_contrasts_changed_by_convention": 7,
+  "positive_or_negative_verdicts_changed": 0,
+  "clear_qualification_and_partial_yield_same_in_both_engines": true,
+  "geometry_receipt_hashes": {
+    "mujoco-calibration-geometry-local.json": "abed01e7f3d3699f4ae8b7482069fbb58a6e90355e736868330cb75a84ef2aa0",
+    "isaac-calibration-geometry-local.json": "d72bd541a6f40986d03976a9f964ef6d02b8f136f84819975261e30e9d2718b3"
+  }
+}

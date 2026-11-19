@@ -1,0 +1,16 @@
+{
+  "checked_utc": "2026-11-18T23:22:00.223657+00:00",
+  "historical_record": "docs/FREEZE.md",
+  "record_sha256": "bb7baa02e721d6a8759d6e19d2e8e4c0e0c719536312e8e77eae18d323a9196b",
+  "files_verified": 73,
+  "fresh_seed_range": [
+    3200,
+    3808
+  ],
+  "fresh_development_reservation": [
+    3200,
+    3839
+  ],
+  "original_test_seed_floor": 100000,
+  "opened_new_test_geometry": false
+}

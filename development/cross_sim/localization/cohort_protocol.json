@@ -1,0 +1,89 @@
+{
+  "study_id": "support-localization-comparison-v1",
+  "status": "development",
+  "capture_split": "qualification",
+  "stops": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5"
+  ],
+  "states": [
+    "clear_present",
+    "clear_removed",
+    "placed_present",
+    "placed_removed"
+  ],
+  "lighting": "L1",
+  "levels": [
+    {
+      "id": "D0",
+      "translation_m": 0.0,
+      "yaw_deg": 0.0
+    },
+    {
+      "id": "D6",
+      "translation_m": 0.06,
+      "yaw_deg": 3.0
+    }
+  ],
+  "arrangements": [
+    {
+      "base_id": "LFS01",
+      "environment": "shelf",
+      "class": "M16-L",
+      "seed_start": 9600
+    },
+    {
+      "base_id": "LFS02",
+      "environment": "shelf",
+      "class": "M16-R",
+      "seed_start": 9632
+    },
+    {
+      "base_id": "LFT01",
+      "environment": "tabletop",
+      "class": "M16-L",
+      "seed_start": 9800
+    },
+    {
+      "base_id": "LFT02",
+      "environment": "tabletop",
+      "class": "M16-R",
+      "seed_start": 9832
+    }
+  ],
+  "seeds_per_arrangement": 32,
+  "attempts_per_seed": 21,
+  "valid_candidates_to_rank": 16,
+  "slot_rule": "For each arrangement, walk the configured development slot list in its deterministic order. Select the first slot of the declared class whose target identity differs from all earlier selected slots in the same environment.",
+  "sign_rule": "For arrangement i in declared order and stop j in P1-P5 order, select translation/yaw signs from [(+,+),(+,-),(-,+),(-,-)] at index (5*i+j) modulo 4. Reuse signs across levels.",
+  "candidate_rule": "Visit seeds and attempts in ascending order. Rank the first 16 valid layouts by: partial coverage at both levels; number of levels with both partial and fully screened stops; total partial stops; lowest seed; lowest attempt. Partial means 0.10 < coverage < 0.90. Fully screened means coverage >= 0.90.",
+  "information_boundary": "Only deterministic source geometry and frame checks are used; no rendered RGB, labels, support judgments, model predictions or score outcomes.",
+  "historical_inventory": "runs/2026-11-17-cross-sim/cohort-qualification/provenance.json",
+  "historical_additional_manifests": [
+    "runs/2026-11-17-cross-sim/cohort-qualification/manifest.json",
+    "runs/2026-11-17-cross-sim/cohort-pilot/manifest.json",
+    "runs/2026-11-17-stress-dev-v1/geometry-v3/cohort_manifest.json",
+    "runs/2026-11-18-support-labels-v1/cohort/manifest.json"
+  ],
+  "prior_reserved_blocks": [
+    [
+      9500,
+      9531
+    ],
+    [
+      9532,
+      9563
+    ],
+    [
+      9700,
+      9731
+    ],
+    [
+      9732,
+      9763
+    ]
+  ]
+}

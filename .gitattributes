@@ -1,0 +1,4 @@
+*.pdf binary
+# Preserve the original bytes when readers verify the published checksums.
+*.csv -text whitespace=trailing-space,space-before-tab,cr-at-eol
+paper/evidence/** -text

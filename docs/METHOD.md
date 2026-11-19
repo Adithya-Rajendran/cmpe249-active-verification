@@ -1,13 +1,30 @@
 # Method: evidence-aware verification
 
-**Version: 2026-11-17 Pacific. Development specification. No confirmatory study is frozen.**
+**Development specification, 2026-11-18 Pacific.**
+
+The [paper protocol](../development/paper_audit/PROTOCOL.md) fixes a separate audit for two-image memory updates.
+Each matched pair keeps the same scene and camera. The evaluator toggles the target's render visibility.
+If both full inputs match, either definite answer commits to a state the images cannot distinguish.
+The audit also counts correct removals with the blocker parked after camera motion.
+Both measures matter because a verifier can always abstain.
+
+The paper compares homography registration, dense RGB registration, and a qualified zero-shot registered-place vision-language model.
+The earlier label pilots below explain why a general support score remains unavailable for unequal images.
+The [results](../paper/Rajendran-counterfactual-scene-memory.pdf) report both correct removals and definite answers on indistinguishable inputs.
 
 The [first development pilot](../notes/2026-11-16-development-pilot.md) tested the agreement veto.
 Its model verifier failed a retained-target sanity check. It does not establish a method advantage.
 
 The [stress scoring and label review](../notes/2026-11-17-scoring-and-label-review.md) is complete.
-The [next experiment](../development/cross_sim/PLAN.md) checks fixed image-only baselines across Isaac Sim and MuJoCo.
-It uses physical-state scores for engineering decisions. It does not replace the support-validation requirement.
+The [paired pilot](../notes/2026-11-17-cross-sim-pilot.md) compared three fixed image-only controls in Isaac Sim and MuJoCo.
+One MuJoCo shelf pair produced identical inputs across opposite target states. Two controls answered REMOVED on both.
+Across the pilot, 40 such pairs certify ambiguity. Support elsewhere still needs independent validation.
+
+The [RGB geometry comparison](../notes/2026-11-18-rgb-geometry-comparison.md) kept the downstream evidence rule fixed.
+The method required usable projections for at least 60% of the reference target box.
+It resolved the recurring tabletop removals and made two new false removals at one shelf view.
+These errors end this geometry revision. Further work on support judgments requires an independent reference for partly occluded inputs.
+
 The active study uses simulation only. Physical-camera transfer remains future work.
 
 The [stress specification](../development/stress/PROTOCOL.md) preserves the completed simulator settings.
@@ -72,6 +89,19 @@ Resolve evidence of systematic labeling errors through separate review. Preserve
 Qualification must cover the decision's precision and difficult cases.
 A basic clear-control pass does not validate a 1% unsupported-error decision.
 The [completed reviewer check](../development/stress/LABEL_QUALIFICATION.md) permits assisted development review only. The AI decision hold remains active.
+
+The [partial-view pilot](../notes/2026-11-18-support-label-qualification.md) used two blind readings and a private opposite-state image at each selected camera.
+For PRESENT, each reader marked an identifying feature in the revisit.
+For REMOVED, each reader marked exposed space that a retained object must occupy.
+The evaluator checked both points against the visible retained target and the local change under removal.
+
+Terra identified every partly visible retained object in this pilot. It abstained on every partial removal.
+Keep uncorroborated judgments unresolved.
+
+The [matched instruction comparison](../notes/2026-11-18-label-localization.md) asked Terra to locate the object before answering.
+Both instruction groups received identical inputs. The two-step readers recovered two partial removals in MuJoCo and zero in Isaac Sim.
+In both engines, a reader could place the shelf brick's box exactly and still miss exposed shelf inside it.
+The next evaluator study tests repeatable target changes at a fixed camera pose. Keep these measurements separate from judgments about visual support.
 
 The [label supplement](../development/stress/LABEL_PLAN_AI_V1.md) permits automated development analysis.
 Paper claims still need independent validation of support judgments. Missing labels stay missing.
@@ -156,7 +186,7 @@ A positive match can pass despite partial obstruction. Removal needs both a weak
 Registration failure makes both predicates false. The method does not interpret registration failure as absence.
 No simulator warp or mask can rescue an ordinary verifier at test time.
 
-### Evidence records for the next implementation
+### Evidence records for a decision
 
 The [literature review](../notes/2026-11-17-va-tamp-and-simulation-scope.md) places evidence gating within established prior work.
 For each decision, record input hashes, alignment validity, quality, target match, obstruction and the relevant threshold comparisons.
@@ -168,7 +198,8 @@ Registration and obstruction estimates must refer to the supplied query.
 A blocked or invalid revisit cannot renew a previous definite state.
 The current single-pair method keeps no persistent occupancy map.
 
-This requirement adds diagnostic records to the next implementation. It changes no completed prediction or threshold.
+The paired pilot saved raw evidence and the decisive gate for each abstention.
+The [landmark diagnostic](../notes/2026-11-17-cross-sim-pilot.md#what-failed-at-the-largest-displacement) checks where the estimated warp placed the remembered target.
 Any later active-view method must target missing decision evidence using requested observations and permitted candidate geometry.
 It needs a separate protocol and equal view and movement budgets across policies.
 Simulator visibility for unrequested images remains evaluator-only information.

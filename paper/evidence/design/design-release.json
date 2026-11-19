@@ -1,0 +1,11 @@
+{
+  "study_id": "paper-audit-v1",
+  "release_utc": "2026-11-18T22:46:31.385782+00:00",
+  "scope": "local prospective development; no new study arrangements or outcomes generated at release",
+  "files": {
+    "development/paper_audit/PROTOCOL.md": "84e7de4559567187b4a26971a3d0ffc8f467e4c644e0cd441ee156d74bd0d9f8",
+    "development/cross_sim/scoring_protocol.json": "b032fca2e72c9dfcf798c3f96d77c107038f49c62f0609554b4cd664a4a7e887",
+    "development/cross_sim/geometry_protocol.json": "378fc2536cb4505a24ec9352d9e76782bb4d5f4b801306b6851e8f6564124dbb",
+    "runs/2026-11-18-paper-audit-v1/scoring/specification.json": "db57d40b5d55ba40b0b3fcdcb7a449c322bb861d4cb401c29361f6c5f5f045ed"
+  }
+}

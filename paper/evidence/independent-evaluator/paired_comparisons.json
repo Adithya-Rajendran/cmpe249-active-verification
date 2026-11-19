@@ -1,0 +1,5799 @@
+[
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 320,
+    "second_gained": 2,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.009375,
+    "bootstrap_95": [
+      -0.034375,
+      0.0125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.0375,
+    "bootstrap_95": [
+      -0.1125,
+      0.025
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      -0.0375,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 320,
+    "second_gained": 24,
+    "second_lost": 11,
+    "accuracy_difference_second_minus_first": 0.040625,
+    "bootstrap_95": [
+      0.003125,
+      0.08125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 9,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.1125,
+    "bootstrap_95": [
+      0.05,
+      0.175
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 9,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.1125,
+    "bootstrap_95": [
+      0.0625,
+      0.1625
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 4,
+    "second_lost": 9,
+    "accuracy_difference_second_minus_first": -0.0625,
+    "bootstrap_95": [
+      -0.125,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07",
+      "PAM12",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 2,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      -0.0375,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 640,
+    "second_gained": 26,
+    "second_lost": 16,
+    "accuracy_difference_second_minus_first": 0.015625,
+    "bootstrap_95": [
+      -0.010976562499999964,
+      0.040625
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 9,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.05625,
+    "bootstrap_95": [
+      0.025,
+      0.0875
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 9,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.05625,
+    "bootstrap_95": [
+      0.03125,
+      0.08125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 5,
+    "second_lost": 13,
+    "accuracy_difference_second_minus_first": -0.05,
+    "bootstrap_95": [
+      -0.11875,
+      0.00625
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07",
+      "PAM12",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 3,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      -0.03125,
+      0.025
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 2,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.01875,
+    "bootstrap_95": [
+      -0.06875,
+      0.025
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.075,
+    "bootstrap_95": [
+      -0.225,
+      0.05
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      -0.075,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 1,
+    "second_lost": 8,
+    "accuracy_difference_second_minus_first": -0.04375,
+    "bootstrap_95": [
+      -0.08125,
+      -0.0125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 7,
+    "accuracy_difference_second_minus_first": -0.15,
+    "bootstrap_95": [
+      -0.275,
+      -0.05
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": -0.025,
+    "bootstrap_95": [
+      -0.075,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 320,
+    "second_gained": 3,
+    "second_lost": 13,
+    "accuracy_difference_second_minus_first": -0.03125,
+    "bootstrap_95": [
+      -0.075,
+      0.003125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 2,
+    "second_lost": 11,
+    "accuracy_difference_second_minus_first": -0.1125,
+    "bootstrap_95": [
+      -0.25,
+      -0.0125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": -0.0125,
+    "bootstrap_95": [
+      -0.075,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 23,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": 0.125,
+    "bootstrap_95": [
+      0.0625,
+      0.2
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 9,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.225,
+    "bootstrap_95": [
+      0.1,
+      0.35
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 9,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.225,
+    "bootstrap_95": [
+      0.125,
+      0.325
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM12",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 2,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 320,
+    "second_gained": 23,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": 0.0625,
+    "bootstrap_95": [
+      0.03125,
+      0.1
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 9,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.1125,
+    "bootstrap_95": [
+      0.05,
+      0.175
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 9,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.1125,
+    "bootstrap_95": [
+      0.0625,
+      0.1625
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 3,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.0125,
+    "bootstrap_95": [
+      0.0,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM12",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 2,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.0125,
+    "bootstrap_95": [
+      0.0,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 320,
+    "second_gained": 1,
+    "second_lost": 10,
+    "accuracy_difference_second_minus_first": -0.028125,
+    "bootstrap_95": [
+      -0.0625,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.0625,
+    "bootstrap_95": [
+      -0.125,
+      -0.0125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.05,
+    "bootstrap_95": [
+      -0.125,
+      0.0125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 320,
+    "second_gained": 37,
+    "second_lost": 17,
+    "accuracy_difference_second_minus_first": 0.0625,
+    "bootstrap_95": [
+      0.00625,
+      0.121875
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 13,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": 0.1,
+    "bootstrap_95": [
+      0.0,
+      0.2125
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": [
+      "PAM04",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 16,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.1875,
+    "bootstrap_95": [
+      0.1,
+      0.275
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 4,
+    "second_lost": 8,
+    "accuracy_difference_second_minus_first": -0.05,
+    "bootstrap_95": [
+      -0.15,
+      0.025
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": [
+      "PAM04",
+      "PAM08",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 4,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": 0.0125,
+    "bootstrap_95": [
+      -0.025,
+      0.05
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM04",
+      "PAM05",
+      "PAM08",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 640,
+    "second_gained": 38,
+    "second_lost": 27,
+    "accuracy_difference_second_minus_first": 0.0171875,
+    "bootstrap_95": [
+      -0.015625,
+      0.0453125
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 13,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      0.0,
+      0.10625
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": [
+      "PAM04",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 16,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.09375,
+    "bootstrap_95": [
+      0.05,
+      0.1375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 4,
+    "second_lost": 13,
+    "accuracy_difference_second_minus_first": -0.05625,
+    "bootstrap_95": [
+      -0.125,
+      0.0
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": [
+      "PAM04",
+      "PAM08",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 5,
+    "second_lost": 8,
+    "accuracy_difference_second_minus_first": -0.01875,
+    "bootstrap_95": [
+      -0.06875,
+      0.025
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM08",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 1,
+    "second_lost": 10,
+    "accuracy_difference_second_minus_first": -0.05625,
+    "bootstrap_95": [
+      -0.125,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.125,
+    "bootstrap_95": [
+      -0.25,
+      -0.025
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.1,
+    "bootstrap_95": [
+      -0.25,
+      0.025
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 14,
+    "second_lost": 15,
+    "accuracy_difference_second_minus_first": -0.00625,
+    "bootstrap_95": [
+      -0.1,
+      0.0875
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.025,
+    "bootstrap_95": [
+      -0.175,
+      0.15
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": [
+      "PAM04",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 6,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.125,
+    "bootstrap_95": [
+      0.0,
+      0.25
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 2,
+    "second_lost": 7,
+    "accuracy_difference_second_minus_first": -0.125,
+    "bootstrap_95": [
+      -0.3,
+      0.0
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": [
+      "PAM04",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      -0.075,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM04",
+      "PAM05",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 320,
+    "second_gained": 15,
+    "second_lost": 25,
+    "accuracy_difference_second_minus_first": -0.03125,
+    "bootstrap_95": [
+      -0.0875,
+      0.0125
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 3,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.0125,
+    "bootstrap_95": [
+      -0.0875,
+      0.075
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": [
+      "PAM04",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 6,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.0625,
+    "bootstrap_95": [
+      0.0,
+      0.125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 2,
+    "second_lost": 12,
+    "accuracy_difference_second_minus_first": -0.125,
+    "bootstrap_95": [
+      -0.25,
+      -0.025
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": [
+      "PAM04",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 4,
+    "second_lost": 8,
+    "accuracy_difference_second_minus_first": -0.05,
+    "bootstrap_95": [
+      -0.15,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 160,
+    "second_gained": 23,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.13125,
+    "bootstrap_95": [
+      0.06875,
+      0.2
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 10,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.225,
+    "bootstrap_95": [
+      0.1,
+      0.35
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 10,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.25,
+    "bootstrap_95": [
+      0.15,
+      0.375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 2,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      -0.05,
+      0.1
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 320,
+    "second_gained": 23,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.065625,
+    "bootstrap_95": [
+      0.034375,
+      0.1
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 10,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.1125,
+    "bootstrap_95": [
+      0.05,
+      0.175
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 10,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.125,
+    "bootstrap_95": [
+      0.075,
+      0.1875
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 2,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.0125,
+    "bootstrap_95": [
+      -0.025,
+      0.05
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "geometry",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0125,
+    "bootstrap_95": [
+      0.0,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 8,
+    "second_lost": 18,
+    "accuracy_difference_second_minus_first": -0.03125,
+    "bootstrap_95": [
+      -0.053125,
+      -0.009375
+    ],
+    "newly_wrong_definite": 14,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 6,
+    "accuracy_difference_second_minus_first": -0.075,
+    "bootstrap_95": [
+      -0.1375,
+      -0.025
+    ],
+    "newly_wrong_definite": 6,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 4,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      0.0125,
+      0.0875
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 11,
+    "accuracy_difference_second_minus_first": -0.1375,
+    "bootstrap_95": [
+      -0.25,
+      -0.0375
+    ],
+    "newly_wrong_definite": 8,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 4,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.0375,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM07",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 31,
+    "second_lost": 17,
+    "accuracy_difference_second_minus_first": 0.04375,
+    "bootstrap_95": [
+      0.00625,
+      0.084375
+    ],
+    "newly_wrong_definite": 10,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 9,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      -0.0375,
+      0.1375
+    ],
+    "newly_wrong_definite": 5,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 13,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.1625,
+    "bootstrap_95": [
+      0.1,
+      0.225
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 3,
+    "second_lost": 11,
+    "accuracy_difference_second_minus_first": -0.1,
+    "bootstrap_95": [
+      -0.2,
+      -0.0125
+    ],
+    "newly_wrong_definite": 5,
+    "gained_layouts": [
+      "PAM12",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 6,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.0625,
+    "bootstrap_95": [
+      0.025,
+      0.1125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM07",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 640,
+    "second_gained": 39,
+    "second_lost": 35,
+    "accuracy_difference_second_minus_first": 0.00625,
+    "bootstrap_95": [
+      -0.01875,
+      0.0296875
+    ],
+    "newly_wrong_definite": 24,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 9,
+    "second_lost": 11,
+    "accuracy_difference_second_minus_first": -0.0125,
+    "bootstrap_95": [
+      -0.08125,
+      0.05
+    ],
+    "newly_wrong_definite": 11,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 17,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.10625,
+    "bootstrap_95": [
+      0.05625,
+      0.15625
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 3,
+    "second_lost": 22,
+    "accuracy_difference_second_minus_first": -0.11875,
+    "bootstrap_95": [
+      -0.225,
+      -0.03125
+    ],
+    "newly_wrong_definite": 13,
+    "gained_layouts": [
+      "PAM12",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 10,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      0.0125,
+      0.09375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM07",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 6,
+    "second_lost": 16,
+    "accuracy_difference_second_minus_first": -0.0625,
+    "bootstrap_95": [
+      -0.1,
+      -0.025
+    ],
+    "newly_wrong_definite": 12,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 6,
+    "accuracy_difference_second_minus_first": -0.15,
+    "bootstrap_95": [
+      -0.275,
+      -0.05
+    ],
+    "newly_wrong_definite": 6,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      0.0,
+      0.15
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 9,
+    "accuracy_difference_second_minus_first": -0.225,
+    "bootstrap_95": [
+      -0.45,
+      -0.05
+    ],
+    "newly_wrong_definite": 6,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      0.0,
+      0.125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 6,
+    "second_lost": 14,
+    "accuracy_difference_second_minus_first": -0.05,
+    "bootstrap_95": [
+      -0.09375,
+      -0.0125
+    ],
+    "newly_wrong_definite": 10,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.125,
+    "bootstrap_95": [
+      -0.25,
+      -0.025
+    ],
+    "newly_wrong_definite": 5,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      0.0,
+      0.15
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 9,
+    "accuracy_difference_second_minus_first": -0.225,
+    "bootstrap_95": [
+      -0.425,
+      -0.05
+    ],
+    "newly_wrong_definite": 5,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      0.0,
+      0.15
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 12,
+    "second_lost": 30,
+    "accuracy_difference_second_minus_first": -0.05625,
+    "bootstrap_95": [
+      -0.090625,
+      -0.021875
+    ],
+    "newly_wrong_definite": 22,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 11,
+    "accuracy_difference_second_minus_first": -0.1375,
+    "bootstrap_95": [
+      -0.25,
+      -0.025
+    ],
+    "newly_wrong_definite": 11,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 6,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      0.0,
+      0.15
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 18,
+    "accuracy_difference_second_minus_first": -0.225,
+    "bootstrap_95": [
+      -0.4375,
+      -0.05
+    ],
+    "newly_wrong_definite": 11,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 6,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.0625,
+    "bootstrap_95": [
+      0.0,
+      0.125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 2,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      -0.01875,
+      0.01875
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": -0.05,
+    "bootstrap_95": [
+      -0.125,
+      0.0
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 25,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": 0.1375,
+    "bootstrap_95": [
+      0.06875,
+      0.20625
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 9,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.225,
+    "bootstrap_95": [
+      0.1,
+      0.35
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 10,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.25,
+    "bootstrap_95": [
+      0.125,
+      0.35
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM12",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      0.0,
+      0.125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 27,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": 0.06875,
+    "bootstrap_95": [
+      0.034375,
+      0.1
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 9,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.1125,
+    "bootstrap_95": [
+      0.05,
+      0.175
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 11,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.1375,
+    "bootstrap_95": [
+      0.075,
+      0.2
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 3,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.0125,
+    "bootstrap_95": [
+      -0.0375,
+      0.0
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": [
+      "PAM12",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 4,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.0375,
+    "bootstrap_95": [
+      0.0,
+      0.0875
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 1,
+    "second_lost": 25,
+    "accuracy_difference_second_minus_first": -0.075,
+    "bootstrap_95": [
+      -0.11875,
+      -0.0375
+    ],
+    "newly_wrong_definite": 15,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 7,
+    "accuracy_difference_second_minus_first": -0.0875,
+    "bootstrap_95": [
+      -0.15,
+      -0.0375
+    ],
+    "newly_wrong_definite": 7,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 13,
+    "accuracy_difference_second_minus_first": -0.1625,
+    "bootstrap_95": [
+      -0.2875,
+      -0.0625
+    ],
+    "newly_wrong_definite": 8,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.05,
+    "bootstrap_95": [
+      -0.125,
+      0.0125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 42,
+    "second_lost": 17,
+    "accuracy_difference_second_minus_first": 0.078125,
+    "bootstrap_95": [
+      0.021875,
+      0.134375
+    ],
+    "newly_wrong_definite": 12,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM04",
+      "PAM05",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 16,
+    "second_lost": 6,
+    "accuracy_difference_second_minus_first": 0.125,
+    "bootstrap_95": [
+      0.0375,
+      0.225
+    ],
+    "newly_wrong_definite": 4,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 16,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.2,
+    "bootstrap_95": [
+      0.125,
+      0.2875
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 3,
+    "second_lost": 8,
+    "accuracy_difference_second_minus_first": -0.0625,
+    "bootstrap_95": [
+      -0.15,
+      0.0125
+    ],
+    "newly_wrong_definite": 8,
+    "gained_layouts": [
+      "PAM08",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 7,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      -0.0125,
+      0.1125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM04",
+      "PAM05",
+      "PAM08",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 640,
+    "second_gained": 43,
+    "second_lost": 42,
+    "accuracy_difference_second_minus_first": 0.0015625,
+    "bootstrap_95": [
+      -0.0375,
+      0.0390625
+    ],
+    "newly_wrong_definite": 27,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 16,
+    "second_lost": 13,
+    "accuracy_difference_second_minus_first": 0.01875,
+    "bootstrap_95": [
+      -0.05,
+      0.0875
+    ],
+    "newly_wrong_definite": 11,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 16,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.1,
+    "bootstrap_95": [
+      0.0625,
+      0.14375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08",
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 3,
+    "second_lost": 21,
+    "accuracy_difference_second_minus_first": -0.1125,
+    "bootstrap_95": [
+      -0.2,
+      -0.03125
+    ],
+    "newly_wrong_definite": 16,
+    "gained_layouts": [
+      "PAM08",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 8,
+    "second_lost": 8,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      -0.05625,
+      0.05625
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM08",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 1,
+    "second_lost": 18,
+    "accuracy_difference_second_minus_first": -0.10625,
+    "bootstrap_95": [
+      -0.1875,
+      -0.0375
+    ],
+    "newly_wrong_definite": 9,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.1,
+    "bootstrap_95": [
+      -0.2,
+      -0.025
+    ],
+    "newly_wrong_definite": 4,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 9,
+    "accuracy_difference_second_minus_first": -0.225,
+    "bootstrap_95": [
+      -0.45,
+      -0.05
+    ],
+    "newly_wrong_definite": 5,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.1,
+    "bootstrap_95": [
+      -0.25,
+      0.025
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 19,
+    "second_lost": 12,
+    "accuracy_difference_second_minus_first": 0.04375,
+    "bootstrap_95": [
+      -0.05,
+      0.13125
+    ],
+    "newly_wrong_definite": 10,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM04",
+      "PAM05",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 6,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      -0.075,
+      0.175
+    ],
+    "newly_wrong_definite": 3,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 6,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.15,
+    "bootstrap_95": [
+      0.05,
+      0.275
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.1,
+    "bootstrap_95": [
+      -0.25,
+      0.025
+    ],
+    "newly_wrong_definite": 7,
+    "gained_layouts": [
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 6,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      -0.05,
+      0.2
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM04",
+      "PAM05",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 20,
+    "second_lost": 30,
+    "accuracy_difference_second_minus_first": -0.03125,
+    "bootstrap_95": [
+      -0.096875,
+      0.03125
+    ],
+    "newly_wrong_definite": 19,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 6,
+    "second_lost": 8,
+    "accuracy_difference_second_minus_first": -0.025,
+    "bootstrap_95": [
+      -0.1375,
+      0.075
+    ],
+    "newly_wrong_definite": 7,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 6,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      0.025,
+      0.1375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM04",
+      "PAM05",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 14,
+    "accuracy_difference_second_minus_first": -0.1625,
+    "bootstrap_95": [
+      -0.325,
+      0.0
+    ],
+    "newly_wrong_definite": 12,
+    "gained_layouts": [
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 7,
+    "second_lost": 8,
+    "accuracy_difference_second_minus_first": -0.0125,
+    "bootstrap_95": [
+      -0.125,
+      0.0875
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 0,
+    "second_lost": 7,
+    "accuracy_difference_second_minus_first": -0.04375,
+    "bootstrap_95": [
+      -0.08125,
+      -0.0125
+    ],
+    "newly_wrong_definite": 6,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": -0.075,
+    "bootstrap_95": [
+      -0.15,
+      0.0
+    ],
+    "newly_wrong_definite": 3,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.1,
+    "bootstrap_95": [
+      -0.2,
+      -0.025
+    ],
+    "newly_wrong_definite": 3,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 23,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": 0.1125,
+    "bootstrap_95": [
+      0.05,
+      0.1875
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 10,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.2,
+    "bootstrap_95": [
+      0.075,
+      0.35
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 10,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.25,
+    "bootstrap_95": [
+      0.15,
+      0.375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 2,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": -0.025,
+    "bootstrap_95": [
+      -0.1,
+      0.05
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": [
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "all",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 23,
+    "second_lost": 12,
+    "accuracy_difference_second_minus_first": 0.034375,
+    "bootstrap_95": [
+      -0.009375,
+      0.08125
+    ],
+    "newly_wrong_definite": 8,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 10,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": 0.0625,
+    "bootstrap_95": [
+      -0.025,
+      0.1625
+    ],
+    "newly_wrong_definite": 4,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 10,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.125,
+    "bootstrap_95": [
+      0.075,
+      0.1875
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM09",
+      "PAM10",
+      "PAM12",
+      "PAM13",
+      "PAM14",
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_present",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 2,
+    "second_lost": 7,
+    "accuracy_difference_second_minus_first": -0.0625,
+    "bootstrap_95": [
+      -0.1375,
+      0.0
+    ],
+    "newly_wrong_definite": 4,
+    "gained_layouts": [
+      "PAM15",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "baseline_200",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0125,
+    "bootstrap_95": [
+      0.0,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 7,
+    "second_lost": 14,
+    "accuracy_difference_second_minus_first": -0.021875,
+    "bootstrap_95": [
+      -0.05,
+      0.003125
+    ],
+    "newly_wrong_definite": 14,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 6,
+    "accuracy_difference_second_minus_first": -0.075,
+    "bootstrap_95": [
+      -0.1375,
+      -0.025
+    ],
+    "newly_wrong_definite": 6,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 4,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      0.0125,
+      0.0875
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 8,
+    "accuracy_difference_second_minus_first": -0.1,
+    "bootstrap_95": [
+      -0.175,
+      -0.0375
+    ],
+    "newly_wrong_definite": 8,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 3,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0375,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 10,
+    "second_lost": 9,
+    "accuracy_difference_second_minus_first": 0.003125,
+    "bootstrap_95": [
+      -0.025,
+      0.03125
+    ],
+    "newly_wrong_definite": 10,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.0625,
+    "bootstrap_95": [
+      -0.125,
+      -0.0125
+    ],
+    "newly_wrong_definite": 5,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 4,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      0.0125,
+      0.0875
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.0375,
+    "bootstrap_95": [
+      -0.0875,
+      0.0
+    ],
+    "newly_wrong_definite": 5,
+    "gained_layouts": [
+      "PAM03"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 5,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0625,
+    "bootstrap_95": [
+      0.0125,
+      0.125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM07",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 640,
+    "second_gained": 17,
+    "second_lost": 23,
+    "accuracy_difference_second_minus_first": -0.009375,
+    "bootstrap_95": [
+      -0.0359375,
+      0.0171875
+    ],
+    "newly_wrong_definite": 24,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM07",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 0,
+    "second_lost": 11,
+    "accuracy_difference_second_minus_first": -0.06875,
+    "bootstrap_95": [
+      -0.125,
+      -0.0125
+    ],
+    "newly_wrong_definite": 11,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 8,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      0.0125,
+      0.0875
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 1,
+    "second_lost": 12,
+    "accuracy_difference_second_minus_first": -0.06875,
+    "bootstrap_95": [
+      -0.125,
+      -0.01875
+    ],
+    "newly_wrong_definite": 13,
+    "gained_layouts": [
+      "PAM03"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 8,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      0.0125,
+      0.1
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM07",
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 5,
+    "second_lost": 12,
+    "accuracy_difference_second_minus_first": -0.04375,
+    "bootstrap_95": [
+      -0.1,
+      0.0
+    ],
+    "newly_wrong_definite": 12,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 6,
+    "accuracy_difference_second_minus_first": -0.15,
+    "bootstrap_95": [
+      -0.275,
+      -0.05
+    ],
+    "newly_wrong_definite": 6,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      0.0,
+      0.15
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 6,
+    "accuracy_difference_second_minus_first": -0.15,
+    "bootstrap_95": [
+      -0.275,
+      -0.05
+    ],
+    "newly_wrong_definite": 6,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 2,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      0.0,
+      0.125
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 8,
+    "second_lost": 9,
+    "accuracy_difference_second_minus_first": -0.00625,
+    "bootstrap_95": [
+      -0.05,
+      0.04375
+    ],
+    "newly_wrong_definite": 10,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.125,
+    "bootstrap_95": [
+      -0.25,
+      -0.025
+    ],
+    "newly_wrong_definite": 5,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      0.0,
+      0.15
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.075,
+    "bootstrap_95": [
+      -0.175,
+      0.0
+    ],
+    "newly_wrong_definite": 5,
+    "gained_layouts": [
+      "PAM03"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 4,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.1,
+    "bootstrap_95": [
+      0.0,
+      0.2
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 13,
+    "second_lost": 21,
+    "accuracy_difference_second_minus_first": -0.025,
+    "bootstrap_95": [
+      -0.075,
+      0.021875
+    ],
+    "newly_wrong_definite": 22,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05",
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 11,
+    "accuracy_difference_second_minus_first": -0.1375,
+    "bootstrap_95": [
+      -0.25,
+      -0.025
+    ],
+    "newly_wrong_definite": 11,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 6,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      0.0,
+      0.15
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM05"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 10,
+    "accuracy_difference_second_minus_first": -0.1125,
+    "bootstrap_95": [
+      -0.225,
+      -0.025
+    ],
+    "newly_wrong_definite": 11,
+    "gained_layouts": [
+      "PAM03"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 6,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      0.0,
+      0.1625
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM03",
+      "PAM04",
+      "PAM07"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 2,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      -0.01875,
+      0.01875
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": -0.05,
+    "bootstrap_95": [
+      -0.125,
+      0.0
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 2,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0125,
+    "bootstrap_95": [
+      0.0,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 4,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.00625,
+    "bootstrap_95": [
+      -0.009375,
+      0.028125
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 2,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": -0.025,
+    "bootstrap_95": [
+      -0.0625,
+      0.0
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": []
+  },
+  {
+    "engine": "isaac",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 2,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM16"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 0,
+    "second_lost": 15,
+    "accuracy_difference_second_minus_first": -0.046875,
+    "bootstrap_95": [
+      -0.071875,
+      -0.021875
+    ],
+    "newly_wrong_definite": 15,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 7,
+    "accuracy_difference_second_minus_first": -0.0875,
+    "bootstrap_95": [
+      -0.15,
+      -0.0375
+    ],
+    "newly_wrong_definite": 7,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 8,
+    "accuracy_difference_second_minus_first": -0.1,
+    "bootstrap_95": [
+      -0.175,
+      -0.0375
+    ],
+    "newly_wrong_definite": 8,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 11,
+    "second_lost": 6,
+    "accuracy_difference_second_minus_first": 0.015625,
+    "bootstrap_95": [
+      -0.0125,
+      0.0375
+    ],
+    "newly_wrong_definite": 10,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM03",
+      "PAM05",
+      "PAM06",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 5,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      -0.0125,
+      0.0625
+    ],
+    "newly_wrong_definite": 3,
+    "gained_layouts": [
+      "PAM01",
+      "PAM05",
+      "PAM06",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0125,
+    "bootstrap_95": [
+      0.0,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM06"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 2,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": -0.0125,
+    "bootstrap_95": [
+      -0.075,
+      0.05
+    ],
+    "newly_wrong_definite": 7,
+    "gained_layouts": [
+      "PAM03",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 3,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0375,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM05"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 640,
+    "second_gained": 11,
+    "second_lost": 21,
+    "accuracy_difference_second_minus_first": -0.015625,
+    "bootstrap_95": [
+      -0.040625,
+      0.00625
+    ],
+    "newly_wrong_definite": 25,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM03",
+      "PAM05",
+      "PAM06",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 5,
+    "second_lost": 10,
+    "accuracy_difference_second_minus_first": -0.03125,
+    "bootstrap_95": [
+      -0.06875,
+      0.0
+    ],
+    "newly_wrong_definite": 10,
+    "gained_layouts": [
+      "PAM01",
+      "PAM05",
+      "PAM06",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.00625,
+    "bootstrap_95": [
+      0.0,
+      0.01875
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM06"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 2,
+    "second_lost": 11,
+    "accuracy_difference_second_minus_first": -0.05625,
+    "bootstrap_95": [
+      -0.125,
+      -0.006093750000002274
+    ],
+    "newly_wrong_definite": 15,
+    "gained_layouts": [
+      "PAM03",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "all",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 3,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.01875,
+    "bootstrap_95": [
+      0.0,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM05"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 0,
+    "second_lost": 8,
+    "accuracy_difference_second_minus_first": -0.05,
+    "bootstrap_95": [
+      -0.0875,
+      -0.01875
+    ],
+    "newly_wrong_definite": 9,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.1,
+    "bootstrap_95": [
+      -0.2,
+      -0.025
+    ],
+    "newly_wrong_definite": 4,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.1,
+    "bootstrap_95": [
+      -0.2,
+      0.0
+    ],
+    "newly_wrong_definite": 5,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 11,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": 0.05,
+    "bootstrap_95": [
+      0.0125,
+      0.08125
+    ],
+    "newly_wrong_definite": 8,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM03",
+      "PAM05",
+      "PAM06",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 5,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      0.025,
+      0.15
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": [
+      "PAM01",
+      "PAM05",
+      "PAM06",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM06"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 2,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": 0.025,
+    "bootstrap_95": [
+      -0.05,
+      0.1
+    ],
+    "newly_wrong_definite": 6,
+    "gained_layouts": [
+      "PAM03",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 3,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.075,
+    "bootstrap_95": [
+      0.0,
+      0.15
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM05"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 11,
+    "second_lost": 11,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      -0.034375,
+      0.028125
+    ],
+    "newly_wrong_definite": 17,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM03",
+      "PAM05",
+      "PAM06",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 5,
+    "second_lost": 6,
+    "accuracy_difference_second_minus_first": -0.0125,
+    "bootstrap_95": [
+      -0.075,
+      0.0375
+    ],
+    "newly_wrong_definite": 6,
+    "gained_layouts": [
+      "PAM01",
+      "PAM05",
+      "PAM06",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 1,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0125,
+    "bootstrap_95": [
+      0.0,
+      0.0375
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM06"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 2,
+    "second_lost": 5,
+    "accuracy_difference_second_minus_first": -0.0375,
+    "bootstrap_95": [
+      -0.125,
+      0.025
+    ],
+    "newly_wrong_definite": 11,
+    "gained_layouts": [
+      "PAM03",
+      "PAM08"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "shelf",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 3,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0375,
+    "bootstrap_95": [
+      0.0,
+      0.075
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": [
+      "PAM01",
+      "PAM02",
+      "PAM05"
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 0,
+    "second_lost": 7,
+    "accuracy_difference_second_minus_first": -0.04375,
+    "bootstrap_95": [
+      -0.08125,
+      -0.0125
+    ],
+    "newly_wrong_definite": 6,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": -0.075,
+    "bootstrap_95": [
+      -0.15,
+      0.0
+    ],
+    "newly_wrong_definite": 3,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.1,
+    "bootstrap_95": [
+      -0.2,
+      -0.025
+    ],
+    "newly_wrong_definite": 3,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D0",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 160,
+    "second_gained": 0,
+    "second_lost": 3,
+    "accuracy_difference_second_minus_first": -0.01875,
+    "bootstrap_95": [
+      -0.05625,
+      0.0
+    ],
+    "newly_wrong_definite": 2,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 1,
+    "accuracy_difference_second_minus_first": -0.025,
+    "bootstrap_95": [
+      -0.075,
+      0.0
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 2,
+    "accuracy_difference_second_minus_first": -0.05,
+    "bootstrap_95": [
+      -0.15,
+      0.0
+    ],
+    "newly_wrong_definite": 1,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "D6",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 40,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "all",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 320,
+    "second_gained": 0,
+    "second_lost": 10,
+    "accuracy_difference_second_minus_first": -0.03125,
+    "bootstrap_95": [
+      -0.06875,
+      -0.00625
+    ],
+    "newly_wrong_definite": 8,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 4,
+    "accuracy_difference_second_minus_first": -0.05,
+    "bootstrap_95": [
+      -0.1,
+      0.0
+    ],
+    "newly_wrong_definite": 4,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "clear_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_present",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 6,
+    "accuracy_difference_second_minus_first": -0.075,
+    "bootstrap_95": [
+      -0.175,
+      -0.0125
+    ],
+    "newly_wrong_definite": 4,
+    "gained_layouts": []
+  },
+  {
+    "engine": "mujoco",
+    "environment": "tabletop",
+    "level": "all",
+    "state": "placed_removed",
+    "first": "geometry",
+    "second": "vggt_qwen",
+    "n": 80,
+    "second_gained": 0,
+    "second_lost": 0,
+    "accuracy_difference_second_minus_first": 0.0,
+    "bootstrap_95": [
+      0.0,
+      0.0
+    ],
+    "newly_wrong_definite": 0,
+    "gained_layouts": []
+  }
+]

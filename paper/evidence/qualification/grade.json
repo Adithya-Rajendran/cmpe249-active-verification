@@ -1,0 +1,68 @@
+{
+  "binding_sha256": "9d349758d60c13ce0ebae670a638b667284c48a85688cd3bf09b2433c26006c7",
+  "cases_sha256": "a08f0bd7f542891f7876e960479f8d62146edb7cca483e30f3abcd475d7a0366",
+  "counts": {
+    "isaac-v1_present": {
+      "answers": {
+        "PRESENT": 20
+      },
+      "correct": 20,
+      "failures": {},
+      "total": 20
+    },
+    "isaac-v1_removed": {
+      "answers": {
+        "REMOVED": 20
+      },
+      "correct": 20,
+      "failures": {},
+      "total": 20
+    },
+    "mujoco-v1_present": {
+      "answers": {
+        "PRESENT": 20
+      },
+      "correct": 20,
+      "failures": {},
+      "total": 20
+    },
+    "mujoco-v1_removed": {
+      "answers": {
+        "REMOVED": 20
+      },
+      "correct": 20,
+      "failures": {},
+      "total": 20
+    },
+    "present": {
+      "answers": {
+        "PRESENT": 40
+      },
+      "correct": 40,
+      "failures": {},
+      "total": 40
+    },
+    "removed": {
+      "answers": {
+        "REMOVED": 40
+      },
+      "correct": 40,
+      "failures": {},
+      "total": 40
+    },
+    "same": {
+      "answers": {
+        "PRESENT": 36
+      },
+      "correct": 36,
+      "failures": {},
+      "total": 36
+    }
+  },
+  "criteria": "same >=34/36; clear present >=36/40 and clear removed >=36/40",
+  "mean_seconds": 1.351218825836409,
+  "median_seconds": 1.3179663473274559,
+  "private_sha256": "48dff5a2fe07eec760af289f0eb57358b028b3b366d2732214f9d5a93c7ef3b1",
+  "qualified": true,
+  "records_sha256": "501424e18661f2e3019ce5aef466b4d0ace099f63515943149ac829d10125bdb"
+}

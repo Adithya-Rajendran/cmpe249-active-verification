@@ -1,0 +1,56 @@
+{
+  "disposition": "stop_this_revision",
+  "criteria": {
+    "more_clear_mujoco_removals_across_arrangements": true,
+    "retain_clear_isaac_removals": true,
+    "no_new_physical_errors": false,
+    "all_certified_pairs_both_unknown": true
+  },
+  "independent_integrity_checks": {
+    "cases": 1200,
+    "input_files_checked": 2400,
+    "baseline_record_inventory_checked": 1200,
+    "candidate_record_payloads_checked": 1200,
+    "geometry_npz_sidecars_checked": 1200,
+    "box_fraction_recount_checked": 1200,
+    "candidate_exit_code": 0,
+    "certified_pairs_checked": 40
+  },
+  "reconciled_case_answers_and_scored_box_fractions": 1200,
+  "reconciled_cell_counts": 48,
+  "reconciled_exact_pairs": 40,
+  "matched_evaluator_geometry_records": 1200,
+  "baseline_replay": {
+    "n": 1200,
+    "counts": {
+      "correct": 803,
+      "unknown": 396,
+      "wrong": 1
+    },
+    "peak_absolute_evidence_difference": {
+      "quality": 0,
+      "match_score": 0,
+      "obstruction": 0
+    },
+    "original_sha256": "516a7bc7496cbef88a2a45965a9c8f4c43d7edcaebfa2ae284a315064467e773",
+    "replay_sha256": "b87630d9b354df05c504cf0f988e740d3c902c8ddd38c950e0c52c579be15387"
+  },
+  "candidate_manifest_sha256": "0c51b3a88b5c3fa30e9080b989e25f43da6fe482e62d45684c08edfc42c883da",
+  "independent_results_sha256": "2362d29aae598f31dcbef94e2f8e9288c7b19f1d143f2cd7db52dacc5985f23d",
+  "independent_cases_csv_sha256": "c510cfd7581f660528166c19bc7672eeb018a7a37144d0d99fcbc3624cd489e0",
+  "independent_recount_source_sha256": "aa678e0f5eb936c1f4dea3815443a5979530b03283eda4a176209faa580a2fc0",
+  "landmark_results_sha256": "9c9f8486f262a4859437938024707b640e0327578219363e4da68adbea8d4c12",
+  "weight_sha256": "f164acf60724910d8fe1578bb499d800850c7bb0948db7555c413f9fbe60467e",
+  "primary_evaluator_sha256": "0805e64b410a484b73bb865d60167d800ac3d5ce8dc97f96a6c61ace4e296783",
+  "export_sha256": {
+    "summary.json": "b9f6f941142105f91c358457b24a3106c606d8188181a40e5ab8ec3a9d258977",
+    "cells.csv": "7f317072062df4c135a7185f92a04ab62dd2f37b727d32abb22e18f73b5ddc93",
+    "arrangements.csv": "4b72771a17cf8f8a27a34456632d7b0a18454af81cdac31c7c932fbf2f2ad5e9",
+    "case_decisions.csv": "149f1d473c50a6e66803158d0317fd8f5d60136fa06d6714ed00ab35f07fb3c0",
+    "candidate-release.json": "23d3cf32b78f4aa99a12af68795f970ee687a633b5d47c7f47d5403be2733e73",
+    "landmarks.json": "5c283043c4cea486800bfae9048cbd0a162beb18b94bca979dfc1861087387eb",
+    "clear-removals.png": "63ef6538a802f706498d43f3aabdf620175f221e29538fd77769801b42201c89",
+    "false-removals.png": "6511c379a564de285c7edc6fe79b57135fc7227311c904c487575f60bfccc9ea",
+    "false-removals.json": "705d404b8a6f091d4e60470b894dfaa31365123ac58397df949c02eb6a3bed2c"
+  }
+}

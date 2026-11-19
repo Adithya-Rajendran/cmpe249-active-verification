@@ -1,0 +1,101 @@
+{
+  "study": "2026-11-18-label-localization-v1",
+  "verification": "PASS",
+  "decision": "stop",
+  "base_arrangements": 4,
+  "layout_candidate_replay": {
+    "prior_distinct_layouts": 199,
+    "candidates_replayed": 270,
+    "valid_candidates": 64,
+    "discrepancies": []
+  },
+  "camera_projections": {
+    "isaac": {
+      "status": "pass",
+      "settings": 8,
+      "camera_views": 40
+    },
+    "mujoco": {
+      "status": "pass",
+      "settings": 8,
+      "camera_views": 40
+    }
+  },
+  "selection": {
+    "native_camera_engine_positions": 80,
+    "unique_image_pairs": 30,
+    "counts": {
+      "clear": 8,
+      "hidden": 6,
+      "partial": 16
+    },
+    "partial_balance_per_engine": {
+      "shelf": {
+        "D0/placed_present": 1,
+        "D0/placed_removed": 1,
+        "D6/placed_present": 1,
+        "D6/placed_removed": 1
+      },
+      "tabletop": {
+        "D0/placed_present": 0,
+        "D0/placed_removed": 1,
+        "D6/placed_present": 2,
+        "D6/placed_removed": 1
+      }
+    },
+    "shortages_in_paired_camera_positions": {
+      "partial": 0,
+      "hidden": 1,
+      "clear": 0
+    }
+  },
+  "blind_review": {
+    "terra_model": "gpt-6.1-terra",
+    "all_fresh_sessions": 16,
+    "matched_packets": 8,
+    "terra_answers": 60,
+    "main_independent_answers": 30,
+    "location_estimates_sealed_before_decision_instructions": 30,
+    "qualitative_reviews_before_arm_reveal": 60,
+    "ai_reviewers": true
+  },
+  "independent_recount": {
+    "status": "PASS",
+    "rows": 60,
+    "discrepancies": [],
+    "decision": "stop",
+    "checked": [
+      "presented pixels and reference boxes",
+      "native masks, per-reader points, local change and repeats",
+      "exact full input equality",
+      "committed boxes and overlaps",
+      "each judgment, physical-state stratum and control",
+      "qualification in each engine and paired advancement decision"
+    ]
+  },
+  "public_file_sha256": {
+    "casebook.html": "2c5751df8e205b03a286ed404e9b6bd4138ff08d5cada989659061d801eba587",
+    "cases.csv": "c4f7c40dd79bd520ed75956cd05d842c4df58d51d19c2fca400ea7475f842963",
+    "isaac-shelf-brick.png": "7c3a5e9b5873e162c61031a919dec3ba805217cec8384128629e84e8692bd85a",
+    "isaac-soup-can.png": "4e68c9ff8a9f3d91e84df7c28fc7a5722457ce341ef676f607d455acba55bdd6",
+    "mujoco-soup-can.png": "8cc36a085427810e5a1502dad6c003ea77dee339b04a465e18208a5579803cef",
+    "results.json": "6a4c8a3ee5dfe526f7fe6b42950cac5bb60c51da7124e3fa8a5ca8a892c484fc"
+  },
+  "archived_record_sha256": {
+    "design-release.json": "9f59e01bad90be4275b45787593f48f541915eb5163dd6f3e86b3bd989720a19",
+    "design-initial-before-reader-setting.json": "179f2dc89d54f6405c33c62ab2038b6285c052915db745ab8be5b8b66683fc1e",
+    "protocol-implementation-release.json": "2f3300c5849d0a234f7ecf65e2c8c6f482310c39cce8cc64931e1b20bffe67a4",
+    "cohort/manifest.json": "6cd8f945fc0100be8c9efe2b8548dec83b533775fec0d474a29888d5fd8bda16",
+    "cohort-candidate-replay.json": "55ca1710c6724ceb902a6551be7da88e6fc081cf775e3c45b760d6d26d8da8ca",
+    "isaac-operator/audit.json": "c4fd68a554c6fc9022bf37b89a7146d79cc75b27e81a5b3201268428924e89fd",
+    "mujoco-engineering-checks.json": "b23a04813e620811436435d90ec27c194544fcdf339b588cd640bc07b7410987",
+    "isaac-camera-review.json": "6e7888419fb326a001376f4cead8168f54cb0bf832bf25a27a7343385674c198",
+    "mujoco-camera-review.json": "a960811ae144e5c666aadd9e7e27e5eb5211ce5a6424be0da07cc37aa18b2938",
+    "reader-assignments.json": "4178cef7f054cd6e3a605f8eca4ab85446deab2de747525f90bd3948266da3ee",
+    "selection-audit/receipt.json": "c3fe0885e8283d1aae86fa67350275d8b2a2e7f6f6028a399f991b54187df1a6",
+    "prepared/blind-audit.json": "d3a82d602d77be1613b4112d76bd9c66ea5f03e3a0ae178ae1815df4a7bdc453",
+    "adjudication-lock.json": "b5861b934f335f342af5a9c8b419cf43a2ecad35f3d9b3de01a707ce4c79a8ba",
+    "independent/recount.py": "325ce5c26aad421e6c89402bd310b90cc513351e5810d746a3a320948776e3b7",
+    "independent/crosscheck.json": "82c6de1bd4dbc7d1e73212083f77ca721fa305b83db862994456878c7997f859"
+  }
+}

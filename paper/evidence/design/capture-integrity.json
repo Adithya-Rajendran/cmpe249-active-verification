@@ -1,0 +1,39 @@
+{
+  "protocol_sha256": "84e7de4559567187b4a26971a3d0ffc8f467e4c644e0cd441ee156d74bd0d9f8",
+  "capture_scope": "development only",
+  "capture_receipt_sha256": "04af1da3c83ac9814cf0eef78e1604752c572cb55d6078c11205ac18b1838626",
+  "splits": {
+    "calibration/isaac": {
+      "rows": 20,
+      "private_manifest_sha256": "44812c68c67a576ed5c1480c5caa417ffdcb9cf06680466b9e595ec7684a9d55"
+    },
+    "calibration/mujoco": {
+      "rows": 20,
+      "private_manifest_sha256": "c137ab18c1cf4e3a1ee12dd02426ec453165663e5aec0dab92df7d8f5356a2f4"
+    },
+    "evaluation/isaac": {
+      "rows": 160,
+      "private_manifest_sha256": "49358d717160c33f3b1ab3bce5834a0a376fe6de0fcbbc59aa8dec4b47e2d41c"
+    },
+    "evaluation/mujoco": {
+      "rows": 160,
+      "private_manifest_sha256": "5bef079f5322f49467c16c4ba23b32c7aecb08a4f36149ad77d1f9145a7494a6"
+    }
+  },
+  "png_files_by_engine_and_split": {
+    "isaac/calibration": 1040,
+    "isaac/evaluation": 2320,
+    "mujoco/calibration": 1040,
+    "mujoco/evaluation": 2320
+  },
+  "engineering_record": [
+    "Evaluation generation first failed before any output because of variable shadowing; retry log retained.",
+    "Two MuJoCo calibration layouts were interrupted before observations included all objects. The attempt is preserved privately on Ascent and recaptured after a receipt-only source correction.",
+    "The first attempted software EGL fixture used NVIDIA despite LIBGL_ALWAYS_SOFTWARE; it ended before study capture. The released MuJoCo study used explicit Mesa EGL."
+  ],
+  "native_capture_archive": {
+    "files": 6904,
+    "bytes": 3334573767,
+    "sha256": "7846fca56e69fd37432d5790edabadcf5cb5e0aaebabb1b6b47f483f774db1dd"
+  }
+}

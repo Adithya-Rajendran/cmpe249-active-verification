@@ -1,0 +1,90 @@
+{
+  "note": "Post-hoc case-median summaries for matched common vertices. Removed target positions are virtual expected locations. Invalid/occluded points are excluded, not zero error.",
+  "geometry_residuals_sha256": "9c9f8486f262a4859437938024707b640e0327578219363e4da68adbea8d4c12",
+  "groups": {
+    "all": {
+      "cases": 1200,
+      "vertices": 10963152,
+      "candidate_available": 7860544,
+      "common_vertices": 7207137,
+      "candidate_available_fraction": 0.7169967177322726,
+      "common_fraction": 0.6573964312453207,
+      "baseline_common_case_median_px": 2.396132305544545,
+      "candidate_common_case_median_px": 1.8133155508432846,
+      "baseline_common_cases": 933,
+      "candidate_common_cases": 933
+    },
+    "isaac_shelf_D6_removed": {
+      "cases": 50,
+      "vertices": 416050,
+      "candidate_available": 302041,
+      "common_vertices": 302041,
+      "candidate_available_fraction": 0.7259728398029083,
+      "common_fraction": 0.7259728398029083,
+      "baseline_common_case_median_px": 4.75439570971923,
+      "candidate_common_case_median_px": 1.2646623782826207,
+      "baseline_common_cases": 40,
+      "candidate_common_cases": 40
+    },
+    "mujoco_shelf_D6_removed": {
+      "cases": 50,
+      "vertices": 416050,
+      "candidate_available": 302731,
+      "common_vertices": 302731,
+      "candidate_available_fraction": 0.727631294315587,
+      "common_fraction": 0.727631294315587,
+      "baseline_common_case_median_px": 3.40473746075577,
+      "candidate_common_case_median_px": 2.5929926807608874,
+      "baseline_common_cases": 40,
+      "candidate_common_cases": 40
+    },
+    "isaac_tabletop_D6_removed": {
+      "cases": 50,
+      "vertices": 497546,
+      "candidate_available": 392275,
+      "common_vertices": 256303,
+      "candidate_available_fraction": 0.7884195632162654,
+      "common_fraction": 0.5151342790415359,
+      "baseline_common_case_median_px": 7.489201439401518,
+      "candidate_common_case_median_px": 4.619806412794224,
+      "baseline_common_cases": 34,
+      "candidate_common_cases": 34
+    },
+    "mujoco_tabletop_D6_removed": {
+      "cases": 50,
+      "vertices": 497546,
+      "candidate_available": 386693,
+      "common_vertices": 248287,
+      "candidate_available_fraction": 0.7772005000542663,
+      "common_fraction": 0.49902320589453036,
+      "baseline_common_case_median_px": 9.154283923461207,
+      "candidate_common_case_median_px": 4.916893273879201,
+      "baseline_common_cases": 33,
+      "candidate_common_cases": 33
+    },
+    "candidate_false_removal": {
+      "cases": 2,
+      "vertices": 16806,
+      "candidate_available": 12225,
+      "common_vertices": 12225,
+      "candidate_available_fraction": 0.7274187790074973,
+      "common_fraction": 0.7274187790074973,
+      "baseline_common_case_median_px": 4.295741397050601,
+      "candidate_common_case_median_px": 17.07121787688005,
+      "baseline_common_cases": 2,
+      "candidate_common_cases": 2
+    },
+    "baseline_false_removal": {
+      "cases": 1,
+      "vertices": 8182,
+      "candidate_available": 0,
+      "common_vertices": 0,
+      "candidate_available_fraction": 0.0,
+      "common_fraction": 0.0,
+      "baseline_common_case_median_px": null,
+      "candidate_common_case_median_px": null,
+      "baseline_common_cases": 0,
+      "candidate_common_cases": 0
+    }
+  }
+}

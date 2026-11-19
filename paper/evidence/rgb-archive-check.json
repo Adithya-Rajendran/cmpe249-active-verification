@@ -1,0 +1,20 @@
+{
+  "case_count": 1280,
+  "distinct_pngs": 1272,
+  "engines": {
+    "isaac": {
+      "pairs": 320,
+      "identical": 0
+    },
+    "mujoco": {
+      "pairs": 320,
+      "identical": 88,
+      "homography_different": 0,
+      "homography_commit": 0,
+      "dense_different": 0,
+      "dense_commit": 1,
+      "registered_different": 0,
+      "registered_commit": 4
+    }
+  }
+}
