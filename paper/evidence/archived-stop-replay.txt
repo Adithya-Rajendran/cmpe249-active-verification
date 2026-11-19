@@ -1,0 +1,62 @@
+
+A. Blocker placed (the occlusion cases), both states, both engines, both camera levels
+  homography: 640 starting queries
+    none       correct  196.0 ( 30.6%)  wrong   1.0  unknown  443.0
+    next       correct  271.0 ( 42.3%)  wrong   2.0  unknown  367.0
+    random     correct  268.5 ( 42.0%)  wrong   1.5  unknown  370.0
+    visibility correct  292.0 ( 45.6%)  wrong   1.0  unknown  347.0
+    oracle     correct  319.0 ( 49.8%)  wrong   1.0  unknown  320.0
+  dense: 640 starting queries
+    none       correct  176.0 ( 27.5%)  wrong   1.0  unknown  463.0
+    next       correct  238.0 ( 37.2%)  wrong   2.0  unknown  400.0
+    random     correct  251.0 ( 39.2%)  wrong   2.0  unknown  387.0
+    visibility correct  291.0 ( 45.5%)  wrong   1.0  unknown  348.0
+    oracle     correct  320.0 ( 50.0%)  wrong   1.0  unknown  319.0
+
+B. Blocker placed, by engine: Isaac
+  homography: 320 starting queries
+    none       correct   93.0 ( 29.1%)  wrong   0.0  unknown  227.0
+    next       correct  134.0 ( 41.9%)  wrong   0.0  unknown  186.0
+    random     correct  131.0 ( 40.9%)  wrong   0.0  unknown  189.0
+    visibility correct  147.0 ( 45.9%)  wrong   0.0  unknown  173.0
+    oracle     correct  160.0 ( 50.0%)  wrong   0.0  unknown  160.0
+  dense: 320 starting queries
+    none       correct   85.0 ( 26.6%)  wrong   0.0  unknown  235.0
+    next       correct  116.0 ( 36.2%)  wrong   0.0  unknown  204.0
+    random     correct  123.0 ( 38.4%)  wrong   0.0  unknown  197.0
+    visibility correct  144.0 ( 45.0%)  wrong   0.0  unknown  176.0
+    oracle     correct  160.0 ( 50.0%)  wrong   0.0  unknown  160.0
+
+C. Blocker placed, by engine: MuJoCo
+  homography: 320 starting queries
+    none       correct  103.0 ( 32.2%)  wrong   1.0  unknown  216.0
+    next       correct  137.0 ( 42.8%)  wrong   2.0  unknown  181.0
+    random     correct  137.5 ( 43.0%)  wrong   1.5  unknown  181.0
+    visibility correct  145.0 ( 45.3%)  wrong   1.0  unknown  174.0
+    oracle     correct  159.0 ( 49.7%)  wrong   1.0  unknown  160.0
+  dense: 320 starting queries
+    none       correct   91.0 ( 28.4%)  wrong   1.0  unknown  228.0
+    next       correct  122.0 ( 38.1%)  wrong   2.0  unknown  196.0
+    random     correct  128.0 ( 40.0%)  wrong   2.0  unknown  190.0
+    visibility correct  147.0 ( 45.9%)  wrong   1.0  unknown  172.0
+    oracle     correct  160.0 ( 50.0%)  wrong   1.0  unknown  159.0
+
+D. All queries
+  homography: 1280 starting queries
+    none       correct  776.0 ( 60.6%)  wrong   1.0  unknown  503.0
+    next       correct  899.0 ( 70.2%)  wrong   2.0  unknown  379.0
+    random     correct  896.5 ( 70.0%)  wrong   1.5  unknown  382.0
+    visibility correct  919.0 ( 71.8%)  wrong   1.0  unknown  360.0
+    oracle     correct  959.0 ( 74.9%)  wrong   1.0  unknown  320.0
+  dense: 1280 starting queries
+    none       correct  797.0 ( 62.3%)  wrong   2.0  unknown  481.0
+    next       correct  877.0 ( 68.5%)  wrong   3.0  unknown  400.0
+    random     correct  889.2 ( 69.5%)  wrong   3.2  unknown  387.5
+    visibility correct  930.0 ( 72.7%)  wrong   2.0  unknown  348.0
+    oracle     correct  959.0 ( 74.9%)  wrong   2.0  unknown  319.0
+
+E. Layouts where no stop shows more than half of the target with the blocker placed (per engine, level):
+  isaac D0: 8 of 16 layouts; fully clear from some stop: 8
+  isaac D6: 8 of 16 layouts; fully clear from some stop: 8
+  mujoco D0: 8 of 16 layouts; fully clear from some stop: 8
+  mujoco D6: 8 of 16 layouts; fully clear from some stop: 8

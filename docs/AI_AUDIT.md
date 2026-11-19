@@ -1,6 +1,7 @@
 # AI Novelty and Feasibility Audit
 
-**Project:** Occlusion Aware Active Verification for Robot Scene Memory  
+**Project:** Occlusion-aware active verification for robot scene memory
+
 **Prepared by:** ChatGPT / Codex as AI assistance; overlap table and the geometry risk extended by Claude (Anthropic)  
 **Date:** September 9, 2026  
 **Basis:** The proposed scope, the student's hardware inventory, and the primary references linked in the literature survey. No implementation or hardware measurements have been completed.

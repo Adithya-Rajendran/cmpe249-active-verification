@@ -6,7 +6,7 @@ Read [the paper](Rajendran-counterfactual-scene-memory.pdf) for the research que
 The main study tests decisions about a remembered object on a shelf or a tabletop.
 The source uses Typst. Two analysis programs from the same project check the original decisions.
 The [versioned release](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1) contains the original paper, images, model outputs, native captures, and source.
-The revision of 19 November 2026 adds the visibility analysis and the qualifications below.
+The final November 2026 revision includes the visibility analysis and a retrospective estimate of one extra camera view.
 
 The shelf follow-up repeats the original camera views at new angles.
 The corridor follow-up uses eight fresh layouts, different objects and a sliding door.
@@ -46,7 +46,23 @@ The restored packet contains only the 1,280 input records and their original ima
 For new GPU inference, use the scorer commands in `software/README.md` inside the supplement.
 The Qwen verifier used the original weights with zero-shot prompting. [Pinned Qwen3.5-9B model on Hugging Face](https://huggingface.co/Qwen/Qwen3.5-9B/tree/c202236235762e1c871ad0ccb60c8ee5ba337b9a)
 The primary comparison tests homography and dense geometry. Registered Qwen passed a clear-view screen and serves as a diagnostic reader.
-The comparison with the authors' trained STILL verifier remains pending.
+If the authors supply the trained STILL checkpoint, the archived images support one further comparison.
+
+### Retrospective extra-view estimate
+
+The replay uses archived homography and dense answers from the original panel. It runs on a CPU and needs no new images.
+From the repository root, compare its output with the saved table.
+
+```sh
+python3 paper/archived_stop_replay.py | diff - paper/evidence/archived-stop-replay.txt
+```
+
+After UNKNOWN, the replay permits one other stop in the same layout, simulator, camera level and physical state.
+The random choice averages all four alternatives. The visibility choice uses the retained twin's evaluator mask.
+The ceiling uses the true state and all alternative answers. The replay ignores travel costs.
+
+Its historical `next` rule moves one stop toward P5 and returns from P5 to P4.
+Section A of the [saved table](evidence/archived-stop-replay.txt) covers the 640 blocker-placed starts. The proposed fresh study ended before collection.
 
 ### Other image sets
 

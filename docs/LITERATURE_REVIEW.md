@@ -1,6 +1,7 @@
 # Literature and SOTA Survey
 
-**Project:** Occlusion Aware Active Verification for Robot Scene Memory  
+**Project:** Occlusion-aware active verification for robot scene memory
+
 **Prepared for:** CMPE 249 proposal  
 **Survey date:** September 9, 2026
 

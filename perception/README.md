@@ -1,5 +1,7 @@
 # perception/
 
+> **Earlier work:** This guide records the original view-selection study and its development. Some statements describe its earlier status. See the [project overview](../README.md) for the concluded simulation audit.
+
 GB10-side perception front end for the study: an open-vocabulary detector that proposes
 candidates, and a frozen image encoder that scores candidate crops against the reference crop.
 Smoke-test code plus the v0 evidence step. No study thresholds have been set: the evidence thresholds are placeholders, and `novel_cos` was picked on pilot-1 dev data.

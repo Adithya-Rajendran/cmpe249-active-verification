@@ -1,6 +1,8 @@
-# Evidence-Aware Verification for Robot Scene Memory
+# Occlusion-aware active verification for robot scene memory
 
 Adithya Rajendran · CMPE 249, San José State University · Fall 2026
+
+**Concluded November 2026.** Dense registration found more clear removals in both simulators but introduced two false deletions on MuJoCo shelves. It failed the improvement rule. The final evaluation used Isaac Sim and MuJoCo only. Early camera photos checked the setup. The proposed one-extra-view study ended at design, before any fresh collection. [Paper](paper/Rajendran-counterfactual-scene-memory.pdf) · [Results](paper/evidence/summary.json)
 
 A robot saw an object on an earlier visit. When it looks again, should it keep that memory, record a removal, or wait for a clearer view?
 
@@ -71,7 +73,7 @@ The homography baseline answered every open-door case correctly and waited on ev
 
 A separate [mobile robot demonstration](development/workshop_realism/ROBOTICS.md) uses the workshop.
 
-## Current study
+## Completed simulation audit
 
 A missing detection does not establish removal. The target can remain behind an occluder.
 The verifier returns PRESENT, REMOVED or UNKNOWN from a reference image and one revisit image.
@@ -82,7 +84,7 @@ An agreement veto can reject its errors. A conditional cascade can add answers w
 The evaluation measures unsupported answers and useful correct answers together.
 
 The main comparison tests two registration methods with the same decision rule. The paper also reports a zero-shot language-model diagnostic.
-The earlier veto and cascade proposals still need broader visual support labels.
+The earlier veto and cascade proposals stopped because the project could not validate broader visual support labels.
 
 | Read | Purpose |
 | --- | --- |
@@ -106,13 +108,12 @@ The earlier veto and cascade proposals still need broader visual support labels.
 | [Label audit](notes/2026-11-16-development-support-audit.md) | Support labels, ambiguous fragments and review limits |
 | [Development pilot](notes/2026-11-16-development-pilot.md) | Completed runs, failed baseline qualification and next decisions |
 
-Publication depends on evidence beyond the strongest controls and a defensible contribution.
-Neither a new title nor a freeze establishes novelty.
+The repository provides the completed manuscript and its reproducible data. The only conditional comparison is the authors' trained STILL verifier on the archived images. [Checkpoint record](notes/2026-11-19-still-verifier.md)
 
 ## Earlier development
 
 The first study tested camera view selection. That study is complete, with important limits in its design.
-The current study tests whether an image supports a decision about a remembered object.
+The final study tested whether the images support a decision about a remembered object.
 The first development pilot is complete. Its model verifier failed an obvious retained-target control.
 
 The camera-displacement run is complete. Guard controls recover many abstentions without added physical errors.
@@ -129,14 +130,13 @@ On four fresh layouts, asking Terra to locate the object first recovered two par
 Only MuJoCo passed qualification.
 The fixed-camera calibration detected every parked-blocker change and missed its required partial yield in both engines.
 
-The researcher selected simulation-only evaluation. Physical-camera transfer remains future work.
-A comparison on general visual support still requires validated support labels.
+The final study measured simulator outcomes. Physical-camera transfer and general visual support on unequal images remain unmeasured.
 
-## Completed study
+## Earlier view-selection study
 
 The [completed study](https://github.com/Adithya-Rajendran/cmpe249-active-verification/tree/b81ded23d6710bf792e96ac53b5104fce6b177a1) ended at `b81ded2`.
 The historical tag `simulation-freeze-1` identifies the [original freeze commit](https://github.com/Adithya-Rajendran/cmpe249-active-verification/tree/6d0ed94a73a20ff41549a2383b07f0358bf69ad9).
-This checkout starts from the completed study. The new documents do not replace its results.
+The later audit does not replace its results.
 
 | Record | Purpose |
 | --- | --- |
@@ -148,8 +148,7 @@ This checkout starts from the completed study. The new documents do not replace 
 | [Historical reproduction guide](docs/REPRODUCE.md) | Original software and data pipeline |
 | [Document snapshots](docs/archive/2026-11-16-reset/ARCHIVE.md) | Previous README and proposal |
 
-The old test data are development data for the new study.
-The old freeze does not authorize a new test or establish the validity of the new method.
+The later project treated the earlier test data as development evidence.
 
 ## Existing software
 
@@ -159,17 +158,16 @@ The old freeze does not authorize a new test or establish the validity of the ne
 | [perception](perception/README.md) | Image evidence and reference matching |
 | [verify](verify/README.md) | Replay, old selectors and the shared stopping rule |
 | [sim](sim/README.md) | Scene generation, rendering and geometric labels |
-| [development](development/README.md) | Current pilot plans, completed studies and development tools |
+| [development](development/README.md) | Completed studies and development tools |
 | [public_data](public_data/README.md) | Development data adapters |
 
 The historical code implements the completed study. Its pinned files and results remain unchanged.
-The [development runner](development/pilot/README.md) implements the new controls and arrangement-level analysis.
+The [development runner](development/pilot/README.md) implements controls and arrangement-level analysis.
 The pilot uses existing simulator images. It does not establish an implemented robot-memory system or a method advantage.
 
-## Course work
+## Project lessons
 
-The [two-page course feedback packet](docs/feedback/2026-11-17/Rajendran-CMPE249-progress-feedback-2026-11-17.pdf) records the project status on 17 November.
-The discussion focuses on support labels, the strongest comparison and transfer between simulators.
+The retrospective explains how baseline checks, access to external data and advance decision rules shaped this project. [Read the lessons](notes/2026-11-19-lessons.md) · [Printable page](notes/2026-11-19-lessons.pdf)
 
 ## AI assistance
 

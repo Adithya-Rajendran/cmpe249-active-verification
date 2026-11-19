@@ -4,11 +4,11 @@ Start with the [two-image simulation paper and reader guide](../paper/README.md)
 The [original experiment plan](EXPERIMENT_PLAN.md) and [2026-11-06 freeze](FREEZE.md) belong to an earlier view-selection study.
 The freeze records file checksums for replay of that study.
 
-## Current development
+## Simulation audit and earlier development
 
 | Document | Purpose |
 | --- | --- |
-| [Paper and evidence](../paper/README.md) | Prospective simulation study, manuscript source, figures and reproducible results |
+| [Paper and evidence](../paper/README.md) | Completed simulation audit, manuscript source, figures and reproducible results |
 | [Proposal](PROPOSAL.md) | Question, candidate contribution and closest research |
 | [Method](METHOD.md) | Inputs, evidence requirements, verifier controls and limits |
 | [Evaluation](EVALUATION_PLAN.md) | Labels, metrics, splits, comparisons and decisions |
@@ -17,16 +17,17 @@ The freeze records file checksums for replay of that study.
 | [RGB geometry comparison](../notes/2026-11-18-rgb-geometry-comparison.md) | Correct tabletop removals, two false shelf removals and the stop decision |
 | [Reader instruction comparison](../notes/2026-11-18-label-localization.md) | Corroborated removals, missed evidence and the complete image casebook |
 | [Freeze policy](FREEZE_POLICY.md) | Requirements for a future confirmatory study |
-| [Development guide](../development/README.md) | Current and completed software paths |
-| [Progress feedback PDF](feedback/2026-11-17/Rajendran-CMPE249-progress-feedback-2026-11-17.pdf) | Course update with links to the research revision and [editable source](feedback/2026-11-17/progress-feedback.md) |
+| [Development guide](../development/README.md) | Completed studies and software paths |
+| [Project lessons](../notes/2026-11-19-lessons.md) | What to check before starting another research project |
 
 Read the [completed scoring review](../notes/2026-11-17-scoring-and-label-review.md) before interpreting the method.
 Read the [VA-TAMP review](../notes/2026-11-17-va-tamp-and-simulation-scope.md) for the current literature assessment.
-The study uses simulation only. Physical-camera transfer remains future work.
+The final evaluation used simulation only. The extra-view study ended at design. The final paper reports a separate replay of old images.
 
 ## Historical study and submissions
 
-The [original experiment plan](EXPERIMENT_PLAN.md), [freeze](FREEZE.md) and [reproduction guide](REPRODUCE.md) describe the completed view-selection study.
+The [original experiment plan](EXPERIMENT_PLAN.md), [preregistration](SIM_PREREGISTRATION.md), [simulation amendment](SIMULATION_STUDY.md), [freeze](FREEZE.md) and [reproduction guide](REPRODUCE.md) describe the earlier completed view-selection study.
+The preregistration and simulation amendment are checksum-bound historical records. Their pending-study language describes the time of writing.
 The [freeze addenda](FREEZE_ADDENDA.md) and [post-hoc review](../notes/2026-11-12-posthoc-review.md) qualify its interpretation.
 Their pinned files remain in place for reproduction.
 
