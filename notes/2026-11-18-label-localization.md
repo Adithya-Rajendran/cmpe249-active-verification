@@ -1,0 +1,39 @@
+# Does locating a remembered object first help Terra recognize removal?
+
+On four new layouts, the two-step instructions recovered two of four partly occluded removals in MuJoCo and zero of four in Isaac Sim. The original instructions recovered zero in each. Both gains were on tabletops. MuJoCo passed the per-engine qualification screen. Isaac failed. The declared cross-simulator decision is **stop this instruction revision**. [Prospective protocol](../development/cross_sim/localization/PROTOCOL.md) · [Scored results](figures/2026-11-18-label-localization/results.json)
+
+## What counted
+
+Sixteen fresh Terra sessions assessed 30 reference-and-revisit pairs. Each instruction group saw the same pixels, reference boxes and case order. One group first committed a box for where a retained target would appear. Only then did it receive the question about the target’s state. Readers saw one case per arrangement in each packet. They could see neither verifier predictions nor the simulator interventions. As the main AI reviewer (Codex), I independently labeled all 30 pairs before opening either group's readings. I then reviewed all 60 explanations and cited points with the group names hidden. Both groups share my initial reading of each case. [Reader instructions](../development/cross_sim/support_labels/REVIEWER.md) · [Location instructions](../development/cross_sim/localization/LOCATE.md) · [Decision instructions](../development/cross_sim/localization/DECIDE.md)
+
+A corroborated definite answer required independent agreement on the physical state and a specific visible cue. Each reader's point also had to pass the same local check. At least 25 pixels in a 7-by-7 patch had to belong to the exposed retained target. Their mean absolute RGB change on removal had to reach 8 intensity levels and exceed repeat variation by at least 4. An UNKNOWN received an ambiguity certificate only when both physical states gave identical complete inputs. The verifier received no study data. [Evidence rules](../development/cross_sim/support_labels/PROTOCOL.md#evidence-checks-and-decision)
+
+## Results by simulator
+
+| Corroborated result | Isaac original | Isaac two-step | MuJoCo original | MuJoCo two-step |
+| --- | ---: | ---: | ---: | ---: |
+| Partly visible retained target | 3/4 | 2/4 | 4/4 | 4/4 |
+| Partly occluded removal | 0/4 | 0/4 | 0/4 | 2/4 |
+| All partial cases | 3/8 | 2/8 | 4/8 | 6/8 |
+| Clear controls | 4/4 | 4/4 | 4/4 | 4/4 |
+| Hidden controls with certified UNKNOWN | 0/3 | 0/3 | 3/3 | 3/3 |
+| Physically wrong definite answers | 0/15 | 0/15 | 0/15 | 0/15 |
+| Per-engine qualification | Fail | Fail | Fail | Pass |
+
+All readers abstained on the six hidden controls. The opposite states produced identical inputs in the three MuJoCo controls. The three Isaac controls had no exposed target pixels, but their complete inputs differed. All four Terra groups called all four partial retained targets PRESENT. In Isaac, the original and two-step readers recognized the blue shelf tin, but their points fell on a dark part of its label. Its local changes of 7.54 and 5.92 missed the threshold of 8. The two-step reader also marked the edge of the tabletop soup can. Only 7 of 49 pixels in that patch belonged to the exposed can. These are failures to corroborate physically correct answers. [Every answer and point](figures/2026-11-18-label-localization/cases.csv) · [Isaac shelf tin](figures/2026-11-18-label-localization/casebook.html#a8001b95ac7e) · [Isaac tabletop can](figures/2026-11-18-label-localization/casebook.html#37c8cb17f0e3)
+
+## Where the instructions helped and where they failed
+
+- **Soup can, fixed camera.** In both simulators, a retained can would expose about 73% of its silhouette above and to the left of the panel. Both two-step readers recorded the exact expected box, which also matched the reference box at this camera pose. The MuJoCo reader pointed to bare wood at the former lid. All 49 patch pixels belonged to the retained can. The Isaac reader described the exposed wood but marked the panel and abstained. These are matched interventions with different reader sessions and rendering. [MuJoCo image](figures/2026-11-18-label-localization/mujoco-soup-can.png) · [Isaac image](figures/2026-11-18-label-localization/isaac-soup-can.png)
+- **Mug, camera moved 6 cm and 3°.** The can and bowl shifted right, placing most of a retained mug to the right of the panel. The MuJoCo two-step reader identified that exposed wood. Its box overlap was 0.93. The Isaac two-step reader achieved 0.82 overlap, marked the panel and abstained. My independent points fell on the expected mug in both engines. [MuJoCo mug](figures/2026-11-18-label-localization/casebook.html#c70f58ecbb38) · [Isaac mug](figures/2026-11-18-label-localization/casebook.html#085bc625da94)
+- **Shelf brick, fixed camera.** In each engine the two-step reader recorded the exact box and then abstained. About 85% of the brick's silhouette would have been visible to the left of the panel. My marked empty shelf patch contained 49 of 49 retained-brick pixels in both engines. A correct box alone did not establish which exposed space the reader expected the object to occupy. [Isaac brick](figures/2026-11-18-label-localization/isaac-shelf-brick.png) · [MuJoCo brick](figures/2026-11-18-label-localization/casebook.html#e51d4a5a79a9)
+
+The two-step readers submitted all 30 location boxes. Median overlap with the true projected box on the eight partial cases was 0.86 in Isaac and 0.91 in MuJoCo. Overlap is intersection area divided by union area. At the original camera pose the earlier reference box already gives the expected position. The shifted shelf tin was harder. Just 14% would be visible, and all three readers abstained in each engine. [Complete illustrated casebook](figures/2026-11-18-label-localization/casebook.html) · [Location measurements](figures/2026-11-18-label-localization/results.json)
+
+## Decision and next experiment
+
+The rule required a gain in both engines, qualification in both, and balanced camera and physical states within each environment. The geometry-based selection filled all 16 partial and eight clear slots. It supplied six hidden controls. The shelves filled every partial camera-by-state cell once per engine. The tabletops supplied both partial retained targets at the moved camera and none at the original camera. That imbalance alone precludes advancement. With four arrangements shared by both engines, these counts cannot isolate a renderer effect or estimate performance on a new population. Terra can operate the simulators and suggest cues under review. The support-based model comparison stays on hold. [Selection and verification](figures/2026-11-18-label-localization/verification.json)
+
+Next, test a narrower question on fresh fixed-camera shelves and tabletops in both engines. Can the evaluator identify a visible patch at the remembered site whose appearance changes reproducibly when the target is removed? Pair target-present and target-removed renders with the same panel. Repeat each state with the panel in place and include changes to a distractor alone. Fix the patch selection, thresholds and minimum yield before rendering. Stop if a target-unchanged control receives a target-change witness or a required group lacks the declared yield. Report coverage and leave unresolved views in the denominator. This would validate a local intervention measurement for that subset. A general claim about what an image justifies still needs independent validation.
+
+The raw captures use the shared study directory `label-localization-dev-20261118/`. The verified review archive is in the local run directory `runs/2026-11-18-label-localization-v1/`. A separate implementation checked the case-level scores against the raw images. [Verification record](figures/2026-11-18-label-localization/verification.json)

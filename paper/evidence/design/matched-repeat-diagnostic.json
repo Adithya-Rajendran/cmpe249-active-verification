@@ -1,0 +1,8 @@
+{
+  "utc": "2026-11-18T23:03:45.935922+00:00",
+  "status": "Fresh MuJoCo calibration renders and evaluator physical-integrity checks exist; no calibration outcome read by main at specification. Fresh predictions unavailable.",
+  "scope": "Supplementary photometric description of fixed-camera calibration only. Does not change the original witness or verifier decisions.",
+  "set": "All placed pairs with zero visible native target pixels in the retained state",
+  "comparison": "Mean absolute 8-bit RGB difference across the complete delivered-size image. Compare the retained vs removed base pair with the average of base-to-R2 within each physical state at that same camera and layout. Report per-pair data, medians and counts.",
+  "interpretation": "The comparison describes render variability; similar magnitudes do not prove a lack of target information."
+}

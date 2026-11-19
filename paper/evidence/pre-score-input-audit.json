@@ -1,0 +1,32 @@
+{
+  "utc": "2026-11-19T00:31:44.782750+00:00",
+  "stage": "Both capture arms complete. No fresh scorer predictions exist.",
+  "pairs_per_engine": 320,
+  "identical_placement_camera_keys": 88,
+  "fully_hidden_placed": {
+    "isaac": 88,
+    "mujoco": 88
+  },
+  "exact_delivered": {
+    "isaac": 0,
+    "mujoco": 88
+  },
+  "exact_native": {
+    "isaac": 0,
+    "mujoco": 88
+  },
+  "exact_clear": {
+    "isaac": 0,
+    "mujoco": 0
+  },
+  "exact_layouts": {
+    "isaac": 0,
+    "mujoco": 16
+  },
+  "same_fully_hidden_keys": true,
+  "mujoco_exactly_all_fully_hidden": true,
+  "inputs_sha256": {
+    "isaac": "2b9301e6e7335359fd9bb176dfd5ef9fbe9499ba0ba3558e1bd767ce337676ca",
+    "mujoco": "6b55d49db25400efc3397377335c6ee7d545d8b31066dcd9d926650245690ee0"
+  }
+}

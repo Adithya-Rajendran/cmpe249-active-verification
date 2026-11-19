@@ -4,10 +4,14 @@
 
 | Document | Purpose |
 | --- | --- |
+| [Paper and evidence](../paper/README.md) | Prospective simulation study, manuscript source, figures and reproducible results |
 | [Proposal](PROPOSAL.md) | Question, candidate contribution and closest research |
 | [Method](METHOD.md) | Inputs, evidence requirements, verifier controls and limits |
 | [Evaluation](EVALUATION_PLAN.md) | Labels, metrics, splits, comparisons and decisions |
-| [Simulator plan](../development/cross_sim/PLAN.md) | MuJoCo qualification and the next paired development experiment |
+| [Simulator plan](../development/cross_sim/PLAN.md) | Simulator qualification, paired comparison design and decision rules |
+| [Paired simulator results](../notes/2026-11-17-cross-sim-pilot.md) | Fixed controls, exact-input ambiguity and target alignment on the same scenes |
+| [RGB geometry comparison](../notes/2026-11-18-rgb-geometry-comparison.md) | Correct tabletop removals, two false shelf removals and the stop decision |
+| [Reader instruction comparison](../notes/2026-11-18-label-localization.md) | Corroborated removals, missed evidence and the complete image casebook |
 | [Freeze policy](FREEZE_POLICY.md) | Requirements for a future confirmatory study |
 | [Development guide](../development/README.md) | Current and completed software paths |
 | [Progress feedback PDF](feedback/2026-11-17/Rajendran-CMPE249-progress-feedback-2026-11-17.pdf) | Course update with links to the research revision and [editable source](feedback/2026-11-17/progress-feedback.md) |

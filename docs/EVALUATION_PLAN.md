@@ -1,10 +1,29 @@
 # Evaluation plan for evidence-aware verification
 
-**Revised 2026-11-17 Pacific. Development is open. Confirmatory testing is not ready.**
+**Revised 2026-11-18 Pacific. Development remains open.**
 
 The [method](METHOD.md) defines inputs, labels and outputs.
 This plan replaces the fresh-study proposal draft of 2026-11-12.
 The pinned [EXPERIMENT_PLAN.md](EXPERIMENT_PLAN.md) remains the historical study plan.
+
+## Prospective paper comparison
+
+The [paper protocol](../development/paper_audit/PROTOCOL.md) fixes the scene design, endpoints and comparison rules.
+Four calibration layouts test a local RGB change measurement at the nominal camera pose.
+Sixteen other layouts test the same two target identities and two blocker families in Isaac Sim and MuJoCo.
+Every verifier receives the same earlier image, target box and later image.
+
+The primary comparison counts correct removals with the blocker parked after a 6 cm shift and 3° yaw.
+The second measure counts definite answers on identical inputs from retained and removed scenes.
+The zero-shot registered-place model qualified on separate controls for its secondary comparison.
+The [paper evidence guide](../paper/README.md) identifies the inputs, decision tables and independent recount.
+
+The [completed paper](../paper/Rajendran-counterfactual-scene-memory.pdf) reports all three arms.
+Dense geometry increased correct clear moved-camera removals in both engines.
+It introduced two false removals in MuJoCo, including one on a certified pair.
+The local patch also missed its required partial yield in both engines.
+
+The earlier cascade and veto plans below require broader visual support labels.
 
 ## 1. Claims and comparisons
 
@@ -12,8 +31,15 @@ The completed simulation measures image-only performance under declared camera d
 Its [development specification](../development/stress/PROTOCOL.md) fixes geometry, preprocessing, controls and decision rules before predictions.
 The [completed review](../notes/2026-11-17-scoring-and-label-review.md) leaves support-based triage unavailable.
 
-The [next simulator comparison](../development/cross_sim/PLAN.md) uses recorded simulator interventions for its primary engineering scores.
-It tests transfer before another language-model experiment. It does not claim an original stress outcome A, B or C.
+The [paired simulator pilot](../notes/2026-11-17-cross-sim-pilot.md) used recorded interventions for its primary engineering scores.
+One recurring alignment refusal survived all three controls on the MuJoCo tabletop. The three arrangements shared one target identity.
+
+The [RGB geometry comparison](../notes/2026-11-18-rgb-geometry-comparison.md) reused the pilot and retained the same downstream verifier.
+It passed three of four criteria. Two new false removals violated the zero-new-error rule and ended this revision.
+
+Validate the support reference on partly occluded views before a support-based method comparison.
+The [separate label pilot](../notes/2026-11-18-support-label-qualification.md) failed its partial removal requirement in both simulators.
+Only MuJoCo passed the [subsequent two-step instruction test](../notes/2026-11-18-label-localization.md). The joint rule ended this revision.
 The researcher selected Isaac Sim and MuJoCo. The active study includes no real-camera collection.
 
 If recoverable abstentions justify a model, the primary contrast becomes cascade versus image-only verification.
@@ -29,7 +55,7 @@ The operating point comes from calibration arrangements. Report actual evaluatio
 Matched-coverage curves remain descriptive. They cannot choose the evaluation operating point.
 A method claim requires benefit beyond the strongest applicable controls and a suitable change-detection baseline.
 CYWS-3D and the two-image SceneDiff setting are candidates for that later comparison, with input and output adapters declared first.
-GeoSCD is another candidate. The completed review links its geometric correspondence and occlusion filtering method.
+The completed geometry comparison adapted GeoSCD's correspondence and occlusion calculations. A full change-detector comparison needs its own output rule.
 
 The [VA-TAMP review](../notes/2026-11-17-va-tamp-and-simulation-scope.md) also identifies established evidence-gating and active-perception principles.
 These principles and the number of simulators are not contribution claims.
@@ -91,6 +117,16 @@ Declare the qualification criteria before that check. Keep unresolved systematic
 
 The [completed basic screen](../development/stress/LABEL_QUALIFICATION.md) does not release the current AI decision hold.
 Its repeated audit remains descriptive. Label completeness cannot substitute for reference validation.
+
+The [partial-view protocol](../development/cross_sim/support_labels/PROTOCOL.md) fixes the blind inputs, point checks and per-engine qualification rules.
+Terra passed the clear controls and identified all partly visible retained targets in that pilot.
+It gave no definite partial removal in either simulator.
+In the [matched instruction comparison](../development/cross_sim/localization/PROTOCOL.md), the two-step readers recovered two of four partial removals in MuJoCo and none in Isaac.
+Both groups passed all clear controls. The tabletops lacked a partial retained case at the original camera pose.
+
+The [fixed-camera calibration](../development/cross_sim/PLAN.md#fixed-camera-calibration) used target interventions, same-state repeats and distractor-only changes.
+Both engines detected all clear changes and missed the required partial yield on one shelf layout.
+The [pair-level measurements](../paper/evidence/calibration.json) retain each ineligible case.
 
 A later probability-sampled label plan must precede predictions and include known inclusion weights and corresponding uncertainty.
 Secondary input resolutions require labels for those pixels before a support comparison.
@@ -215,7 +251,8 @@ Do not add arrangements until a comparison becomes significant.
 | Executor check | Terra renders two arrangements at D0 and D6 | Main-reviewer acceptance of actual artifacts |
 | Stress pilot | Run image evidence on the full cohort | Complete outputs, guard controls and alignment diagnostics |
 | Blind support review | Label the exact primary inputs | Typed review labels, cue reasons and disputed cases |
-| Next simulator development | Qualify MuJoCo scene support and compare fixed controls across engines | Shared scene manifest, renderer audits, recorded interventions and separate support diagnostics |
+| Completed paired simulator pilot | Compare three fixed controls across engines | Qualified renders, independent decision recount and 40 certified ambiguous MuJoCo pairs |
+| Completed RGB geometry comparison | Replace image alignment under the fixed downstream rule | All criteria scored, two new wrong answers, revision closed |
 | Conditional model stage | Qualify one model and test a justified combination | Validated support reference, capability checks, calibration and strong controls |
 | Readiness review | Assess contribution and precision | Decision to freeze, revise or stop |
 

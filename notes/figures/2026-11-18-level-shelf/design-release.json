@@ -1,0 +1,12 @@
+{
+  "design_locked_utc": "2026-11-19T02:13:30.429757+00:00",
+  "new_render_authorized": true,
+  "source_manifest_sha256": "054c2f895c3e4b48fcb88607c4f56b05d24c8fd63a7d8aab5d23557f786f0617",
+  "protocol_sha256": "2b974f67224543fc377eb3b920c843e8d0470d9b271ba079ff96c11eb3da5642",
+  "generator_sha256": "21278b7dfd91b4d0927db632256b3c6c8ff8ab12b4d80355b78984cebeac2a6f",
+  "declaration_sha256": "4d2618a3e28bc4eb619e33cbbbce167b117832f1856836b4437e73da208cb8e4",
+  "manifest_sha256": "05a958119fa7ffb5932cf1c9865851f330393af301864bae2c073cfc5f8dab7e",
+  "static_scenes_verified": 16,
+  "derived_leveled_camera_projections": 96,
+  "maximum_absolute_design_edge_angle_deg": 3.5373095744161394e-08
+}

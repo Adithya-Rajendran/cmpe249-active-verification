@@ -1,0 +1,15 @@
+{
+  "utc": "2026-11-18T23:40:56.143445+00:00",
+  "status": "Both calibration panels and MuJoCo exact-input count read. Fresh methods not yet scored.",
+  "purpose": "Illustration only; no role in estimating a rate.",
+  "rank": [
+    "certified pair on which methods differ in making a commitment",
+    "any certified pair receiving a commitment",
+    "any false removal of a retained target",
+    "clear moved-camera removal with differing method answers",
+    "any certified pair",
+    "otherwise first pair"
+  ],
+  "ties": "prefer D6, then lexicographic engine, layout, stop and blocker placement.",
+  "source_sha256": "cce6e468af48b3cf3100284d046b6d87864ad1399eb8a8b1483fa28da074a6fb"
+}

@@ -1,0 +1,91 @@
+{
+  "study_id": "cross-sim-dev-v1",
+  "case": "MuJoCo CSPS04 D4 P3",
+  "figure_sha256": "2729ecac6fc4678907d933f065ff96691ebcdcc524ffa36f0abcf0e936f082c5",
+  "builder_sha256": "da026dbdf186bd489b7370ff97e3f1afe91ecb8f8eef0e2904efea195b579c9a",
+  "analysis_sha256": "38a3918d9c5f7a519e9549ccf7396167126e8a1380baad3be3f75b8c50812fd9",
+  "preparation_sha256": "f7f90d25d578c2e4a7c7a64962ad783b70b67b641f55a5d2f38a31bb754ca8dc",
+  "ledger_sha256": "5c2123417b2010971c86fa7f955369c166b6ded8cbade89176f5dff1cbd44b53",
+  "primary_evidence_manifest_sha256": "d22e48d79dbfcceb66b98cba3843d33acc9325a6b2ea85089e7756a3fd701ad0",
+  "cases": {
+    "placed_present": {
+      "id": "If40d26e5a86cc1260ab7853679aa391a",
+      "answer": "REMOVED",
+      "physical_state": "PRESENT",
+      "evidence_sha256": "65c50c18da36903674201cf8d1ba0f9b2c08a78d8aa9f2989e94bb176daacf3b"
+    },
+    "placed_removed": {
+      "id": "I0e19d2d7427127feec70e93af76ee53a",
+      "answer": "REMOVED",
+      "physical_state": "REMOVED",
+      "evidence_sha256": "eb3a98fab7306030f10c6dee7a2b3a78267536f6f26a81b75f5eee3f0c880d92"
+    }
+  },
+  "source_rgb": {
+    "reference": {
+      "path": "/mnt/bench-data/datasets/cmpe249-active-verification/cross-sim-dev-20261117/pilot/mujoco-v1/CSPS04/D0/rgb/reference_P3.png",
+      "sha256": "ad9c7f2d1935db18590ccd711ff0b14d96efaf7d780bd3b016020ac167ab0692"
+    },
+    "placed_present": {
+      "path": "/mnt/bench-data/datasets/cmpe249-active-verification/cross-sim-dev-20261117/pilot/mujoco-v1/CSPS04/D4/rgb/placed_present_P3.png",
+      "sha256": "77cc2dbe24e3e45f94ac817959c8fc60f9c72b6583f1fafcb6d2000cf5d7849b"
+    },
+    "placed_removed": {
+      "path": "/mnt/bench-data/datasets/cmpe249-active-verification/cross-sim-dev-20261117/pilot/mujoco-v1/CSPS04/D4/rgb/placed_removed_P3.png",
+      "sha256": "77cc2dbe24e3e45f94ac817959c8fc60f9c72b6583f1fafcb6d2000cf5d7849b"
+    }
+  },
+  "crop_bounds_native_xyxy": [
+    550,
+    600,
+    1650,
+    1120
+  ],
+  "reference_box_native_xyxy": [
+    1003,
+    919,
+    1110,
+    988
+  ],
+  "figure_panel_size": [
+    840,
+    397
+  ],
+  "input_integrity": {
+    "native": {
+      "jobs_sha256": "9e802fc6890ebc27536c00c7f48c13be28dfcc76adcaafb4c60c718241fe9bef",
+      "reference_box": [
+        1003,
+        919,
+        1110,
+        988
+      ],
+      "delivered_png_sha256": {
+        "placed_present_reference": "ad9c7f2d1935db18590ccd711ff0b14d96efaf7d780bd3b016020ac167ab0692",
+        "placed_present_query": "77cc2dbe24e3e45f94ac817959c8fc60f9c72b6583f1fafcb6d2000cf5d7849b",
+        "placed_removed_reference": "ad9c7f2d1935db18590ccd711ff0b14d96efaf7d780bd3b016020ac167ab0692",
+        "placed_removed_query": "77cc2dbe24e3e45f94ac817959c8fc60f9c72b6583f1fafcb6d2000cf5d7849b"
+      },
+      "reference_query_and_box_equal": true,
+      "source_to_delivered_pixel_check": "PASS"
+    },
+    "primary": {
+      "jobs_sha256": "50fb32e838b369d4d239ef8cc4a6f5aeb26561b76c06235263d25a3e57b52c44",
+      "reference_box": [
+        522,
+        479,
+        578,
+        515
+      ],
+      "delivered_png_sha256": {
+        "placed_present_reference": "1054d7d86b80c3ca6a23a40cc74636c4fc608a07cacc5cd55b98dacb94570e50",
+        "placed_present_query": "abc99f29efbba11b57fc53d6e80c09859ee43a0838846a9de9260515ddbe27f3",
+        "placed_removed_reference": "1054d7d86b80c3ca6a23a40cc74636c4fc608a07cacc5cd55b98dacb94570e50",
+        "placed_removed_query": "abc99f29efbba11b57fc53d6e80c09859ee43a0838846a9de9260515ddbe27f3"
+      },
+      "reference_query_and_box_equal": true,
+      "source_to_delivered_pixel_check": "PASS"
+    }
+  },
+  "interpretation": "Same supplied pixels and reference box under opposite target interventions; source interventions provide physical state."
+}

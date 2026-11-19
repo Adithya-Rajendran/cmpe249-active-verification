@@ -1,0 +1,36 @@
+{
+  "passed": true,
+  "groups": {
+    "same": {
+      "n": 36,
+      "correct": 36,
+      "minimum": 34,
+      "passed": true,
+      "answers": {
+        "PRESENT": 36
+      }
+    },
+    "clear_present": {
+      "n": 40,
+      "correct": 40,
+      "minimum": 36,
+      "passed": true,
+      "answers": {
+        "PRESENT": 40
+      }
+    },
+    "clear_removed": {
+      "n": 40,
+      "correct": 40,
+      "minimum": 36,
+      "passed": true,
+      "answers": {
+        "REMOVED": 40
+      }
+    }
+  },
+  "packet_sha256": "a08f0bd7f542891f7876e960479f8d62146edb7cca483e30f3abcd475d7a0366",
+  "private_sha256": "48dff5a2fe07eec760af289f0eb57358b028b3b366d2732214f9d5a93c7ef3b1",
+  "records_sha256": "501424e18661f2e3019ce5aef466b4d0ace099f63515943149ac829d10125bdb",
+  "evaluator_sha256": "3ad78d1ec439ce802c48bfe20b022868bafbc3cf92d762bd811242ef8dcb418b"
+}

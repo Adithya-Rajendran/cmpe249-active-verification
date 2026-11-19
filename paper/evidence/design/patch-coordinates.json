@@ -1,0 +1,13 @@
+{
+  "recorded_utc": "2026-11-18T23:07:55.125963+00:00",
+  "scope": "Qualification sensitivity only; physical interventions, verifiers, and complete-input certificates are unaffected.",
+  "discovery": "An independent native recount reproduced the MuJoCo qualification verdict but found some unequal contrasts. The maximum-distance patch center tied at adjacent pixels.",
+  "status": "MuJoCo calibration outcomes seen. Isaac calibration is rendering. No fresh verifier outcomes have been read.",
+  "original_rule": "Break ties by distance to the reference-box center, then row and column. The pre-scene protocol pins no array-index origin convention.",
+  "implementations": {
+    "numeric-midpoint": "The measurement implementation used (left+right)/2 for an integer-indexed candidate and the analogous y value. The evaluator adopted this before reading any calibration outcome.",
+    "pixel-centers": "The independent reconstruction used (left+right-1)/2 for pixel centers inside a half-open box and the analogous y value."
+  },
+  "decision": "Preserve the original score for numeric-midpoint. Report both conventions for every calibration pair and screen. No convention may qualify a semantic label or alter the verifier experiment.",
+  "scientific_release_sha256": "84e7de4559567187b4a26971a3d0ffc8f467e4c644e0cd441ee156d74bd0d9f8"
+}

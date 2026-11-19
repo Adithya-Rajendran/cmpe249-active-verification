@@ -1,0 +1,18 @@
+{
+  "id": "vggt-qwen-registered-place-zero-shot-v1",
+  "scope": "two-image adaptation of STILL registered-place question, not STILL reproduction",
+  "inputs": ["reference RGB", "query RGB", "numeric reference box xyxy"],
+  "geometry": "development.cross_sim.geoscd_geometry.GeometryProvider, exact frozen 0.60 target usable fraction gate; failure UNKNOWN",
+  "geometry_revision": "dd31369654e96d6843cc4bbcebce854a8bc2159b",
+  "geometry_weights_revision": "860abec7937da0a4c03c41d3c269c366e82abdf9",
+  "geometry_weights_sha256": "f164acf60724910d8fe1578bb499d800850c7bb0948db7555c413f9fbe60467e",
+  "model": "Qwen/Qwen3.5-9B",
+  "model_revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+  "precision": "bfloat16, cuda",
+  "images": "Four RGB images in order: full reference marked with red box, full query, reference context crop, geometrically warped query context crop. Full images resize to 768x432; crops use box expanded 25 percent on each side, clipped to reference bounds, resized to fit within 512x512 without enlargement. The warped crop is in reference coordinates; invalid geometry pixels are black.",
+  "prompt": "Image 1 is the earlier reference. The red rectangle marks the remembered object. Image 2 is the later scene. Image 3 is the reference location enlarged. Image 4 is the estimated later location aligned to image 3; black pixels indicate unavailable mapping. Is the same object still at the marked place in the later scene? Answer PRESENT only if you can see the object at that place. Answer REMOVED only if you can see enough of that place to establish that the object is absent. If the place or object is hidden, mapping is unreliable, or evidence is insufficient, answer UNKNOWN. Output exactly one word: PRESENT, REMOVED, or UNKNOWN.",
+  "decoding": "greedy, do_sample=false, enable_thinking=false, max_new_tokens=16",
+  "parser": "strip whitespace; exact uppercase PRESENT, REMOVED, or UNKNOWN only; all other outputs and inference errors yield UNKNOWN and are recorded",
+  "qualification": "At least 34 of 36 archived same-view controls PRESENT, and at least 90 percent correct in each clear class on prespecified disjoint archived controls. No tuning on these controls.",
+  "limitations": "STILL uses Pi3, a trained verifier, and scene-view plus registered place-view score fusion. This adaptation uses VGGT, a zero-shot verifier, two whole images and two local crops, with no score fusion."
+}

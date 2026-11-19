@@ -1,0 +1,16 @@
+{
+  "cases_sha256": "a08f0bd7f542891f7876e960479f8d62146edb7cca483e30f3abcd475d7a0366",
+  "geometry_checkpoint_sha256": "f164acf60724910d8fe1578bb499d800850c7bb0948db7555c413f9fbe60467e",
+  "gpu": "NVIDIA GB10",
+  "model_revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+  "model_shards": {
+    "model.safetensors-00001-of-00004.safetensors": "db6f444b43d318c92f360a13a25561a6a65b10c0631b8ed305a426dbaa6c380e",
+    "model.safetensors-00002-of-00004.safetensors": "31c7d7e2dd5d207840b31cc59083c8f4c4718959149e0358c0364052bb9a0330",
+    "model.safetensors-00003-of-00004.safetensors": "7ec36ba3a4176a44c3c0876ad80c56a2f70c84bf008d82e9501df642f17dadec",
+    "model.safetensors-00004-of-00004.safetensors": "b62b0c4cd7e44edee103ee8f4fe225f246d5e768e07bfd5f25b63a8aa1fdd0c6"
+  },
+  "script_sha256": "1ed7f7c7d877b04d7348ddd154de2b92d98640b12965e44faf47e9af064eea5f",
+  "spec_sha256": "db57d40b5d55ba40b0b3fcdcb7a449c322bb861d4cb401c29361f6c5f5f045ed",
+  "torch": "2.12.1+cu130",
+  "transformers": "5.17.0"
+}

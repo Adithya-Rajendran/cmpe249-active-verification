@@ -1,0 +1,5 @@
+{
+  "recorded_utc": "2026-11-18T23:06:33.617446+00:00",
+  "visible_at_change": "MuJoCo calibration results visible; Isaac calibration pending",
+  "change": "Add Python, Pillow and NumPy versions to subsequent calibration JSON metadata. No measurement, eligibility, control or decision rule changed."
+}

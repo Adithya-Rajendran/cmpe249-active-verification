@@ -1,0 +1,123 @@
+{
+  "caption": "The foam brick remains in both queries. The geometry verifier answered REMOVED twice. The green points show target vertices projected for evaluation, including potentially hidden surfaces. The pink crosses show where the verifier mapped those same reference points. The blocker partly covers the brick in the third panel. Match and usable-box values come from the saved decisions.",
+  "selection": "Three target vertices nearest fixed reference-box anchors (25%,20%), (75%,50%), (35%,80%), restricted to samples valid in both candidate maps. Anchors were fixed without selecting by residual.",
+  "target_id": "foam_brick",
+  "target_ycb": "061_foam_brick",
+  "case_scope": "Both blocker states belong to the same MuJoCo shelf arrangement, stop P4, D4.",
+  "box_xyxy": [
+    585,
+    461,
+    627,
+    505
+  ],
+  "crop_xyxy": [
+    550,
+    435,
+    700,
+    530
+  ],
+  "chosen_vertex_indices": [
+    1883,
+    6277,
+    3277
+  ],
+  "points": [
+    {
+      "vertex_index": 1883,
+      "reference_xy": [
+        596.0364821117968,
+        470.24997263581866
+      ],
+      "projected_query_xy": [
+        651.1487461952594,
+        468.6226052112728
+      ],
+      "clear_adapter_xy": [
+        634.707479399791,
+        468.32801202356217
+      ],
+      "placed_adapter_xy": [
+        635.3419968957345,
+        468.2820403841453
+      ]
+    },
+    {
+      "vertex_index": 6277,
+      "reference_xy": [
+        616.5187628675696,
+        482.77271570446004
+      ],
+      "projected_query_xy": [
+        673.0943314052796,
+        481.3107880289145
+      ],
+      "clear_adapter_xy": [
+        654.5670671654339,
+        480.95731222155393
+      ],
+      "placed_adapter_xy": [
+        655.2869866335673,
+        480.89854315623245
+      ]
+    },
+    {
+      "vertex_index": 3277,
+      "reference_xy": [
+        599.7935071102836,
+        496.23516538470346
+      ],
+      "projected_query_xy": [
+        655.3781044926905,
+        494.6563226220466
+      ],
+      "clear_adapter_xy": [
+        637.8658449946893,
+        494.25332608315387
+      ],
+      "placed_adapter_xy": [
+        638.5736820281242,
+        494.1934145793508
+      ]
+    }
+  ],
+  "reference_path": "/mnt/bench-data/datasets/cmpe249-active-verification/cross-sim-dev-20261117/pilot/scoring-v1/prepared/verifier/primary/Ia48298bb838a8ecb2e05724fb53a01f6_r.png",
+  "reference_sha256": "1ee442703a5e48a1abfba47d5e7896146221e599b83d2124acf6385265c9f5c5",
+  "cohort_manifest_sha256": "d640439de30f904d6dafd7e7424d44d5c0c9466fad0a46a3aa6a81aedf14ada0",
+  "arrangement_sha256": "4b946a937706f936268379084dee7be6fa5709aeca27c591501383e1441967cf",
+  "target_ply_sha256": "c7fa849e009d48a414f6529696febce17a16ae80ecdc5ac12eaa1e185cb9eb9b",
+  "ledger_sha256": "5c2123417b2010971c86fa7f955369c166b6ded8cbade89176f5dff1cbd44b53",
+  "jobs_sha256": "50fb32e838b369d4d239ef8cc4a6f5aeb26561b76c06235263d25a3e57b52c44",
+  "candidate_manifest_sha256": "0c51b3a88b5c3fa30e9080b989e25f43da6fe482e62d45684c08edfc42c883da",
+  "cases": [
+    {
+      "label": "Clear query",
+      "id": "Ia48298bb838a8ecb2e05724fb53a01f6",
+      "state": "clear_present",
+      "record_sha256": "e1b0ba7a8f8e238efc85ba20b68d44db8bebe78e8a11a42c2f39c9984607aaf3",
+      "geometry_npz_sha256": "6cc8637c5dcfb11055af4d5c7076502e7b6a265726ca96fe52f44d0ccd9a5b76",
+      "geometry_metadata_sha256": "37638704380e476efa0cb60874b75feccf1c1d7915db6f135e1893cf07decc74",
+      "query_path": "/mnt/bench-data/datasets/cmpe249-active-verification/cross-sim-dev-20261117/pilot/scoring-v1/prepared/verifier/primary/Ia48298bb838a8ecb2e05724fb53a01f6_q.png",
+      "query_sha256": "eea0e2b5a8a83653ee3ea8a06dcc9b1e6a3181bb4fab350c6ee9baed61807b15",
+      "answer": "REMOVED",
+      "physical_state": "PRESENT",
+      "target_valid_fraction": 0.8630952380952381,
+      "match_score": 0.5687221884727478
+    },
+    {
+      "label": "Placed query",
+      "id": "I0a4384b27d274900f01ff39596efb118",
+      "state": "placed_present",
+      "record_sha256": "6962785e2c95f4ec62fe6d83204123cc51cf4633017b5e9abbd30c3f176e9eeb",
+      "geometry_npz_sha256": "99d7aa1ace5639e15cdd577fba17fad32fa81b7330176ab59f0984f0b346f0db",
+      "geometry_metadata_sha256": "2421ed71a3c754d669425183183f4482180b8a4a6c17ecfd9a30098ff80639f9",
+      "query_path": "/mnt/bench-data/datasets/cmpe249-active-verification/cross-sim-dev-20261117/pilot/scoring-v1/prepared/verifier/primary/I0a4384b27d274900f01ff39596efb118_q.png",
+      "query_sha256": "6324583abaa3b23d66cb4aae40cffda5ad84a1c2f28b3af68629d8c59886e322",
+      "answer": "REMOVED",
+      "physical_state": "PRESENT",
+      "target_valid_fraction": 0.6282467532467533,
+      "match_score": 0.5213260054588318
+    }
+  ],
+  "plot_source_sha256": "1ee699f35024425d20988ac0621119d5dbf5191162b032ea964dc7c0595d0637",
+  "figure_sha256": "6511c379a564de285c7edc6fe79b57135fc7227311c904c487575f60bfccc9ea"
+}

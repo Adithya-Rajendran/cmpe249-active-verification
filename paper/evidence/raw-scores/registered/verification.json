@@ -1,0 +1,14 @@
+{
+  "answers": {
+    "PRESENT": 362,
+    "REMOVED": 470,
+    "UNKNOWN": 448
+  },
+  "binding_sha256": "26e6c1665ce66775e526ea6b5b91cd4e3e81d1213368f75432831f576ac98156",
+  "cases": 1280,
+  "cases_sha256": "cbae7ad26f772d3cdb363f53cf17b79295b4e80b7ae40c05af0d9630f3dd6a00",
+  "failures": {
+    "registration_gate": 446
+  },
+  "records_sha256": "4708759c7d9228ef8069dd79f1d625173dd3b30318613316cfec82502e8067e2"
+}

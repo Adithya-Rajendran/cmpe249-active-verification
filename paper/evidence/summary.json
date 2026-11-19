@@ -1,0 +1,788 @@
+{
+  "layouts": 16,
+  "n": 1280,
+  "engines": {
+    "isaac": {
+      "environments": {
+        "all": {
+          "overall": {
+            "homography_correct": 387,
+            "homography_definite": 387,
+            "homography_wrong": 0,
+            "homography_false_removal": 0,
+            "homography_false_presence": 0,
+            "dense_correct": 397,
+            "dense_definite": 397,
+            "dense_wrong": 0,
+            "dense_false_removal": 0,
+            "dense_false_presence": 0,
+            "registered_correct": 391,
+            "registered_definite": 415,
+            "registered_wrong": 24,
+            "registered_false_removal": 24,
+            "registered_false_presence": 0,
+            "newly_wrong": 0,
+            "avoided_wrong": 0,
+            "gained": 26,
+            "lost": 16,
+            "n": 640,
+            "net": 10,
+            "layouts": 16,
+            "delta_pp": 1.5625,
+            "delta_interval_pp": [
+              -1.0976562499999964,
+              4.0625
+            ],
+            "layouts_positive": 7,
+            "layouts_negative": 3,
+            "registered_delta_pp": 0.625,
+            "registered_delta_interval_pp": [
+              -1.875,
+              2.96875
+            ],
+            "layout_net": {
+              "PAM01": 0,
+              "PAM02": 0,
+              "PAM03": -6,
+              "PAM04": -4,
+              "PAM05": 0,
+              "PAM06": 0,
+              "PAM07": 1,
+              "PAM08": -1,
+              "PAM09": 3,
+              "PAM10": 2,
+              "PAM11": 0,
+              "PAM12": 2,
+              "PAM13": 5,
+              "PAM14": 0,
+              "PAM15": 6,
+              "PAM16": 2
+            }
+          },
+          "primary": {
+            "homography_correct": 67,
+            "homography_definite": 67,
+            "homography_wrong": 0,
+            "homography_false_removal": 0,
+            "homography_false_presence": 0,
+            "dense_correct": 76,
+            "dense_definite": 76,
+            "dense_wrong": 0,
+            "dense_false_removal": 0,
+            "dense_false_presence": 0,
+            "registered_correct": 80,
+            "registered_definite": 80,
+            "registered_wrong": 0,
+            "registered_false_removal": 0,
+            "registered_false_presence": 0,
+            "newly_wrong": 0,
+            "avoided_wrong": 0,
+            "gained": 9,
+            "lost": 0,
+            "n": 80,
+            "net": 9,
+            "layouts": 16,
+            "delta_pp": 11.25,
+            "delta_interval_pp": [
+              6.25,
+              16.25
+            ],
+            "layouts_positive": 6,
+            "layouts_negative": 0,
+            "registered_delta_pp": 16.25,
+            "registered_delta_interval_pp": [
+              10.0,
+              22.5
+            ],
+            "layout_net": {
+              "PAM01": 0,
+              "PAM02": 0,
+              "PAM03": 0,
+              "PAM04": 0,
+              "PAM05": 0,
+              "PAM06": 0,
+              "PAM07": 0,
+              "PAM08": 0,
+              "PAM09": 2,
+              "PAM10": 1,
+              "PAM11": 0,
+              "PAM12": 1,
+              "PAM13": 2,
+              "PAM14": 0,
+              "PAM15": 2,
+              "PAM16": 1
+            }
+          }
+        },
+        "shelf": {
+          "overall": {
+            "homography_correct": 189,
+            "homography_definite": 189,
+            "homography_wrong": 0,
+            "homography_false_removal": 0,
+            "homography_false_presence": 0,
+            "dense_correct": 179,
+            "dense_definite": 179,
+            "dense_wrong": 0,
+            "dense_false_removal": 0,
+            "dense_false_presence": 0,
+            "registered_correct": 171,
+            "registered_definite": 193,
+            "registered_wrong": 22,
+            "registered_false_removal": 22,
+            "registered_false_presence": 0,
+            "newly_wrong": 0,
+            "avoided_wrong": 0,
+            "gained": 3,
+            "lost": 13,
+            "n": 320,
+            "net": -10,
+            "layouts": 8,
+            "delta_pp": -3.125,
+            "delta_interval_pp": [
+              -7.5,
+              0.3125
+            ],
+            "layouts_positive": 1,
+            "layouts_negative": 3,
+            "registered_delta_pp": -5.625,
+            "registered_delta_interval_pp": [
+              -9.0625,
+              -2.1875
+            ],
+            "layout_net": {
+              "PAM01": 0,
+              "PAM02": 0,
+              "PAM03": -6,
+              "PAM04": -4,
+              "PAM05": 0,
+              "PAM06": 0,
+              "PAM07": 1,
+              "PAM08": -1
+            }
+          },
+          "primary": {
+            "homography_correct": 37,
+            "homography_definite": 37,
+            "homography_wrong": 0,
+            "homography_false_removal": 0,
+            "homography_false_presence": 0,
+            "dense_correct": 37,
+            "dense_definite": 37,
+            "dense_wrong": 0,
+            "dense_false_removal": 0,
+            "dense_false_presence": 0,
+            "registered_correct": 40,
+            "registered_definite": 40,
+            "registered_wrong": 0,
+            "registered_false_removal": 0,
+            "registered_false_presence": 0,
+            "newly_wrong": 0,
+            "avoided_wrong": 0,
+            "gained": 0,
+            "lost": 0,
+            "n": 40,
+            "net": 0,
+            "layouts": 8,
+            "delta_pp": 0.0,
+            "delta_interval_pp": [
+              0.0,
+              0.0
+            ],
+            "layouts_positive": 0,
+            "layouts_negative": 0,
+            "registered_delta_pp": 7.5,
+            "registered_delta_interval_pp": [
+              0.0,
+              15.0
+            ],
+            "layout_net": {
+              "PAM01": 0,
+              "PAM02": 0,
+              "PAM03": 0,
+              "PAM04": 0,
+              "PAM05": 0,
+              "PAM06": 0,
+              "PAM07": 0,
+              "PAM08": 0
+            }
+          }
+        },
+        "tabletop": {
+          "overall": {
+            "homography_correct": 198,
+            "homography_definite": 198,
+            "homography_wrong": 0,
+            "homography_false_removal": 0,
+            "homography_false_presence": 0,
+            "dense_correct": 218,
+            "dense_definite": 218,
+            "dense_wrong": 0,
+            "dense_false_removal": 0,
+            "dense_false_presence": 0,
+            "registered_correct": 220,
+            "registered_definite": 222,
+            "registered_wrong": 2,
+            "registered_false_removal": 2,
+            "registered_false_presence": 0,
+            "newly_wrong": 0,
+            "avoided_wrong": 0,
+            "gained": 23,
+            "lost": 3,
+            "n": 320,
+            "net": 20,
+            "layouts": 8,
+            "delta_pp": 6.25,
+            "delta_interval_pp": [
+              3.125,
+              10.0
+            ],
+            "layouts_positive": 6,
+            "layouts_negative": 0,
+            "registered_delta_pp": 6.875,
+            "registered_delta_interval_pp": [
+              3.4375,
+              10.0
+            ],
+            "layout_net": {
+              "PAM09": 3,
+              "PAM10": 2,
+              "PAM11": 0,
+              "PAM12": 2,
+              "PAM13": 5,
+              "PAM14": 0,
+              "PAM15": 6,
+              "PAM16": 2
+            }
+          },
+          "primary": {
+            "homography_correct": 30,
+            "homography_definite": 30,
+            "homography_wrong": 0,
+            "homography_false_removal": 0,
+            "homography_false_presence": 0,
+            "dense_correct": 39,
+            "dense_definite": 39,
+            "dense_wrong": 0,
+            "dense_false_removal": 0,
+            "dense_false_presence": 0,
+            "registered_correct": 40,
+            "registered_definite": 40,
+            "registered_wrong": 0,
+            "registered_false_removal": 0,
+            "registered_false_presence": 0,
+            "newly_wrong": 0,
+            "avoided_wrong": 0,
+            "gained": 9,
+            "lost": 0,
+            "n": 40,
+            "net": 9,
+            "layouts": 8,
+            "delta_pp": 22.5,
+            "delta_interval_pp": [
+              12.5,
+              32.5
+            ],
+            "layouts_positive": 6,
+            "layouts_negative": 0,
+            "registered_delta_pp": 25.0,
+            "registered_delta_interval_pp": [
+              12.5,
+              35.0
+            ],
+            "layout_net": {
+              "PAM09": 2,
+              "PAM10": 1,
+              "PAM11": 0,
+              "PAM12": 1,
+              "PAM13": 2,
+              "PAM14": 0,
+              "PAM15": 2,
+              "PAM16": 1
+            }
+          }
+        }
+      },
+      "certificates": {
+        "pairs": 320,
+        "exact": 0,
+        "layouts": 0,
+        "native_exact": 0,
+        "fully_hidden_placed": 88,
+        "homography": {
+          "commit": 0,
+          "abstain": 0,
+          "different_answers": 0,
+          "unsupported_decisions": 0,
+          "errors": 0
+        },
+        "dense": {
+          "commit": 0,
+          "abstain": 0,
+          "different_answers": 0,
+          "unsupported_decisions": 0,
+          "errors": 0
+        },
+        "registered": {
+          "commit": 0,
+          "abstain": 0,
+          "different_answers": 0,
+          "unsupported_decisions": 0,
+          "errors": 0
+        }
+      },
+      "retained_target_visibility": {
+        "clear": {
+          "pairs": 160,
+          "no_visible_target_pixels": 0,
+          "part_of_isolated_mask_exposed": 3,
+          "all_of_isolated_mask_exposed": 157,
+          "minimum_exposed_fraction": 0.9996684350132626,
+          "median_exposed_fraction": 1.0
+        },
+        "placed": {
+          "pairs": 160,
+          "no_visible_target_pixels": 88,
+          "part_of_isolated_mask_exposed": 30,
+          "all_of_isolated_mask_exposed": 42,
+          "minimum_exposed_fraction": 0.0,
+          "median_exposed_fraction": 0.0
+        }
+      },
+      "registered_gate": {
+        "all_queries": {
+          "comparable_maps": 640,
+          "execution_failures": {
+            "homography": 0,
+            "dense": 0,
+            "registered": 0
+          },
+          "n": 640,
+          "blocked_before_language": 225,
+          "model_unknown": 0,
+          "unparsed": 0,
+          "map_gate_disagreements": 0,
+          "max_absolute_map_fraction_difference": 0.0
+        },
+        "certified_queries": {
+          "comparable_maps": 0,
+          "execution_failures": {
+            "homography": 0,
+            "dense": 0,
+            "registered": 0
+          },
+          "n": 0,
+          "blocked_before_language": 0,
+          "model_unknown": 0,
+          "unparsed": 0,
+          "map_gate_disagreements": 0,
+          "max_absolute_map_fraction_difference": null
+        }
+      }
+    },
+    "mujoco": {
+      "environments": {
+        "all": {
+          "overall": {
+            "homography_correct": 389,
+            "homography_definite": 390,
+            "homography_wrong": 1,
+            "homography_false_removal": 1,
+            "homography_false_presence": 0,
+            "dense_correct": 400,
+            "dense_definite": 402,
+            "dense_wrong": 2,
+            "dense_false_removal": 2,
+            "dense_false_presence": 0,
+            "registered_correct": 390,
+            "registered_definite": 417,
+            "registered_wrong": 27,
+            "registered_false_removal": 27,
+            "registered_false_presence": 0,
+            "newly_wrong": 2,
+            "avoided_wrong": 1,
+            "gained": 38,
+            "lost": 27,
+            "n": 640,
+            "net": 11,
+            "layouts": 16,
+            "delta_pp": 1.71875,
+            "delta_interval_pp": [
+              -1.5625,
+              4.53125
+            ],
+            "layouts_positive": 10,
+            "layouts_negative": 3,
+            "registered_delta_pp": 0.15625,
+            "registered_delta_interval_pp": [
+              -3.75,
+              3.90625
+            ],
+            "layout_net": {
+              "PAM01": 1,
+              "PAM02": 0,
+              "PAM03": -8,
+              "PAM04": 0,
+              "PAM05": 1,
+              "PAM06": -3,
+              "PAM07": -2,
+              "PAM08": 1,
+              "PAM09": 2,
+              "PAM10": 1,
+              "PAM11": 0,
+              "PAM12": 1,
+              "PAM13": 6,
+              "PAM14": 2,
+              "PAM15": 5,
+              "PAM16": 4
+            }
+          },
+          "primary": {
+            "homography_correct": 63,
+            "homography_definite": 63,
+            "homography_wrong": 0,
+            "homography_false_removal": 0,
+            "homography_false_presence": 0,
+            "dense_correct": 78,
+            "dense_definite": 78,
+            "dense_wrong": 0,
+            "dense_false_removal": 0,
+            "dense_false_presence": 0,
+            "registered_correct": 79,
+            "registered_definite": 79,
+            "registered_wrong": 0,
+            "registered_false_removal": 0,
+            "registered_false_presence": 0,
+            "newly_wrong": 0,
+            "avoided_wrong": 0,
+            "gained": 16,
+            "lost": 1,
+            "n": 80,
+            "net": 15,
+            "layouts": 16,
+            "delta_pp": 18.75,
+            "delta_interval_pp": [
+              10.0,
+              27.5
+            ],
+            "layouts_positive": 11,
+            "layouts_negative": 1,
+            "registered_delta_pp": 20.0,
+            "registered_delta_interval_pp": [
+              12.5,
+              28.75
+            ],
+            "layout_net": {
+              "PAM01": 1,
+              "PAM02": 0,
+              "PAM03": 0,
+              "PAM04": 2,
+              "PAM05": 1,
+              "PAM06": -1,
+              "PAM07": 0,
+              "PAM08": 2,
+              "PAM09": 1,
+              "PAM10": 1,
+              "PAM11": 0,
+              "PAM12": 1,
+              "PAM13": 3,
+              "PAM14": 1,
+              "PAM15": 2,
+              "PAM16": 1
+            }
+          }
+        },
+        "shelf": {
+          "overall": {
+            "homography_correct": 187,
+            "homography_definite": 188,
+            "homography_wrong": 1,
+            "homography_false_removal": 1,
+            "homography_false_presence": 0,
+            "dense_correct": 177,
+            "dense_definite": 179,
+            "dense_wrong": 2,
+            "dense_false_removal": 2,
+            "dense_false_presence": 0,
+            "registered_correct": 177,
+            "registered_definite": 196,
+            "registered_wrong": 19,
+            "registered_false_removal": 19,
+            "registered_false_presence": 0,
+            "newly_wrong": 2,
+            "avoided_wrong": 1,
+            "gained": 15,
+            "lost": 25,
+            "n": 320,
+            "net": -10,
+            "layouts": 8,
+            "delta_pp": -3.125,
+            "delta_interval_pp": [
+              -8.75,
+              1.25
+            ],
+            "layouts_positive": 3,
+            "layouts_negative": 3,
+            "registered_delta_pp": -3.125,
+            "registered_delta_interval_pp": [
+              -9.6875,
+              3.125
+            ],
+            "layout_net": {
+              "PAM01": 1,
+              "PAM02": 0,
+              "PAM03": -8,
+              "PAM04": 0,
+              "PAM05": 1,
+              "PAM06": -3,
+              "PAM07": -2,
+              "PAM08": 1
+            }
+          },
+          "primary": {
+            "homography_correct": 33,
+            "homography_definite": 33,
+            "homography_wrong": 0,
+            "homography_false_removal": 0,
+            "homography_false_presence": 0,
+            "dense_correct": 38,
+            "dense_definite": 38,
+            "dense_wrong": 0,
+            "dense_false_removal": 0,
+            "dense_false_presence": 0,
+            "registered_correct": 39,
+            "registered_definite": 39,
+            "registered_wrong": 0,
+            "registered_false_removal": 0,
+            "registered_false_presence": 0,
+            "newly_wrong": 0,
+            "avoided_wrong": 0,
+            "gained": 6,
+            "lost": 1,
+            "n": 40,
+            "net": 5,
+            "layouts": 8,
+            "delta_pp": 12.5,
+            "delta_interval_pp": [
+              0.0,
+              25.0
+            ],
+            "layouts_positive": 4,
+            "layouts_negative": 1,
+            "registered_delta_pp": 15.0,
+            "registered_delta_interval_pp": [
+              5.0,
+              27.5
+            ],
+            "layout_net": {
+              "PAM01": 1,
+              "PAM02": 0,
+              "PAM03": 0,
+              "PAM04": 2,
+              "PAM05": 1,
+              "PAM06": -1,
+              "PAM07": 0,
+              "PAM08": 2
+            }
+          }
+        },
+        "tabletop": {
+          "overall": {
+            "homography_correct": 202,
+            "homography_definite": 202,
+            "homography_wrong": 0,
+            "homography_false_removal": 0,
+            "homography_false_presence": 0,
+            "dense_correct": 223,
+            "dense_definite": 223,
+            "dense_wrong": 0,
+            "dense_false_removal": 0,
+            "dense_false_presence": 0,
+            "registered_correct": 213,
+            "registered_definite": 221,
+            "registered_wrong": 8,
+            "registered_false_removal": 8,
+            "registered_false_presence": 0,
+            "newly_wrong": 0,
+            "avoided_wrong": 0,
+            "gained": 23,
+            "lost": 2,
+            "n": 320,
+            "net": 21,
+            "layouts": 8,
+            "delta_pp": 6.5625,
+            "delta_interval_pp": [
+              3.4375,
+              10.0
+            ],
+            "layouts_positive": 7,
+            "layouts_negative": 0,
+            "registered_delta_pp": 3.4375,
+            "registered_delta_interval_pp": [
+              -0.9375,
+              8.125
+            ],
+            "layout_net": {
+              "PAM09": 2,
+              "PAM10": 1,
+              "PAM11": 0,
+              "PAM12": 1,
+              "PAM13": 6,
+              "PAM14": 2,
+              "PAM15": 5,
+              "PAM16": 4
+            }
+          },
+          "primary": {
+            "homography_correct": 30,
+            "homography_definite": 30,
+            "homography_wrong": 0,
+            "homography_false_removal": 0,
+            "homography_false_presence": 0,
+            "dense_correct": 40,
+            "dense_definite": 40,
+            "dense_wrong": 0,
+            "dense_false_removal": 0,
+            "dense_false_presence": 0,
+            "registered_correct": 40,
+            "registered_definite": 40,
+            "registered_wrong": 0,
+            "registered_false_removal": 0,
+            "registered_false_presence": 0,
+            "newly_wrong": 0,
+            "avoided_wrong": 0,
+            "gained": 10,
+            "lost": 0,
+            "n": 40,
+            "net": 10,
+            "layouts": 8,
+            "delta_pp": 25.0,
+            "delta_interval_pp": [
+              15.0,
+              37.5
+            ],
+            "layouts_positive": 7,
+            "layouts_negative": 0,
+            "registered_delta_pp": 25.0,
+            "registered_delta_interval_pp": [
+              15.0,
+              37.5
+            ],
+            "layout_net": {
+              "PAM09": 1,
+              "PAM10": 1,
+              "PAM11": 0,
+              "PAM12": 1,
+              "PAM13": 3,
+              "PAM14": 1,
+              "PAM15": 2,
+              "PAM16": 1
+            }
+          }
+        }
+      },
+      "certificates": {
+        "pairs": 320,
+        "exact": 88,
+        "layouts": 16,
+        "native_exact": 88,
+        "fully_hidden_placed": 88,
+        "homography": {
+          "commit": 0,
+          "abstain": 88,
+          "different_answers": 0,
+          "unsupported_decisions": 0,
+          "errors": 0
+        },
+        "dense": {
+          "commit": 1,
+          "abstain": 87,
+          "different_answers": 0,
+          "unsupported_decisions": 2,
+          "errors": 1
+        },
+        "registered": {
+          "commit": 4,
+          "abstain": 84,
+          "different_answers": 0,
+          "unsupported_decisions": 8,
+          "errors": 4
+        }
+      },
+      "retained_target_visibility": {
+        "clear": {
+          "pairs": 160,
+          "no_visible_target_pixels": 0,
+          "part_of_isolated_mask_exposed": 0,
+          "all_of_isolated_mask_exposed": 160,
+          "minimum_exposed_fraction": 1.0,
+          "median_exposed_fraction": 1.0
+        },
+        "placed": {
+          "pairs": 160,
+          "no_visible_target_pixels": 88,
+          "part_of_isolated_mask_exposed": 29,
+          "all_of_isolated_mask_exposed": 43,
+          "minimum_exposed_fraction": 0.0,
+          "median_exposed_fraction": 0.0
+        }
+      },
+      "registered_gate": {
+        "all_queries": {
+          "comparable_maps": 640,
+          "execution_failures": {
+            "homography": 0,
+            "dense": 0,
+            "registered": 0
+          },
+          "n": 640,
+          "blocked_before_language": 221,
+          "model_unknown": 2,
+          "unparsed": 0,
+          "map_gate_disagreements": 0,
+          "max_absolute_map_fraction_difference": 0.0
+        },
+        "certified_queries": {
+          "comparable_maps": 176,
+          "execution_failures": {
+            "homography": 0,
+            "dense": 0,
+            "registered": 0
+          },
+          "n": 176,
+          "blocked_before_language": 168,
+          "model_unknown": 0,
+          "unparsed": 0,
+          "map_gate_disagreements": 0,
+          "max_absolute_map_fraction_difference": 0.0
+        }
+      }
+    }
+  },
+  "exploratory_example": {
+    "clear": {
+      "changed_pixels": 12159,
+      "geometry_answers": [
+        "PRESENT",
+        "REMOVED"
+      ]
+    },
+    "placed": {
+      "changed_pixels": 0,
+      "geometry_answers": [
+        "UNKNOWN",
+        "UNKNOWN"
+      ]
+    }
+  },
+  "exploratory": {
+    "isaac": {
+      "baseline": 404,
+      "candidate": 425
+    },
+    "mujoco": {
+      "baseline": 399,
+      "candidate": 421
+    }
+  }
+}

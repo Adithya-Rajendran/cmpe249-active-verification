@@ -1,0 +1,29 @@
+{
+  "study_id": "level-shelf-v1",
+  "design_release_sha256": "ff4305fd8cd140bda645e080dbfc9d238bc891d30e7a0f96dec7a443cfb4a3b6",
+  "manifest_sha256": "05a958119fa7ffb5932cf1c9865851f330393af301864bae2c073cfc5f8dab7e",
+  "declaration_sha256": "4d2618a3e28bc4eb619e33cbbbce167b117832f1856836b4437e73da208cb8e4",
+  "isaac_binding_sha256": "e3e32baa1e8eeaa3898aeebd59a090f475a23db003640df676eb94b48d4adf74",
+  "scope": "8 shared shelf layouts, 2 levels, 5 camera slots, 4 target/blocker states",
+  "engine_layouts": {
+    "isaac": 8,
+    "mujoco": 8
+  },
+  "mujoco_capture_gl": {
+    "vendor": "Mesa",
+    "renderer": "llvmpipe (LLVM 20.1.2, 128 bits)",
+    "version": "4.5 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.4"
+  },
+  "independent_checks": "full geometry and native mask/image checks passed; each local full geometry receipt verified 52 file hashes",
+  "files_sha256": {
+    "isaac-private-manifest.json": "6770280ed566dce7eea7cbdab409b15a858876481f82e49e3333ab9d2f8d4011",
+    "mujoco-private-manifest.json": "2028cd3748b139e91dcc25deb1ca7c6094af2e1bba783b0556ea31fe249d4292",
+    "isaac-geometry-local.json": "2090675580412bcda6ff9134c92754af5dd51466f7ec0bf382ea565758d33309",
+    "mujoco-geometry-local.json": "507d510c5256d342094962006b839a62a51e2755e7f36ce4df6beae01124bf2c",
+    "isaac-native-mask-audit.json": "680b73a9d0e04af222d8db5d8c226b2267fb4deee1bb5b7d0a5672fa6af26db1",
+    "mujoco-native-mask-audit.json": "97f8893061c114db695955d929bb809f37259146434ec854cfcd26dc891564fa",
+    "isaac-binding.json": "e3e32baa1e8eeaa3898aeebd59a090f475a23db003640df676eb94b48d4adf74",
+    "isaac.log": "fc1cd91f05690c0b862fcc5aa4c28225bce3720b9ba1c9a788c0a28fc359dcdc",
+    "mujoco.log": "4320049be68a6f22b2b370997ecf7ad29256b3f489ecaa4b140084760b1ebcf6"
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "study_id": "cross-sim-dev-v1",
+  "status": "development",
+  "version": "2026-11-17",
+  "design": {
+    "environments": [
+      "shelf",
+      "tabletop"
+    ],
+    "engines": [
+      "isaac",
+      "mujoco"
+    ],
+    "arrangements_per_environment": 5,
+    "stops": [
+      "P1",
+      "P2",
+      "P3",
+      "P4",
+      "P5"
+    ],
+    "levels": [
+      {
+        "id": "D0",
+        "translation_m": 0.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "id": "D4",
+        "translation_m": 0.04,
+        "yaw_deg": 2.0
+      },
+      {
+        "id": "D6",
+        "translation_m": 0.06,
+        "yaw_deg": 3.0
+      }
+    ],
+    "states": [
+      "clear_present",
+      "clear_removed",
+      "placed_present",
+      "placed_removed"
+    ],
+    "queries_per_engine": 600,
+    "references_per_engine": 50,
+    "split_and_bootstrap_unit": "base_arrangement",
+    "reference_source_level": "D0",
+    "lighting": "L1"
+  },
+  "endpoint": {
+    "physical_state_source": "simulator_intervention",
+    "unknown_counts_against_coverage_and_clear_resolution": true,
+    "masks": "geometric_diagnostics_only",
+    "support_reference": "not_validated",
+    "support_claims": "held",
+    "ai_support_judgments": "separate_from_physical_state"
+  },
+  "decision": {
+    "stop_min_clear_correct_resolution_each_class": 0.9,
+    "stop_max_observed_physical_errors": 0,
+    "stop_scope": "each engine, environment and level for clear classes; complete pilot for physical errors",
+    "continuing_mechanism_min_arrangements": 3,
+    "continuation_scope": "same engine, environment, level, state and observable failure pattern across all controls, with at least three common arrangements",
+    "otherwise": "inconclusive",
+    "continuation_candidates": [
+      "definite physical error in any state",
+      "failure to resolve a clear state"
+    ],
+    "clear_unknown_patterns": [
+      "failed alignment by recorded refusal",
+      "quality below threshold",
+      "intermediate match",
+      "low match with excessive obstruction"
+    ],
+    "interpretation": "observable patterns, not proven causes; placed UNKNOWN is reported but does not qualify"
+  },
+  "render_size": [
+    2304,
+    1296
+  ],
+  "primary_size": [
+    1200,
+    675
+  ],
+  "resize": "Pillow.LANCZOS",
+  "thresholds": {
+    "quality": 0.3,
+    "present": 0.7,
+    "absent": 0.6,
+    "obstruction": 0.4
+  },
+  "align_params": {
+    "sigma": 1.5,
+    "levels": 4,
+    "stop_level": 1,
+    "excl_f": 0.5,
+    "border": 24,
+    "iters": 200,
+    "eps": 1e-06,
+    "min_cc": 0.5,
+    "max_shift_px": 100.0,
+    "max_scale_dev": 0.1
+  },
+  "analyses": [
+    {
+      "id": "primary",
+      "size": [
+        1200,
+        675
+      ],
+      "max_shift_px": 100.0
+    },
+    {
+      "id": "native_normalized_guard",
+      "size": [
+        2304,
+        1296
+      ],
+      "max_shift_px": 192.0
+    },
+    {
+      "id": "relaxed_guard",
+      "size": [
+        1200,
+        675
+      ],
+      "max_shift_px": 200.0
+    }
+  ],
+  "bootstrap": {
+    "unit": "base_arrangement",
+    "draws": 2000,
+    "seed": 20261117
+  }
+}

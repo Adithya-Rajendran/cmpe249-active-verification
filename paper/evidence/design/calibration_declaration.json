@@ -1,0 +1,116 @@
+{
+  "design_locked": true,
+  "study_id": "paper-audit-v1",
+  "stops": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5"
+  ],
+  "states": [
+    "clear_present",
+    "clear_removed",
+    "placed_present",
+    "placed_removed"
+  ],
+  "qualification_levels": [
+    "D0"
+  ],
+  "pilot_levels": [
+    "D0",
+    "D6"
+  ],
+  "image_size": [
+    2304,
+    1296
+  ],
+  "fixture_seeds": [
+    7400,
+    7401,
+    7402,
+    7405,
+    7406,
+    7407,
+    7420,
+    7421,
+    7422,
+    7425,
+    7426,
+    7427,
+    7440,
+    7441,
+    7442,
+    7445,
+    7446,
+    7447,
+    7500,
+    7501,
+    7502,
+    7505,
+    7506,
+    7507,
+    7520,
+    7521,
+    7522,
+    7525,
+    7526,
+    7527,
+    7540,
+    7541,
+    7542,
+    7545,
+    7546,
+    7547
+  ],
+  "levels": [
+    {
+      "id": "D0",
+      "translation_m": 0.0,
+      "yaw_deg": 0.0
+    },
+    {
+      "id": "D6",
+      "translation_m": 0.06,
+      "yaw_deg": 3.0
+    }
+  ],
+  "seeds_per_arrangement": 32,
+  "attempts_per_seed": 21,
+  "split": "qualification",
+  "arrangements": [
+    {
+      "base_id": "PAC01",
+      "environment": "shelf",
+      "target": 6,
+      "family": "M16",
+      "side": "L",
+      "seed_start": 3200
+    },
+    {
+      "base_id": "PAC02",
+      "environment": "shelf",
+      "target": 21,
+      "family": "M16",
+      "side": "R",
+      "seed_start": 3232
+    },
+    {
+      "base_id": "PAC03",
+      "environment": "tabletop",
+      "target": 6,
+      "family": "M16",
+      "side": "L",
+      "seed_start": 3264
+    },
+    {
+      "base_id": "PAC04",
+      "environment": "tabletop",
+      "target": 21,
+      "family": "M16",
+      "side": "R",
+      "seed_start": 3296
+    }
+  ],
+  "design_release_sha256": "84e7de4559567187b4a26971a3d0ffc8f467e4c644e0cd441ee156d74bd0d9f8"
+}

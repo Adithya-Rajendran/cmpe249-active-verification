@@ -1,0 +1,38 @@
+{
+  "selection": "Post-calibration illustration of the one missing partial-yield layout; fresh verifier predictions had not been generated.",
+  "engine": "mujoco",
+  "layout": "PAC01",
+  "stop": "P3",
+  "crop_native_xyxy": [
+    1055,
+    866,
+    1265,
+    1000
+  ],
+  "files": [
+    {
+      "role": "reference",
+      "relative_native_path": "mujoco/calibration/PAC01/D0/rgb/reference_P3.png",
+      "native_sha256": "89c39341f176331fe91c15a2ba45fb04825886f5decac3236b9b8933a2eb4535",
+      "crop_sha256": "af14460564eb236ff586a6cae50658b97931254b1f735f842fb48aea01f4916d"
+    },
+    {
+      "role": "retained",
+      "relative_native_path": "mujoco/calibration/PAC01/D0/rgb/placed_present_P3.png",
+      "native_sha256": "9b721d729397ebc143f5362fa8b0bac16d51c1aeae5fc496f1c1955046c827ab",
+      "crop_sha256": "20d34f5fa5c58cad51a5f9fefd595a93de58ef3848d68f8a913968865004f6f0"
+    },
+    {
+      "role": "removed",
+      "relative_native_path": "mujoco/calibration/PAC01/D0/rgb/placed_removed_P3.png",
+      "native_sha256": "37e37bda85a7fbd6ca0e97c3967f8b497f45f429280c9f897d0ef476e029ea1c",
+      "crop_sha256": "45a128d41dde3e5dba2cd339cf01dd30de58eb9a5498fe5cc0bde1f5210f7b0e"
+    },
+    {
+      "role": "mask",
+      "relative_native_path": "mujoco/calibration/PAC01/D0/masks/target_placed_present_P3.png",
+      "native_sha256": "927ee297c3f0666af480daa0d5da89aa993bfb53c24cd74684170afe10102f99",
+      "crop_sha256": "8bd190588e9597b4b6be00ff0042cef14551ab2143dcb0d656a52b330de208d0"
+    }
+  ]
+}

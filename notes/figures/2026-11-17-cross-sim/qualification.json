@@ -1,0 +1,79 @@
+{
+  "study": "cross-sim-dev-v1",
+  "stage": "qualification",
+  "manifest_sha256": "f48913f31b76196a8d39275579eedcaf1859e7463d439fddc2284103aa831c29",
+  "release_sha256": "1c38f2f4dbf3a4b8d12508f1a541e1a09f8f3ec169c1f5fa6c92beab14667b7f",
+  "images": {
+    "isaac/CSQS01": {
+      "rgb_sha256": "7bb47fcc8d53dead17f34c75539fb046d69ba846522566798ff8177257d37f46",
+      "target_box_xyxy": [
+        1098,
+        881,
+        1208,
+        1023
+      ]
+    },
+    "isaac/CSQT01": {
+      "rgb_sha256": "8b1239b5ee363fc62031e7daeebbb6ef073bf3967ebe7081270810340069d95e",
+      "target_box_xyxy": [
+        1388,
+        190,
+        1597,
+        510
+      ]
+    },
+    "mujoco/CSQS01": {
+      "rgb_sha256": "8c746f9793122683cdaf7d40048589376de5ae6a6d5c96ef5c6ccb8c48029ad2",
+      "target_box_xyxy": [
+        1098,
+        881,
+        1208,
+        1023
+      ]
+    },
+    "mujoco/CSQT01": {
+      "rgb_sha256": "04d866b01004309d8f60df3b351623bb2db5d631ee80b46a2a3c92c10a578cb8",
+      "target_box_xyxy": [
+        1388,
+        190,
+        1597,
+        510
+      ]
+    }
+  },
+  "figure_sha256": "8b604fab6652672ecdabd90f88bcfd292353a0e2bed002c6a8d36deb293e0241",
+  "engines": {
+    "isaac": {
+      "status": "PASS",
+      "audit_sha256": "014526ea391e77c1f05ef79e9852c7c947003d12c71e85b84c7d726501f725d5",
+      "file_count": 358,
+      "landmark_max_px": 5.5096785677981654e-05,
+      "max_mask_error_outside_band": 0,
+      "min_clear_target_fraction": 1.0,
+      "max_removed_target_pixels": 0,
+      "max_repeat_rgb_mae": 0.6944147501571788,
+      "max_repeat_target_mae": 0.6307460222582757,
+      "min_clear_removal_target_mae": 52.55781814955303
+    },
+    "mujoco": {
+      "status": "PASS",
+      "audit_sha256": "5f925cf04aaa888a9508bd96f73994884ac8b007dce975c7061e06bde2071f8d",
+      "file_count": 358,
+      "landmark_max_px": 1.2679997114991777e-09,
+      "max_mask_error_outside_band": 0,
+      "min_clear_target_fraction": 1.0,
+      "max_removed_target_pixels": 0,
+      "max_repeat_rgb_mae": 0.0,
+      "max_repeat_target_mae": 0.0,
+      "min_clear_removal_target_mae": 45.25903747197055
+    }
+  },
+  "mujoco_graphics_probe": {
+    "timing": "post-capture synthetic context with the same runtime and EGL configuration",
+    "vendor": "Mesa",
+    "renderer": "llvmpipe (LLVM 15.0.7, 128 bits)",
+    "GL_version": "4.5 (Compatibility Profile) Mesa 23.2.1-1ubuntu3.1~22.04.4",
+    "shading_language_version": "4.50",
+    "probe_sha256": "e647ec49b394ceb478a33c97335934e9c8fbed8291bc727022278c651ad29818"
+  }
+}

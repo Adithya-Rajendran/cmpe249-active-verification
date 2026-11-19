@@ -1,0 +1,16 @@
+{
+  "case_count": 1280,
+  "pairs": 640,
+  "unique_png_files": 1272,
+  "packet_inventory_sha256": "cbae7ad26f772d3cdb363f53cf17b79295b4e80b7ae40c05af0d9630f3dd6a00",
+  "ledger_sha256": "5f9c5b9bf5335ac4945ded6f7de86d3e2351ab2066e5b8249adfbc20037491c3",
+  "score_sha256": {
+    "homography": "e78affc4e2d6e0339c9189ed0befb5e947c686600616abf4aa9a2cde0d6ca999",
+    "dense": "d2a5466cefba292ed9696ca4b486a060bfedc26fceca4eb8a73892a71898842c",
+    "registered": "4708759c7d9228ef8069dd79f1d625173dd3b30318613316cfec82502e8067e2"
+  },
+  "queries_sha256": "de537d1ce6a74f358321e8efeff37ec9b362c07c26ee50902b43ada78150807d",
+  "pairs_sha256": "732c4c36177db0e11ed91597b306aae5bd689964c7d0a4ac9b2eb7ca3b0fbf6f",
+  "rgb_archive_sha256": "3d42aaa0fe27aab35e536b5d94307e84ca2090055bb2e9f1e7f03ffc2846fa64",
+  "rgb_archive_bytes": 712291493
+}

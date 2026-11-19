@@ -1,0 +1,16 @@
+{
+  "study_id": "level-shelf-v1",
+  "design_locked": true,
+  "stops": ["P1", "P2", "P3", "P4", "P5"],
+  "states": ["clear_present", "clear_removed", "placed_present", "placed_removed"],
+  "pilot_levels": ["D0", "D6"],
+  "image_size": [2304, 1296],
+  "source_layouts": ["PAM01", "PAM02", "PAM03", "PAM04", "PAM05", "PAM06", "PAM07", "PAM08"],
+  "source_manifest_sha256": "054c2f895c3e4b48fcb88607c4f56b05d24c8fd63a7d8aab5d23557f786f0617",
+  "edge": "c3_floor_board top front, y=0 and z=0",
+  "edge_angle_tolerance_deg": 0.05,
+  "scored_level": "D6",
+  "scored_queries": 320,
+  "primary_example": ["PAM01", "P5", "D6"],
+  "historical_exact_qwen_errors": [["PAM01","P5"],["PAM02","P4"],["PAM05","P4"],["PAM05","P5"]]
+}

@@ -1,0 +1,17 @@
+{
+  "study_id": "cross-sim-dev-v1",
+  "status": "development",
+  "environments": ["shelf", "tabletop"],
+  "stops": ["P1", "P2", "P3", "P4", "P5"],
+  "states": ["clear_present", "clear_removed", "placed_present", "placed_removed"],
+  "lighting": "L1",
+  "levels": [{"id":"D0","translation_m":0.0,"yaw_deg":0.0},{"id":"D4","translation_m":0.04,"yaw_deg":2.0},{"id":"D6","translation_m":0.06,"yaw_deg":3.0}],
+  "splits": {"qualification":{"count_per_environment":1,"levels":["D0","D6"],"seed_starts":{"shelf":9000,"tabletop":9200}},"pilot":{"count_per_environment":5,"levels":["D0","D4","D6"],"seed_starts":{"shelf":9032,"tabletop":9232}}},
+  "seeds_per_arrangement": 32,
+  "attempts_per_seed": 21,
+  "class_sequence": ["S8", "M16-L", "M16-R", "IND28", "white_box", "ycb_box"],
+  "sign_seed": 2026111701,
+  "selection": "first valid seed and attempt in declared ascending order; geometry and frame checks only",
+  "historical_search_roots": ["data", "runs"],
+  "historical_exclude": "runs/2026-11-17-cross-sim"
+}

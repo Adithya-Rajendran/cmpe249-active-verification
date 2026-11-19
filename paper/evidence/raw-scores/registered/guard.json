@@ -1,0 +1,23 @@
+{
+  "clip_actual_path": "/home/ascent/Projects/SJSU/Fall26/CMPE249/cmpe249-active-verification/checkpoints/clip/ViT-B-32.pt",
+  "clip_sha256": "40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af",
+  "text_model_source": "/home/ascent/Projects/SJSU/Fall26/CMPE249/cmpe249-active-verification/development/geoscd-rgb-runtime-v1/.venv/lib/python3.13/site-packages/ultralytics/nn/text_model.py",
+  "text_model_sha256": "4fda286c9434b5810c2368dd3044e14faa0f7f8544489a9fec8855dece2bb953",
+  "guard_sha256": "d55e63527c675b852b2115ca7fb2b09678e5d78653857d73e72cfea3ba023e1d",
+  "script": "/home/ascent/cmpe249-sim/paper-audit-v1/development/paper_audit/score_registered.py",
+  "argv": [
+    "--cases",
+    "/home/ascent/cmpe249-sim/paper-audit-v1/fresh-packet/cases.json",
+    "--spec",
+    "/home/ascent/cmpe249-sim/paper-audit-v1/specification.json",
+    "--out",
+    "/home/ascent/cmpe249-sim/paper-audit-v1/production-vggt_qwen",
+    "--model",
+    "/home/ascent/.cache/huggingface/hub/models--Qwen--Qwen3.5-9B/snapshots/c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+    "--geo-source",
+    "/home/ascent/cmpe249-sim/geoscd-rgb-dev-v1/GeoSCD",
+    "--geo-checkpoint",
+    "/home/ascent/cmpe249-sim/geoscd-rgb-dev-v1/weights/model.safetensors"
+  ],
+  "python_socket_policy": "IPv4/IPv6 connect and send disabled; DNS disabled"
+}

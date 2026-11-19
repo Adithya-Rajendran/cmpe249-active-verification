@@ -1,0 +1,54 @@
+{
+  "study_id": "cross-sim-geometry-development-v1",
+  "scope": "engine-paired comparison on previously inspected development arrangements",
+  "input": {
+    "jobs_sha256": "50fb32e838b369d4d239ef8cc4a6f5aeb26561b76c06235263d25a3e57b52c44",
+    "preparation_sha256": "f7f90d25d578c2e4a7c7a64962ad783b70b67b641f55a5d2f38a31bb754ca8dc",
+    "ledger_sha256": "5c2123417b2010971c86fa7f955369c166b6ded8cbade89176f5dff1cbd44b53",
+    "source_analysis_sha256": "38a3918d9c5f7a519e9549ccf7396167126e8a1380baad3be3f75b8c50812fd9",
+    "baseline_manifest_sha256": "516a7bc7496cbef88a2a45965a9c8f4c43d7edcaebfa2ae284a315064467e773",
+    "cases": 1200,
+    "size_wh": [1200, 675],
+    "permitted": ["reference_rgb", "reference_box_xyxy", "query_rgb"]
+  },
+  "baseline": {
+    "method": "relaxed_guard",
+    "max_shift_px": 200,
+    "required_identical_answers_and_refusals": 1200,
+    "max_absolute_evidence_difference": 0.000001
+  },
+  "geometry": {
+    "upstream": "https://github.com/ZilingLiu/GeoSCD",
+    "geometry_revision": "dd31369654e96d6843cc4bbcebce854a8bc2159b",
+    "model": "facebook/VGGT-1B",
+    "model_revision": "860abec7937da0a4c03c41d3c269c366e82abdf9",
+    "safetensors_sha256": "f164acf60724910d8fe1578bb499d800850c7bb0948db7555c413f9fbe60467e",
+    "precision": "CUDA bfloat16 autocast for the aggregator; camera and depth heads outside autocast",
+    "rgb_preprocessing": "Bicubic square stretch to 1024, then bilinear to 518 with align_corners=false",
+    "correspondence": "512-square reference-to-query floating projection; relative transform E_query @ inverse(E_ref)",
+    "occlusion": "Positive finite depths, projected position inside the field, rounded destination depth sample, upstream adaptive depth threshold, 3-pixel ellipse dilation",
+    "native_grid": "Interpolate coarse displacements at pixel centers. Require all positive-weight neighbors to be usable. Reject out-of-frame projections.",
+    "min_target_valid_fraction": 0.60,
+    "gate": "Require a valid map and at least 60 percent usable pixels in the full half-open integer reference target box. Otherwise output UNKNOWN.",
+    "evidence": "Same target match, quality, obstruction, detector, model weights, thresholds and resolution as baseline; linear warp for appearance and nearest for sharpness.",
+    "thresholds": {"quality": 0.3, "present": 0.7, "absent": 0.6, "obstruction": 0.4},
+    "fallback": "none",
+    "diagnostic_artifact": "Float32 query x,y and validity mask in reference box with one-pixel halo; evaluator only"
+  },
+  "decision": {
+    "primary_cell": ["mujoco", "tabletop", "D6", "clear_removed"],
+    "primary_correct_strictly_above": 16,
+    "min_arrangements_with_positive_net_gain": 2,
+    "paired_isaac_correct_at_least": 17,
+    "max_newly_wrong_definite_cases": 0,
+    "certified_pairs_requiring_two_unknowns": 40,
+    "all_conditions_required": true,
+    "on_pass": "Replicate on fresh arrangements balanced by target identity.",
+    "on_miss": "Stop this adapter revision."
+  },
+  "report": {
+    "unit": "base arrangement",
+    "bootstrap": {"draws": 2000, "seed": 20261117, "strata": ["shelf", "tabletop"], "method": "paired arrangement percentile; descriptive"},
+    "include": ["every engine, environment, displacement and state", "paired gains and losses", "definite errors", "certified ambiguity", "target-region residuals and missing coverage", "runtime"]
+  }
+}

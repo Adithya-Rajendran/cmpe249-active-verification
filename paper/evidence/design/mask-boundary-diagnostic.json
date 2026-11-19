@@ -1,0 +1,7 @@
+{
+  "utc": "2026-11-18T23:00:41.788590+00:00",
+  "scope": "descriptive diagnostic to make the locked instruction about raster-boundary cases operational; no effect on pass/fail",
+  "status_at_entry": "MuJoCo calibration has rendered; no calibration outcomes read by main; evaluation scores not available",
+  "original_design_sha256": "92eeefb0a920ebd82590a2fbb0f20d3bb84b34a9a98f282b3430c135a053f6b5",
+  "rule": "For each calibration layout and engine show the number of positive placed pairs whose native retained-visible / isolated-target fraction is between 0.10 and 0.90 inclusive. Also give every fraction in the supplement. Keep the original strictly-between-zero-and-one rule as the sole partial-yield criterion."
+}

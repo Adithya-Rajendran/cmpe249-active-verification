@@ -1,0 +1,6 @@
+{
+  "utc": "2026-11-18T23:09:09.165718+00:00",
+  "status": "MuJoCo physical calibration inspected. No fresh verifier scores exist.",
+  "measure": "Among all fresh queries and among certified pairs, tabulate how often the VGGT map denied the registered-place VLM a decision, versus how often a parsed model answer was UNKNOWN after registration passed. Report other parsing or execution failures separately. Count agreement of the shared upstream registration gate of the dense and VLM arms.",
+  "scope": "A descriptive decomposition of the frozen comparator; no change to the two primary outcomes or pass rule."
+}

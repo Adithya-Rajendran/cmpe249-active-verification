@@ -1,0 +1,7 @@
+{
+  "recorded_utc": "2026-11-18T22:57:38.961268+00:00",
+  "stage": "before any fresh calibration outcome inspection",
+  "reason": "A foreground removal can legitimately change visible target or blocker segmentation despite unchanged physical state. Mask equality is not an eligibility rule.",
+  "rule": "Require observed control physical-state verification and fixed camera. Preserve all comparisons. Record native added, removed and changed target and blocker mask pixels and primary patch overlaps. Apply locked witness rule unchanged.",
+  "distractor_visibility_diagnostic": "For every distractor-only control, including ineligible patches, compare whole-image primary RGB mean absolute difference with the maximum of the two base-to-repeat mean absolute differences in the same state. Report both raw values, changed pixel fraction, and count strictly above the repeat maximum. This is a descriptive manipulation diagnostic, not a witness gate."
+}

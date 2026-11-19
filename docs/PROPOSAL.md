@@ -1,6 +1,6 @@
 # Proposal: evidence-aware verification of a remembered object
 
-**Revised 2026-11-17 Pacific. Development design, not a frozen protocol or a result.**
+**Development design, revised 2026-11-18 Pacific.**
 
 ## Question and scope
 
@@ -14,7 +14,12 @@ The method cannot infer absence from the entire scene from an empty remembered r
 The [method](METHOD.md) checks separate support for presence and removal.
 The [evaluation](EVALUATION_PLAN.md) measures both factual correctness and whether the supplied view supports an answer.
 The completed simulation measures image-only performance across camera displacements.
-The next engineering check compares fixed controls across Isaac Sim and MuJoCo with recorded simulator interventions.
+The [paired development pilot](../notes/2026-11-17-cross-sim-pilot.md) compared fixed controls across Isaac Sim and MuJoCo with recorded interventions.
+It identified a repeatable alignment refusal within one MuJoCo target family and an exact-input ambiguity on which two controls committed.
+
+The [RGB geometry comparison](../notes/2026-11-18-rgb-geometry-comparison.md) resolved the recurring removals and abstained on all 40 certified ambiguous pairs.
+Two new false removals in one shelf arrangement ended this revision under its declared rule.
+
 The researcher selected a simulation-only paper scope. Physical-camera transfer remains future work.
 A later cascade must recover useful answers beyond credible image-only controls without excessive unsupported commitments.
 Agreement veto is a separate error-reduction hypothesis. Neither mechanism is claimed as new.
@@ -81,9 +86,12 @@ The [full stress review](../notes/2026-11-17-scoring-and-label-review.md) is com
 The guard controls recover correct answers. AI support judgments still need validation.
 No support-based A/B/C decision follows from the sampled audit.
 
-1. Qualify MuJoCo scene support, then run the [paired simulator check](../development/cross_sim/PLAN.md) with fixed image-only controls.
-2. Keep physical-state scores separate from provisional support judgments.
-3. Validate the support reference before any support-based model comparison.
+Locating the target before answering recovered two partial removals in MuJoCo and zero in Isaac Sim.
+The [instruction comparison](../notes/2026-11-18-label-localization.md) ended under its cross-simulator rule.
+
+1. Test repeatable local target changes at a fixed camera position against unchanged-target controls in both simulators.
+2. Keep unresolved support judgments distinct from the complete physical-state scores.
+3. Use the 200-pixel baseline and the completed RGB geometry comparison when assessing a new method.
 4. Compare a justified method with credible geometric and confidence controls.
 5. Plan fresh evaluation only after a repeatable benefit and a defensible contribution appear.
 

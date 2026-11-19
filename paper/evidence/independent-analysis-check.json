@@ -1,0 +1,44 @@
+{
+  "queries": 1280,
+  "method_decisions": 3840,
+  "analytic_control_decisions": 2560,
+  "native_and_delivered_pairs": 640,
+  "paired_estimates_and_intervals": [
+    [
+      "isaac",
+      "all"
+    ],
+    [
+      "isaac",
+      "shelf"
+    ],
+    [
+      "isaac",
+      "tabletop"
+    ],
+    [
+      "mujoco",
+      "all"
+    ],
+    [
+      "mujoco",
+      "shelf"
+    ],
+    [
+      "mujoco",
+      "tabletop"
+    ]
+  ],
+  "improvement_criteria_checked": [
+    "isaac",
+    "mujoco"
+  ],
+  "score_sha256": {
+    "homography": "e78affc4e2d6e0339c9189ed0befb5e947c686600616abf4aa9a2cde0d6ca999",
+    "dense": "d2a5466cefba292ed9696ca4b486a060bfedc26fceca4eb8a73892a71898842c",
+    "registered": "4708759c7d9228ef8069dd79f1d625173dd3b30318613316cfec82502e8067e2"
+  },
+  "portable_summary_sha256": "5c7503aec4263d2db72a33b22938d165c133430aee2efe5778cf57b7e0b65cb3",
+  "evaluator_summary_sha256": "073728fd430b28ad03756e65db67c2891d34a25fd7197c4101b38e18848e7df6",
+  "result": "All decision, input, pair and primary interval comparisons agreed."
+}
