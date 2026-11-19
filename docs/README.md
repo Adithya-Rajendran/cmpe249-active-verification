@@ -1,5 +1,9 @@
 # Project documents
 
+Start with the [two-image simulation paper and reader guide](../paper/README.md).
+The [original experiment plan](EXPERIMENT_PLAN.md) and [2026-11-06 freeze](FREEZE.md) belong to an earlier view-selection study.
+The freeze records file checksums for replay of that study.
+
 ## Current development
 
 | Document | Purpose |

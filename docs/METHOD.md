@@ -1,6 +1,6 @@
 # Method: evidence-aware verification
 
-**Development specification, 2026-11-18 Pacific.**
+**Development specification, 2026-11-19 Pacific.**
 
 The [paper protocol](../development/paper_audit/PROTOCOL.md) fixes a separate audit for two-image memory updates.
 Each matched pair keeps the same scene and camera. The evaluator toggles the target's render visibility.
@@ -8,7 +8,8 @@ If both full inputs match, either definite answer commits to a state the images 
 The audit also counts correct removals with the blocker parked after camera motion.
 Both measures matter because a verifier can always abstain.
 
-The paper compares homography registration, dense RGB registration, and a qualified zero-shot registered-place vision-language model.
+The primary comparison tests homography and dense registration under the same decision rule.
+The zero-shot Qwen reader passed a clear-view screen. Its ability to abstain under occlusion remains unqualified.
 The earlier label pilots below explain why a general support score remains unavailable for unequal images.
 The [results](../paper/Rajendran-counterfactual-scene-memory.pdf) report both correct removals and definite answers on indistinguishable inputs.
 

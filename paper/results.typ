@@ -2,7 +2,7 @@
 #let eng(k) = summary.engines.at(k)
 #let env(k, v) = eng(k).environments.at(v)
 #let methods = ("homography", "dense", "registered")
-#let label = ("Homography", "Dense geometry", "Registered VLM")
+#let label = ("Homography", "Dense geometry", "Qwen (diagnostic)")
 #let names = ("Isaac Sim", "MuJoCo")
 #let engines = ("isaac", "mujoco")
 #let ratio(value,total) = [#value/#total]
@@ -20,17 +20,17 @@
 
 == What carried over from the exploratory cohort?
 
-On the ten layouts used to select the comparison, dense geometry recognized all 25 clear tabletop removals at the largest motion in each engine. The homography recognized 17 in Isaac Sim and 16 in MuJoCo. Across all 1,200 decisions, geometry gained 113 correct answers and lost 70. Two newly wrong decisions declared a retained foam brick removed at the same shelf stop with the blocker parked and placed. On one fully blocked shelf pair, the homography gave the same removal answer twice (@example). The retained and removed scenes produced identical inputs. These observations motivated the comparison. The prospective cohort provides a separate measurement at the same operating points.
+On the ten layouts used to select the comparison, dense geometry recognized all 25 clear tabletop removals at the largest motion in each engine. The homography recognized 17 in Isaac Sim and 16 in MuJoCo. Across all 1,200 decisions, geometry gained 113 correct answers and lost 70. Two newly wrong decisions declared a retained foam brick removed at the same shelf stop with the blocker parked and placed. On one fully blocked shelf pair, the homography gave the same removal answer twice (@example). The retained and removed scenes produced identical inputs. These observations motivated the comparison. The main cohort tests the same operating points on different target objects and layouts.
 
-The zero-shot registered-place comparator qualified on its disjoint archived controls. It answered PRESENT on 36/36 unchanged references, PRESENT on 40/40 clear retained queries and REMOVED on 40/40 clear removals. Each engine contributed 20 of each clear class across the nominal and moved cameras. Every emitted answer passed the fixed parser. The screen establishes that the model could recognize both factual classes on clear inputs. The fresh blocked pairs test its abstention behavior.
+Registered Qwen passed the archived clear-view screen. It answered PRESENT on 36/36 unchanged references, PRESENT on 40/40 clear retained queries and REMOVED on 40/40 clear removals. Each engine contributed 20 of each clear class across the nominal and moved cameras. All answers passed the parser. The median reference box covered 9,496.5 pixels in the screen and 6,666 among the main inputs that reached Qwen, measured on the 1200 × 675 inputs. This screen established performance on its clear controls. It did not qualify this reader for abstention under occlusion.
 
 == Clear removals after the camera moved
 
-#figure(table(columns:(1.05fr,1fr,1fr,1fr,1.85fr),align:(left,center,center,center,center),stroke:cstroke,inset:(x:4pt,y:4pt),
-  head([Simulator]),head([Homography]),head([Dense geometry]),head([Registered VLM]),head([Dense − homography #linebreak() pp (95% interval)]),
+#figure(table(columns:(1.05fr,1fr,1fr,1.85fr),align:(left,center,center,center),stroke:cstroke,inset:(x:4pt,y:4pt),
+  head([Simulator]),head([Homography]),head([Dense geometry]),head([Dense − homography #linebreak() pp (95% interval)]),
   ..engines.enumerate().map(((i,k))=>{
     let p=env(k,"all").primary
-    (names.at(i),ratio(p.homography_correct,p.n),ratio(p.dense_correct,p.n),ratio(p.registered_correct,p.n),
+    (names.at(i),ratio(p.homography_correct,p.n),ratio(p.dense_correct,p.n),
       [#point(p.delta_pp) (#interval(p.delta_interval_pp))])
   }).flatten(),rowline),
   kind:table,caption:[Correct REMOVED decisions with the blocker parked after a 6 cm translation and 3° yaw. Each engine contributes the same 16 arrangements and 80 queries. Abstentions count in the denominator. Percentage-point intervals resample complete arrangements within environment.]) <primary-table>
@@ -55,15 +55,23 @@ Across the 640 actual removals, the dense rule missed 241 and registered Qwen mi
 
 A rule that always abstains makes zero errors and zero correct decisions on this panel. A rule that always reports removal achieves 80/80 on the primary endpoint and 320/640 overall, with 320 false removals per engine. The two controls explain why resolution, coverage and wrong commitments must be reported together.
 
+== Answers by target visibility
+
+For this post hoc analysis, we assigned both members of each pair the fraction of the isolated target silhouette exposed in the retained revisit. The removed member has no target pixels of its own. Among 640 pairs, 176 had zero exposure, 402 had complete exposure, and four more had at least 99.95% exposure. The other 58 pairs covered the intervening range. Each simulator rendered the same 16 layouts.
+
+#figure(image("figures/answers-by-visibility.png",width:100%),caption:[Physical-state decisions by exposure of the retained twin. Each row gives the exposure band and query count per state, pooled across engines. Green denotes correct decisions, rust wrong decisions, and gray UNKNOWN. Counts include every query in the band. At 0% exposure every definite answer came from a MuJoCo pair with identical inputs, so each green segment in that row is a guess that matched the physical state. The post hoc exposure bins describe this panel.]) <visibility-figure>
+
+At 50% to below 90% exposure, 28 pairs came from five layouts (@visibility-figure). Homography identified 19/28 retained targets and 12/28 removals, with one false deletion. Dense geometry identified 1/28 retained targets and 3/28 removals. It abstained on the other 52 queries. The clear-removal gain therefore did not carry through to this partial-exposure band.
+
 == When opposite states gave identical inputs
 
 #figure(table(columns:(1.1fr,1fr,0.8fr,1fr,1fr,1fr),align:(left,center,center,center,center,center),stroke:cstroke,inset:(x:4pt,y:3.5pt),
-  head([Simulator]),head([Exact / all pairs]),head([Layouts with exact pairs]),head([Homography commits]),head([Dense geometry commits]),head([Registered VLM commits]),
+  head([Simulator]),head([Exact / all pairs]),head([Layouts with exact pairs]),head([Homography commits]),head([Dense geometry commits]),head([Qwen system commits]),
   ..engines.enumerate().map(((i,k))=>{
     let c=eng(k).certificates
     (names.at(i),ratio(c.exact,c.pairs),str(c.layouts),..methods.map(m=>empty_or_count(c.at(m).commit,c.exact)))
   }).flatten(),rowline),kind:table,
-  caption:[Exact equality covers both decoded images, the reference box, and the fixed task within each method. The last three columns count certified pairs receiving a definite decision. A dash denotes an empty comparison set.]) <ambiguity-table>
+  caption:[Exact equality covers both decoded images, the reference box, and the fixed task within each method. The last three columns count pairs receiving a definite decision from the complete system. The Qwen registration gate passed only four exact pairs. A dash denotes an empty comparison set.]) <ambiguity-table>
 
 #include "certificate-finding.typ"
 

@@ -1,5 +1,7 @@
 # Capture tool (`pi_capture.py`)
 
+This directory documents the earlier physical-camera setup. The [current paper](../paper/README.md) uses Isaac Sim and MuJoCo.
+
 Locked-settings still capture for the reference and query images described in
 [`docs/EXPERIMENT_PLAN.md`](../docs/EXPERIMENT_PLAN.md). It runs **on the Raspberry Pi** (Python 3.13,
 standard library only) and wraps `rpicam-still`. Tested on 2026-09-26 with rpicam-apps 1.13.0,

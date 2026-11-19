@@ -1,6 +1,8 @@
-# Reproducing the study
+# Reproducing the earlier view-selection study
 
-This is the single entry point for rerunning the code, the simulated dev sets and the checks.
+For the current two-image simulation audit, use the [paper reproduction guide](../paper/README.md).
+For the current repository tests, use the [development guide](../development/README.md#run-the-repository-tests).
+The commands below reproduce the earlier view-selection study.
 Status as of 2026-11-03: the dev loop is running. There are **no study results yet**. Section 10 lists what cannot be reproduced yet.
 
 Every command below was checked against the code (`--help` or the argparse source). Section 7 says which ones were also run, and where.

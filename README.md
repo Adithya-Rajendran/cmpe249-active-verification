@@ -1,6 +1,6 @@
 # Evidence-Aware Verification for Robot Scene Memory
 
-CMPE 249, San José State University, Fall 2026. Adithya Rajendran. Instructor: Kaikai Liu.
+Adithya Rajendran · CMPE 249, San José State University · Fall 2026
 
 A robot saw an object on an earlier visit. When it looks again, should it keep that memory, record a removal, or wait for a clearer view?
 
@@ -12,7 +12,7 @@ A yellow outline marks a gelatin box on a simulated MuJoCo shelf. A panel hides 
 
 ![MuJoCo shelf PAM01 at stop P5 with a moved camera. The marked reference precedes the pixel-identical “object hidden” and “object removed” revisits.](docs/figures/mujoco-hidden-removed.png)
 
-Each verifier received the same reference image and target box with one revisit at a time. The full revisits match pixel for pixel. Both passed the geometry check. Qwen3.5-9B, a vision-language model, answered `REMOVED` twice. Homography and dense geometry each answered `UNKNOWN` twice. Qwen's answer fit the empty spot but would erase a valid memory in the hidden case.
+Each verifier received the same reference image and target box with one revisit at a time. The full revisits match pixel for pixel. Both passed the geometry check. The diagnostic Qwen3.5-9B reader answered `REMOVED` twice. Homography and dense geometry each answered `UNKNOWN` twice. Qwen's answer fit the empty spot but would erase a valid memory in the hidden case.
 
 ### Simulation results
 
@@ -22,7 +22,7 @@ Homography aligned the images with one transformation. Dense geometry mapped ind
 
 For clear removals, the camera shifted 6 cm and turned 3° with the blocker out of the way. False removals count all `REMOVED` answers when the target stayed.
 
-| Simulation outcome | Homography | Dense geometry | Qwen3.5-9B with geometry check |
+| Simulation outcome | Homography | Dense geometry | Qwen3.5-9B (diagnostic) |
 | --- | ---: | ---: | ---: |
 | Clear removals detected in Isaac Sim | 67/80 | 76/80 | 80/80 |
 | Clear removals detected in MuJoCo | 63/80 | 78/80 | 79/80 |
@@ -32,7 +32,15 @@ For clear removals, the camera shifted 6 cm and turned 3° with the blocker out 
 Dense geometry avoided homography's MuJoCo error but introduced two others. The audit required zero new errors to call dense geometry an improvement. Qwen found 159 of 160 clear removals and falsely reported removal on 51 of 640 revisits where the target stayed.
 
 Across all 640 actual removals, dense geometry missed 241 and Qwen missed 221.
-Qwen recovered 20 removals and added 49 false deletions relative to dense geometry. [Per-query recount](paper/evidence/reader-comparison.json)
+After scoring, we compared the two readers on the views that passed their shared registration check.
+Qwen recovered 20 removals and added 49 false deletions relative to dense geometry.
+
+On 47 of its 51 false deletions, the complete target silhouette remained visible.
+Seven false deletions came from unchanged MuJoCo images. Both geometric methods correctly kept the object on all 80 unchanged controls.
+The Qwen screen used clear views and included no hidden target. [Per-query recount](paper/evidence/reader-comparison.json)
+
+At 50% to below 90% exposure, homography answered 31 of 56 queries correctly. Dense geometry answered four correctly and abstained on the other 52.
+Both states use the target exposure in the paired retained view. Five layouts supplied these positions. [Answers by visibility](paper/evidence/answers-by-visibility.csv)
 
 ### Why match the pairs?
 
@@ -46,7 +54,7 @@ For the full study, read the [paper](paper/Rajendran-counterfactual-scene-memory
 
 *The figure uses YCB object models by Berk Calli and colleagues from the BOP collection of YCB-Video models. [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)*
 
-The [evidence guide](paper/README.md) explains how to reproduce the results. The [prospective protocol](development/paper_audit/PROTOCOL.md) records the comparison rules.
+The [evidence guide](paper/README.md) explains how to reproduce the results. The [study protocol](development/paper_audit/PROTOCOL.md) records the comparison rules. Protocol and results first appeared in Git together.
 
 ## Does this happen beyond the shelf?
 
@@ -61,8 +69,7 @@ The same frontal MuJoCo test gave zero false deletions in eight identical pairs.
 On two robot camera mounts, Qwen called a fully visible drill removed four times in Isaac and twice in MuJoCo.
 The homography baseline answered every open-door case correctly and waited on every closed-door case. [Workshop results and images](notes/2026-11-18-workshop-clearance.md)
 
-The workshop also supports mobile robot training. A camera policy stopped or crossed correctly on all eight fully open and closed test episodes.
-It hit the door in seven of twelve partly open trials. [Robot training guide](development/workshop_realism/ROBOTICS.md)
+A separate [mobile robot demonstration](development/workshop_realism/ROBOTICS.md) uses the workshop.
 
 ## Current study
 
@@ -74,13 +81,13 @@ The image verifier checks separate evidence for presence and removal.
 An agreement veto can reject its errors. A conditional cascade can add answers where it abstains.
 The evaluation measures unsupported answers and useful correct answers together.
 
-The paper compares two image-only geometry methods with a vision-language model that can answer UNKNOWN.
+The main comparison tests two registration methods with the same decision rule. The paper also reports a zero-shot language-model diagnostic.
 The earlier veto and cascade proposals still need broader visual support labels.
 
 | Read | Purpose |
 | --- | --- |
 | [Standalone introduction](CASE_STUDY.md) | Illustrated case study for a first reading |
-| [Paper](paper/Rajendran-counterfactual-scene-memory.pdf) | Three-verifier comparison on fresh counterfactual pairs, with independent checks |
+| [Paper](paper/Rajendran-counterfactual-scene-memory.pdf) | Two geometric methods on paired scenes, with a diagnostic language-model reader |
 | [Document guide](docs/README.md) | Current research documents and historical records |
 | [Proposal](docs/PROPOSAL.md) | Research question, contribution and closest work |
 | [Method](docs/METHOD.md) | Inputs, labels, decision rule and controls |
@@ -161,8 +168,7 @@ The pilot uses existing simulator images. It does not establish an implemented r
 
 ## Course work
 
-Read the [two-page progress feedback PDF](docs/feedback/2026-11-17/Rajendran-CMPE249-progress-feedback-2026-11-17.pdf) for the results and questions for Professor Liu.
-Professor Liu's optional Canvas check-in invites feedback on project progress and technical questions.
+The [two-page course feedback packet](docs/feedback/2026-11-17/Rajendran-CMPE249-progress-feedback-2026-11-17.pdf) records the project status on 17 November.
 The discussion focuses on support labels, the strongest comparison and transfer between simulators.
 
 ## AI assistance

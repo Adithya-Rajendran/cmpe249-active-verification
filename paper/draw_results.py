@@ -11,9 +11,8 @@ from matplotlib.lines import Line2D
 
 ROOT = Path(__file__).resolve().parent
 SPECS = [
-    ("homography", "Homography", "#354852", "o", -0.17),
-    ("dense", "Dense geometry", "#008378", "s", 0.0),
-    ("registered", "Registered VLM", "#965400", "^", 0.17),
+    ("homography", "Homography", "#354852", "o", -0.10),
+    ("dense", "Dense geometry", "#008378", "s", 0.10),
 ]
 
 
@@ -86,7 +85,7 @@ def main():
         handles=handles,
         loc="lower center",
         bbox_to_anchor=(0.56, 0.015),
-        ncol=3,
+        ncol=2,
         frameon=False,
         fontsize=8.3,
         handletextpad=0.2,

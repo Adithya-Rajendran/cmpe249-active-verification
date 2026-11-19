@@ -1,0 +1,109 @@
+engine,visible_percent_band,truth,verifier,queries,layouts,present,removed,unknown
+isaac,0%,PRESENT,homography,88,16,0,0,88
+isaac,0%,PRESENT,dense,88,16,0,0,88
+isaac,0%,PRESENT,registered,88,16,0,0,88
+isaac,0%,REMOVED,homography,88,16,0,0,88
+isaac,0%,REMOVED,dense,88,16,0,0,88
+isaac,0%,REMOVED,registered,88,16,0,0,88
+isaac,"(0%, 10%)",PRESENT,homography,4,4,0,0,4
+isaac,"(0%, 10%)",PRESENT,dense,4,4,0,0,4
+isaac,"(0%, 10%)",PRESENT,registered,4,4,0,0,4
+isaac,"(0%, 10%)",REMOVED,homography,4,4,0,0,4
+isaac,"(0%, 10%)",REMOVED,dense,4,4,0,0,4
+isaac,"(0%, 10%)",REMOVED,registered,4,4,0,0,4
+isaac,"[10%, 50%)",PRESENT,homography,7,5,1,0,6
+isaac,"[10%, 50%)",PRESENT,dense,7,5,0,0,7
+isaac,"[10%, 50%)",PRESENT,registered,7,5,0,0,7
+isaac,"[10%, 50%)",REMOVED,homography,7,5,0,0,7
+isaac,"[10%, 50%)",REMOVED,dense,7,5,0,0,7
+isaac,"[10%, 50%)",REMOVED,registered,7,5,0,0,7
+isaac,"[50%, 90%)",PRESENT,homography,14,5,10,0,4
+isaac,"[50%, 90%)",PRESENT,dense,14,5,0,0,14
+isaac,"[50%, 90%)",PRESENT,registered,14,5,1,0,13
+isaac,"[50%, 90%)",REMOVED,homography,14,5,0,3,11
+isaac,"[50%, 90%)",REMOVED,dense,14,5,0,1,13
+isaac,"[50%, 90%)",REMOVED,registered,14,5,0,1,13
+isaac,"[90%, 99.95%)",PRESENT,homography,4,3,4,0,0
+isaac,"[90%, 99.95%)",PRESENT,dense,4,3,4,0,0
+isaac,"[90%, 99.95%)",PRESENT,registered,4,3,4,0,0
+isaac,"[90%, 99.95%)",REMOVED,homography,4,3,0,4,0
+isaac,"[90%, 99.95%)",REMOVED,dense,4,3,0,4,0
+isaac,"[90%, 99.95%)",REMOVED,registered,4,3,0,4,0
+isaac,≥99.95%,PRESENT,homography,203,16,189,0,14
+isaac,≥99.95%,PRESENT,dense,203,16,201,0,2
+isaac,≥99.95%,PRESENT,registered,203,16,178,24,1
+isaac,≥99.95%,REMOVED,homography,203,16,0,176,27
+isaac,≥99.95%,REMOVED,dense,203,16,0,187,16
+isaac,≥99.95%,REMOVED,registered,203,16,0,203,0
+mujoco,0%,PRESENT,homography,88,16,0,0,88
+mujoco,0%,PRESENT,dense,88,16,0,1,87
+mujoco,0%,PRESENT,registered,88,16,0,4,84
+mujoco,0%,REMOVED,homography,88,16,0,0,88
+mujoco,0%,REMOVED,dense,88,16,0,1,87
+mujoco,0%,REMOVED,registered,88,16,0,4,84
+mujoco,"(0%, 10%)",PRESENT,homography,4,4,0,0,4
+mujoco,"(0%, 10%)",PRESENT,dense,4,4,0,0,4
+mujoco,"(0%, 10%)",PRESENT,registered,4,4,0,0,4
+mujoco,"(0%, 10%)",REMOVED,homography,4,4,0,0,4
+mujoco,"(0%, 10%)",REMOVED,dense,4,4,0,0,4
+mujoco,"(0%, 10%)",REMOVED,registered,4,4,0,0,4
+mujoco,"[10%, 50%)",PRESENT,homography,7,5,1,0,6
+mujoco,"[10%, 50%)",PRESENT,dense,7,5,0,0,7
+mujoco,"[10%, 50%)",PRESENT,registered,7,5,0,0,7
+mujoco,"[10%, 50%)",REMOVED,homography,7,5,0,1,6
+mujoco,"[10%, 50%)",REMOVED,dense,7,5,0,0,7
+mujoco,"[10%, 50%)",REMOVED,registered,7,5,0,0,7
+mujoco,"[50%, 90%)",PRESENT,homography,14,5,9,1,4
+mujoco,"[50%, 90%)",PRESENT,dense,14,5,1,0,13
+mujoco,"[50%, 90%)",PRESENT,registered,14,5,1,0,13
+mujoco,"[50%, 90%)",REMOVED,homography,14,5,0,9,5
+mujoco,"[50%, 90%)",REMOVED,dense,14,5,0,2,12
+mujoco,"[50%, 90%)",REMOVED,registered,14,5,0,2,12
+mujoco,"[90%, 99.95%)",PRESENT,homography,4,3,4,0,0
+mujoco,"[90%, 99.95%)",PRESENT,dense,4,3,4,0,0
+mujoco,"[90%, 99.95%)",PRESENT,registered,4,3,3,0,1
+mujoco,"[90%, 99.95%)",REMOVED,homography,4,3,0,4,0
+mujoco,"[90%, 99.95%)",REMOVED,dense,4,3,0,4,0
+mujoco,"[90%, 99.95%)",REMOVED,registered,4,3,0,4,0
+mujoco,≥99.95%,PRESENT,homography,203,16,180,0,23
+mujoco,≥99.95%,PRESENT,dense,203,16,188,1,14
+mujoco,≥99.95%,PRESENT,registered,203,16,175,23,5
+mujoco,≥99.95%,REMOVED,homography,203,16,0,181,22
+mujoco,≥99.95%,REMOVED,dense,203,16,0,200,3
+mujoco,≥99.95%,REMOVED,registered,203,16,0,201,2
+pooled,0%,PRESENT,homography,176,16,0,0,176
+pooled,0%,PRESENT,dense,176,16,0,1,175
+pooled,0%,PRESENT,registered,176,16,0,4,172
+pooled,0%,REMOVED,homography,176,16,0,0,176
+pooled,0%,REMOVED,dense,176,16,0,1,175
+pooled,0%,REMOVED,registered,176,16,0,4,172
+pooled,"(0%, 10%)",PRESENT,homography,8,4,0,0,8
+pooled,"(0%, 10%)",PRESENT,dense,8,4,0,0,8
+pooled,"(0%, 10%)",PRESENT,registered,8,4,0,0,8
+pooled,"(0%, 10%)",REMOVED,homography,8,4,0,0,8
+pooled,"(0%, 10%)",REMOVED,dense,8,4,0,0,8
+pooled,"(0%, 10%)",REMOVED,registered,8,4,0,0,8
+pooled,"[10%, 50%)",PRESENT,homography,14,5,2,0,12
+pooled,"[10%, 50%)",PRESENT,dense,14,5,0,0,14
+pooled,"[10%, 50%)",PRESENT,registered,14,5,0,0,14
+pooled,"[10%, 50%)",REMOVED,homography,14,5,0,1,13
+pooled,"[10%, 50%)",REMOVED,dense,14,5,0,0,14
+pooled,"[10%, 50%)",REMOVED,registered,14,5,0,0,14
+pooled,"[50%, 90%)",PRESENT,homography,28,5,19,1,8
+pooled,"[50%, 90%)",PRESENT,dense,28,5,1,0,27
+pooled,"[50%, 90%)",PRESENT,registered,28,5,2,0,26
+pooled,"[50%, 90%)",REMOVED,homography,28,5,0,12,16
+pooled,"[50%, 90%)",REMOVED,dense,28,5,0,3,25
+pooled,"[50%, 90%)",REMOVED,registered,28,5,0,3,25
+pooled,"[90%, 99.95%)",PRESENT,homography,8,3,8,0,0
+pooled,"[90%, 99.95%)",PRESENT,dense,8,3,8,0,0
+pooled,"[90%, 99.95%)",PRESENT,registered,8,3,7,0,1
+pooled,"[90%, 99.95%)",REMOVED,homography,8,3,0,8,0
+pooled,"[90%, 99.95%)",REMOVED,dense,8,3,0,8,0
+pooled,"[90%, 99.95%)",REMOVED,registered,8,3,0,8,0
+pooled,≥99.95%,PRESENT,homography,406,16,369,0,37
+pooled,≥99.95%,PRESENT,dense,406,16,389,1,16
+pooled,≥99.95%,PRESENT,registered,406,16,353,47,6
+pooled,≥99.95%,REMOVED,homography,406,16,0,357,49
+pooled,≥99.95%,REMOVED,dense,406,16,0,387,19
+pooled,≥99.95%,REMOVED,registered,406,16,0,404,2

@@ -12,6 +12,7 @@
   #v(0.58em)
   #text(font: sans, size: 11pt, weight: "bold")[Adithya Rajendran]
   #h(0.8em) #text(size: 10.5pt)[San José State University]
+  #h(1fr) #text(size: 8.5pt, fill: muted)[Revised 19 November 2026]
   #v(0.25em)
 ]
 #let style(body) = {
