@@ -1,5 +1,7 @@
 # Hardware
 
+These parts belong to the earlier physical-camera setup. The [current paper](../paper/README.md) uses simulator images.
+
 Printable parts and markers for the capture rig. The generator scripts are the source of truth.
 Rendered previews and the other angle variants are not committed; rebuild them with the commands below.
 

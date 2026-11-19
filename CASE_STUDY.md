@@ -8,6 +8,10 @@ Each verifier received the same reference image and target box with one revisit 
 
 ## Simulation results
 
+The main comparison tests two ways to align images. The zero-shot Qwen reader passed a screen on clear views.
+Forty-seven of its 51 false deletions occurred with the entire target silhouette exposed.
+The pictured failure illustrates one of the four hidden pairs that reached Qwen. [Outcomes by visibility](paper/evidence/answers-by-visibility.csv)
+
 Three methods with fixed settings scored 1,280 queries on 16 shelf and tabletop layouts shared by Isaac Sim and MuJoCo. At each camera and blocker position, the simulators kept or removed a gelatin box or a large marker. Each verifier could answer `PRESENT`, `REMOVED` or `UNKNOWN`.
 
 Homography aligned the images with one transformation. Dense geometry mapped individual points. Both used the same decision rule. When geometry could map enough of the remembered location, Qwen inspected the images and local crops.

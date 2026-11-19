@@ -3,6 +3,21 @@
 Start with the [current method](../docs/METHOD.md) and [evaluation plan](../docs/EVALUATION_PLAN.md).
 The active scope uses Isaac Sim and MuJoCo. No confirmatory test is frozen.
 
+## Run the repository tests
+
+Run this command from the repository root. The historical shelf checks include the NumPy version in their arrangement hashes.
+
+```sh
+uv run --no-project --python 3.13.5 \
+    --with numpy==2.5.3 --with opencv-python-headless==5.0.0.93 \
+    --with pillow==13.0.0 --with mujoco==3.17.0 \
+    python -m unittest discover -s tests -t .
+```
+
+For the paper's CPU recount, follow the [manuscript guide](../paper/README.md#reproduce-the-main-comparison).
+
+## Experiments
+
 | Folder | Status and purpose |
 | --- | --- |
 | [Prospective paper audit](paper_audit/PROTOCOL.md) | Fresh counterfactual pairs, fixed-camera calibration, three verifiers and the layout-level comparison |

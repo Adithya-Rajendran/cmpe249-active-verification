@@ -4,8 +4,9 @@ Adithya Rajendran, San José State University.
 
 Read [the paper](Rajendran-counterfactual-scene-memory.pdf) for the research question, results and interpretation.
 The main study tests decisions about a remembered object on a shelf or a tabletop.
-The source uses Typst. The supplementary tables support an independent recount.
-The [versioned release](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1) includes the exact images, model outputs, native captures, and source.
+The source uses Typst. Two analysis programs from the same project check the original decisions.
+The [versioned release](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1) contains the original paper, images, model outputs, native captures, and source.
+The revision of 19 November 2026 adds the visibility analysis and the qualifications below.
 
 The shelf follow-up repeats the original camera views at new angles.
 The corridor follow-up uses eight fresh layouts, different objects and a sliding door.
@@ -36,7 +37,7 @@ The main panel contains 640 removed and 640 retained queries.
 The dense geometric rule missed 241 removals and falsely deleted two retained objects.
 Registered Qwen missed 221 removals and falsely deleted 51 retained objects.
 
-The shared registration check admitted 419 removed and 415 retained queries.
+After scoring, we examined the shared registration check. It admitted 419 removed and 415 retained queries.
 On these inputs, Qwen detected 20 more removals and falsely deleted 49 more retained objects than the geometric rule.
 The geometric rule had correctly identified 42 of those 49 objects as present.
 The image check recovers 88 exact MuJoCo pairs and zero exact Isaac Sim pairs.
@@ -44,7 +45,7 @@ The restored packet contains only the 1,280 input records and their original ima
 
 For new GPU inference, use the scorer commands in `software/README.md` inside the supplement.
 The Qwen verifier used the original weights with zero-shot prompting. [Pinned Qwen3.5-9B model on Hugging Face](https://huggingface.co/Qwen/Qwen3.5-9B/tree/c202236235762e1c871ad0ccb60c8ee5ba337b9a)
-The paper reports results for homography, dense geometry, and registered Qwen.
+The primary comparison tests homography and dense geometry. Registered Qwen passed a clear-view screen and serves as a diagnostic reader.
 The comparison with the authors' trained STILL verifier remains pending.
 
 ### Other image sets
@@ -70,6 +71,18 @@ python3 development/corridor_transfer/pack_inputs.py verify /path/to/corridor-tr
 python3 development/workshop_realism/supplement.py /path/to/workshop-inputs.zip
 ```
 
+## Check the visibility analysis
+
+Use the revised source and the original query and pair tables.
+Run `python3 draw_visibility.py` from the manuscript directory to rebuild the figure and the [answer counts](evidence/answers-by-visibility.csv).
+Each removed query inherits its retained twin's exposure. The table lists every answer by simulator, method, physical state, and exposure band.
+
+The largest band starts at 99.95%. Of its 406 retained views, 402 had complete exposure.
+All 47 exposed targets that Qwen falsely deleted had complete exposure. [Visibility figure](figures/answers-by-visibility.png)
+
+Run `python3 reader_controls.py` for the unchanged images, target sizes, reference boxes, and exploratory score threshold.
+We selected this threshold check after scoring.
+
 ## Read the evidence
 
 - Open `evidence/queries.csv` for one row per fresh query.
@@ -83,7 +96,7 @@ python3 development/workshop_realism/supplement.py /path/to/workshop-inputs.zip
 - Read `evidence/pre-score-input-audit.json` for the image comparison before scoring.
 - Read `evidence/design/PROTOCOL.md` for the prospective development design.
 - Use `evidence/calibration.json` to inspect the patch and the controls for each calibration pair.
-- Use `evidence/archived-capability.csv` to check the language model qualification.
+- Use `evidence/archived-capability.csv` to check the language model screen on clear controls.
 - Open `evidence/exploratory-decisions.csv` for the earlier comparison on ten layouts.
 
 One row in the fresh query table contains a physical target state and one decision from each verifier.
@@ -136,7 +149,7 @@ It also verifies the decoded pixels in the two exploratory examples.
 The image archive uses one file per unique PNG.
 The SHA-256 columns in the query table identify all reference and revisit images.
 
-From the repository root, compare both independent analyses.
+From the repository root, compare the two analysis programs.
 
 ```sh
 python3 development/paper_audit/compare_exports.py paper/evidence paper/evidence/independent-evaluator \
