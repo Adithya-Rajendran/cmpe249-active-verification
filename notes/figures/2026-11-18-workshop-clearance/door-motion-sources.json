@@ -1,0 +1,17 @@
+[
+  {
+    "file": "door-closed.png",
+    "sha256": "5bf137855572094c69d22a3d93e216812ecc7fa73a131d1bec98a47067919652",
+    "joint_travel_m": 4.9479884472974466e-09
+  },
+  {
+    "file": "door-middle.png",
+    "sha256": "ce5c4515689704760e75a80ef548ef4c6f291fefd587fa4b4cad6153aed2a7bb",
+    "joint_travel_m": 0.49000001278293726
+  },
+  {
+    "file": "door-open.png",
+    "sha256": "713a902912b78d2b8880a6ba50f223138fdfd830b5dba1c5cdd05e552554586f",
+    "joint_travel_m": 0.97999999999701
+  }
+]

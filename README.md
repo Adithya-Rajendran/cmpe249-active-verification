@@ -4,6 +4,8 @@ CMPE 249, San José State University, Fall 2026. Adithya Rajendran. Instructor: 
 
 A robot saw an object on an earlier visit. When it looks again, should it keep that memory, record a removal, or wait for a clearer view?
 
+[Read the paper](paper/Rajendran-counterfactual-scene-memory.pdf) · [Download the exact images and results](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1) · [Reproduce the comparison](paper/README.md#reproduce-the-main-comparison)
+
 ## When a hidden box looks gone
 
 A yellow outline marks a gelatin box on a simulated MuJoCo shelf. A panel hides the box in one revisit and covers its empty spot in the other.
@@ -29,6 +31,9 @@ For clear removals, the camera shifted 6 cm and turned 3° with the blocker out 
 
 Dense geometry avoided homography's MuJoCo error but introduced two others. The audit required zero new errors to call dense geometry an improvement. Qwen found 159 of 160 clear removals and falsely reported removal on 51 of 640 revisits where the target stayed.
 
+Across all 640 actual removals, dense geometry missed 241 and Qwen missed 221.
+Qwen recovered 20 removals and added 49 false deletions relative to dense geometry. [Per-query recount](paper/evidence/reader-comparison.json)
+
 ### Why match the pairs?
 
 Both simulators fully hid the target at the same 88 positions. MuJoCo produced identical images, target boxes and instructions across the two states at all 88. The same definite answer must be wrong in one scene. Isaac Sim produced zero pixel-identical pairs. Whether its pixel differences reveal removal remains open.
@@ -42,6 +47,22 @@ For the full study, read the [paper](paper/Rajendran-counterfactual-scene-memory
 *The figure uses YCB object models by Berk Calli and colleagues from the BOP collection of YCB-Video models. [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)*
 
 The [evidence guide](paper/README.md) explains how to reproduce the results. The [prospective protocol](development/paper_audit/PROTOCOL.md) records the comparison rules.
+
+## Does this happen beyond the shelf?
+
+We tested a sliding door, a power drill and a bleach bottle in eight new corridor layouts.
+In MuJoCo, the geometry check stopped all eight oblique closed-door pairs before Qwen ran.
+From straight ahead, Qwen called the object removed in both identical images on seven of eight layouts.
+Isaac Sim also hid the object, but its images differed across the two states.
+Qwen correctly detected all 24 clear removals in Isaac and 20 of 24 in MuJoCo. [Corridor results and pictures](notes/2026-11-18-corridor-transfer.md)
+
+We repeated all eight layouts in a furnished workshop with a working sliding door.
+The same frontal MuJoCo test gave zero false deletions in eight identical pairs. The geometry check stopped every call before Qwen ran.
+On two robot camera mounts, Qwen called a fully visible drill removed four times in Isaac and twice in MuJoCo.
+The homography baseline answered every open-door case correctly and waited on every closed-door case. [Workshop results and images](notes/2026-11-18-workshop-clearance.md)
+
+The workshop also supports mobile robot training. A camera policy stopped or crossed correctly on all eight fully open and closed test episodes.
+It hit the door in seven of twelve partly open trials. [Robot training guide](development/workshop_realism/ROBOTICS.md)
 
 ## Current study
 

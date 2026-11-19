@@ -1,0 +1,723 @@
+{
+  "sweep": "Exact union of the full axis-aligned door envelopes under straight translation. Every scene box and every decorative surface is tested conservatively by its bounds.",
+  "records": [
+    {
+      "layout": "COR01",
+      "level": "D0",
+      "scene_sha256": "8937114dcb01b7d9f4985a0b4113d70063d1b15e43d7c40d4d233cb350ef1ecc",
+      "original_intersections_or_touching": [
+        "floor",
+        "left_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "side_base_-1",
+        "side_chair_rail_-1",
+        "conduit_-1_0",
+        "conduit_-1_1",
+        "jamb_shoe_-1",
+        "jamb_shoe_1",
+        "sealed_concrete",
+        "left_masonry_lower",
+        "left_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -1.455,
+          0.02749999999999999,
+          0.014
+        ],
+        [
+          0.475,
+          0.11249999999999999,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR01",
+      "level": "D6",
+      "scene_sha256": "6297441b186829c800c0a80adb5ca71b303a5a1a54469a8090d44b3506dc5fc3",
+      "original_intersections_or_touching": [
+        "floor",
+        "left_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "side_base_-1",
+        "side_chair_rail_-1",
+        "conduit_-1_0",
+        "conduit_-1_1",
+        "jamb_shoe_-1",
+        "jamb_shoe_1",
+        "sealed_concrete",
+        "left_masonry_lower",
+        "left_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -1.455,
+          0.02749999999999999,
+          0.014
+        ],
+        [
+          0.475,
+          0.11249999999999999,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR02",
+      "level": "D0",
+      "scene_sha256": "533417a8c291cd240e8093dcd21feb47e5057305c5bd048c1da227675d349e7e",
+      "original_intersections_or_touching": [
+        "floor",
+        "left_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "side_base_-1",
+        "side_chair_rail_-1",
+        "conduit_-1_0",
+        "conduit_-1_1",
+        "jamb_shoe_-1",
+        "jamb_shoe_1",
+        "sealed_concrete",
+        "left_masonry_lower",
+        "left_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -1.455,
+          0.0975,
+          0.014
+        ],
+        [
+          0.475,
+          0.18250000000000002,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR02",
+      "level": "D6",
+      "scene_sha256": "41a972237968da18de423eca5c2676132a621dff25aa939875fa2b2b5f074bf2",
+      "original_intersections_or_touching": [
+        "floor",
+        "left_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "side_base_-1",
+        "side_chair_rail_-1",
+        "conduit_-1_0",
+        "conduit_-1_1",
+        "jamb_shoe_-1",
+        "jamb_shoe_1",
+        "sealed_concrete",
+        "left_masonry_lower",
+        "left_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -1.455,
+          0.0975,
+          0.014
+        ],
+        [
+          0.475,
+          0.18250000000000002,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR03",
+      "level": "D0",
+      "scene_sha256": "0d37c80272cfd22542de0630cd06165c192f08b94724e6c6f910c4af3f01643d",
+      "original_intersections_or_touching": [
+        "floor",
+        "right_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "jamb_shoe_-1",
+        "side_base_1",
+        "side_chair_rail_1",
+        "conduit_1_0",
+        "conduit_1_1",
+        "jamb_shoe_1",
+        "access_control",
+        "reader_lamp",
+        "sealed_concrete",
+        "right_masonry_lower",
+        "right_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -0.475,
+          0.1675,
+          0.014
+        ],
+        [
+          1.455,
+          0.2525,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR03",
+      "level": "D6",
+      "scene_sha256": "afa726cb75943fa666eeddf43e5a86c47bc004b08309da5ab7207fd74be6d76e",
+      "original_intersections_or_touching": [
+        "floor",
+        "right_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "jamb_shoe_-1",
+        "side_base_1",
+        "side_chair_rail_1",
+        "conduit_1_0",
+        "conduit_1_1",
+        "jamb_shoe_1",
+        "access_control",
+        "reader_lamp",
+        "sealed_concrete",
+        "right_masonry_lower",
+        "right_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -0.475,
+          0.1675,
+          0.014
+        ],
+        [
+          1.455,
+          0.2525,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR04",
+      "level": "D0",
+      "scene_sha256": "36c95bf42fa369be0c7fe7532ace1555185d1acadd334ca94d9346c1cdc8a804",
+      "original_intersections_or_touching": [
+        "floor",
+        "right_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "jamb_shoe_-1",
+        "side_base_1",
+        "side_chair_rail_1",
+        "conduit_1_0",
+        "conduit_1_1",
+        "jamb_shoe_1",
+        "access_control",
+        "reader_lamp",
+        "sealed_concrete",
+        "right_masonry_lower",
+        "right_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -0.475,
+          0.02749999999999999,
+          0.014
+        ],
+        [
+          1.455,
+          0.11249999999999999,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR04",
+      "level": "D6",
+      "scene_sha256": "1348a816ed72f46f1cbdaaf5a278a19048d199d20b334f5760dee1eafa8b10eb",
+      "original_intersections_or_touching": [
+        "floor",
+        "right_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "jamb_shoe_-1",
+        "side_base_1",
+        "side_chair_rail_1",
+        "conduit_1_0",
+        "conduit_1_1",
+        "jamb_shoe_1",
+        "access_control",
+        "reader_lamp",
+        "sealed_concrete",
+        "right_masonry_lower",
+        "right_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -0.475,
+          0.02749999999999999,
+          0.014
+        ],
+        [
+          1.455,
+          0.11249999999999999,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR05",
+      "level": "D0",
+      "scene_sha256": "40933303aeff0a228c48b94dab44f8f61a7f262f77f657835089fbe80f3a0382",
+      "original_intersections_or_touching": [
+        "floor",
+        "left_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "side_base_-1",
+        "side_chair_rail_-1",
+        "conduit_-1_0",
+        "conduit_-1_1",
+        "jamb_shoe_-1",
+        "jamb_shoe_1",
+        "sealed_concrete",
+        "left_masonry_lower",
+        "left_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -1.455,
+          0.0975,
+          0.014
+        ],
+        [
+          0.475,
+          0.18250000000000002,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR05",
+      "level": "D6",
+      "scene_sha256": "15bacc8f86286ec7d4366c33a0983f7f1d5eb8bce4396f8fc3c4643cde642712",
+      "original_intersections_or_touching": [
+        "floor",
+        "left_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "side_base_-1",
+        "side_chair_rail_-1",
+        "conduit_-1_0",
+        "conduit_-1_1",
+        "jamb_shoe_-1",
+        "jamb_shoe_1",
+        "sealed_concrete",
+        "left_masonry_lower",
+        "left_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -1.455,
+          0.0975,
+          0.014
+        ],
+        [
+          0.475,
+          0.18250000000000002,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR06",
+      "level": "D0",
+      "scene_sha256": "756b5b70fda671d9f843bdba7c14524e07eec694c790d893be84573d54ff00e3",
+      "original_intersections_or_touching": [
+        "floor",
+        "left_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "side_base_-1",
+        "side_chair_rail_-1",
+        "conduit_-1_0",
+        "conduit_-1_1",
+        "jamb_shoe_-1",
+        "jamb_shoe_1",
+        "sealed_concrete",
+        "left_masonry_lower",
+        "left_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -1.455,
+          0.1675,
+          0.014
+        ],
+        [
+          0.475,
+          0.2525,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR06",
+      "level": "D6",
+      "scene_sha256": "b672aee13a9d2f6573bd3bdba9f8d07cd12f719fb5f8ebf61d6374115121a003",
+      "original_intersections_or_touching": [
+        "floor",
+        "left_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "side_base_-1",
+        "side_chair_rail_-1",
+        "conduit_-1_0",
+        "conduit_-1_1",
+        "jamb_shoe_-1",
+        "jamb_shoe_1",
+        "sealed_concrete",
+        "left_masonry_lower",
+        "left_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -1.455,
+          0.1675,
+          0.014
+        ],
+        [
+          0.475,
+          0.2525,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR07",
+      "level": "D0",
+      "scene_sha256": "c5ee7827d14be5da51579346cd9729071bd53fc2d23048965872745e853e6bf9",
+      "original_intersections_or_touching": [
+        "floor",
+        "right_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "jamb_shoe_-1",
+        "side_base_1",
+        "side_chair_rail_1",
+        "conduit_1_0",
+        "conduit_1_1",
+        "jamb_shoe_1",
+        "access_control",
+        "reader_lamp",
+        "sealed_concrete",
+        "right_masonry_lower",
+        "right_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -0.475,
+          0.02749999999999999,
+          0.014
+        ],
+        [
+          1.455,
+          0.11249999999999999,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR07",
+      "level": "D6",
+      "scene_sha256": "8600cd752ea0efa88339383682c7ffa5ef7d3f9b4e0824047595797768bd5726",
+      "original_intersections_or_touching": [
+        "floor",
+        "right_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "jamb_shoe_-1",
+        "side_base_1",
+        "side_chair_rail_1",
+        "conduit_1_0",
+        "conduit_1_1",
+        "jamb_shoe_1",
+        "access_control",
+        "reader_lamp",
+        "sealed_concrete",
+        "right_masonry_lower",
+        "right_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -0.475,
+          0.02749999999999999,
+          0.014
+        ],
+        [
+          1.455,
+          0.11249999999999999,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR08",
+      "level": "D0",
+      "scene_sha256": "8dd6abbfdf239fa049540f2626ad2b9ce2ab7fa7e2ec555a40993176c1d4ca9b",
+      "original_intersections_or_touching": [
+        "floor",
+        "right_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "jamb_shoe_-1",
+        "side_base_1",
+        "side_chair_rail_1",
+        "conduit_1_0",
+        "conduit_1_1",
+        "jamb_shoe_1",
+        "access_control",
+        "reader_lamp",
+        "sealed_concrete",
+        "right_masonry_lower",
+        "right_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -0.475,
+          0.0975,
+          0.014
+        ],
+        [
+          1.455,
+          0.18250000000000002,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "COR08",
+      "level": "D6",
+      "scene_sha256": "72c408321418ac6fba41c729009bb9e7ad2fa5d2b11059d2db9d33534d398e00",
+      "original_intersections_or_touching": [
+        "floor",
+        "right_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "jamb_shoe_-1",
+        "side_base_1",
+        "side_chair_rail_1",
+        "conduit_1_0",
+        "conduit_1_1",
+        "jamb_shoe_1",
+        "access_control",
+        "reader_lamp",
+        "sealed_concrete",
+        "right_masonry_lower",
+        "right_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -0.475,
+          0.0975,
+          0.014
+        ],
+        [
+          1.455,
+          0.18250000000000002,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "CORFIX",
+      "level": "D0",
+      "scene_sha256": "06ae56db0a460399aea7a61b157e11b77d1f7128bfd270634b388e3cd6f5f87a",
+      "original_intersections_or_touching": [
+        "floor",
+        "left_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "side_base_-1",
+        "side_chair_rail_-1",
+        "conduit_-1_0",
+        "conduit_-1_1",
+        "jamb_shoe_-1",
+        "jamb_shoe_1",
+        "sealed_concrete",
+        "left_masonry_lower",
+        "left_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -1.455,
+          0.1675,
+          0.014
+        ],
+        [
+          0.475,
+          0.2525,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    },
+    {
+      "layout": "CORFIX",
+      "level": "D6",
+      "scene_sha256": "6737753a9f691d35b8a5a6a9458987b19148a8eb27f054ac97ca3a0cb10a2b95",
+      "original_intersections_or_touching": [
+        "floor",
+        "left_wall",
+        "door_post_left",
+        "door_post_right",
+        "door_track",
+        "side_base_-1",
+        "side_chair_rail_-1",
+        "conduit_-1_0",
+        "conduit_-1_1",
+        "jamb_shoe_-1",
+        "jamb_shoe_1",
+        "sealed_concrete",
+        "left_masonry_lower",
+        "left_masonry_upper"
+      ],
+      "sweep_world_minmax_m": [
+        [
+          -1.455,
+          0.1675,
+          0.014
+        ],
+        [
+          0.475,
+          0.2525,
+          2.054
+        ]
+      ],
+      "hits": [],
+      "minimum_static_clearance_m": 0.01200000000000001,
+      "nearest_surface": "rail_cover",
+      "static_shapes_checked": 92,
+      "gap_to_parking_wall_m": 0.22499999999999987,
+      "door_open_edge_to_center_m": 0.505
+    }
+  ]
+}

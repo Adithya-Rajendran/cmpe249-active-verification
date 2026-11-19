@@ -1,0 +1,56 @@
+[
+  {
+    "engine": "mujoco",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "clear",
+    "source": "operator/mujoco/COR01/D6/rgb/clear_present_P3.png",
+    "study": "2026-11-18-corridor-transfer-v1",
+    "sha256": "62a92507aefe1792e24056c3c62bc0d19fc32cb17d637f674635fadcae1edd67"
+  },
+  {
+    "engine": "mujoco",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "clear",
+    "source": "operator/mujoco/COR01/D6/rgb/clear_present_P3.png",
+    "study": "2026-11-18-workshop-clearance-v2",
+    "sha256": "f582932acb7e43ebef8913d230e133161b3a865c150f560b04b8c29f22fb6026"
+  },
+  {
+    "engine": "mujoco",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "placed",
+    "source": "operator/mujoco/COR01/D6/rgb/placed_present_P3.png",
+    "study": "2026-11-18-workshop-clearance-v2",
+    "sha256": "59c9bec22ee45807dfc0dee5652162dcbd979bdcaa5cd2c9afe4229bd8619db0"
+  },
+  {
+    "engine": "isaac",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "clear",
+    "source": "operator/isaac/COR01/D6/rgb/clear_present_P3.png",
+    "study": "2026-11-18-corridor-transfer-v1",
+    "sha256": "73aaf3d82b2b207dbcd58d30908e5246d1075e1308f06f9737fbbcfde91fbd0f"
+  },
+  {
+    "engine": "isaac",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "clear",
+    "source": "operator/isaac/COR01/D6/rgb/clear_present_P3.png",
+    "study": "2026-11-18-workshop-clearance-v2",
+    "sha256": "3f31258e1db0e5e24a56e6318e20f2d1b4051e04480be702d377d6efa4250557"
+  },
+  {
+    "engine": "isaac",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "placed",
+    "source": "operator/isaac/COR01/D6/rgb/placed_present_P3.png",
+    "study": "2026-11-18-workshop-clearance-v2",
+    "sha256": "84db334efad4eff2bb63185e9be9231f6e94fb6f043cb24c7efecd45f3eea348"
+  }
+]

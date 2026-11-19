@@ -3,10 +3,72 @@
 Adithya Rajendran, San José State University.
 
 Read [the paper](Rajendran-counterfactual-scene-memory.pdf) for the research question, results and interpretation.
-The manuscript evaluates decisions about a remembered object on a shelf or a tabletop.
+The main study tests decisions about a remembered object on a shelf or a tabletop.
 The source uses Typst. The supplementary tables support an independent recount.
-This repository includes the query tables, model outputs, example images and source code.
-The complete RGB and native simulation archives are held separately.
+The [versioned release](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1) includes the exact images, model outputs, native captures, and source.
+
+The shelf follow-up repeats the original camera views at new angles.
+The corridor follow-up uses eight fresh layouts, different objects and a sliding door.
+The furnished workshop repeats those corridors with a traversable doorway and robot-mounted camera views.
+Read the three [shelf](https://github.com/Adithya-Rajendran/cmpe249-active-verification/blob/scene-memory-audit-v1/notes/2026-11-18-level-shelf.md), [corridor](https://github.com/Adithya-Rajendran/cmpe249-active-verification/blob/scene-memory-audit-v1/notes/2026-11-18-corridor-transfer.md) and [workshop](https://github.com/Adithya-Rajendran/cmpe249-active-verification/blob/scene-memory-audit-v1/notes/2026-11-18-workshop-clearance.md) studies.
+The manuscript reports each follow-up separately.
+The portable supplement includes the protocols, decisions, pair tables, and independent checks under `followups/`.
+
+## Reproduce the main comparison
+
+Download the [supplement](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/Rajendran-scene-memory-supplement.zip), [delivered images](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/delivered-rgb.zip), and [SHA-256 checksums](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/SHA256SUMS.txt) into one directory.
+The CPU checks use Python 3, NumPy, and Pillow.
+Run the following commands from the download directory.
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS.txt
+unzip -q Rajendran-scene-memory-supplement.zip -d scene-memory-paper
+cd scene-memory-paper
+python3 recount.py --removals > reproduced-removals.json
+diff -u evidence/reader-comparison.json reproduced-removals.json
+python3 check_rgb.py ../delivered-rgb.zip
+python3 restore_inputs.py ../delivered-rgb.zip restored-packet
+```
+
+The recount checks each decision against the original scorer output.
+It reports missed removals and false deletions by simulator and for both simulators together.
+The main panel contains 640 removed and 640 retained queries.
+The dense geometric rule missed 241 removals and falsely deleted two retained objects.
+Registered Qwen missed 221 removals and falsely deleted 51 retained objects.
+
+The shared registration check admitted 419 removed and 415 retained queries.
+On these inputs, Qwen detected 20 more removals and falsely deleted 49 more retained objects than the geometric rule.
+The geometric rule had correctly identified 42 of those 49 objects as present.
+The image check recovers 88 exact MuJoCo pairs and zero exact Isaac Sim pairs.
+The restored packet contains only the 1,280 input records and their original images.
+
+For new GPU inference, use the scorer commands in `software/README.md` inside the supplement.
+The Qwen verifier used the original weights with zero-shot prompting. [Pinned Qwen3.5-9B model on Hugging Face](https://huggingface.co/Qwen/Qwen3.5-9B/tree/c202236235762e1c871ad0ccb60c8ee5ba337b9a)
+The paper reports results for homography, dense geometry, and registered Qwen.
+The comparison with the authors' trained STILL verifier remains pending.
+
+### Other image sets
+
+| Download | Contents |
+| --- | --- |
+| [Exploratory inputs](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/exploratory-inputs.zip) | Earlier reference images, revisits, boxes, and decisions for 1,200 queries |
+| [Qualification inputs](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/qualification-inputs.zip) | Images, expected answers, and model replies for the 116 archived controls |
+| [Shelf follow-up](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/level-shelf-inputs.zip) | Delivered images, native images and masks, original answers, and camera comparisons for 320 queries |
+| [Plain corridor](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/corridor-transfer-inputs.zip) | Inputs, native captures, raw answers, and an independent checker for 192 queries |
+| [Corrected workshop](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/workshop-inputs.zip) | Inputs, native captures, raw answers, and an independent checker for 320 queries |
+| [Native calibration](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/native-calibration.zip) | Original RGB, masks, and scene records for four calibration layouts in both engines |
+| [Native Isaac evaluation](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/native-isaac-evaluation.zip) · [Native MuJoCo evaluation](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/native-mujoco-evaluation.zip) | Original captures and scene records for each engine's 16 main layouts |
+
+Use `restore_inputs.py` with the exploratory, qualification, or shelf archive to restore its blinded input directory.
+The exploratory archive also preserves the original scorer job inventory.
+The tagged file `evidence/image-archives.sha256.txt` records all eleven image archive checksums.
+Each native archive supplies a file list with individual checksums under `checksums/`.
+From the tagged repository root, verify the other two downloaded archives.
+
+```sh
+python3 development/corridor_transfer/pack_inputs.py verify /path/to/corridor-transfer-inputs.zip
+python3 development/workshop_realism/supplement.py /path/to/workshop-inputs.zip
+```
 
 ## Read the evidence
 
@@ -102,7 +164,7 @@ python3 draw_fresh_case.py /path/to/delivered-rgb.zip
 The restored packet contains the original case order, numerical reference boxes, and image files.
 Keep the evaluator tables separate when running a new verifier.
 
-For a native calibration recount, extract the raw data archive in a new directory.
+For a native calibration recount, extract `native-calibration.zip` into a directory named `native`.
 Run each command once per simulator. Replace `mujoco` with `isaac` for the second run.
 
 ```sh

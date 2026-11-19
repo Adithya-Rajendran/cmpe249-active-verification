@@ -30,6 +30,18 @@ The active study uses simulation only. Physical-camera transfer remains future w
 The [stress specification](../development/stress/PROTOCOL.md) preserves the completed simulator settings.
 A conditional cascade is a separate development hypothesis.
 
+### Robot access in the workshop
+
+The workshop supplies camera views for the audit and a separate task for mobile robot training.
+The image audit sets measured endpoint poses so that the two object states share the same camera.
+The training task executes wheel commands and measures contact with the door.
+Policies receive camera images and wheel encoders. The evaluator can inspect the door joint and the robot pose.
+[Workshop method](../development/workshop_realism/DOOR_AMENDMENT.md) · [Robot interface](../development/workshop_realism/ROBOTICS.md)
+
+For a future active-view test, execute the selected movement before returning the next camera image.
+Count a blocked path, a contact and an abstention in the evaluation.
+Give each policy the same action and observation budgets. Record whether the action exposes the remembered location.
+
 ## 1. Task and input boundary
 
 The task checks a remembered target at a defined region.

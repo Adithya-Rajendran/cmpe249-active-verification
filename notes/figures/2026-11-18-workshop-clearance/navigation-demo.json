@@ -1,0 +1,126 @@
+{
+  "training_layouts": [
+    "COR01",
+    "COR02",
+    "COR03",
+    "COR04",
+    "COR05",
+    "COR06"
+  ],
+  "reserved_layouts": [
+    "COR07",
+    "COR08"
+  ],
+  "training_images": 72,
+  "held_out_episodes": 8,
+  "successful_episodes": 8,
+  "method": "nearest class centroid on normalized 32 x 18 grayscale features, fitted only on the six training layouts; a start-frame action drives forward or stops",
+  "model_sha256": "17745c247b5bffaee8096ee5ccf44d9cc9af611bb5f684e30c201f9779eddb88",
+  "source_sha256": "3a1233ced1663501d19d95d773fa927d9785e2234f92f0eff40f5c414ef86656",
+  "episodes": [
+    {
+      "layout": "COR07",
+      "door_open": false,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "selected_action": "stop",
+      "distance_to_closed": 0.6101371130426642,
+      "distance_to_open": 1.212632202298202,
+      "reward": 1.0,
+      "outcome": "safe_stop",
+      "steps": 1,
+      "starting_frame_sha256": "4f531b9b9328b3cc801d9a7fe305c4150ae0f458e01b2db9521338f5eca2efe5"
+    },
+    {
+      "layout": "COR07",
+      "door_open": false,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "selected_action": "stop",
+      "distance_to_closed": 0.51874726972045,
+      "distance_to_open": 0.990611477799545,
+      "reward": 1.0,
+      "outcome": "safe_stop",
+      "steps": 1,
+      "starting_frame_sha256": "90a55e3df2b8e3623a15c9d858b340828fe61914530b145cd6715ec05ec124e1"
+    },
+    {
+      "layout": "COR07",
+      "door_open": true,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "selected_action": "go",
+      "distance_to_closed": 1.2478059441430764,
+      "distance_to_open": 0.6530982572765962,
+      "reward": 1.0,
+      "outcome": "crossed",
+      "steps": 78,
+      "starting_frame_sha256": "19708712498bc86b671c0c3549571bdf60805bf8d3a13d8de01740307eb37feb"
+    },
+    {
+      "layout": "COR07",
+      "door_open": true,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "selected_action": "go",
+      "distance_to_closed": 1.4296678225429966,
+      "distance_to_open": 0.6749653004896362,
+      "reward": 1.0,
+      "outcome": "crossed",
+      "steps": 78,
+      "starting_frame_sha256": "409103b5bb901d5342da6db90f34c45a91398297d1f034102a6154531723e0e6"
+    },
+    {
+      "layout": "COR08",
+      "door_open": false,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "selected_action": "stop",
+      "distance_to_closed": 0.6061308912882176,
+      "distance_to_open": 1.1953351437595943,
+      "reward": 1.0,
+      "outcome": "safe_stop",
+      "steps": 1,
+      "starting_frame_sha256": "ec16e5951315faba077f94cf0cb56ea8f6ca82b4be5fc397a93d4c0620cfb251"
+    },
+    {
+      "layout": "COR08",
+      "door_open": false,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "selected_action": "stop",
+      "distance_to_closed": 0.5234994098364844,
+      "distance_to_open": 0.9950315937430051,
+      "reward": 1.0,
+      "outcome": "safe_stop",
+      "steps": 1,
+      "starting_frame_sha256": "3b73147b56568065ac9cf8df1f7eaa8b3ddc77efd0e51196ab5111b8c1afb4c2"
+    },
+    {
+      "layout": "COR08",
+      "door_open": true,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "selected_action": "go",
+      "distance_to_closed": 1.2352618456999063,
+      "distance_to_open": 0.6488012143058227,
+      "reward": 1.0,
+      "outcome": "crossed",
+      "steps": 78,
+      "starting_frame_sha256": "bfdb7a1441560c6bfef3541ff12e2f23613e2bd59efa832385ff05d2b78e3a4b"
+    },
+    {
+      "layout": "COR08",
+      "door_open": true,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "selected_action": "go",
+      "distance_to_closed": 1.4144865363472177,
+      "distance_to_open": 0.6666310737292372,
+      "reward": 1.0,
+      "outcome": "crossed",
+      "steps": 78,
+      "starting_frame_sha256": "24a450db2ec9548e22a7bf1006058b7ad92ea811d685eb45c8cef8de327a0edf"
+    }
+  ]
+}

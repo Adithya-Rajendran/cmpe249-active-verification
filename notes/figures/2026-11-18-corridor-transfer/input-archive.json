@@ -1,0 +1,12 @@
+{
+  "verified_cases": 192,
+  "verified_delivered_pairs": 96,
+  "exact_delivered_pairs": 24,
+  "verified_native_pairs": 96,
+  "exact_native_and_delivered_pairs": 24,
+  "verified_scene_recipes": 16,
+  "verified_raw_decisions": 576,
+  "cases_sha256": "d1aec92a970026e69a31b337fa2aeb627ddbc36fcbc3f73a276d70b26b1840f5",
+  "bytes": 226062012,
+  "archive_sha256": "255965fe53c1978f26c3f53ed7b240a07bb9839ab6e66d473ccc647d0084db2f"
+}

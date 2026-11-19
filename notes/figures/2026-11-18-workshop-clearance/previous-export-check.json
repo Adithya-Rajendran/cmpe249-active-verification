@@ -1,0 +1,12 @@
+{
+  "historical_cases": 192,
+  "historical_image_roles": 384,
+  "exact_previous_encoded_pngs_by_simulator": {
+    "isaac": 192,
+    "mujoco": 192
+  },
+  "distinct_source_paths": 240,
+  "python": "3.10.12",
+  "pillow": "9.0.1",
+  "method": "Re-export original native corridor images through the current anonymous-input path. Compare every delivered PNG file with the previous per-case SHA-256 digest."
+}

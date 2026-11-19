@@ -1,0 +1,14 @@
+{
+  "study_id": "corridor-transfer-v1",
+  "locked_at_utc": "2026-11-19T04:33:25.408356+00:00",
+  "protocol_sha256": "42d3ecf9d22586005073d7b7e5e1f895aa0382f596430fc044220e1aac53b0f3",
+  "declaration_sha256": "150b1c565df29ffea9b40a4d07a4fba7b43995475a7504e030477e471a1aefa6",
+  "original_task_sha256": "db57d40b5d55ba40b0b3fcdcb7a449c322bb861d4cb401c29361f6c5f5f045ed",
+  "paper_binding_sha256": {
+    "homography": "d908d7b7dbf733f0374d09ab5bd8795d414aee957c4a0b6019c02ea73f3e95ba",
+    "dense": "59f547c64a2efa8476fc98aa638d52d587740674c83c20f67f3d55e04808583e",
+    "registered": "26e6c1665ce66775e526ea6b5b91cd4e3e81d1213368f75432831f576ac98156"
+  },
+  "original_git_commit": "11e86b050fa9a175c8b8ba968ecfd378291c1e8c",
+  "new_panel_predictions_at_lock": 0
+}

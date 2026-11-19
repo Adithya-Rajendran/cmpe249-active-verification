@@ -1,0 +1,127 @@
+{
+  "layouts": [
+    {
+      "layout": "COR01",
+      "file": "COR01/facility.usdz",
+      "usdz_sha256": "a93d3a6c07151d47c3fb96bfdc4739732c7c6ff21773005b10dc283464124df1",
+      "embedded_stage_sha256": "22d5f0324c5969c9f596232ae68dc4137aa66b3dcc42bdf0bc1a443d1927d463",
+      "textures": 13,
+      "resolved_inside_package": 13,
+      "colliders": 76,
+      "joint_limits_m": [
+        -0.9800000190734863,
+        0.0
+      ],
+      "blocked_distance_before_door_m": 0.20100068271160126,
+      "crossing_distance_past_door_m": 0.5468653368949891
+    },
+    {
+      "layout": "COR02",
+      "file": "COR02/facility.usdz",
+      "usdz_sha256": "f281c771409b7dbfed7f09eb12e395a818f6a2ddb7871d45bd55704d0cbe94fd",
+      "embedded_stage_sha256": "28556312b39e1616c0e1d65249f756662842467553eb5de5d2d218ca758ae721",
+      "textures": 13,
+      "resolved_inside_package": 13,
+      "colliders": 76,
+      "joint_limits_m": [
+        -0.9800000190734863,
+        0.0
+      ],
+      "blocked_distance_before_door_m": 0.20100068241357805,
+      "crossing_distance_past_door_m": 0.5468653297424316
+    },
+    {
+      "layout": "COR03",
+      "file": "COR03/facility.usdz",
+      "usdz_sha256": "3e5c6e2060cb6002f5d0705fad819e8e51c40d153a1a925a6ef510283f564893",
+      "embedded_stage_sha256": "aee208caf3e04fcd6d2590dce1ae280009c1203507da7607016625c545f8123b",
+      "textures": 13,
+      "resolved_inside_package": 13,
+      "colliders": 76,
+      "joint_limits_m": [
+        0.0,
+        0.9800000190734863
+      ],
+      "blocked_distance_before_door_m": 0.20100095033645632,
+      "crossing_distance_past_door_m": 0.5468653225898743
+    },
+    {
+      "layout": "COR04",
+      "file": "COR04/facility.usdz",
+      "usdz_sha256": "748d63040f939b1bb849b5e307dcc133d58483f8e569bbf5e1898e482290d645",
+      "embedded_stage_sha256": "da8f41e8e00605995e6e38d6508cc0411f9537bb790c44823cfa9f690df10168",
+      "textures": 13,
+      "resolved_inside_package": 13,
+      "colliders": 76,
+      "joint_limits_m": [
+        0.0,
+        0.9800000190734863
+      ],
+      "blocked_distance_before_door_m": 0.2010008615255356,
+      "crossing_distance_past_door_m": 0.5468653368949891
+    },
+    {
+      "layout": "COR05",
+      "file": "COR05/facility.usdz",
+      "usdz_sha256": "6e7d0695efc7d13e2d9dfef4250197c0bccf09726a50b1143abf5c7a1e81a806",
+      "embedded_stage_sha256": "8fd0a98db368bfae4a2116273f7a66c705d432a356ec1e2c035d00e1c1c00ce3",
+      "textures": 13,
+      "resolved_inside_package": 13,
+      "colliders": 76,
+      "joint_limits_m": [
+        -0.9800000190734863,
+        0.0
+      ],
+      "blocked_distance_before_door_m": 0.20100068241357805,
+      "crossing_distance_past_door_m": 0.5468653297424316
+    },
+    {
+      "layout": "COR06",
+      "file": "COR06/facility.usdz",
+      "usdz_sha256": "93e8405bbc35ed78e7837a56f7a8eb598b2e419905c3433e2a5ef672ee657191",
+      "embedded_stage_sha256": "1b6c5d6b7e8b94959feed583fafa6abeab0e2c0982dcaeb07c5211a2e7f1e31e",
+      "textures": 13,
+      "resolved_inside_package": 13,
+      "colliders": 76,
+      "joint_limits_m": [
+        -0.9800000190734863,
+        0.0
+      ],
+      "blocked_distance_before_door_m": 0.20100069142878058,
+      "crossing_distance_past_door_m": 0.5468653225898743
+    },
+    {
+      "layout": "COR07",
+      "file": "COR07/facility.usdz",
+      "usdz_sha256": "266f4ff5b4e02a851598336b193910e3c8c4aaa31251404889640e87bf20d8f2",
+      "embedded_stage_sha256": "4100661ace71e9689691e2c6c659185ef4a02eaa70c1e3b9ba309533369b9ee4",
+      "textures": 13,
+      "resolved_inside_package": 13,
+      "colliders": 76,
+      "joint_limits_m": [
+        0.0,
+        0.9800000190734863
+      ],
+      "blocked_distance_before_door_m": 0.2010008615255356,
+      "crossing_distance_past_door_m": 0.5468653368949891
+    },
+    {
+      "layout": "COR08",
+      "file": "COR08/facility.usdz",
+      "usdz_sha256": "4d2671ce68652a3aa845da88ec39dfe2c879ba915d7113e575e12148cbe28d72",
+      "embedded_stage_sha256": "10d85962207fbdce907abfa5bc3f990ee0757d2ede59b10fa232a3adf3e290b2",
+      "textures": 13,
+      "resolved_inside_package": 13,
+      "colliders": 76,
+      "joint_limits_m": [
+        0.0,
+        0.9800000190734863
+      ],
+      "blocked_distance_before_door_m": 0.20100094690918924,
+      "crossing_distance_past_door_m": 0.5468653297424316
+    }
+  ],
+  "bytes": 242091237,
+  "sha256": "77203c1bae6bdd1916146a32f6ed98c4104fd9c72955f9fcc6cbc45448136934",
+  "native_test": "Driven door, guided contact cart, and reopened textured USDZ in Isaac Sim"
+}

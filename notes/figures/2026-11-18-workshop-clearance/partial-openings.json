@@ -1,0 +1,421 @@
+{
+  "endpoint_frames_matched": 8,
+  "check_design": {
+    "recorded_utc": "2026-11-19T07:36:37.979432+00:00",
+    "experiment": "training demonstration follow-up, distinct from primary optical experiment",
+    "layouts": [
+      "COR07",
+      "COR08"
+    ],
+    "lateral_m_and_yaw_deg": [
+      [
+        -0.08,
+        3
+      ],
+      [
+        0.08,
+        -3
+      ]
+    ],
+    "door_fractions": [
+      0,
+      0.25,
+      0.5,
+      0.75,
+      1.0
+    ],
+    "policy_sha256": "17745c247b5bffaee8096ee5ccf44d9cc9af611bb5f684e30c201f9779eddb88",
+    "diagnostic_script_sha256": "cc776bc3f583f9595d34eaf04d4b371a5245f1cd987738a3e583dff1d9bec810",
+    "outcome": "For each start, score the fixed camera policy action against a physical always-forward twin. A straight route succeeds if the center crosses 30 cm without door contact. Keep timeouts distinct. No fit or threshold update."
+  },
+  "counts_by_fraction": {
+    "0.0": {
+      "policy_stopped": 4,
+      "forward_contact": 4
+    },
+    "0.25": {
+      "policy_stopped": 3,
+      "forward_contact": 4,
+      "policy_contact": 1
+    },
+    "0.5": {
+      "policy_contact": 4,
+      "forward_contact": 4
+    },
+    "0.75": {
+      "policy_crossed": 2,
+      "forward_crossed": 2,
+      "policy_contact": 2,
+      "forward_contact": 2
+    },
+    "1.0": {
+      "policy_crossed": 4,
+      "forward_crossed": 4
+    }
+  },
+  "policy_sha256": "17745c247b5bffaee8096ee5ccf44d9cc9af611bb5f684e30c201f9779eddb88",
+  "code_sha256": "cc776bc3f583f9595d34eaf04d4b371a5245f1cd987738a3e583dff1d9bec810",
+  "rule": "Cross 30 cm past the fixed door without touching it along this straight approach. Each stopped policy has an always-forward physical twin.",
+  "cases": [
+    {
+      "layout": "COR07",
+      "door_fraction": 0.0,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "initial_rgb_pixels_sha256": "23ab08c01fce7d93c46ffbc36320fadba34019bf388a7b7ce152fcb18da2c552",
+      "selected_action": "stop",
+      "policy": {
+        "outcome": "stopped",
+        "step": 1,
+        "center_past_door_m": -0.8999998656731696
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.20312057629285807
+      }
+    },
+    {
+      "layout": "COR07",
+      "door_fraction": 0.0,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "initial_rgb_pixels_sha256": "c0f37e642bc9bcc682bf53bd3d7bbc22a160f7bdfe1920dac535d51cd4149aaf",
+      "selected_action": "stop",
+      "policy": {
+        "outcome": "stopped",
+        "step": 1,
+        "center_past_door_m": -0.8999998829155853
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 47,
+        "center_past_door_m": -0.200331467598101
+      }
+    },
+    {
+      "layout": "COR07",
+      "door_fraction": 0.25,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "initial_rgb_pixels_sha256": "03811a8ed1a5cf459bf8ab4f1f5f859761c35d1e94fb81833ae1ab5c9583320e",
+      "selected_action": "stop",
+      "policy": {
+        "outcome": "stopped",
+        "step": 1,
+        "center_past_door_m": -0.8999998656731696
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.20312057629285807
+      }
+    },
+    {
+      "layout": "COR07",
+      "door_fraction": 0.25,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "initial_rgb_pixels_sha256": "34526ec6fde529b57fc8b7ff9615212f1311774b5c4e82956b657fc3ffdea049",
+      "selected_action": "stop",
+      "policy": {
+        "outcome": "stopped",
+        "step": 1,
+        "center_past_door_m": -0.8999998829155853
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 47,
+        "center_past_door_m": -0.20083482282602522
+      }
+    },
+    {
+      "layout": "COR07",
+      "door_fraction": 0.5,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "initial_rgb_pixels_sha256": "59305165a2309cae0f8652839d4ead57693b4d6da79d8c1d310bf98396dbcf71",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.20306926699539019
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.20306926699539019
+      }
+    },
+    {
+      "layout": "COR07",
+      "door_fraction": 0.5,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "initial_rgb_pixels_sha256": "efad57c9eae24d1c9fc994d842475e0ba2a1aec105c61e548b7a8a9d4894ff90",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.20224211736881226
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.20224211736881226
+      }
+    },
+    {
+      "layout": "COR07",
+      "door_fraction": 0.75,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "initial_rgb_pixels_sha256": "e17ef10d2ef7b58dc8831b410d670af020ecf43d3e17fcb0dceec05b8b323eec",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3130915450024226
+      },
+      "always_forward": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3130915450024226
+      }
+    },
+    {
+      "layout": "COR07",
+      "door_fraction": 0.75,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "initial_rgb_pixels_sha256": "9f05a4666e07aa61504fa53cfadcc8bec59596d1e12fb4683ccabab42940ce43",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.19181586521110086
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.19181586521110086
+      }
+    },
+    {
+      "layout": "COR07",
+      "door_fraction": 1.0,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "initial_rgb_pixels_sha256": "80548f1b8580fa776825e1aa24b7fbe6bebf58d4ceab68832bdb35039c60948d",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3130915450024226
+      },
+      "always_forward": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3130915450024226
+      }
+    },
+    {
+      "layout": "COR07",
+      "door_fraction": 1.0,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "initial_rgb_pixels_sha256": "8ffc069d41790654dfab914db2c6dc3512614df0bfec5b6cfe50f0a7aad74584",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3133772215109275
+      },
+      "always_forward": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3133772215109275
+      }
+    },
+    {
+      "layout": "COR08",
+      "door_fraction": 0.0,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "initial_rgb_pixels_sha256": "45bd4be6891bbbf320522b86a27a047b35b71bba6c91fbd93a5955586e1e1ea4",
+      "selected_action": "stop",
+      "policy": {
+        "outcome": "stopped",
+        "step": 1,
+        "center_past_door_m": -0.8999998753227625
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 47,
+        "center_past_door_m": -0.20056246150935605
+      }
+    },
+    {
+      "layout": "COR08",
+      "door_fraction": 0.0,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "initial_rgb_pixels_sha256": "6624559da72a5bdde54257ee65f420b21eff0ca1ef2add0581a653a28bc38747",
+      "selected_action": "stop",
+      "policy": {
+        "outcome": "stopped",
+        "step": 1,
+        "center_past_door_m": -0.8999998796839274
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 47,
+        "center_past_door_m": -0.2008651884802507
+      }
+    },
+    {
+      "layout": "COR08",
+      "door_fraction": 0.25,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "initial_rgb_pixels_sha256": "c81bbe61536f666ca7d218ff7a24a4f01dfde0803c2f97c2f365ff815e07d1ce",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "contact",
+        "step": 47,
+        "center_past_door_m": -0.20067303162208946
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 47,
+        "center_past_door_m": -0.20067303162208946
+      }
+    },
+    {
+      "layout": "COR08",
+      "door_fraction": 0.25,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "initial_rgb_pixels_sha256": "b0c26c85d318ab04780fac7a139a723b23266d96870498c7020bfdc7ee41396c",
+      "selected_action": "stop",
+      "policy": {
+        "outcome": "stopped",
+        "step": 1,
+        "center_past_door_m": -0.8999998796839274
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.20247552812472103
+      }
+    },
+    {
+      "layout": "COR08",
+      "door_fraction": 0.5,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "initial_rgb_pixels_sha256": "f1781a9126320a0f8700d26a0ca90743d9fa7aef075d4cc087cdfbbce11e626f",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "contact",
+        "step": 48,
+        "center_past_door_m": -0.19198631985778258
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 48,
+        "center_past_door_m": -0.19198631985778258
+      }
+    },
+    {
+      "layout": "COR08",
+      "door_fraction": 0.5,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "initial_rgb_pixels_sha256": "cb417dbcc9aee0e6dc3872c8698e4c31eac327919238c8a7a769c7d3a4126480",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.2015501340213145
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.2015501340213145
+      }
+    },
+    {
+      "layout": "COR08",
+      "door_fraction": 0.75,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "initial_rgb_pixels_sha256": "a6736052e9a8d0b8cb8f316370a72e2b3d1d705a6c12c91b413e5b86e4c3b70d",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3138517633230237
+      },
+      "always_forward": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3138517633230237
+      }
+    },
+    {
+      "layout": "COR08",
+      "door_fraction": 0.75,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "initial_rgb_pixels_sha256": "6d5286b69c581bee9261415b7ca49cf75b7ca5c019c1cf56757b45bc88b8447a",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.19292021395942666
+      },
+      "always_forward": {
+        "outcome": "contact",
+        "step": 46,
+        "center_past_door_m": -0.19292021395942666
+      }
+    },
+    {
+      "layout": "COR08",
+      "door_fraction": 1.0,
+      "lateral_m": -0.08,
+      "heading_deg": 3,
+      "initial_rgb_pixels_sha256": "cc703f33328a7f907ed56c09f0612da929e8990a2a46c196bbf434c8baed61c4",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3138517633230237
+      },
+      "always_forward": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3138517633230237
+      }
+    },
+    {
+      "layout": "COR08",
+      "door_fraction": 1.0,
+      "lateral_m": 0.08,
+      "heading_deg": -3,
+      "initial_rgb_pixels_sha256": "0584703d59aa4a5cd102168712ff74a3b411be39f22a337199c750a89b00a2aa",
+      "selected_action": "go",
+      "policy": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3149320551323241
+      },
+      "always_forward": {
+        "outcome": "crossed",
+        "step": 78,
+        "center_past_door_m": 0.3149320551323241
+      }
+    }
+  ]
+}

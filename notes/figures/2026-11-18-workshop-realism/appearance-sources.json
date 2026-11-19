@@ -1,0 +1,56 @@
+[
+  {
+    "engine": "mujoco",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "clear",
+    "source": "operator/mujoco/COR01/D6/rgb/clear_present_P3.png",
+    "study": "2026-11-18-corridor-transfer-v1",
+    "sha256": "62a92507aefe1792e24056c3c62bc0d19fc32cb17d637f674635fadcae1edd67"
+  },
+  {
+    "engine": "mujoco",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "clear",
+    "source": "operator/mujoco/COR01/D6/rgb/clear_present_P3.png",
+    "study": "2026-11-18-workshop-realism-v1",
+    "sha256": "f98be505af1c60b0a6bd50beb261de2fa1dbed117788fdcada10063971b189e7"
+  },
+  {
+    "engine": "mujoco",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "placed",
+    "source": "operator/mujoco/COR01/D6/rgb/placed_present_P3.png",
+    "study": "2026-11-18-workshop-realism-v1",
+    "sha256": "c6cad445f51323d3865fdb58cd7e764e3a1638d3077d0eea824466b213ca682d"
+  },
+  {
+    "engine": "isaac",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "clear",
+    "source": "operator/isaac/COR01/D6/rgb/clear_present_P3.png",
+    "study": "2026-11-18-corridor-transfer-v1",
+    "sha256": "73aaf3d82b2b207dbcd58d30908e5246d1075e1308f06f9737fbbcfde91fbd0f"
+  },
+  {
+    "engine": "isaac",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "clear",
+    "source": "operator/isaac/COR01/D6/rgb/clear_present_P3.png",
+    "study": "2026-11-18-workshop-realism-v1",
+    "sha256": "fb75f740e920337cb9abe5e50dbda9900af754cb13ab017a6556bb599c4e2ccb"
+  },
+  {
+    "engine": "isaac",
+    "layout": "COR01",
+    "view": "P3",
+    "door": "placed",
+    "source": "operator/isaac/COR01/D6/rgb/placed_present_P3.png",
+    "study": "2026-11-18-workshop-realism-v1",
+    "sha256": "e74c8b4c7fa8006231c8c649a4c30fba86a786b2d642765687321951920b34bc"
+  }
+]

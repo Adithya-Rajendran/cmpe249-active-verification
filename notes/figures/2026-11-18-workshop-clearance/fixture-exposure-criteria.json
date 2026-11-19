@@ -1,0 +1,22 @@
+{
+  "recorded_utc": "2026-11-19T05:49:47.694732+00:00",
+  "panel_frames_before_change": 0,
+  "scoring_before_change": 0,
+  "views": [
+    "P3",
+    "P4"
+  ],
+  "states": [
+    "clear_present",
+    "placed_present"
+  ],
+  "level": "D0",
+  "channel": "Pillow L computed from native RGB PNG",
+  "median_range_8bit": [
+    50,
+    175
+  ],
+  "max_fraction_below_16": 0.15,
+  "max_fraction_above_247": 0.04,
+  "additional_review": "read label direction; inspect target when door open, surface mapping and moving hardware across both states; check masks and spot-check other views"
+}

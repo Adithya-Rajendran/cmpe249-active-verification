@@ -4,6 +4,8 @@ The shelf boards were horizontal. The oblique camera made their front edges slop
 
 ## The illustrated box
 
+The [shelf input archive](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/level-shelf-inputs.zip) includes the exact reference and revisit PNGs, native RGB and masks, original scores, and pair tables for this follow-up.
+
 The original reference marked the box on an unobstructed shelf. On the revisit we placed a panel in front of it. The simulator kept the box for one query and removed it for the other. We scored both versions independently. The same earlier picture, earlier bounding box, prompt and later RGB image reached the verifier in each MuJoCo pair.
 
 | Camera treatment | Front-edge angle in the revisit | Fraction of reference box mapped by VGGT | Box stayed | Box removed |

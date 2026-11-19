@@ -1,0 +1,54 @@
+{
+  "study_id": "corridor-transfer-v1",
+  "new_render_authorized": true,
+  "design_locked_utc": "2026-11-19T04:38:43.613415+00:00",
+  "manifest_sha256": "44976a26f46f11a86f25758327b7effa7ee333696fa5f769fa80cc071f6df88e",
+  "endpoint_lock_sha256": "fe9c56dd5d136ea147ec1991da380edaaba210642a7cbb2291297b77c569b82d",
+  "protocol_sha256": "42d3ecf9d22586005073d7b7e5e1f895aa0382f596430fc044220e1aac53b0f3",
+  "declaration_sha256": "150b1c565df29ffea9b40a4d07a4fba7b43995475a7504e030477e471a1aefa6",
+  "seed_review_sha256": "5c1d1ab81bb9f05db1e11cc43cc6bfc78282d49e16f2c15db9d2d63c4f66da2d",
+  "generator_sha256": "48f4ea36cfa2856912d21137ed6ffd6a50bde4a3b57c3bbb4ea6c913acd2147b",
+  "reviewer_sha256": "e8c30b62980a9c5f81f5f1842b5b93325e50f1a1a4d809a425f3ed2c806ef36d",
+  "layouts": {
+    "COR01": {
+      "seed": 4171,
+      "target": "bleach_cleanser",
+      "geometry_sha256": "89d5032eebc84803431edb050bc9bb2e5eafc5ff5e8e6e2bda46bfa3d5d58b0f"
+    },
+    "COR02": {
+      "seed": 4172,
+      "target": "power_drill",
+      "geometry_sha256": "0741556403083ef69c5ad6d55bc7f9e328a16c7f3edecba8030bce96571d499a"
+    },
+    "COR03": {
+      "seed": 4173,
+      "target": "bleach_cleanser",
+      "geometry_sha256": "a78668502767185c073a57c011706a462f0b6d10dd96d195621b0ae77a57075d"
+    },
+    "COR04": {
+      "seed": 4174,
+      "target": "power_drill",
+      "geometry_sha256": "4caceaef23c4f67234e847f435afd6d6c0ea8f3f3a25ec69e033974e15a8c86c"
+    },
+    "COR05": {
+      "seed": 4175,
+      "target": "bleach_cleanser",
+      "geometry_sha256": "1fe569cca6dd408213c8817ec35cbb6e551833a438d610d1d94cbd4ca816ed1c"
+    },
+    "COR06": {
+      "seed": 4176,
+      "target": "power_drill",
+      "geometry_sha256": "ffbda128a9504a51d9647001ca655d630c1eeaf386897b57783fa44cbfee1f19"
+    },
+    "COR07": {
+      "seed": 4177,
+      "target": "bleach_cleanser",
+      "geometry_sha256": "8d5f7ba5a4ccc14f069049a1396fdcc69ffda9217cedb01d04d432c1a5240e0a"
+    },
+    "COR08": {
+      "seed": 4178,
+      "target": "power_drill",
+      "geometry_sha256": "989c764e6eebcde05f88c5756e4164d9eeae10dd2926546e2961a2a3e7552dbd"
+    }
+  }
+}

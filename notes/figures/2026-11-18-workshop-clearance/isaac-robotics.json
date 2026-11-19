@@ -1,0 +1,625 @@
+{
+  "engine": "Isaac Sim",
+  "runtime": "6.2.0.0",
+  "layouts_passed": 8,
+  "door_and_control": "A native rigid sliding door and bounded prismatic force drive; a separately constrained test cart with the target disabled for the clearance check. Each exported USDZ retains its target and excludes the test cart.",
+  "facility_program_sha256": "93446f5444671104df9423792149404d5c905b3fcc943cb4d726bfda57813fb9",
+  "results": [
+    {
+      "layout": "COR01",
+      "pass": true,
+      "checks": {
+        "closed_door": true,
+        "blocked_door": true,
+        "cart_blocks_at_closed_leaf": true,
+        "back_door": true,
+        "middle_door": true,
+        "open_door": true,
+        "crossed_door": true,
+        "cart_passes_open_leaf": true
+      },
+      "records": [
+        {
+          "stage": "closed",
+          "door_x": -1.3096723705530167e-10,
+          "probe_y": -0.8299999833106995,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "blocked",
+          "door_x": 1.1772499419748783e-08,
+          "probe_y": -0.13100068271160126,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "back",
+          "door_x": 7.712515071034431e-10,
+          "probe_y": -0.8315607309341431,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "middle",
+          "door_x": -0.4873376786708832,
+          "probe_y": -0.8315607309341431,
+          "door_goal_x": -0.49
+        },
+        {
+          "stage": "open",
+          "door_x": -0.9800000190734863,
+          "probe_y": -0.8315607309341431,
+          "door_goal_x": -0.98
+        },
+        {
+          "stage": "crossed",
+          "door_x": -0.9800000190734863,
+          "probe_y": 0.616865336894989,
+          "door_goal_x": -0.98
+        }
+      ],
+      "scene_sha256": "8937114dcb01b7d9f4985a0b4113d70063d1b15e43d7c40d4d233cb350ef1ecc",
+      "packaged_textures": 13,
+      "resolved_texture_members": [
+        "0/obj_000012.png",
+        "0/obj_000016.png",
+        "0/obj_000019.png",
+        "1/cabinet_plate.png",
+        "1/carton_face.png",
+        "1/concrete.png",
+        "1/door_plate.png",
+        "1/door_skin.png",
+        "1/floor_paint.png",
+        "1/lower_brick.png",
+        "1/ply.png",
+        "1/service_plate.png",
+        "1/upper_brick.png"
+      ],
+      "packaged_colliders": 76,
+      "reopened_joint_limits_m": [
+        -0.9800000190734863,
+        0.0
+      ],
+      "physics_stage_sha256": "9c5a565ce7c54f4260e89833948dab9125ee2d159b35b920831c4185b147f5a9",
+      "usdz_sha256": "a93d3a6c07151d47c3fb96bfdc4739732c7c6ff21773005b10dc283464124df1",
+      "scope": "Native Isaac constrained door with a guided contact cart. Differential-wheel rollouts run in MuJoCo."
+    },
+    {
+      "layout": "COR02",
+      "pass": true,
+      "checks": {
+        "closed_door": true,
+        "blocked_door": true,
+        "cart_blocks_at_closed_leaf": true,
+        "back_door": true,
+        "middle_door": true,
+        "open_door": true,
+        "crossed_door": true,
+        "cart_passes_open_leaf": true
+      },
+      "records": [
+        {
+          "stage": "closed",
+          "door_x": -1.3096723705530167e-10,
+          "probe_y": -0.7599999904632568,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "blocked",
+          "door_x": -1.1859810911118984e-08,
+          "probe_y": -0.06100068241357803,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "back",
+          "door_x": 8.003553375601768e-10,
+          "probe_y": -0.7615607380867004,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "middle",
+          "door_x": -0.4873376786708832,
+          "probe_y": -0.7615607380867004,
+          "door_goal_x": -0.49
+        },
+        {
+          "stage": "open",
+          "door_x": -0.9800000190734863,
+          "probe_y": -0.7615607380867004,
+          "door_goal_x": -0.98
+        },
+        {
+          "stage": "crossed",
+          "door_x": -0.9800000190734863,
+          "probe_y": 0.6868653297424316,
+          "door_goal_x": -0.98
+        }
+      ],
+      "scene_sha256": "533417a8c291cd240e8093dcd21feb47e5057305c5bd048c1da227675d349e7e",
+      "packaged_textures": 13,
+      "resolved_texture_members": [
+        "0/obj_000015.png",
+        "0/obj_000016.png",
+        "0/obj_000019.png",
+        "1/cabinet_plate.png",
+        "1/carton_face.png",
+        "1/concrete.png",
+        "1/door_plate.png",
+        "1/door_skin.png",
+        "1/floor_paint.png",
+        "1/lower_brick.png",
+        "1/ply.png",
+        "1/service_plate.png",
+        "1/upper_brick.png"
+      ],
+      "packaged_colliders": 76,
+      "reopened_joint_limits_m": [
+        -0.9800000190734863,
+        0.0
+      ],
+      "physics_stage_sha256": "0c605c0e687d5c71c7c3e91ad74394461629b0308e89fce55c47927fd7c8d515",
+      "usdz_sha256": "f281c771409b7dbfed7f09eb12e395a818f6a2ddb7871d45bd55704d0cbe94fd",
+      "scope": "Native Isaac constrained door with a guided contact cart. Differential-wheel rollouts run in MuJoCo."
+    },
+    {
+      "layout": "COR03",
+      "pass": true,
+      "checks": {
+        "closed_door": true,
+        "blocked_door": true,
+        "cart_blocks_at_closed_leaf": true,
+        "back_door": true,
+        "middle_door": true,
+        "open_door": true,
+        "crossed_door": true,
+        "cart_passes_open_leaf": true
+      },
+      "records": [
+        {
+          "stage": "closed",
+          "door_x": 1.3096723705530167e-10,
+          "probe_y": -0.6899999976158142,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "blocked",
+          "door_x": 3.041350282728672e-09,
+          "probe_y": 0.008999049663543701,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "back",
+          "door_x": 5.717447493225336e-08,
+          "probe_y": -0.6915607452392578,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "middle",
+          "door_x": 0.48733851313591003,
+          "probe_y": -0.6915607452392578,
+          "door_goal_x": 0.49
+        },
+        {
+          "stage": "open",
+          "door_x": 0.9800000190734863,
+          "probe_y": -0.6915607452392578,
+          "door_goal_x": 0.98
+        },
+        {
+          "stage": "crossed",
+          "door_x": 0.9800000190734863,
+          "probe_y": 0.7568653225898743,
+          "door_goal_x": 0.98
+        }
+      ],
+      "scene_sha256": "0d37c80272cfd22542de0630cd06165c192f08b94724e6c6f910c4af3f01643d",
+      "packaged_textures": 13,
+      "resolved_texture_members": [
+        "0/obj_000012.png",
+        "0/obj_000016.png",
+        "0/obj_000019.png",
+        "1/cabinet_plate.png",
+        "1/carton_face.png",
+        "1/concrete.png",
+        "1/door_plate.png",
+        "1/door_skin.png",
+        "1/floor_paint.png",
+        "1/lower_brick.png",
+        "1/ply.png",
+        "1/service_plate.png",
+        "1/upper_brick.png"
+      ],
+      "packaged_colliders": 76,
+      "reopened_joint_limits_m": [
+        0.0,
+        0.9800000190734863
+      ],
+      "physics_stage_sha256": "066f6ffcebc919d05031c6c2c265a4f7d7179259097eba39671afe6a09bdb074",
+      "usdz_sha256": "3e5c6e2060cb6002f5d0705fad819e8e51c40d153a1a925a6ef510283f564893",
+      "scope": "Native Isaac constrained door with a guided contact cart. Differential-wheel rollouts run in MuJoCo."
+    },
+    {
+      "layout": "COR04",
+      "pass": true,
+      "checks": {
+        "closed_door": true,
+        "blocked_door": true,
+        "cart_blocks_at_closed_leaf": true,
+        "back_door": true,
+        "middle_door": true,
+        "open_door": true,
+        "crossed_door": true,
+        "cart_passes_open_leaf": true
+      },
+      "records": [
+        {
+          "stage": "closed",
+          "door_x": 1.3096723705530167e-10,
+          "probe_y": -0.8299999833106995,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "blocked",
+          "door_x": 4.583853296935558e-09,
+          "probe_y": -0.13100086152553558,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "back",
+          "door_x": 1.1376687325537205e-07,
+          "probe_y": -0.8315607309341431,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "middle",
+          "door_x": 0.4873385429382324,
+          "probe_y": -0.8315607309341431,
+          "door_goal_x": 0.49
+        },
+        {
+          "stage": "open",
+          "door_x": 0.9800000190734863,
+          "probe_y": -0.8315607309341431,
+          "door_goal_x": 0.98
+        },
+        {
+          "stage": "crossed",
+          "door_x": 0.9800000190734863,
+          "probe_y": 0.616865336894989,
+          "door_goal_x": 0.98
+        }
+      ],
+      "scene_sha256": "36c95bf42fa369be0c7fe7532ace1555185d1acadd334ca94d9346c1cdc8a804",
+      "packaged_textures": 13,
+      "resolved_texture_members": [
+        "0/obj_000015.png",
+        "0/obj_000016.png",
+        "0/obj_000019.png",
+        "1/cabinet_plate.png",
+        "1/carton_face.png",
+        "1/concrete.png",
+        "1/door_plate.png",
+        "1/door_skin.png",
+        "1/floor_paint.png",
+        "1/lower_brick.png",
+        "1/ply.png",
+        "1/service_plate.png",
+        "1/upper_brick.png"
+      ],
+      "packaged_colliders": 76,
+      "reopened_joint_limits_m": [
+        0.0,
+        0.9800000190734863
+      ],
+      "physics_stage_sha256": "7b4475ef93b67646c4375a05697b3a9b2ffba0d0877100d86bb6ceeda173389f",
+      "usdz_sha256": "748d63040f939b1bb849b5e307dcc133d58483f8e569bbf5e1898e482290d645",
+      "scope": "Native Isaac constrained door with a guided contact cart. Differential-wheel rollouts run in MuJoCo."
+    },
+    {
+      "layout": "COR05",
+      "pass": true,
+      "checks": {
+        "closed_door": true,
+        "blocked_door": true,
+        "cart_blocks_at_closed_leaf": true,
+        "back_door": true,
+        "middle_door": true,
+        "open_door": true,
+        "crossed_door": true,
+        "cart_passes_open_leaf": true
+      },
+      "records": [
+        {
+          "stage": "closed",
+          "door_x": -1.3096723705530167e-10,
+          "probe_y": -0.7599999904632568,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "blocked",
+          "door_x": -1.1859810911118984e-08,
+          "probe_y": -0.06100068241357803,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "back",
+          "door_x": 8.003553375601768e-10,
+          "probe_y": -0.7615607380867004,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "middle",
+          "door_x": -0.4873376786708832,
+          "probe_y": -0.7615607380867004,
+          "door_goal_x": -0.49
+        },
+        {
+          "stage": "open",
+          "door_x": -0.9800000190734863,
+          "probe_y": -0.7615607380867004,
+          "door_goal_x": -0.98
+        },
+        {
+          "stage": "crossed",
+          "door_x": -0.9800000190734863,
+          "probe_y": 0.6868653297424316,
+          "door_goal_x": -0.98
+        }
+      ],
+      "scene_sha256": "40933303aeff0a228c48b94dab44f8f61a7f262f77f657835089fbe80f3a0382",
+      "packaged_textures": 13,
+      "resolved_texture_members": [
+        "0/obj_000012.png",
+        "0/obj_000016.png",
+        "0/obj_000019.png",
+        "1/cabinet_plate.png",
+        "1/carton_face.png",
+        "1/concrete.png",
+        "1/door_plate.png",
+        "1/door_skin.png",
+        "1/floor_paint.png",
+        "1/lower_brick.png",
+        "1/ply.png",
+        "1/service_plate.png",
+        "1/upper_brick.png"
+      ],
+      "packaged_colliders": 76,
+      "reopened_joint_limits_m": [
+        -0.9800000190734863,
+        0.0
+      ],
+      "physics_stage_sha256": "d83ebf82eda0e478f9cfe3cbcfe69f8360a08d780a3f4e9e105a063be21d7144",
+      "usdz_sha256": "6e7d0695efc7d13e2d9dfef4250197c0bccf09726a50b1143abf5c7a1e81a806",
+      "scope": "Native Isaac constrained door with a guided contact cart. Differential-wheel rollouts run in MuJoCo."
+    },
+    {
+      "layout": "COR06",
+      "pass": true,
+      "checks": {
+        "closed_door": true,
+        "blocked_door": true,
+        "cart_blocks_at_closed_leaf": true,
+        "back_door": true,
+        "middle_door": true,
+        "open_door": true,
+        "crossed_door": true,
+        "cart_passes_open_leaf": true
+      },
+      "records": [
+        {
+          "stage": "closed",
+          "door_x": -1.3096723705530167e-10,
+          "probe_y": -0.6899999976158142,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "blocked",
+          "door_x": -1.2383679859340191e-08,
+          "probe_y": 0.008999308571219444,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "back",
+          "door_x": 8.003553375601768e-10,
+          "probe_y": -0.6915607452392578,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "middle",
+          "door_x": -0.4873376786708832,
+          "probe_y": -0.6915607452392578,
+          "door_goal_x": -0.49
+        },
+        {
+          "stage": "open",
+          "door_x": -0.9800000190734863,
+          "probe_y": -0.6915607452392578,
+          "door_goal_x": -0.98
+        },
+        {
+          "stage": "crossed",
+          "door_x": -0.9800000190734863,
+          "probe_y": 0.7568653225898743,
+          "door_goal_x": -0.98
+        }
+      ],
+      "scene_sha256": "756b5b70fda671d9f843bdba7c14524e07eec694c790d893be84573d54ff00e3",
+      "packaged_textures": 13,
+      "resolved_texture_members": [
+        "0/obj_000015.png",
+        "0/obj_000016.png",
+        "0/obj_000019.png",
+        "1/cabinet_plate.png",
+        "1/carton_face.png",
+        "1/concrete.png",
+        "1/door_plate.png",
+        "1/door_skin.png",
+        "1/floor_paint.png",
+        "1/lower_brick.png",
+        "1/ply.png",
+        "1/service_plate.png",
+        "1/upper_brick.png"
+      ],
+      "packaged_colliders": 76,
+      "reopened_joint_limits_m": [
+        -0.9800000190734863,
+        0.0
+      ],
+      "physics_stage_sha256": "e488bdda4136c8f9b75341e1b98e46cf94fc31d77bf195aa93788f44474b0272",
+      "usdz_sha256": "93e8405bbc35ed78e7837a56f7a8eb598b2e419905c3433e2a5ef672ee657191",
+      "scope": "Native Isaac constrained door with a guided contact cart. Differential-wheel rollouts run in MuJoCo."
+    },
+    {
+      "layout": "COR07",
+      "pass": true,
+      "checks": {
+        "closed_door": true,
+        "blocked_door": true,
+        "cart_blocks_at_closed_leaf": true,
+        "back_door": true,
+        "middle_door": true,
+        "open_door": true,
+        "crossed_door": true,
+        "cart_passes_open_leaf": true
+      },
+      "records": [
+        {
+          "stage": "closed",
+          "door_x": 1.3096723705530167e-10,
+          "probe_y": -0.8299999833106995,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "blocked",
+          "door_x": 4.583853296935558e-09,
+          "probe_y": -0.13100086152553558,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "back",
+          "door_x": 1.1376687325537205e-07,
+          "probe_y": -0.8315607309341431,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "middle",
+          "door_x": 0.4873385429382324,
+          "probe_y": -0.8315607309341431,
+          "door_goal_x": 0.49
+        },
+        {
+          "stage": "open",
+          "door_x": 0.9800000190734863,
+          "probe_y": -0.8315607309341431,
+          "door_goal_x": 0.98
+        },
+        {
+          "stage": "crossed",
+          "door_x": 0.9800000190734863,
+          "probe_y": 0.616865336894989,
+          "door_goal_x": 0.98
+        }
+      ],
+      "scene_sha256": "c5ee7827d14be5da51579346cd9729071bd53fc2d23048965872745e853e6bf9",
+      "packaged_textures": 13,
+      "resolved_texture_members": [
+        "0/obj_000012.png",
+        "0/obj_000016.png",
+        "0/obj_000019.png",
+        "1/cabinet_plate.png",
+        "1/carton_face.png",
+        "1/concrete.png",
+        "1/door_plate.png",
+        "1/door_skin.png",
+        "1/floor_paint.png",
+        "1/lower_brick.png",
+        "1/ply.png",
+        "1/service_plate.png",
+        "1/upper_brick.png"
+      ],
+      "packaged_colliders": 76,
+      "reopened_joint_limits_m": [
+        0.0,
+        0.9800000190734863
+      ],
+      "physics_stage_sha256": "df75303eb50ad574169ec8899ab54680eb99c934630a5e552c71cbcc9a74fd98",
+      "usdz_sha256": "266f4ff5b4e02a851598336b193910e3c8c4aaa31251404889640e87bf20d8f2",
+      "scope": "Native Isaac constrained door with a guided contact cart. Differential-wheel rollouts run in MuJoCo."
+    },
+    {
+      "layout": "COR08",
+      "pass": true,
+      "checks": {
+        "closed_door": true,
+        "blocked_door": true,
+        "cart_blocks_at_closed_leaf": true,
+        "back_door": true,
+        "middle_door": true,
+        "open_door": true,
+        "crossed_door": true,
+        "cart_passes_open_leaf": true
+      },
+      "records": [
+        {
+          "stage": "closed",
+          "door_x": 1.3096723705530167e-10,
+          "probe_y": -0.7599999904632568,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "blocked",
+          "door_x": 7.62520357966423e-09,
+          "probe_y": -0.061000946909189224,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "back",
+          "door_x": 1.3741373550146818e-07,
+          "probe_y": -0.7615607380867004,
+          "door_goal_x": 0.0
+        },
+        {
+          "stage": "middle",
+          "door_x": 0.4873385727405548,
+          "probe_y": -0.7615607380867004,
+          "door_goal_x": 0.49
+        },
+        {
+          "stage": "open",
+          "door_x": 0.9800000190734863,
+          "probe_y": -0.7615607380867004,
+          "door_goal_x": 0.98
+        },
+        {
+          "stage": "crossed",
+          "door_x": 0.9800000190734863,
+          "probe_y": 0.6868653297424316,
+          "door_goal_x": 0.98
+        }
+      ],
+      "scene_sha256": "8dd6abbfdf239fa049540f2626ad2b9ce2ab7fa7e2ec555a40993176c1d4ca9b",
+      "packaged_textures": 13,
+      "resolved_texture_members": [
+        "0/obj_000015.png",
+        "0/obj_000016.png",
+        "0/obj_000019.png",
+        "1/cabinet_plate.png",
+        "1/carton_face.png",
+        "1/concrete.png",
+        "1/door_plate.png",
+        "1/door_skin.png",
+        "1/floor_paint.png",
+        "1/lower_brick.png",
+        "1/ply.png",
+        "1/service_plate.png",
+        "1/upper_brick.png"
+      ],
+      "packaged_colliders": 76,
+      "reopened_joint_limits_m": [
+        0.0,
+        0.9800000190734863
+      ],
+      "physics_stage_sha256": "f7d4e100435cfe96738d012e6d824111cc7005d5936a43e9d03deef38a4188fd",
+      "usdz_sha256": "4d2671ce68652a3aa845da88ec39dfe2c879ba915d7113e575e12148cbe28d72",
+      "scope": "Native Isaac constrained door with a guided contact cart. Differential-wheel rollouts run in MuJoCo."
+    }
+  ]
+}

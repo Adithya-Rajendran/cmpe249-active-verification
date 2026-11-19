@@ -1,0 +1,102 @@
+{
+  "all_queries": {
+    "isaac": {
+      "removed": 320,
+      "retained": 320,
+      "dense": {
+        "missed_removals": 128,
+        "false_deletions": 0
+      },
+      "registered": {
+        "missed_removals": 112,
+        "false_deletions": 24
+      },
+      "additional_qwen_false_deletions": {
+        "dense_answered_present": 23,
+        "dense_abstained": 1
+      }
+    },
+    "mujoco": {
+      "removed": 320,
+      "retained": 320,
+      "dense": {
+        "missed_removals": 113,
+        "false_deletions": 2
+      },
+      "registered": {
+        "missed_removals": 109,
+        "false_deletions": 27
+      },
+      "additional_qwen_false_deletions": {
+        "dense_answered_present": 19,
+        "dense_abstained": 6
+      }
+    },
+    "pooled": {
+      "removed": 640,
+      "retained": 640,
+      "dense": {
+        "missed_removals": 241,
+        "false_deletions": 2
+      },
+      "registered": {
+        "missed_removals": 221,
+        "false_deletions": 51
+      },
+      "additional_qwen_false_deletions": {
+        "dense_answered_present": 42,
+        "dense_abstained": 7
+      }
+    }
+  },
+  "shared_registration": {
+    "isaac": {
+      "removed": 208,
+      "retained": 207,
+      "dense": {
+        "missed_removals": 16,
+        "false_deletions": 0
+      },
+      "registered": {
+        "missed_removals": 0,
+        "false_deletions": 24
+      },
+      "additional_qwen_false_deletions": {
+        "dense_answered_present": 23,
+        "dense_abstained": 1
+      }
+    },
+    "mujoco": {
+      "removed": 211,
+      "retained": 208,
+      "dense": {
+        "missed_removals": 4,
+        "false_deletions": 2
+      },
+      "registered": {
+        "missed_removals": 0,
+        "false_deletions": 27
+      },
+      "additional_qwen_false_deletions": {
+        "dense_answered_present": 19,
+        "dense_abstained": 6
+      }
+    },
+    "pooled": {
+      "removed": 419,
+      "retained": 415,
+      "dense": {
+        "missed_removals": 20,
+        "false_deletions": 2
+      },
+      "registered": {
+        "missed_removals": 0,
+        "false_deletions": 51
+      },
+      "additional_qwen_false_deletions": {
+        "dense_answered_present": 42,
+        "dense_abstained": 7
+      }
+    }
+  }
+}
