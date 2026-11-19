@@ -1,0 +1,263 @@
+{
+  "queries": 320,
+  "native_camera_records": 320,
+  "matched_original_poses": 192,
+  "pairs": 160,
+  "groups": [
+    {
+      "engine": "mujoco",
+      "view": "all",
+      "closed_pairs": 40,
+      "open_pairs": 40,
+      "open_95pct": 40,
+      "open_visible_fraction_range": [
+        0.9993544685124085,
+        1.0
+      ],
+      "closed_zero_mask": 40,
+      "closed_exact": 40,
+      "closed_positive_pixel_difference_range": [
+        0.0,
+        0.0
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P1",
+      "closed_pairs": 8,
+      "open_pairs": 8,
+      "open_95pct": 8,
+      "open_visible_fraction_range": [
+        0.9999364635618527,
+        1.0
+      ],
+      "closed_zero_mask": 8,
+      "closed_exact": 8,
+      "closed_positive_pixel_difference_range": [
+        0.0,
+        0.0
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P2",
+      "closed_pairs": 8,
+      "open_pairs": 8,
+      "open_95pct": 8,
+      "open_visible_fraction_range": [
+        1.0,
+        1.0
+      ],
+      "closed_zero_mask": 8,
+      "closed_exact": 8,
+      "closed_positive_pixel_difference_range": [
+        0.0,
+        0.0
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P3",
+      "closed_pairs": 8,
+      "open_pairs": 8,
+      "open_95pct": 8,
+      "open_visible_fraction_range": [
+        0.9999320606019431,
+        1.0
+      ],
+      "closed_zero_mask": 8,
+      "closed_exact": 8,
+      "closed_positive_pixel_difference_range": [
+        0.0,
+        0.0
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P4",
+      "closed_pairs": 8,
+      "open_pairs": 8,
+      "open_95pct": 8,
+      "open_visible_fraction_range": [
+        1.0,
+        1.0
+      ],
+      "closed_zero_mask": 8,
+      "closed_exact": 8,
+      "closed_positive_pixel_difference_range": [
+        0.0,
+        0.0
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P5",
+      "closed_pairs": 8,
+      "open_pairs": 8,
+      "open_95pct": 8,
+      "open_visible_fraction_range": [
+        0.9993544685124085,
+        1.0
+      ],
+      "closed_zero_mask": 8,
+      "closed_exact": 8,
+      "closed_positive_pixel_difference_range": [
+        0.0,
+        0.0
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "all",
+      "closed_pairs": 40,
+      "open_pairs": 40,
+      "open_95pct": 40,
+      "open_visible_fraction_range": [
+        0.9993544685124085,
+        1.0
+      ],
+      "closed_zero_mask": 40,
+      "closed_exact": 0,
+      "closed_positive_pixel_difference_range": [
+        0.6463718492798354,
+        0.7302169067215364
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.34158934988711703,
+        0.4654153092135345
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P1",
+      "closed_pairs": 8,
+      "open_pairs": 8,
+      "open_95pct": 8,
+      "open_visible_fraction_range": [
+        0.9999364635618527,
+        1.0
+      ],
+      "closed_zero_mask": 8,
+      "closed_exact": 0,
+      "closed_positive_pixel_difference_range": [
+        0.6677182463134431,
+        0.6962518888245884
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.3657638487011317,
+        0.41401673060985367
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P2",
+      "closed_pairs": 8,
+      "open_pairs": 8,
+      "open_95pct": 8,
+      "open_visible_fraction_range": [
+        1.0,
+        1.0
+      ],
+      "closed_zero_mask": 8,
+      "closed_exact": 0,
+      "closed_positive_pixel_difference_range": [
+        0.6644462930812757,
+        0.7290829421724966
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.3591237148848308,
+        0.4654153092135345
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P3",
+      "closed_pairs": 8,
+      "open_pairs": 8,
+      "open_95pct": 8,
+      "open_visible_fraction_range": [
+        0.9999320606019431,
+        1.0
+      ],
+      "closed_zero_mask": 8,
+      "closed_exact": 0,
+      "closed_positive_pixel_difference_range": [
+        0.6662966044024349,
+        0.7302169067215364
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.36017306187842935,
+        0.44820054851823277
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P4",
+      "closed_pairs": 8,
+      "open_pairs": 8,
+      "open_95pct": 8,
+      "open_visible_fraction_range": [
+        1.0,
+        1.0
+      ],
+      "closed_zero_mask": 8,
+      "closed_exact": 0,
+      "closed_positive_pixel_difference_range": [
+        0.6463718492798354,
+        0.6968382951817559
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.3520257755344079,
+        0.4220148757215935
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P5",
+      "closed_pairs": 8,
+      "open_pairs": 8,
+      "open_95pct": 8,
+      "open_visible_fraction_range": [
+        0.9993544685124085,
+        1.0
+      ],
+      "closed_zero_mask": 8,
+      "closed_exact": 0,
+      "closed_positive_pixel_difference_range": [
+        0.6484137222436557,
+        0.6999860012645748
+      ],
+      "closed_mean_absolute_8bit_channel_difference_range": [
+        0.34158934988711703,
+        0.4076464129300983
+      ]
+    }
+  ],
+  "paper_task_sha256": "db57d40b5d55ba40b0b3fcdcb7a449c322bb861d4cb401c29361f6c5f5f045ed",
+  "native_completion_records": 32,
+  "cases_sha256": "e308f1f080cd297a3685c77e854d0882aa185f44627871b83092b6ec04636c03"
+}

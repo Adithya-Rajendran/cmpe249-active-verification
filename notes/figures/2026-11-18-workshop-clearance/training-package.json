@@ -1,0 +1,19 @@
+{
+  "models": 8,
+  "unique_textures": 14,
+  "bytes": 45890538,
+  "sha256": "065752c0b8c7058e9595448e135f7317c91f44d640fe356bf89dac8493fc89ff",
+  "archive_name": "workshop-mujoco-training.zip",
+  "installation_check": {
+    "native_models": 8,
+    "textures": 14,
+    "episodes": 16,
+    "successful": 16
+  },
+  "retrained_policy_sha256": "17745c247b5bffaee8096ee5ccf44d9cc9af611bb5f684e30c201f9779eddb88",
+  "original_training_policy_sha256": "17745c247b5bffaee8096ee5ccf44d9cc9af611bb5f684e30c201f9779eddb88",
+  "retrained_held_out_successes": 8,
+  "partial_opening_report_sha256": "b631e8d6811b72da2e365e52d909dc3f58c9826367512a4d70598d550e863a57",
+  "partial_report_reproduced_byte_for_byte": true,
+  "partial_camera_frames_verified": 20
+}

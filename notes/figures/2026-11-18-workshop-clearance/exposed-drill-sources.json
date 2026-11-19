@@ -1,0 +1,28 @@
+[
+  {
+    "engine": "isaac",
+    "id": "1bb9bcf34fbe1a542c5c1cbb",
+    "reference_sha256": "af3e347d41f6864f7fa29a8dc1bf538d31735679bf3533a13b5582221793e40f",
+    "query_sha256": "05f0ee8ff5825347d6050a5baafd16e8a73d7f05948b471e628c9316ac00bf6d",
+    "evaluator_query_mask_sha256": "a6d33f73f981da89338f3664537aba98d1f0b8d5ed38902239c33cb8f2d03e35",
+    "evaluator_query_box": [
+      567,
+      414,
+      630,
+      442
+    ]
+  },
+  {
+    "engine": "mujoco",
+    "id": "5595b1e2f3d1b9e09c2b8dba",
+    "reference_sha256": "19a2fd0bbeac6a7f80a00493e54680c7f016de5f198efdbec7df6caaa1f9a932",
+    "query_sha256": "01b10a4366dd2e4e02c83361e582fbda3b3fcf5455e9ce8efbf61c714238d4a2",
+    "evaluator_query_mask_sha256": "a6d33f73f981da89338f3664537aba98d1f0b8d5ed38902239c33cb8f2d03e35",
+    "evaluator_query_box": [
+      567,
+      414,
+      630,
+      442
+    ]
+  }
+]

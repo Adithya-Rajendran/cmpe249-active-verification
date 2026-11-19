@@ -1,0 +1,40 @@
+{
+  "archive_bytes": 1457961561,
+  "archive_sha256": "d7da321d3541cc1c2fba0c73a0c3b55f63dc3b4168bc709a591894780ec6aa99",
+  "case_ids": 320,
+  "native_and_delivered_pairs": 160,
+  "unique_native_to_delivered_exports_verified": 360,
+  "method_pair_rows": 480,
+  "native_clearance_checks": 32,
+  "matched_corridor_transitions": 288,
+  "original_decisions": 960,
+  "bound_models": [
+    "baseline_200",
+    "geometry",
+    "vggt_qwen"
+  ],
+  "primary_exact_layouts": [
+    "COR01",
+    "COR02",
+    "COR03",
+    "COR04",
+    "COR05",
+    "COR06",
+    "COR07",
+    "COR08"
+  ],
+  "primary_double_removed_layouts": [],
+  "mask_checks": {
+    "isaac/clear/qualified": 40,
+    "isaac/placed/qualified": 40,
+    "mujoco/clear/qualified": 40,
+    "mujoco/placed/qualified": 40
+  },
+  "registered_gate_outcomes": {
+    "isaac/passed": 68,
+    "isaac/registration_gate": 92,
+    "mujoco/passed": 68,
+    "mujoco/registration_gate": 92
+  },
+  "checks": "recounted from decoded native and delivered images, simulator masks, numeric boxes, original model outputs and paper settings"
+}

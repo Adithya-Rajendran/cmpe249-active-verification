@@ -1,0 +1,38 @@
+{
+  "study_id": "corridor-transfer-v1",
+  "design_release_sha256": "dbf95fd8055f19558c45b67dc91a8780c7dea0aedd2a966eb67401647eab8065",
+  "manifest_sha256": "44976a26f46f11a86f25758327b7effa7ee333696fa5f769fa80cc071f6df88e",
+  "declaration_sha256": "150b1c565df29ffea9b40a4d07a4fba7b43995475a7504e030477e471a1aefa6",
+  "scope": "8 shared corridor layouts, 2 levels, 3 camera slots, 4 target/door states",
+  "engine_layouts": {
+    "isaac": 8,
+    "mujoco": 8
+  },
+  "mujoco_capture_gl": {
+    "vendor": "Mesa",
+    "renderer": "llvmpipe (LLVM 20.1.2, 128 bits)",
+    "version": "4.5 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.4"
+  },
+  "independent_checks": "full geometry and native mask/image checks passed; each local full geometry receipt verified 40 file hashes",
+  "fixture": "CORFIX seed 4169 captured separately and excluded from panel",
+  "v0": "preflight-only fixture v0 preserved; no v0 images captured",
+  "files_sha256": {
+    "isaac-private-manifest.json": "c9c933bc587941a2285a85956b1e6705df928f2a179e7e52d37e6ff1e33ce363",
+    "mujoco-private-manifest.json": "0b2be2fe7b386c13da3050c180ef56642857f44a59132179d50046d9669a47e8",
+    "isaac-geometry-local.json": "8add149ef7e4e1d33a5357b7db4200b637b6091df82a9043e3b3fc0c95c40dc3",
+    "mujoco-geometry-local.json": "d7013b8b6d8a37b395703be1551e3453c2a09d3619478731681516dcfda8e20f",
+    "isaac-native-mask-audit.json": "8b23ae18a2a7c82d1e137aeb70015876f1af9408674ba05b2c8c5a24e6f7c09a",
+    "mujoco-native-mask-audit.json": "895c86399278aff0d92b4d2d0c53885b0aace2044313c01c6bda3c4ec079760c",
+    "isaac-binding.json": "de731d0f57ddcd76708a87b6613d6887c9d7fc2ee73150d8803bc483747e1d44",
+    "isaac.log": "716e656cdd591b494b85a891ad58432f2eeb19cc3fbe6f8155c0e8f561343f87",
+    "mujoco.log": "aad4f9264365aa1265353ce12ce4a7002c17f29a88a81a1f37b8269c2a7c8b92",
+    "fixture-isaac-geometry.json": "b333cba208ff40375e86d428fcb61ace7c6a890151683a8918bf3eef7a324c5e",
+    "fixture-mujoco-geometry.json": "5c4352b1be6d28d4612744780d989298a070bf8b48b4756258ff2f5b625ef8b5",
+    "fixture-isaac-mask-audit.json": "d740be103805f7015fc34169d446adbb42e84e65e1003fa7a01def94ae3205ed",
+    "fixture-mujoco-mask-audit.json": "c70bbd9484652c0d1aee9442ac91318c246733185c88131b419bda2bc57be8b9"
+  },
+  "adapter_sha256": {
+    "isaac_adapter.py": "e2f8c0550dc8535b91497ca3825fb1b4120b08b7f946996d46935b4cfb363c10",
+    "isaac_driver.py": "7f0f5dddc95940b973b8f707525ae75dcc055b45b295de1add977cdf0a03e851"
+  }
+}

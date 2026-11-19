@@ -1,5 +1,6 @@
 """Recompute the paper's paired estimates from portable per-query and per-pair evidence."""
 
+import argparse
 import csv
 import hashlib
 import json
@@ -143,7 +144,39 @@ def check_raw_decisions(by_id):
             raise ValueError(f"Incomplete raw score inventory for {method}")
 
 
-def run():
+def compare_readers(rows):
+    admitted = []
+    for row in rows:
+        dense_passed = row["dense_gate"] == "accepted"
+        qwen_passed = row["registered_gate"] == "accepted"
+        if dense_passed != qwen_passed:
+            raise ValueError(f"Readers used different admission decisions for {row['id']}")
+        if dense_passed:
+            admitted.append(row)
+
+    result = {}
+    for name, cases in (("all_queries", rows), ("shared_registration", admitted)):
+        by_engine = {}
+        for engine in (*ENGINES, "pooled"):
+            group = cases if engine == "pooled" else [r for r in cases if r["engine"] == engine]
+            table = Counter((r["truth"], r["dense"], r["registered"]) for r in group)
+            counts = {"removed": sum(r["truth"] == "REMOVED" for r in group),
+                      "retained": sum(r["truth"] == "PRESENT" for r in group)}
+            for method in ("dense", "registered"):
+                counts[method] = {
+                    "missed_removals": sum(r["truth"] == "REMOVED" and r[method] != "REMOVED" for r in group),
+                    "false_deletions": sum(r["truth"] == "PRESENT" and r[method] == "REMOVED" for r in group),
+                }
+            counts["additional_qwen_false_deletions"] = {
+                "dense_answered_present": table["PRESENT", "PRESENT", "REMOVED"],
+                "dense_abstained": table["PRESENT", "UNKNOWN", "REMOVED"],
+            }
+            by_engine[engine] = counts
+        result[name] = by_engine
+    return result
+
+
+def run(removals=False):
     rows, pairs = load_csv("queries.csv"), load_csv("pairs.csv")
     identifiers = {r["id"] for r in rows}
     physical_keys = {
@@ -156,6 +189,8 @@ def run():
     for r in rows:
         if r["truth"] != ("PRESENT" if r["state"].endswith("_present") else "REMOVED"):
             raise ValueError("Intervention mismatch")
+    if removals:
+        return compare_readers(rows)
     layout_ids = sorted({r["arrangement"] for r in rows})
     rng = np.random.default_rng(249)
     strata = [
@@ -354,5 +389,7 @@ def run():
 
 
 if __name__ == "__main__":
-    summary = run()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--removals", action="store_true", help="Recount missed removals and false deletions on the full and admitted panels.")
+    summary = run(removals=parser.parse_args().removals)
     print(json.dumps(summary, indent=2, allow_nan=False))

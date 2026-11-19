@@ -1,0 +1,18 @@
+{
+  "study_id": "workshop-clearance-v2",
+  "design_locked": true,
+  "scope": "paired appearance rerun of the eight inspected corridor layouts plus two robot approach cameras",
+  "layouts": ["COR01","COR02","COR03","COR04","COR05","COR06","COR07","COR08"],
+  "layout_seeds": [4171,4172,4173,4174,4175,4176,4177,4178],
+  "excluded_fixture": "CORFIX",
+  "engines": ["isaac","mujoco"],
+  "stops": ["P1","P2","P3","P4","P5"],
+  "states": ["clear_present","clear_removed","placed_present","placed_removed"],
+  "qualification_levels": ["D0"], "pilot_levels": ["D0","D6"],
+  "image_size": [2304,1296], "delivered_size": [1200,675],
+  "primary": {"engine":"mujoco","view":"P3","door":"placed","method":"vggt_qwen","outcome":"both_REMOVED_on_native_and_delivered_exact_inputs","recurrence_layouts":2},
+  "matched_views": ["P1","P2","P3"], "added_views": ["P4","P5"],
+  "prior_frontal_events": ["COR01","COR03","COR04","COR05","COR06","COR07","COR08"],
+  "methods": ["baseline_200","geometry","vggt_qwen"],
+  "original_task_sha256":"db57d40b5d55ba40b0b3fcdcb7a449c322bb861d4cb401c29361f6c5f5f045ed"
+}

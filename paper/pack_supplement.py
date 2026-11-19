@@ -8,6 +8,11 @@ from pathlib import Path
 
 MATERIAL = (".typ", ".bib", ".md", ".py", ".csv", ".gz", ".json", ".jsonl", ".png", ".txt")
 SKIP = {"__pycache__", ".git", ".venv"}
+FOLLOWUPS = {
+    "level-shelf": "level_shelf",
+    "corridor-transfer": "corridor_transfer",
+    "workshop-clearance": "workshop_realism",
+}
 
 
 def digest(path):
@@ -18,6 +23,29 @@ def digest(path):
         return h.hexdigest()
 
 
+def followup_files(paper):
+    for name, design in FOLLOWUPS.items():
+        prefix = Path("followups") / name
+        exports = paper.parent / "notes" / "figures" / f"2026-11-18-{name}"
+        protocol = paper.parent / "development" / design
+        sources = {
+            "pairs.csv": exports,
+            "decisions.csv": exports,
+            "summary.json": exports,
+            "design-release.json": exports,
+            "independent-review.json": exports,
+            "PROTOCOL.md": protocol,
+            "declaration.json": protocol,
+        }
+        if name == "workshop-clearance":
+            sources["DOOR_AMENDMENT.md"] = protocol
+            sources["declaration-door.json"] = protocol
+        for filename, source in sources.items():
+            relative = prefix / filename
+            packaged = paper / relative
+            yield relative.as_posix(), packaged if packaged.is_file() else source / filename
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--software", type=Path, required=True)
@@ -26,6 +54,8 @@ def main():
     here = Path(__file__).resolve().parent
     targets = {}
     for f in here.iterdir():
+        if f.name == "SHA256SUMS.txt":
+            continue
         if f.is_file() and (
             f.suffix in MATERIAL
             or f.name == "Rajendran-counterfactual-scene-memory.pdf"
@@ -39,6 +69,7 @@ def main():
                 and not set(f.relative_to(here).parts) & SKIP
             ):
                 targets[f.relative_to(here).as_posix()] = f
+    targets.update(followup_files(here))
     for f in sorted(a.software.rglob("*")):
         if f.is_file() and not set(f.relative_to(a.software).parts) & SKIP:
             targets["software/" + f.relative_to(a.software).as_posix()] = f

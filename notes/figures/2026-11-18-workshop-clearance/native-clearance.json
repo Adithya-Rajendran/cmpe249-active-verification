@@ -1,0 +1,487 @@
+{
+  "native_scene_states": 32,
+  "minimum_architectural_clearance_m": 0.011999999999999567,
+  "minimum_object_clearance_m": 0.2839270316830804,
+  "measurements": [
+    {
+      "engine": "isaac",
+      "layout": "COR01",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.32364399924874304
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR01",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.32364399924874304
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR02",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.29992536552544813
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR02",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.29992536552544813
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR03",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3852950813413658
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR03",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3852950813413658
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR04",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.385379501581192
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR04",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.385379501581192
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR05",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3053759677187241
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR05",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3053759677187241
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR06",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.2839270316830804
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR06",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.2839270316830804
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR07",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.403643999248743
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR07",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.403643999248743
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR08",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3599950588756411
+      }
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR08",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3599950588756411
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR01",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3236440002405509
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR01",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3236440002405509
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR02",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.29992536558318095
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR02",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.29992536558318095
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR03",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3852950823699357
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR03",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3852950823699357
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR04",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.38537950372996144
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR04",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.38537950372996144
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR05",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3053759664577349
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR05",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3053759664577349
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR06",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.28392703204116165
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR06",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.28392703204116165
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR07",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.40364399919594823
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR07",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.40364399919594823
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR08",
+      "level": "D0",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3599950605269402
+      }
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR08",
+      "level": "D6",
+      "architecture": {
+        "count": 92,
+        "nearest": "rail_cover",
+        "gap_m": 0.011999999999999567
+      },
+      "objects": {
+        "count": 3,
+        "nearest": "target",
+        "gap_m": 0.3599950605269402
+      }
+    }
+  ]
+}

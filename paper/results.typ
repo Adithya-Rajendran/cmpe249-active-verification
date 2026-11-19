@@ -51,6 +51,8 @@ The zero-shot registered-place comparator qualified on its disjoint archived con
 
 The registered language model recognized 80/80 clear moved-camera removals in Isaac and 79/80 in MuJoCo. It also reported removal on 24/320 retained Isaac queries and 27/320 retained MuJoCo queries (@counts-table). Eleven of these false removals per engine occurred with the blocker parked. In every parked-blocker retained view, the native mask covered at least 99.96% of the isolated target silhouette. All the model's wrong definite decisions were removals. Across both engines it gave 781 correct answers, compared with 776 under homography and 797 under dense geometry. All 3,840 query evaluations completed without a technical execution failure.
 
+Across the 640 actual removals, the dense rule missed 241 and registered Qwen missed 221. Both methods abstained on every missed removal. Across the 640 retained queries, the same methods falsely deleted two and 51 targets, respectively.
+
 A rule that always abstains makes zero errors and zero correct decisions on this panel. A rule that always reports removal achieves 80/80 on the primary endpoint and 320/640 overall, with 320 false removals per engine. The two controls explain why resolution, coverage and wrong commitments must be reported together.
 
 == When opposite states gave identical inputs
@@ -68,3 +70,9 @@ A rule that always abstains makes zero errors and zero correct decisions on this
 == What did the fixed-camera calibration measure?
 
 #include "calibration-finding.typ"
+
+== How sensitive were the failures to the camera and room?
+
+Three follow-up panels used the frozen verifiers. On the shelf, four previously identified MuJoCo failures recurred at the original camera angles. When the shelf edge was leveled in the image by rotating each camera at the same position, registration stopped all four pairs before the language model ran. Eight fresh service-corridor layouts then tested a bottle or a drill behind a sliding door. The declared oblique test found zero double-REMOVED calls on eight exact MuJoCo pairs. A secondary frontal view gave seven on eight exact pairs. That view also changed camera position and heading.
+
+The furnished workshop repeated those same eight corridor layouts with a corrected sliding-door bay. Its declared frontal test gave zero double-REMOVED calls on eight exact MuJoCo pairs. Registration stopped all eight. Changing the room altered several visual cues together. On open-door controls the simple homography classified all 80 queries correctly in each engine and abstained on every closed-door query. The registered language model detected all 40 actual open-door removals in each engine, yet falsely removed an exposed drill on four of 40 retained queries in Isaac and two of 40 in MuJoCo. All six errors occurred on the two added robot camera mounts. The supplement provides the pair tables for each panel. The corridor and workshop share layouts, so their counts describe a matched sensitivity test.

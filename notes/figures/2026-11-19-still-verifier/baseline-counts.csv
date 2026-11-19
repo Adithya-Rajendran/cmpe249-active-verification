@@ -1,0 +1,13 @@
+cohort,engine,method,removed_queries,detected_removals,missed_removals,missed_as_unknown,missed_as_present,retained_queries,false_deletions,total_unknown
+all,isaac,dense,320,192,128,128,0,320,0,243
+all,isaac,registered,320,208,112,112,0,320,24,225
+all,mujoco,dense,320,207,113,113,0,320,2,238
+all,mujoco,registered,320,211,109,109,0,320,27,223
+all,both,dense,640,399,241,241,0,640,2,481
+all,both,registered,640,419,221,221,0,640,51,448
+admitted_by_original_registration,isaac,dense,208,192,16,16,0,207,0,18
+admitted_by_original_registration,isaac,registered,208,208,0,0,0,207,24,0
+admitted_by_original_registration,mujoco,dense,211,207,4,4,0,208,2,17
+admitted_by_original_registration,mujoco,registered,211,211,0,0,0,208,27,2
+admitted_by_original_registration,both,dense,419,399,20,20,0,415,2,35
+admitted_by_original_registration,both,registered,419,419,0,0,0,415,51,2

@@ -1,0 +1,81 @@
+{
+  "study_id": "workshop-clearance-v2",
+  "design_release_sha256": "509e55e233590a9072b1b1ae7adfbb47c04efaed98d499d3272142a62b60ab1e",
+  "manifest_sha256": "241057a9005b82595bb1be38ff458f87e8d5ee943abce9ecab68e480a7a6aa8d",
+  "scientific_declaration_sha256": "3ca949e8e81b994057d5654788dbb14f0738c6f7da8339f4e47e1eb680f0a585",
+  "canonical_declaration_sha256": "d110882a0b24757d78b929c4b935bee2b096d4502dc59675b177fb67462364dc",
+  "workshop_renderer_sha256": "6e7fb39871593e04ff96e471f96f213e217a0e29f3632eb2dd5ecabb43f5f684",
+  "native_facility_program_sha256": "93446f5444671104df9423792149404d5c905b3fcc943cb4d726bfda57813fb9",
+  "scope": "8 shared corrected workshop layouts, 2 levels, 5 camera stops, 4 target/door states",
+  "engine_layouts": {
+    "isaac": 8,
+    "mujoco": 8
+  },
+  "mujoco_capture_gl": {
+    "vendor": "Mesa",
+    "renderer": "llvmpipe (LLVM 20.1.2, 128 bits)",
+    "version": "4.5 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.4"
+  },
+  "independent_checks": "full geometry and native image/mask checks passed; each local full geometry receipt verified 41 file hashes",
+  "fixture": "CORFIX captured separately and excluded from panel",
+  "native_isaac_facilities": {
+    "COR01": {
+      "report_sha256": "0b6f405e450cf559786b24110c6d23095b6c328fdd76c604bdd4f7839299ec61",
+      "usdz_sha256": "a93d3a6c07151d47c3fb96bfdc4739732c7c6ff21773005b10dc283464124df1",
+      "pass": true
+    },
+    "COR02": {
+      "report_sha256": "f214cc7be74271d0c28f3b47affbfe9c07e3fdc00d1f80cbff8f3dcc9396fd77",
+      "usdz_sha256": "f281c771409b7dbfed7f09eb12e395a818f6a2ddb7871d45bd55704d0cbe94fd",
+      "pass": true
+    },
+    "COR03": {
+      "report_sha256": "225e8c726fa74e5e304f4c7922335cb94a63bf3ba364f9b94061e35b4d0c15bb",
+      "usdz_sha256": "3e5c6e2060cb6002f5d0705fad819e8e51c40d153a1a925a6ef510283f564893",
+      "pass": true
+    },
+    "COR04": {
+      "report_sha256": "cbc9612aec1c5edd9954a498b236863fbd6b006611cb0e9a79b9273b6cdef815",
+      "usdz_sha256": "748d63040f939b1bb849b5e307dcc133d58483f8e569bbf5e1898e482290d645",
+      "pass": true
+    },
+    "COR05": {
+      "report_sha256": "3ae8bc509b5f5185ddc7ed1b9811beaabc84d12c8bc9eabdb3d813d8b471b178",
+      "usdz_sha256": "6e7d0695efc7d13e2d9dfef4250197c0bccf09726a50b1143abf5c7a1e81a806",
+      "pass": true
+    },
+    "COR06": {
+      "report_sha256": "138d94fb9c0414232ca9946038b0a753d17854a4c47cf8dc24c0a8237710100b",
+      "usdz_sha256": "93e8405bbc35ed78e7837a56f7a8eb598b2e419905c3433e2a5ef672ee657191",
+      "pass": true
+    },
+    "COR07": {
+      "report_sha256": "0ebd312010b3000f16fbab7e7c19aaa1b4d650e9909e7a9eee6a088d09374f74",
+      "usdz_sha256": "266f4ff5b4e02a851598336b193910e3c8c4aaa31251404889640e87bf20d8f2",
+      "pass": true
+    },
+    "COR08": {
+      "report_sha256": "9fe1910b3467decf321a936732122723a02121a6f21b8ca7ec2cf2009612af66",
+      "usdz_sha256": "4d2671ce68652a3aa845da88ec39dfe2c879ba915d7113e575e12148cbe28d72",
+      "pass": true
+    }
+  },
+  "native_summary_sha256": "10311354a6358cf3be57adbfd9a989827b3d9efc30f3c10fc3e0e46e190a2ba4",
+  "files_sha256": {
+    "isaac-private-manifest.json": "f716bd9572db49362b07e0336db2e036f9f51a8463ee2e23e27793cbf115e101",
+    "mujoco-private-manifest.json": "b585ecc65b8790fff324beb6eb14f0d3200bb5652957f1b4fb9344d13c694fb1",
+    "isaac-geometry-local.json": "be22e8244b3ff1afd8703b03011931d0fec271aefba4fe805440dd870a3fce79",
+    "mujoco-geometry-local.json": "998a0939948fc67994df6dc63fecbe2e74cecf3a4773b4bfa2243fd0cc045d02",
+    "isaac-native-mask-audit.json": "a71ffd594710bcd73cb879af5ced9af83a61ae4bb0aa36d5cda77eefe7eb399e",
+    "mujoco-native-mask-audit.json": "a902091324c741df041502c9c82e12ba5408df5f91df1311644bdf71548525a7",
+    "isaac-binding.json": "7f2b1b5459f7dd68f0869bb0065706cc55a1baa06952bbb7b97001a393bfcfe6",
+    "isaac.log": "25cfab7291c8911d759c8555ca76d0c18ce770e8fad3384da58e0f03877df277",
+    "mujoco.log": "aad4f9264365aa1265353ce12ce4a7002c17f29a88a81a1f37b8269c2a7c8b92",
+    "preflight-correction.json": "48b1edaefc23280141994fa8fddf88c1f9489d96662dba3b599bb7fb6f102a75",
+    "fixture-isaac-geometry.json": "d2bcc44cb0cd8cf61376208c6cbfb6e73ae978da106b2d390edcb61b07a0d929",
+    "fixture-mujoco-geometry.json": "18980c8794e117ddd38bbea7bcbebf72ce273bb32f30446b74e2542b93adf2e8",
+    "fixture-isaac-mask-audit.json": "60a2cca5cd8c62db0857de75f11a76e61d54b077b473fd51b76cd03b5511c664",
+    "fixture-mujoco-mask-audit.json": "c38b7b6cff14c7215b08977b582c1d4a7becf9c225d409374caf5a5541ba869e",
+    "isaac-panel.log": "34f657f8c3b6475b7be1bbe4237abc80a1dcc871fcc4cbda5675c4983106b49d"
+  }
+}

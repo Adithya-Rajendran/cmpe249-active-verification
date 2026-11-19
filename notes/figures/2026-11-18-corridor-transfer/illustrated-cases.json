@@ -1,0 +1,149 @@
+{
+  "selection": "First fixed layout of each target identity, both engines, P1",
+  "cases": [
+    {
+      "engine": "isaac",
+      "layout": "COR01",
+      "view": "P1",
+      "state": "reference",
+      "id": "6a548f9320b6c5b076884ce1",
+      "image_sha256": "955d28bf0b8b62f5fe9cd69e537dccd1d8619f262409d224582c62679f44f5a8",
+      "display": "Remembered object"
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR01",
+      "view": "P1",
+      "state": "clear_removed",
+      "id": "b4ef529dea013a981e54024c",
+      "image_sha256": "5906fe3caade6b133ce84b7291d859107bf1ff5cc3ae84e2ed7caedfae005dd7",
+      "display": "REMOVED"
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR01",
+      "view": "P1",
+      "state": "placed_present",
+      "id": "f9adfd44e215a095a3ea29a0",
+      "image_sha256": "83eecdbcf6e0c34703ce0c9f223f81728d90cd56c655f6425d55baecc2761b88",
+      "display": "UNKNOWN \u00b7 geometry check"
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR01",
+      "view": "P1",
+      "state": "placed_removed",
+      "id": "96ad636a70b193c749e8bedb",
+      "image_sha256": "fafdd6f31176b57643f2cb4d14678990a7630b0eff158c2d646f239172cd4f33",
+      "display": "UNKNOWN \u00b7 geometry check"
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR01",
+      "view": "P1",
+      "state": "reference",
+      "id": "7d8140f9336a7e617862d9b5",
+      "image_sha256": "08c65a7735c910ee97329c136153a4232a1d606f3408c84e37094bb0c4e1038b",
+      "display": "Remembered object"
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR01",
+      "view": "P1",
+      "state": "clear_removed",
+      "id": "a132e5c406ddd8603dca838c",
+      "image_sha256": "0fd709f302bf7b5d72ece8482bb1c667ad08f14fc51cb556b26033ae263bc45a",
+      "display": "REMOVED"
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR01",
+      "view": "P1",
+      "state": "placed_present",
+      "id": "f2da779485a2868b5b3d77fb",
+      "image_sha256": "d512069045d4eaca2868f446aee0e3e12121561e12fa0f8c6a83682140f0e4c7",
+      "display": "UNKNOWN \u00b7 geometry check"
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR01",
+      "view": "P1",
+      "state": "placed_removed",
+      "id": "85779b78fad2e8cc50aff25f",
+      "image_sha256": "d512069045d4eaca2868f446aee0e3e12121561e12fa0f8c6a83682140f0e4c7",
+      "display": "UNKNOWN \u00b7 geometry check"
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR02",
+      "view": "P1",
+      "state": "reference",
+      "id": "b2fb15824e377cf4327a451c",
+      "image_sha256": "fb4308517d92ab9c22eb222ec7ce0ea3612979a149946bd52ddf055ad216c207",
+      "display": "Remembered object"
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR02",
+      "view": "P1",
+      "state": "clear_removed",
+      "id": "cbc115a93086222111e08039",
+      "image_sha256": "41e3871fbe70fcd76e6e54c41499c5f3f87804851d5d8c8c21ef17a1b516a63f",
+      "display": "REMOVED"
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR02",
+      "view": "P1",
+      "state": "placed_present",
+      "id": "29b1f568b62d8544a864f730",
+      "image_sha256": "8aa42862ac83e74adc24ba753033143507bd271158948b3ceb060460105ccbd5",
+      "display": "UNKNOWN \u00b7 geometry check"
+    },
+    {
+      "engine": "isaac",
+      "layout": "COR02",
+      "view": "P1",
+      "state": "placed_removed",
+      "id": "38a35ccee8889205cbddd525",
+      "image_sha256": "fa9b0186b7c1552ce8ef7f2cafb469445498e41365fa3cb57fb172a515a7d7d8",
+      "display": "UNKNOWN \u00b7 geometry check"
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR02",
+      "view": "P1",
+      "state": "reference",
+      "id": "9eb0b83950ff47f9f17985cf",
+      "image_sha256": "95f55dd18e8006b2313562fa6967c714f477db8e0b041ce30ce868a075dfae2b",
+      "display": "Remembered object"
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR02",
+      "view": "P1",
+      "state": "clear_removed",
+      "id": "b5ed7d56d7fb51212f1d6ac2",
+      "image_sha256": "af593876dd56261b8266f225d065f3353d17b67f444835a253137246d1c9f0d2",
+      "display": "REMOVED"
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR02",
+      "view": "P1",
+      "state": "placed_present",
+      "id": "e5e6dd4be535a0a835899c41",
+      "image_sha256": "c416b6a01226f43b9a16718d0337e5f25301cb03914351a3d7bf8b970373e698",
+      "display": "UNKNOWN \u00b7 geometry check"
+    },
+    {
+      "engine": "mujoco",
+      "layout": "COR02",
+      "view": "P1",
+      "state": "placed_removed",
+      "id": "9d05800bf7908ac7c5855a14",
+      "image_sha256": "c416b6a01226f43b9a16718d0337e5f25301cb03914351a3d7bf8b970373e698",
+      "display": "UNKNOWN \u00b7 geometry check"
+    }
+  ]
+}

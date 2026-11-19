@@ -1,0 +1,34 @@
+{
+  "isaac": {
+    "mask_audit_views": 80,
+    "mask_audit_errors": [],
+    "max_camera_and_geometry_errors": {
+      "position_m": 0.0,
+      "rotation_deg": 0.0,
+      "bounds_m": 1.0490417468034252e-07,
+      "camera_position_m": 0.0,
+      "camera_axis_deg": 7.111936473907614e-15,
+      "intrinsics_px": 7.439540422637947e-05,
+      "landmark_px": 5.198499043586571e-05
+    },
+    "geometry_receipt_sha256": "3b64a507c09716fe011f4718e1656cdc9434a7936bc9397caecd6c52e36ed158",
+    "mask_receipt_sha256": "71af6d72f1767408170d5afbf03e65d61e61b600dc4b9c197837a03d3a546a0b",
+    "native_arrangement_levels": 16
+  },
+  "mujoco": {
+    "mask_audit_views": 80,
+    "mask_audit_errors": [],
+    "max_camera_and_geometry_errors": {
+      "position_m": 2.220446049250313e-16,
+      "rotation_deg": 1.7075472925031877e-06,
+      "bounds_m": 1.347064997325731e-07,
+      "camera_position_m": 4.311584517391592e-12,
+      "camera_axis_deg": 3.8975312489203906e-11,
+      "intrinsics_px": 0.0,
+      "landmark_px": 2.8430657904319246e-09
+    },
+    "geometry_receipt_sha256": "12fd15e8f99b69a1e1389d84fa26b8a01b21aba466e6b80c3865321452d9ba41",
+    "mask_receipt_sha256": "f806ce0561265d12248e17c0bba22a3b66eda5016f731cfa549bac724bb22e1d",
+    "native_arrangement_levels": 16
+  }
+}

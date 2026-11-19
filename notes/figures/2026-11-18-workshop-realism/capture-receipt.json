@@ -1,0 +1,47 @@
+{
+  "study_id": "workshop-realism-v1",
+  "design_release_sha256": "9e76bf0d3218b33115ec3dfba15db9e61325c7de5303ffe0e50189ef1bd04219",
+  "manifest_sha256": "bf19cdb331bcb20498498574edc481e987f3ed092f421b3d6997d5800c9ade6f",
+  "declaration_sha256": "3ca949e8e81b994057d5654788dbb14f0738c6f7da8339f4e47e1eb680f0a585",
+  "workshop_renderer_sha256": "6e7fb39871593e04ff96e471f96f213e217a0e29f3632eb2dd5ecabb43f5f684",
+  "scope": "8 shared workshop layouts, 2 levels, 5 camera stops, 4 target/door states",
+  "engine_layouts": {
+    "isaac": 8,
+    "mujoco": 8
+  },
+  "mujoco_capture_gl": {
+    "vendor": "Mesa",
+    "renderer": "llvmpipe (LLVM 20.1.2, 128 bits)",
+    "version": "4.5 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.4"
+  },
+  "independent_checks": "full geometry and native image/mask checks passed, and each local full geometry receipt verified 41 file hashes",
+  "fixture_versions": "v1, v2 and v3 kept separate; only reviewed v3 source and panel used",
+  "files_sha256": {
+    "isaac-private-manifest.json": "8372362be8006617efcdcb59f8fc2ae7c9aa1702b998c2050f0a89fd11a5e793",
+    "mujoco-private-manifest.json": "e3533d2c43334443d8c6b5b6b9397dd07c2238fa1b8414f8c35267bf4b98bfd1",
+    "isaac-geometry-local.json": "3b64a507c09716fe011f4718e1656cdc9434a7936bc9397caecd6c52e36ed158",
+    "mujoco-geometry-local.json": "12fd15e8f99b69a1e1389d84fa26b8a01b21aba466e6b80c3865321452d9ba41",
+    "isaac-native-mask-audit.json": "71af6d72f1767408170d5afbf03e65d61e61b600dc4b9c197837a03d3a546a0b",
+    "mujoco-native-mask-audit.json": "f806ce0561265d12248e17c0bba22a3b66eda5016f731cfa549bac724bb22e1d",
+    "isaac-binding.json": "a8414fcd5518251ddf806a242b43c670405ebe86e491cccb9338e2950beb848c",
+    "isaac.log": "cb88ea24130d245c25193802b3ebdd2a30d5d529701c1a926bcee22f9ae86e9f",
+    "mujoco.log": "aad4f9264365aa1265353ce12ce4a7002c17f29a88a81a1f37b8269c2a7c8b92",
+    "fixture-v3-isaac-geometry.json": "fa07809cfa32435a659604f18974ed959b7713e7808399b7fa9635c28a5edf1f",
+    "fixture-v3-mujoco-geometry.json": "dd3b7e57aca0018aa23c9d2d9a83a8e1d7c6b28027265b2ea6d8720420ed7ce5",
+    "fixture-v3-isaac-mask-audit.json": "d12791dbf4544e4dd51cd62ece609388aa3e03532e0c9ab02d50a68f4ed43bd5",
+    "fixture-v3-mujoco-mask-audit.json": "96f69c3a027638a3d38b93e24dc12dd08c79b83a8627cdb7f27c8b173795d0ec"
+  },
+  "materials_sha256": {
+    "cabinet_plate.png": "4caeeaeaa1ed52c8df29f01802ffa1afbe3abd1d4743563300f653def176f43d",
+    "carton_face.png": "d20270557d4c9a74551bd3ba9a443c049112b44ed6e67e58a9ceee300ed8ae9c",
+    "concrete.png": "904ed58fa1dd31b10a5802aa2bc5ad3859e2f5a5179530a5e4b18b384875eff5",
+    "door_plate.png": "48bf097e831b2c88a1380e62d2d6caed492e913f18cda88f4086cd7d3e1d5e44",
+    "door_skin.png": "aadc5a18c6204f86f0b5f477bd7c053901b2d0934af1d118d1a0c999603cdc71",
+    "floor_paint.png": "0ef1d2f9b03abfcd1a5d4cbdca9d07f9a3f6fedcae959564a078fb4a061ba788",
+    "lower_brick.png": "72a42b633a741460228f1c95e7d510c1343a79768cedcb92b0542161e6aba8b0",
+    "ply.png": "024eb3ca526f87daa5f3404782b1fc260f875b6958126d70667f7c5d6c63cb8a",
+    "service_plate.png": "ba954b9f0f7f9e3e296ec523d267c81e5de3363952c81e1130e031f85b3e51a1",
+    "sources.json": "8482e2813b4b8348f378077de0caafa2d517cd95b6d47fe76f136370a0986216",
+    "upper_brick.png": "608fc271d27677664cba9838d3356db9a9d1b7de81e0f1e2fb4e4e5c626403c7"
+  }
+}

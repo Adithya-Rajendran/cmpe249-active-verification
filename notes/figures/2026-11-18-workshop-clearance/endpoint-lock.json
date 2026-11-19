@@ -1,0 +1,19 @@
+{
+  "recorded_utc": "2026-11-19T07:01:38.002334+00:00",
+  "protocol_sha256": "c5a9aadb3ee1daaefeb4aacc3db648c08d0043530c3d00060991eadcebf2db42",
+  "declaration_sha256": "d110882a0b24757d78b929c4b935bee2b096d4502dc59675b177fb67462364dc",
+  "case_predictions_at_lock": 0,
+  "original_task_sha256": "db57d40b5d55ba40b0b3fcdcb7a449c322bb861d4cb401c29361f6c5f5f045ed",
+  "original_bindings": {
+    "homography": "d908d7b7dbf733f0374d09ab5bd8795d414aee957c4a0b6019c02ea73f3e95ba",
+    "dense": "59f547c64a2efa8476fc98aa638d52d587740674c83c20f67f3d55e04808583e",
+    "registered": "26e6c1665ce66775e526ea6b5b91cd4e3e81d1213368f75432831f576ac98156"
+  },
+  "prior_pairs_sha256": "46fc1e426bfc6977bb6a803e6dd3d4a17131d1223f10488b013d0dad7e3e7ea1",
+  "study_id": "workshop-clearance-v2",
+  "door_amendment_sha256": "52d48b48a7fc80f73aa4ba9b7c00166643fce76aabd76b0c134ad88332d3dbb2",
+  "predecessor_release_sha256": "9e76bf0d3218b33115ec3dfba15db9e61325c7de5303ffe0e50189ef1bd04219",
+  "reason": "The student noticed the parked panel intersecting solid masonry; v1 independent input checks and capture receipts are retained. No scored outputs informed this correction.",
+  "original_declaration_sha256": "3ca949e8e81b994057d5654788dbb14f0738c6f7da8339f4e47e1eb680f0a585",
+  "declaration_file": "declaration-door.json"
+}

@@ -1,0 +1,18 @@
+{
+  "specifications": 16,
+  "matched_camera_records": 96,
+  "source_files": {
+    "scene.py": "638b41e67507a002fcbe1f555c635eadf2f80c00dc5c0774c32171a68c0df9e8",
+    "capture.py": "6e7fb39871593e04ff96e471f96f213e217a0e29f3632eb2dd5ecabb43f5f684",
+    "materials.py": "a1ddae9f60255ab35d80b0b3d8ddddaf93ca263ca4e4c79f05855dffbd993277",
+    "materials/sources.json": "8482e2813b4b8348f378077de0caafa2d517cd95b6d47fe76f136370a0986216",
+    "declaration.json": "3ca949e8e81b994057d5654788dbb14f0738c6f7da8339f4e47e1eb680f0a585",
+    "PROTOCOL.md": "c5a9aadb3ee1daaefeb4aacc3db648c08d0043530c3d00060991eadcebf2db42"
+  },
+  "endpoint_lock_sha256": "1e219f0454e230b963c6abc0f4f7eb86bb7e30d3827fb0aa1c32ae96d2c56545",
+  "cohort_manifest_sha256": "bf19cdb331bcb20498498574edc481e987f3ed092f421b3d6997d5800c9ade6f",
+  "previous_manifest_sha256": "44976a26f46f11a86f25758327b7effa7ee333696fa5f769fa80cc071f6df88e",
+  "fixture_review_sha256": "882b3e38a70803740173c10ada755250261518c64596c716862e135e90fbf3ae",
+  "recorded_utc": "2026-11-19T06:02:12.972464+00:00",
+  "panel_authorized": true
+}

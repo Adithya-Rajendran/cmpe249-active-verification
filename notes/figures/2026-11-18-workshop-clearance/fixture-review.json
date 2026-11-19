@@ -1,0 +1,454 @@
+{
+  "accepted": true,
+  "engines": [
+    "isaac",
+    "mujoco"
+  ],
+  "excluded_fixture": "CORFIX",
+  "version": "bay-v2",
+  "recorded_utc": "2026-11-19T07:12:28.804096+00:00",
+  "criteria_sha256": "f3307bc32e24af66e7c5bbe11cc7f7a0175286ce4de33023ec57ce92f3b1affc",
+  "images": {
+    "fixture-mujoco/CORFIX/D0/rgb/clear_present_P3.png": "84e4b80dd4a98fd6f937992afc6e6836e9ddb13c983856e683ade91dfcd61b83",
+    "fixture-mujoco/CORFIX/D0/rgb/placed_present_P3.png": "9948e411d0d3536132287184d12d708e8f6dccb92abac90b6cf44b3c808bba3c",
+    "fixture-mujoco/CORFIX/D0/rgb/clear_present_P4.png": "7f23fda30909058e4f638dd838724bf8321790c22757c10b035d3ac2a820e396",
+    "fixture-mujoco/CORFIX/D0/rgb/placed_present_P4.png": "0a9f5fe8785b814f7c14a479eba48138d267ca27abf93016720cf9d31f233328",
+    "fixture-mujoco/CORFIX/D0/rgb/clear_present_P1.png": "37ec3c1811d5b9a0ef0dba638d3f96cc3f51ff5771b9be3e7eaa03f364df22ba",
+    "fixture-mujoco/CORFIX/D0/rgb/placed_present_P1.png": "8ad4a2e78b4bf2ec379a32832aacbd186afefd106e9a7588ef0901cf3a0e5a03",
+    "fixture-mujoco/CORFIX/D0/rgb/clear_present_P5.png": "d1f4021886e5e0f9ebcadc8806c8b511f8c26981466fdc9729eb8cc611d53c12",
+    "fixture-mujoco/CORFIX/D0/rgb/placed_present_P5.png": "2e610e498b0b1cd8ceefc7ef2499808e97e8c3c2dd5c1055559c45447534f9a1",
+    "fixture-isaac/CORFIX/D0/rgb/clear_present_P3.png": "ec6f0b1da449966322ad0dde92f83eb84210cf0494ee26f4b0d6bf26275f53a0",
+    "fixture-isaac/CORFIX/D0/rgb/placed_present_P3.png": "b1da9004aa47d393fcea018b689835b54a4e58c499c0301be0c4725538e42e7c",
+    "fixture-isaac/CORFIX/D0/rgb/clear_present_P4.png": "3633d2dcbd75e138e25b427b3c6c65fce7b680a74c36143956070e1926602870",
+    "fixture-isaac/CORFIX/D0/rgb/placed_present_P4.png": "fd3ebf1d9c983e01334f19f79edd2c9ebf56cf242230696cd0455a67b0880e96",
+    "fixture-isaac/CORFIX/D0/rgb/clear_present_P1.png": "4d1c71b280bd0ee2eaa2f41575b610278cfccf3f23c1c01e8fa9226b809a49d5",
+    "fixture-isaac/CORFIX/D0/rgb/placed_present_P1.png": "470aee71fe8ae8c262fba25ec3a6f0ac90746279a29f947c5bf9ab2da0707553",
+    "fixture-isaac/CORFIX/D0/rgb/clear_present_P5.png": "1377fb6fe36dd6a7f3587ccf21a7f43882d9894217d1a4672f5ae7c792539e87",
+    "fixture-isaac/CORFIX/D0/rgb/placed_present_P5.png": "64a358eb7c502fc971b3a0cb5f3475392dc3c3ee5895c650dd82fdea578cf34b"
+  },
+  "exposure": [
+    {
+      "engine": "mujoco",
+      "view": "P3",
+      "door": "clear",
+      "median": 94.0,
+      "below16": 0.0024092560442386833,
+      "above247": 4.688571673525377e-05,
+      "within_exposure_rule": true,
+      "required": true
+    },
+    {
+      "engine": "mujoco",
+      "view": "P3",
+      "door": "placed",
+      "median": 74.0,
+      "below16": 0.0015586151834705076,
+      "above247": 0.0,
+      "within_exposure_rule": true,
+      "required": true
+    },
+    {
+      "engine": "mujoco",
+      "view": "P4",
+      "door": "clear",
+      "median": 92.0,
+      "below16": 0.0016631033521947874,
+      "above247": 2.7461634087791497e-05,
+      "within_exposure_rule": true,
+      "required": true
+    },
+    {
+      "engine": "mujoco",
+      "view": "P4",
+      "door": "placed",
+      "median": 74.0,
+      "below16": 0.0011316202632030178,
+      "above247": 0.00013462898662551441,
+      "within_exposure_rule": true,
+      "required": true
+    },
+    {
+      "engine": "mujoco",
+      "view": "P1",
+      "door": "clear",
+      "median": 93.0,
+      "below16": 0.0030746983239026064,
+      "above247": 4.923000257201646e-05,
+      "within_exposure_rule": true,
+      "required": false
+    },
+    {
+      "engine": "mujoco",
+      "view": "P1",
+      "door": "placed",
+      "median": 72.0,
+      "below16": 0.002675165037722908,
+      "above247": 0.0,
+      "within_exposure_rule": true,
+      "required": false
+    },
+    {
+      "engine": "mujoco",
+      "view": "P5",
+      "door": "clear",
+      "median": 92.0,
+      "below16": 0.0018821266289437586,
+      "above247": 3.181530778463649e-05,
+      "within_exposure_rule": true,
+      "required": false
+    },
+    {
+      "engine": "mujoco",
+      "view": "P5",
+      "door": "placed",
+      "median": 72.0,
+      "below16": 0.0019236539780521263,
+      "above247": 0.0,
+      "within_exposure_rule": true,
+      "required": false
+    },
+    {
+      "engine": "isaac",
+      "view": "P3",
+      "door": "clear",
+      "median": 140.0,
+      "below16": 0.02286984792952675,
+      "above247": 0.0,
+      "within_exposure_rule": true,
+      "required": true
+    },
+    {
+      "engine": "isaac",
+      "view": "P3",
+      "door": "placed",
+      "median": 135.0,
+      "below16": 0.002570341971021948,
+      "above247": 0.0,
+      "within_exposure_rule": true,
+      "required": true
+    },
+    {
+      "engine": "isaac",
+      "view": "P4",
+      "door": "clear",
+      "median": 144.0,
+      "below16": 0.00948665498542524,
+      "above247": 0.0,
+      "within_exposure_rule": true,
+      "required": true
+    },
+    {
+      "engine": "isaac",
+      "view": "P4",
+      "door": "placed",
+      "median": 141.0,
+      "below16": 0.0007287379972565158,
+      "above247": 0.0,
+      "within_exposure_rule": true,
+      "required": true
+    },
+    {
+      "engine": "isaac",
+      "view": "P1",
+      "door": "clear",
+      "median": 141.0,
+      "below16": 0.018677929955418383,
+      "above247": 0.0,
+      "within_exposure_rule": true,
+      "required": false
+    },
+    {
+      "engine": "isaac",
+      "view": "P1",
+      "door": "placed",
+      "median": 132.0,
+      "below16": 0.0025673278892318243,
+      "above247": 0.0,
+      "within_exposure_rule": true,
+      "required": false
+    },
+    {
+      "engine": "isaac",
+      "view": "P5",
+      "door": "clear",
+      "median": 137.0,
+      "below16": 0.027197399584190672,
+      "above247": 0.0,
+      "within_exposure_rule": true,
+      "required": false
+    },
+    {
+      "engine": "isaac",
+      "view": "P5",
+      "door": "placed",
+      "median": 134.0,
+      "below16": 0.003598143861454047,
+      "above247": 0.0,
+      "within_exposure_rule": true,
+      "required": false
+    }
+  ],
+  "masks": [
+    {
+      "engine": "mujoco",
+      "view": "P1",
+      "level": "D0",
+      "isolated": 8916,
+      "open": 8915,
+      "closed": 0,
+      "clear_overlap_frac": 0.9998878420816509,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P1",
+      "level": "D6",
+      "isolated": 9296,
+      "open": 9296,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P2",
+      "level": "D0",
+      "isolated": 8905,
+      "open": 8905,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P2",
+      "level": "D6",
+      "isolated": 9288,
+      "open": 9288,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P3",
+      "level": "D0",
+      "isolated": 10658,
+      "open": 10658,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P3",
+      "level": "D6",
+      "isolated": 10787,
+      "open": 10786,
+      "closed": 0,
+      "clear_overlap_frac": 0.9999072958190415,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P4",
+      "level": "D0",
+      "isolated": 5639,
+      "open": 5639,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P4",
+      "level": "D6",
+      "isolated": 5871,
+      "open": 5871,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P5",
+      "level": "D0",
+      "isolated": 10538,
+      "open": 10537,
+      "closed": 0,
+      "clear_overlap_frac": 0.9999051053330803,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "mujoco",
+      "view": "P5",
+      "level": "D6",
+      "isolated": 11105,
+      "open": 11105,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P1",
+      "level": "D0",
+      "isolated": 8915,
+      "open": 8914,
+      "closed": 0,
+      "clear_overlap_frac": 0.9998878295008413,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P1",
+      "level": "D6",
+      "isolated": 9295,
+      "open": 9295,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P2",
+      "level": "D0",
+      "isolated": 8905,
+      "open": 8905,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P2",
+      "level": "D6",
+      "isolated": 9288,
+      "open": 9288,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P3",
+      "level": "D0",
+      "isolated": 10659,
+      "open": 10658,
+      "closed": 0,
+      "clear_overlap_frac": 0.9999061825687212,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P3",
+      "level": "D6",
+      "isolated": 10787,
+      "open": 10786,
+      "closed": 0,
+      "clear_overlap_frac": 0.9999072958190415,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P4",
+      "level": "D0",
+      "isolated": 5639,
+      "open": 5639,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P4",
+      "level": "D6",
+      "isolated": 5872,
+      "open": 5872,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P5",
+      "level": "D0",
+      "isolated": 10539,
+      "open": 10538,
+      "closed": 0,
+      "clear_overlap_frac": 0.9999051143372236,
+      "removed": [
+        0,
+        0
+      ]
+    },
+    {
+      "engine": "isaac",
+      "view": "P5",
+      "level": "D6",
+      "isolated": 11105,
+      "open": 11105,
+      "closed": 0,
+      "clear_overlap_frac": 1.0,
+      "removed": [
+        0,
+        0
+      ]
+    }
+  ],
+  "visual_review": "Reviewed actual RGB in both engines at both door positions. Furnishings, moving warning plate, and open target are visually distinct. Retain native lighting and color differences between renderers."
+}

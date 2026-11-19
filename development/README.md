@@ -7,6 +7,9 @@ The active scope uses Isaac Sim and MuJoCo. No confirmatory test is frozen.
 | --- | --- |
 | [Prospective paper audit](paper_audit/PROTOCOL.md) | Fresh counterfactual pairs, fixed-camera calibration, three verifiers and the layout-level comparison |
 | [Shelf camera orientation](level_shelf/PROTOCOL.md) | Repeated shelf scenes with the original, edge-leveled and straight-on views |
+| [Service corridor transfer](corridor_transfer/PROTOCOL.md) | Eight new floor layouts, two new target objects, and a sliding door in both simulators |
+| [Furnished workshop](workshop_realism/DOOR_AMENDMENT.md) | Matched corridors with a sliding door, photographed surfaces and two robot camera mounts |
+| [Workshop robot training](workshop_realism/ROBOTICS.md) | Drive a simulated robot in MuJoCo or use the native Isaac Sim facility |
 | [cross_sim](cross_sim/PLAN.md) | Qualified adapters, completed paired pilot and completed RGB geometry comparison |
 | [Blind label pilot](cross_sim/support_labels/PROTOCOL.md) | Fresh paired scenes, localized evidence checks and exact ambiguity controls |
 | [Reader instruction comparison](cross_sim/localization/PROTOCOL.md) | Separate blind readers judged the same images, with or without an initial location estimate |

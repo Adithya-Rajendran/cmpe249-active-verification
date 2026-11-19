@@ -1,0 +1,18 @@
+[
+  {
+    "python": "3.10.12",
+    "numpy": "1.21.5",
+    "matched_files": 17,
+    "total_files": 17,
+    "regenerated_manifest_sha256": "44976a26f46f11a86f25758327b7effa7ee333696fa5f769fa80cc071f6df88e",
+    "frozen_manifest_sha256": "44976a26f46f11a86f25758327b7effa7ee333696fa5f769fa80cc071f6df88e"
+  },
+  {
+    "python": "3.13.5",
+    "numpy": "2.5.3",
+    "matched_files": 17,
+    "total_files": 17,
+    "regenerated_manifest_sha256": "44976a26f46f11a86f25758327b7effa7ee333696fa5f769fa80cc071f6df88e",
+    "frozen_manifest_sha256": "44976a26f46f11a86f25758327b7effa7ee333696fa5f769fa80cc071f6df88e"
+  }
+]

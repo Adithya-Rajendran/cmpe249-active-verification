@@ -1,0 +1,68 @@
+{
+  "selection": "All views of COR01, the first declared layout, in the primary simulator",
+  "cases": [
+    {
+      "view": "P1",
+      "state": "reference",
+      "id": "f2da779485a2868b5b3d77fb",
+      "image_sha256": "08c65a7735c910ee97329c136153a4232a1d606f3408c84e37094bb0c4e1038b",
+      "caption": "Remembered bottle"
+    },
+    {
+      "view": "P1",
+      "state": "placed_present",
+      "id": "f2da779485a2868b5b3d77fb",
+      "image_sha256": "d512069045d4eaca2868f446aee0e3e12121561e12fa0f8c6a83682140f0e4c7",
+      "caption": "UNKNOWN \u00b7 geometry check stopped the call"
+    },
+    {
+      "view": "P1",
+      "state": "placed_removed",
+      "id": "85779b78fad2e8cc50aff25f",
+      "image_sha256": "d512069045d4eaca2868f446aee0e3e12121561e12fa0f8c6a83682140f0e4c7",
+      "caption": "UNKNOWN \u00b7 geometry check stopped the call"
+    },
+    {
+      "view": "P2",
+      "state": "reference",
+      "id": "8ca6883ea1d387893196e34c",
+      "image_sha256": "ca0d905849ed809c5efe116ea59ac048f9a8336e8f6c99451bc44d42102c75e8",
+      "caption": "Remembered bottle"
+    },
+    {
+      "view": "P2",
+      "state": "placed_present",
+      "id": "8ca6883ea1d387893196e34c",
+      "image_sha256": "016656e844736342235f59096efe6992a75d7ef70ce82745e2c1c08c44542b9b",
+      "caption": "UNKNOWN \u00b7 geometry check stopped the call"
+    },
+    {
+      "view": "P2",
+      "state": "placed_removed",
+      "id": "9c8a225332031db1ce83802f",
+      "image_sha256": "016656e844736342235f59096efe6992a75d7ef70ce82745e2c1c08c44542b9b",
+      "caption": "UNKNOWN \u00b7 geometry check stopped the call"
+    },
+    {
+      "view": "P3",
+      "state": "reference",
+      "id": "7612886aa367c701c948accc",
+      "image_sha256": "0a26d2f6bc2fffe4f8115e476af9782bf00f2781585be644609de1bf6b078ed5",
+      "caption": "Remembered bottle"
+    },
+    {
+      "view": "P3",
+      "state": "placed_present",
+      "id": "7612886aa367c701c948accc",
+      "image_sha256": "9e661c7c705eff1aa5c80ea7f194c41ec8e8cf6e516a00aa6967b4d1bb007b67",
+      "caption": "Qwen answered REMOVED \u00b7 false removal"
+    },
+    {
+      "view": "P3",
+      "state": "placed_removed",
+      "id": "dfe6854d18a890991a5b6115",
+      "image_sha256": "9e661c7c705eff1aa5c80ea7f194c41ec8e8cf6e516a00aa6967b4d1bb007b67",
+      "caption": "Qwen answered REMOVED"
+    }
+  ]
+}
