@@ -1,7 +1,7 @@
 # Development studies
 
 Start with the [current method](../docs/METHOD.md) and [evaluation plan](../docs/EVALUATION_PLAN.md).
-The active scope uses Isaac Sim and MuJoCo. No confirmatory test is frozen.
+The completed audit used Isaac Sim and MuJoCo. A fresh extra-view study was designed but not run.
 
 ## Run the repository tests
 

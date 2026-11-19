@@ -1,6 +1,6 @@
 # Evaluation plan for evidence-aware verification
 
-**Revised 2026-11-18 Pacific. Development remains open.**
+**Earlier work.** This plan records development decisions from 18 November 2026. The [paper](../paper/README.md) reports the completed evaluation.
 
 The [method](METHOD.md) defines inputs, labels and outputs.
 This plan replaces the fresh-study proposal draft of 2026-11-12.

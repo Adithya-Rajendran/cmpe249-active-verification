@@ -1,5 +1,7 @@
 # verify/: offline verification core (interface contract)
 
+> **Earlier work:** This guide records the original view-selection study and its development. Some statements describe its earlier status. See the [project overview](../README.md) for the concluded simulation audit.
+
 This is the contract for the offline replay, stopping rule, policies, scoring and synthetic
 generator. The code runs on the GB10, not the Pi. It is pure Python 3.13 plus numpy, with
 no new dependencies. Until study data exist, everything runs on **synthetic** episodes, and

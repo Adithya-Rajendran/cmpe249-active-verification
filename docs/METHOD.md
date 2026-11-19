@@ -1,6 +1,6 @@
 # Method: evidence-aware verification
 
-**Development specification, 2026-11-19 Pacific.**
+**Earlier work.** This specification records the methods considered during development. The [paper](../paper/README.md) identifies the methods evaluated at conclusion.
 
 The [paper protocol](../development/paper_audit/PROTOCOL.md) fixes a separate audit for two-image memory updates.
 Each matched pair keeps the same scene and camera. The evaluator toggles the target's render visibility.

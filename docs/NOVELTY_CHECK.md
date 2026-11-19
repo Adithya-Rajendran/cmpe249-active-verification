@@ -1,6 +1,6 @@
 # Novelty Check for the Week-2 Gate
 
-**Project:** Occlusion Aware Active Verification for Robot Scene Memory
+**Project:** Occlusion-aware active verification for robot scene memory
 **Check date:** September 26, 2026 (Week 3; the week-2 gate was due around September 21)
 **Gate question** (from `docs/PROPOSAL.md`, "Milestones and feasibility gate"): "If the closest work already contains this comparison ... I revise the scope or the topic with the instructor."
 **Prepared with:** Claude Code (AI assistance), for the student to review. This is a literature check. It contains no experimental results.

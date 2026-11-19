@@ -1,6 +1,6 @@
 # Citation Audit
 
-**Project:** Occlusion Aware Active Verification for Robot Scene Memory
+**Project:** Occlusion-aware active verification for robot scene memory
 **Audit date:** September 26, 2026
 **Scope:** all 15 entries in `references.bib`, the 14-item numbered list in `docs/PROPOSAL.md` (and the identical lists in the submitted PDF and DOCX), the reference table and per-paper sections of `docs/LITERATURE_REVIEW.md`, and the links in `docs/AI_AUDIT.md`.
 **Prepared with:** Claude Code (AI assistance). This audit changes nothing in the audited files. Corrections are listed at the end for the student to apply.

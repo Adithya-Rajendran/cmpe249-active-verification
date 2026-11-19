@@ -20,7 +20,7 @@ Matched observations also have a history in object-permanence research. IntPhys 
 
 TRAPSBench pairs answerable and unanswerable physics questions to test selective abstention. The Counterfactual Memory Audit varies the available history while holding the current observation identical and measures whether the action follows the history. Our exact pairs hold the supplied history fixed as well. The hidden object's physical state changes, so the same removal answer necessarily deletes one retained object in that pair. @trapsbench @cma
 
-SpatialUncertain varies occlusion and perspective in simulated scenes, keeps questions that human reviewers can answer from the view, takes its labels from scene geometry, and tests whether a better viewpoint resolves ambiguity. VAD-R studies spontaneous abstention on image questions and finds that a model can encode answerability while still answering. Our verifier receives an explicit UNKNOWN option. We measure whether a specified memory update follows from a complete two-image input that can recur under either physical state. @spatialuncertain @vad-r
+SpatialUncertain derives labels from scene geometry. Human reviewers screen questions about partially occluded views for answerability. A separate perspective task tests whether another viewpoint resolves apparent size ambiguity. VAD-R studies spontaneous abstention on image questions and finds that a model can encode answerability while still answering. Our verifier receives an explicit UNKNOWN option. We measure whether a specified memory update follows from a complete two-image input that can recur under either physical state. @spatialuncertain @vad-r
 
 = Counterfactual audit
 

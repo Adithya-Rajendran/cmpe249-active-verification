@@ -1,6 +1,8 @@
-# Proposal: evidence-aware verification of a remembered object
+# Project proposal
 
-**Development design, revised 2026-11-18 Pacific.**
+**Project** · Occlusion-aware active verification for robot scene memory
+
+**Earlier work.** This proposal records the design as of 18 November 2026. The [paper](../paper/README.md) reports the completed evaluation.
 
 ## Question and scope
 
