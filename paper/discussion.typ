@@ -13,6 +13,7 @@ After inspecting the results, we replayed the 640 blocker-placed starts across b
 
 #heading(level:2,numbering:none)[Data and reproducibility]
 The #link("https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1")[versioned data release] provides the exact images, raw decisions, software, and instructions for reproducing the comparison.
+The #link("https://github.com/Adithya-Rajendran/cmpe249-active-verification/blob/main/paper/README.md#reproduce-the-trained-still-comparison")[trained-verifier supplement] provides development and main-panel probabilities, registered boxes, locked thresholds, per-query decisions and a CPU recount. It also gives inference instructions and the exact model revisions for STILL @still-weights and zero-shot Qwen @qwen-weights.
 Version 1 archives the local protocol, target assignments, case and pair tables, calibration measurements, source and a second analysis implementation. The visibility analysis in this revision uses those archived decisions. The image archive contains every delivered RGB input with a content hash. Native outputs preserve masks and the recorded scene state for evaluator-side inspection. The study runs entirely in simulation.
 
 #heading(level:2,numbering:none)[AI assistance]

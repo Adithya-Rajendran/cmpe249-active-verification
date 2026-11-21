@@ -6,7 +6,7 @@ Read [the paper](Rajendran-counterfactual-scene-memory.pdf) for the research que
 The main study tests decisions about a remembered object on a shelf or a tabletop.
 The source uses Typst. Two analysis programs from the same project check the original decisions.
 The [versioned release](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1) contains the original paper, images, model outputs, native captures, and source.
-The final November 2026 revision includes the visibility analysis and a retrospective estimate of one extra camera view.
+The 20 November revision includes the trained STILL comparison, the visibility analysis and the retrospective estimate of one extra camera view.
 
 The shelf follow-up repeats the original camera views at new angles.
 The corridor follow-up uses eight fresh layouts, different objects and a sliding door.
@@ -46,7 +46,42 @@ The restored packet contains only the 1,280 input records and their original ima
 For new GPU inference, use the scorer commands in `software/README.md` inside the supplement.
 The Qwen verifier used the original weights with zero-shot prompting. [Pinned Qwen3.5-9B model on Hugging Face](https://huggingface.co/Qwen/Qwen3.5-9B/tree/c202236235762e1c871ad0ccb60c8ee5ba337b9a)
 The primary comparison tests homography and dense geometry. Registered Qwen passed a clear-view screen and serves as a diagnostic reader.
-If the authors supply the trained STILL checkpoint, the archived images support one further comparison.
+
+### Reproduce the trained STILL comparison
+
+The retrospective comparison uses the same 1,280 main queries and ten separate development layouts.
+STILL missed 178 of 640 removals and falsely deleted 36 of 640 retained objects.
+Zero-shot Qwen missed 221 and falsely deleted 51. [Results and example crops](../notes/2026-11-20-trained-still.md)
+
+From a repository checkout, run these commands at the repository root with Python 3.11 or later.
+The CPU recount needs only the Python standard library and the [comparison package](../notes/figures/2026-11-20-still-verifier/trained-still-comparison.zip).
+
+```sh
+evidence="$PWD/paper/evidence"
+package="$PWD/notes/figures/2026-11-20-still-verifier/trained-still-comparison.zip"
+work_dir=$(mktemp -d)
+unzip -q "$package" -d "$work_dir"
+cd "$work_dir"
+python3 evaluate.py calibrate . "$evidence/exploratory-decisions.csv"
+python3 evaluate.py evaluate . "$evidence/queries.csv" "$evidence/pairs.csv"
+python3 raw_recount.py . "$evidence"
+sha256sum --check SHA256SUMS.txt
+```
+
+In a standalone supplement built from this revision, set `evidence="$PWD/evidence"` and `package="$evidence/trained-still-comparison.zip"` at its root.
+Then run the same commands from `work_dir=$(mktemp -d)` onward.
+
+`counts.csv` gives both error counts by simulator and by the original Qwen alignment check.
+`exact-pairs.csv` counts deletions on the 88 identical pairs.
+`paired-differences.csv` gives the paired layout intervals.
+The manuscript reads the exported [counts](evidence/still-comparison-counts.csv) and [exact-pair table](evidence/still-exact-pairs.csv).
+
+For fresh STILL inference, follow the extracted package's README with the [main RGB archive](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/delivered-rgb.zip) and [development RGB archive](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/exploratory-inputs.zip).
+The package includes both inference scripts, saved Pi3 projections, batch settings and model revision identifiers.
+For fresh zero-shot Qwen inference, follow `software/README.md` in the [original scoring supplement](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/Rajendran-scene-memory-supplement.zip).
+
+Xie, Li and Meng describe the trained verifier and supply the released seed-2 weights. [STILL paper](https://doi.org/10.48550/arXiv.2611.18734) · [Exact checkpoint](https://huggingface.co/oran9er/STILL-Qwen3.5-9B/tree/81d9373e1dd9c07c537d5fb2436b36a26a2206b4)
+The original reader uses the Qwen Team's base release. [Qwen3.5 publication](https://qwen.ai/blog?id=qwen3.5) · [Exact base checkpoint](https://huggingface.co/Qwen/Qwen3.5-9B/tree/c202236235762e1c871ad0ccb60c8ee5ba337b9a)
 
 ### Retrospective extra-view estimate
 

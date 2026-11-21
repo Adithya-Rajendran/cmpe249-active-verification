@@ -6,7 +6,7 @@ The homography abstained on both members of all 88 MuJoCo pairs. Dense geometry 
 
 The shared geometry check stopped both members of 84 exact pairs before Qwen ran. The four admitted pairs all came from MuJoCo shelves with the wide panel at the moved camera pose. They covered two stops (P4 and P5) and three layouts (PAM01, PAM02 and PAM05). Qwen gave REMOVED on all eight calls, producing four physically correct guesses and four false deletions. This isolates the model's behavior on four pairs.
 
-#figure(image("figures/fresh-matched-pair.png",width:96%),caption:[Fresh MuJoCo shelf pair at stop P5 in PAM01. The reference marks a gelatin box. The box remains behind the panel in the middle image and is absent in the right image. The full revisit images are identical. The homography and dense geometry abstained twice. The registered language model answered REMOVED twice. The recorded display rule selected this pair.]) <fresh-pair>
+#figure(image("figures/fresh-matched-pair.png",width:96%),caption:[Fresh MuJoCo shelf pair at stop P5 in PAM01. The reference marks a gelatin box. The box remains behind the panel in the middle image and is absent in the right image. The full revisit images are identical. The homography and dense geometry abstained twice. Zero-shot Qwen answered REMOVED twice. In the retrospective test, STILL withheld both deletions because Pi3 supplied no usable crop. The original display rule selected this pair.]) <fresh-pair>
 
 == Where did the diagnostic reader fail?
 
