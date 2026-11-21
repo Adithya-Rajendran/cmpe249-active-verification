@@ -2,11 +2,12 @@
 
 Adithya Rajendran, San José State University.
 
-Read [the paper](Rajendran-counterfactual-scene-memory.pdf) for the research question, results and interpretation.
+Read the paper or download the editable LaTeX source. [Paper (PDF)](Rajendran-counterfactual-scene-memory.pdf) · [Source for Overleaf (ZIP)](Rajendran-counterfactual-scene-memory-latex.zip)
 The main study tests decisions about a remembered object on a shelf or a tabletop.
-The source uses Typst. Two analysis programs from the same project check the original decisions.
+The manuscript uses the official CoRL 2026 preprint template and names the author. [Author instructions](https://2026.corl.org/contributions/instruction-for-authors)
+Two analysis programs from the same project check the original decisions.
 The [versioned release](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1) contains the original paper, images, model outputs, native captures, and source.
-The 20 November revision includes the trained STILL comparison, the visibility analysis and the retrospective estimate of one extra camera view.
+The LaTeX edition includes the trained STILL comparison, the visibility analysis and the retrospective estimate of one extra camera view.
 
 The shelf follow-up repeats the original camera views at new angles.
 The corridor follow-up uses eight fresh layouts, different objects and a sliding door.
@@ -75,6 +76,13 @@ Then run the same commands from `work_dir=$(mktemp -d)` onward.
 `exact-pairs.csv` counts deletions on the 88 identical pairs.
 `paired-differences.csv` gives the paired layout intervals.
 The manuscript reads the exported [counts](evidence/still-comparison-counts.csv) and [exact-pair table](evidence/still-exact-pairs.csv).
+
+To rebuild the paper's STILL figure, run this command inside the extracted comparison package.
+The reference figure uses Matplotlib 3.11.2 and the two JPEG crops that the verifier received.
+
+```sh
+python3 draw_example.py . "$evidence/pairs.csv" still-registered-pair.png
+```
 
 For fresh STILL inference, follow the extracted package's README with the [main RGB archive](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/delivered-rgb.zip) and [development RGB archive](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/download/scene-memory-audit-v1/exploratory-inputs.zip).
 The package includes both inference scripts, saved Pi3 projections, batch settings and model revision identifiers.
@@ -178,20 +186,36 @@ The `native_exact` field compares the native reference and revisit images before
 
 ## Reproduce the paper
 
-The CPU recount used Python 3.10.12, NumPy 1.21.5, and Pillow 9.0.1.
-The figures used Matplotlib 3.5.1. The calibration recount used SciPy 1.8.0.
-The PDF build used the Python package `typst==0.14.2` with Python 3.13.5.
-The PDF identifies its underlying Typst compiler as version 0.14.0.
-The PDF build uses Bitstream Charter and Liberation Sans.
+The source archive contains the main text, appendix, references, six figures, and both official CoRL style files. [Main LaTeX file](manuscript.tex)
+It also contains the three evidence files and the program that generates the four result tables. [Editable source archive](Rajendran-counterfactual-scene-memory-latex.zip)
 
-Run these commands from the manuscript directory.
+In Overleaf, upload the source archive as a new project.
+Select `manuscript.tex` as the main document and compile it with XeLaTeX.
+The archive includes the generated table rows for direct LaTeX builds.
+
+For a local build, install Tectonic and put it on your command path.
+The reference build used Tectonic 0.17.0 and its default TeX bundle. [Tectonic](https://tectonic-typesetting.github.io/en-US/)
+Run the following command from the manuscript directory or the extracted source archive.
+
+```sh
+python3 build.py
+```
+
+This command regenerates the table rows from the evidence, runs LaTeX and BibTeX, and writes the PDF and editable ZIP.
+
+### Check the data and figures
+
+The CPU recount used Python 3.10.12, NumPy 1.21.5, and Pillow 9.0.1.
+The original five figures used Matplotlib 3.5.1. The calibration recount used SciPy 1.8.0.
+
+Run these commands from the full paper directory in the repository.
 
 ```sh
 python3 recount.py > reproduced-summary.json
 python3 draw_example.py
 python3 draw_calibration.py
 python3 draw_results.py
-python3 build.py
+python3 draw_visibility.py
 ```
 
 The recount checks each decision against the raw score and each pair against the earlier image audit.

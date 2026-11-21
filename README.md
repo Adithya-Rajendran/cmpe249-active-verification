@@ -6,7 +6,7 @@ Adithya Rajendran · CMPE 249, San José State University · Fall 2026
 
 A robot saw an object on an earlier visit. When it looks again, should it keep that memory, record a removal, or wait for a clearer view?
 
-[Read the paper](paper/Rajendran-counterfactual-scene-memory.pdf) · [Download the exact images and results](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1) · [Reproduce the comparison](paper/README.md#reproduce-the-main-comparison)
+[Read the paper (PDF)](paper/Rajendran-counterfactual-scene-memory.pdf) · [Edit the CoRL LaTeX source (ZIP)](paper/Rajendran-counterfactual-scene-memory-latex.zip) · [Download the exact images and results](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1) · [Reproduce the comparison](paper/README.md#reproduce-the-main-comparison)
 
 ## When a hidden box looks gone
 

@@ -6,7 +6,11 @@ import json
 import zipfile
 from pathlib import Path
 
-MATERIAL = (".typ", ".bib", ".md", ".py", ".csv", ".gz", ".json", ".jsonl", ".png", ".txt")
+MATERIAL = (".tex", ".sty", ".bst", ".bib", ".md", ".py", ".csv", ".gz", ".json", ".jsonl", ".png", ".txt")
+PAPER_DOWNLOADS = {
+    "Rajendran-counterfactual-scene-memory.pdf",
+    "Rajendran-counterfactual-scene-memory-latex.zip",
+}
 SKIP = {"__pycache__", ".git", ".venv"}
 FOLLOWUPS = {
     "level-shelf": "level_shelf",
@@ -56,10 +60,7 @@ def main():
     for f in here.iterdir():
         if f.name == "SHA256SUMS.txt":
             continue
-        if f.is_file() and (
-            f.suffix in MATERIAL
-            or f.name == "Rajendran-counterfactual-scene-memory.pdf"
-        ):
+        if f.is_file() and (f.suffix in MATERIAL or f.name in PAPER_DOWNLOADS):
             targets[f.name] = f
     for folder in ("figures", "evidence"):
         for f in sorted((here / folder).rglob("*")):
@@ -85,7 +86,15 @@ def main():
             "evidence/pairs.csv",
             "evidence/calibration.json",
             "evidence/summary.json",
-            "Rajendran-counterfactual-scene-memory.pdf",
+            "evidence/still-comparison-counts.csv",
+            "evidence/still-exact-pairs.csv",
+            "manuscript.tex",
+            "appendix.tex",
+            "result-tables.tex",
+            "references.bib",
+            "corl_2026.sty",
+            "corlabbrvnat.bst",
+            *PAPER_DOWNLOADS,
             "software/README.md",
         }
         <= targets.keys()
