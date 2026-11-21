@@ -1,0 +1,183 @@
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage[preprint]{corl_2026}
+\usepackage{graphicx,booktabs,xurl}
+\hypersetup{
+  pdftitle={When Can a Robot Record That an Object Is Gone? A Counterfactual Audit of Two-Image Scene Memory},
+  pdfsubject={Research preprint on object removal and occlusion in simulated robot scene memory},
+  pdfauthor={Adithya Rajendran}
+}
+\input{result-tables}
+
+\title{When Can a Robot Record That an Object Is Gone?\\
+  A Counterfactual Audit of Two-Image Scene Memory}
+\author{Adithya Rajendran\\San Jos\'e State University}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A panel can conceal a remembered object and its empty location equally well.
+We audit a robot's decision to record removal using 1,280 two-image queries from 16 layouts shared by Isaac Sim and MuJoCo, rendering each object both retained and removed at the same camera pose.
+After a 6\,cm shift and $3^\circ$ yaw with the blocker parked, dense registration increased correct removal decisions over homography from 67/80 to 76/80 in Isaac Sim and from 63/80 to 78/80 in MuJoCo, but two new false deletions on MuJoCo shelves failed the prespecified improvement criterion.
+At 88 fully hidden MuJoCo positions with identical inputs across states, homography abstained on every pair and dense geometry declared removal in both states on one pair.
+In a retrospective comparison, trained STILL missed 178 of 640 removals and falsely deleted 36 of 640 retained objects, compared with 221 misses and 51 false deletions for zero-shot Qwen3.5-9B.
+STILL deleted both states on 11 of those 88 pairs, illustrating how even a physically correct deletion can lack distinguishing evidence.
+\end{abstract}
+\keywords{robot scene memory, occlusion, visual verification}
+
+\section{Introduction}
+
+A robot remembers a can on a shelf. On its next visit, a panel covers the place where the can sat.
+Should the robot erase the memory? A simulator can tell whether someone removed the can or merely placed the panel in front of it.
+The robot can receive exactly the same observation in either case (Figure~\ref{fig:shelf}).
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fresh-matched-pair.png}
+  \caption{MuJoCo shelf, layout PAM01, stop P5. The yellow outline marks the earlier gelatin box. It remains behind the panel in the middle image and is absent on the right. The full revisits are pixel-identical. Homography and dense geometry abstained twice. Zero-shot Qwen answered \emph{removed} twice. Trained STILL withheld both deletions because it lacked a registered crop. The original display rule selected this pair.}
+  \label{fig:shelf}
+\end{figure}
+
+We study one decision in a memory system. A verifier receives an earlier color image, a box around a remembered object, and one later color image.
+We measure when it correctly updates a changed record and when it erases a retained object.
+A detector that always reports removal succeeds on every clear removal. A verifier that always abstains avoids every false deletion. A useful comparison has to count both outcomes.
+Our contribution is an audit that couples the physical intervention to a check of the actual delivered images. It identifies a subset of decisions whose input could equally well have come from the opposite physical state.
+Appendix~\ref{app:data} links the exact images, decisions and code for reproducing the comparison.
+
+\section{Related work}
+
+SceneDiff evaluates object changes across visits with different viewpoints~\citep{scenediff}. STILL estimates where a proposed object's former place appears in the other capture and trains a vision-language model to compare the scene and the registered place~\citep{still}. These studies establish the problem of occlusion and the value of registration. We start with a specified object and a supplied reference box. We intervene on that object's presence and ask what a deletion means when the entire input recurs in the opposite state. This endpoint differs from detection average precision, which also reflects proposal generation, ranking and localization.
+
+PBD-AG requires repeated observable misses before removing a stored object~\citep{pbdag}. SafeVantage and VA-TAMP gather further observations for decisions that depend on visibility~\citep{safevantage,vatamp}. BAVO-Bench varies the viewpoint at a fixed scene state~\citep{bavo}. We vary the target state at a fixed viewpoint. This complements selective classification, which evaluates coverage and error together~\citep{reject}. SceneForge shows how an intervention can change shadows and reflections even when the target mesh is hidden~\citep{sceneforge}.
+
+IntPhys uses matched observations to test object permanence, and HuMeGo tests actions that depend on an earlier cue~\citep{intphys,humego}. TRAPSBench, the Counterfactual Memory Audit, SpatialUncertain and VAD-R address answerability, memory or abstention~\citep{trapsbench,cma,spatialuncertain,vad-r}. Here both the earlier cue and the revisit can be identical across interventions. The evaluator can certify ambiguity for those pairs directly. Appendix~\ref{app:related} details the relation to the other tasks.
+
+\section{Counterfactual audit}
+\label{sec:design}
+
+\paragraph{What identical inputs establish.}
+Let $x=(r,b,q,t)$ contain the decoded reference image, numeric reference box, decoded revisit and fixed task. For each camera and blocker position, we construct $x_P$ with the target retained and $x_R$ with it removed.
+If $x_P=x_R$, a deterministic verifier must return the same answer on both. A definite \emph{present} or \emph{removed} answer is physically correct once and wrong once. Neither answer distinguishes the states. Across $c$ such pairs with a definite answer, there are $2c$ unsupported commitments and $c$ physical errors. Abstention makes no update.
+This count applies to the balanced intervention design. Unequal pixels alone establish neither visibility nor the ability to decide.
+
+\paragraph{Scenes and interventions.}
+The main panel crosses two environments (shelf and tabletop), two targets (gelatin box and large marker), two blocker families (wide panel and white box), and two seeded layouts per combination. The 16 layouts, cameras and assets are shared across the simulators~\citep{ycb,posecnn,isaac,mujoco}.
+Each of five camera stops supplies a clear, retained nominal reference. The revisit has the blocker parked or placed and the target retained or removed, at the nominal pose or after a 6\,cm horizontal shift and $3^\circ$ yaw. This gives 640 queries per simulator, half in each target state.
+Removal disables target rendering in an otherwise fixed scene. Simulator flags and instance masks establish the physical label. Verifiers receive only RGB and the reference box.
+Both decoded images are compared at scoring resolution and separately at native resolution. Appendix~\ref{app:design} gives the seed, rendering and input conventions.
+
+\paragraph{Fixed geometry and zero-shot baselines.}
+Homography fits a planar alignment of image edges with the target neighborhood excluded and rejects shifts above 200 input pixels~\citep{ecc}. Dense geometry projects reference locations into the revisit using VGGT estimates of pose and depth and a visibility filter adapted from GeoSCD~\citep{vggt,geoscd}. It abstains when less than 60\% of the reference box has a usable map. Both methods use the same DINOv2 appearance and obstruction checks after registration~\citep{dinov2,yoloworld}.
+Our original language-model system sends the full views and two local crops to zero-shot Qwen3.5-9B only after the dense alignment check passes~\citep{qwen,qwen-weights}. Its prompt requests \emph{present}, \emph{removed}, or \emph{unknown}. An archived clear-view screen qualified this system only on clear controls.
+
+\paragraph{Primary comparison and statistical unit.}
+Ten separate exploratory layouts informed the choice of comparators and endpoints. The dense adapter failed its development stop rule and was retained at the same settings for this measurement. Local design records predate the new layouts. The protocol and results first appeared together in public Git history.
+The primary endpoint is the proportion of all parked-blocker, moved-camera removals answered correctly. Abstentions remain in the denominator. We required a gain in each engine, net gains on at least two tabletop layouts per engine, zero newly wrong definite answers relative to homography anywhere on the panel, and abstention on every certified pair. An engine with no exact pairs leaves the last condition unassessed.
+Descriptive 95\% percentile intervals use 10,000 paired resamples of whole layouts within shelf and tabletop strata. Each draw preserves the stops, target states, methods and both engines for a layout.
+
+\paragraph{Trained STILL follow-up.}
+After inspecting the original results, we evaluated Xie, Li and Meng's released seed-2 Qwen3.5-9B verifier~\citep{still,still-weights}. Pi3 projects the supplied reference box into the other view from RGB~\citep{pi3}. Our primary STILL rule uses the authors' two red-box crops and the score for \emph{changed}. A missing crop withholds deletion. A below-threshold score keeps the memory without asserting that the object was visible.
+We selected the place threshold (0.00071) by maximizing removal F1 on 800 balanced queries from the ten exploratory layouts. We locked it before scoring STILL on the 16 main layouts. No complete image-pair and reference-box combination crossed the split.
+Appendix~\ref{app:operating} gives the crop and fusion rules. All results compare complete systems, including their registration, prompts and thresholds.
+
+\section{Results}
+
+\subsection{Clear removals improved, but the geometric change failed its adoption rule}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Correct removal decisions with the blocker parked after camera motion. Each engine contributed 80 removals from the same 16 layouts. The last column gives the paired difference in percentage points and its 95\% layout interval.}
+  \label{tab:primary}
+  \begin{tabular}{lrrc}
+    \toprule
+    Simulator & Homography & Dense geometry & Dense minus homography \\
+    \midrule
+    \PrimaryRows
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Dense geometry gained nine correct moved-camera removal decisions and lost none in Isaac Sim. It gained 16 and lost one in MuJoCo (Table~\ref{tab:primary}).
+On the tabletop, scores rose from 30/40 to 39/40 in Isaac Sim and from 30/40 to 40/40 in MuJoCo. Six of eight Isaac and seven of eight MuJoCo tabletop layouts improved on balance.
+Across all states, the new method introduced two false deletions of retained markers on different MuJoCo shelves. One marker was behind the wide panel. The other had 1,518 native target pixels visible with the blocker parked. Dense geometry avoided a homography error in a third layout. The two new errors failed the prespecified criterion regardless of that avoided error.
+Appendix~\ref{app:geometry} gives the per-target and full-panel results.
+
+\subsection{When hidden and removed produced identical evidence}
+
+The target contributed zero native mask pixels at the same 88 of 160 blocker-placed positions in both engines, spanning all 16 layouts. At all 88, MuJoCo produced identical inputs across the retained and removed states. None of the 320 Isaac pairs matched at either resolution. The cause of a pixel difference matters for interpretation. A shadow or renderer variation can change an image even when an object is completely hidden.
+
+Homography abstained on all 88 MuJoCo pairs. Dense geometry abstained on 87. At the remaining shelf position it aligned the blocker to the remembered location, obtained a target similarity of 0.391 and obstruction of 0.167, and declared removal in both states. The original Qwen gate passed four of the 88 pairs. Qwen declared removal on both members of every admitted pair. Figure~\ref{fig:shelf} shows one of them.
+
+\paragraph{Partial exposure.}
+In a post hoc analysis, both members of a pair inherit the fraction of the isolated silhouette exposed in the retained twin (Figure~\ref{fig:visibility}). At 50\% to below 90\% exposure, five layouts supplied 28 pairs. Homography identified 19/28 retained targets and 12/28 removals, with one false deletion. Dense geometry identified 1/28 retained targets and 3/28 removals and abstained on the other 52 queries. The clear-removal gain did not extend to this partial-exposure band.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/answers-by-visibility.png}
+  \caption{Decisions by the exposure of the retained twin, pooled across simulators. Each row gives the number of queries per physical state. Green counts correct answers, rust wrong answers and gray abstentions. At zero exposure every definite answer came from an identical MuJoCo pair. The guess was physically correct on one twin.}
+  \label{fig:visibility}
+\end{figure}
+
+\subsection{Trained STILL versus zero-shot Qwen on the archived panel}
+\label{sec:still}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Deletion decisions at the tested operating points. Each engine contributed 320 removed and 320 retained targets. Withholding deletion on a removed object counts as a miss. The final column counts identical MuJoCo pairs on which the system deleted both states.}
+  \label{tab:deletion}
+  \begin{tabular}{lrrr}
+    \toprule
+    System & \shortstack[r]{Misses\\ / 640 removed} &
+      \shortstack[r]{False deletions\\ / 640 retained} &
+      \shortstack[r]{Deleted both\\ / 88 pairs} \\
+    \midrule
+    \DeletionRows
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+STILL detected 462 of 640 removals and zero-shot Qwen detected 419 (Table~\ref{tab:deletion}).
+The difference in missed-removal rates, STILL minus Qwen, was $-6.7$ percentage points (paired 95\% layout interval, $-11.6$ to $-2.2$). The corresponding false-deletion difference was $-2.3$ points ($-8.6$ to $+4.2$). These intervals hold the development threshold fixed. The 16 layouts give clearer evidence of a difference in misses than in false deletions.
+
+The original Qwen alignment check admitted 419 removed and 415 retained queries. Qwen found all 419 removals and erased 51 retained targets. On the same 834 queries, STILL found 405 and erased one. Among the 446 queries Qwen's gate rejected, STILL detected another 57 removals and erased 35 retained targets. Missing crops accounted for 153 of STILL's 178 misses.
+
+The retained-target masks show where the systems failed. Qwen falsely deleted 47 fully exposed and four fully hidden targets. STILL falsely deleted 28 fully hidden and eight partly visible targets.
+On the 88 identical pairs, Pi3 supplied usable crops for 16. STILL deleted both states on 11 pairs, scored below threshold on five, and withheld deletion for lack of a crop on 72. The more conservative crop threshold deleted both on one pair (Figure~\ref{fig:still-crops}). Adding the whole-scene score raised that count to 79. On this balanced set, each such deletion decision erases one valid memory.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=.80\linewidth]{figures/still-registered-pair.png}
+  \caption{The crops supplied to trained STILL at MuJoCo tabletop PAM09, nominal stop P3. The registered place shows the panel whether the gelatin box remains or has been removed. STILL assigned both states a change score of 0.73098. This was the only identical pair above the conservative threshold. Both geometric methods abstained.}
+  \label{fig:still-crops}
+\end{figure}
+
+\paragraph{A clear-view control for interpreting Qwen.}
+On 80 retained MuJoCo queries the unmarked reference and revisit were identical within the query. Both geometric verifiers found the object on all 80. Qwen deleted it on seven. Smaller visible targets accounted for most of its false deletions (Appendix~\ref{app:geometry}). We also tested a simple binary decision after inspecting the outcomes. On the 834 queries admitted by registration, a dense match score below 0.60 found the same 419 removals as Qwen and erased six retained objects. This diagnostic shows why Qwen's aggregate errors alone give weak evidence about occlusion.
+
+\section{Discussion}
+
+Improved alignment helped when camera motion made a clear removal difficult to recognize. The same registration could succeed on a panel that covered the remembered place. An appearance mismatch at that location then led the verifier to erase a retained object. The parked-blocker error also shows why an audit focused on occlusion needs ordinary clear controls.
+STILL found 63 more removals than dense geometry but falsely deleted 34 more retained targets. Which operating point is preferable depends on the cost of leaving a stale record and the cost of erasing a valid one.
+
+Another view can supply different evidence. In a post hoc replay of 640 blocker-placed starts, homography made 196 correct updates with one view. Choosing the most exposed alternative using an evaluator mask raised this to 292, with one false deletion under either rule. The ceiling was 319. This replay reused the inspected layouts and ignored travel costs. The proposed study on fresh layouts ended at design (Appendix~\ref{app:replay}).
+
+Camera and room changes affected which views reached Qwen. On eight fresh service-corridor layouts, the declared oblique view yielded zero double-removal calls on eight identical MuJoCo pairs. A secondary frontal view yielded seven. When the same layouts became a furnished workshop, registration rejected all eight frontal pairs. The room changes altered several cues together (Appendix~\ref{app:rooms}).
+
+\section{Limitations}
+\label{sec:limitations}
+
+The main audit covered two target meshes, two blocker families and one lighting condition per engine. Both engines used the same layouts and camera trajectories. The 16 independent layout units limit precision, especially for individual environments and objects. The corridor and furnished workshop reused eight layouts while changing several visual cues at once. These comparisons cannot attribute a failure to a single room feature or to model training alone.
+
+Removing render geometry gives a controlled static intervention. It omits contact, settling, relocation and deformable occluders. The study supplies no real-camera risk estimate. Object-level changes in more varied scenes and physical captures would extend that scope.
+Exact equality certifies ambiguity for one subset. Different pixels may reflect a visible target, shadows, sampling or other renderer effects. Our fixed-camera photometric calibration detected all 20 clear interventions per simulator but missed its required yield on partly occluded views. In one shelf layout a three-pixel-wide sliver supplied too little local evidence to pass the calibration (Appendix~\ref{app:calibration}). Independent visual-support judgments and additional same-state repeats would be needed to interpret the unequal pairs.
+Within the tested interface, the exact pairs identify where a deletion must erase a retained object in one physically possible scene.
+
+\clearpage
+\acknowledgments{Codex and Terra assisted with implementation, simulator operation, computational review and manuscript preparation. Claude reviewed the claims and performed the retrospective extra-view analysis. AI assistants checked both analysis implementations within the same project. Simulator interventions supplied physical-state labels. Pixel comparisons tested exact equality.}
+\bibliography{references}
+
+\clearpage
+\appendix
+\input{appendix}
+\end{document}

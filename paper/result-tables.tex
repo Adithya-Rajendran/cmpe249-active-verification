@@ -1,0 +1,25 @@
+% Generated from archived evidence. Run build.py to regenerate these rows.
+\newcommand{\PrimaryRows}{%
+  Isaac Sim & 67/80 & 76/80 & $+11.3$ ($+6.3$ to $+16.3$) \\
+  MuJoCo & 63/80 & 78/80 & $+18.8$ ($+10.0$ to $+27.5$) \\
+}
+\newcommand{\CoverageRows}{%
+  Isaac Sim & Homography & 387 & 387 & 0 & 0 \\
+   & Dense geometry & 397 & 397 & 0 & 0 \\
+   & Zero-shot Qwen & 391 & 415 & 24 & 0 \\
+  MuJoCo & Homography & 389 & 390 & 1 & 0 \\
+   & Dense geometry & 400 & 402 & 2 & 0 \\
+   & Zero-shot Qwen & 390 & 417 & 27 & 0 \\
+}
+\newcommand{\ExactRows}{%
+  Isaac Sim & 0/320 & 0 & --- & --- & --- \\
+  MuJoCo & 88/320 & 16 & 0/88 & 1/88 & 4/88 \\
+}
+\newcommand{\DeletionRows}{%
+  Homography & 262 & 1 & 0 \\
+  Dense geometry & 241 & 2 & 1 \\
+  Zero-shot Qwen & 221 & 51 & 4 \\
+  STILL, registered crop & 178 & 36 & 11 \\
+  STILL, conservative crop & 427 & 3 & 1 \\
+  STILL, scene plus crop & 61 & 160 & 79 \\
+}
