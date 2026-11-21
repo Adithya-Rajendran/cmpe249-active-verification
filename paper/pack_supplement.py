@@ -69,6 +69,12 @@ def main():
                 and not set(f.relative_to(here).parts) & SKIP
             ):
                 targets[f.relative_to(here).as_posix()] = f
+    # A standalone supplement keeps the trained verifier's portable archive beside its tables.
+    still_archive = Path("evidence/trained-still-comparison.zip")
+    source = here / still_archive
+    if not source.is_file():
+        source = here.parent / "notes/figures/2026-11-20-still-verifier" / still_archive.name
+    targets[still_archive.as_posix()] = source
     targets.update(followup_files(here))
     for f in sorted(a.software.rglob("*")):
         if f.is_file() and not set(f.relative_to(a.software).parts) & SKIP:

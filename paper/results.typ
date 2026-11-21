@@ -75,6 +75,33 @@ At 50% to below 90% exposure, 28 pairs came from five layouts (@visibility-figur
 
 #include "certificate-finding.typ"
 
+== Trained STILL versus zero-shot Qwen (retrospective)
+
+On the archived panel, the trained crop verifier detected 462 of 640 removals and zero-shot Qwen detected 419 (@still-results). The difference in missed-removal rates, STILL minus Qwen, was −6.7 percentage points (paired 95% layout-bootstrap interval, −11.6 to −2.2). The corresponding false-deletion difference was −2.3 points (−8.6 to +4.2). These descriptive intervals hold the development threshold fixed. The 16 layouts support a clearer difference in missed removals than in false deletions.
+
+#let counts = csv("evidence/still-comparison-counts.csv", row-type: dictionary).filter(r => r.subset == "full" and r.engine == "both")
+#let exact = csv("evidence/still-exact-pairs.csv", row-type: dictionary)
+#let variants = (
+  ("homography", "Homography"),
+  ("dense", "Dense geometry"),
+  ("registered_qwen", "Zero-shot Qwen"),
+  ("still_place", "STILL, registered crop"),
+  ("still_place_conservative", "STILL, conservative crop"),
+  ("still_fused", "STILL, scene plus crop"),
+)
+#figure(table(columns:(1.65fr,1fr,1fr,1fr),align:(left,center,center,center),stroke:cstroke,inset:(x:4pt,y:3pt),
+  head([System]),head([Missed removals #linebreak() / 640 removed]),head([False deletions #linebreak() / 640 retained]),head([Deleted both states #linebreak() / 88 exact pairs]),
+  ..variants.map(((key, name)) => {
+    let r = counts.find(r => r.method == key)
+    let p = exact.find(r => r.method == key)
+    (name, r.missed_removals, r.false_deletions, p.delete_both)
+  }).flatten(),rowline),kind:table,
+  caption:[Deletion decisions on the same 1,280 queries. Each simulator contributed 320 retained and 320 removed queries. Every missed or withheld deletion on a removed target counts as a miss. Only MuJoCo produced exact opposite-state pairs.]) <still-results>
+
+The original Qwen alignment check admitted 419 removed and 415 retained queries. Within those 834 queries Qwen found all 419 removals but erased 51 retained targets. STILL found 405 and erased one. Among the 446 queries the original gate rejected, STILL found another 57 removals and erased 35 retained targets. Overall, missing crops accounted for 153 of STILL's 178 missed removals. The comparison includes differences in registration, prompts and thresholds as well as weights.
+
+The error patterns also differed. Qwen's 51 false deletions comprised 47 fully exposed targets and four fully hidden targets. STILL's 36 comprised 28 fully hidden targets and eight partly visible targets. Of the 88 identical pairs, four reached the original Qwen reader and it deleted both states on all four. Pi3 supplied usable crops on 16 pairs. STILL deleted both states on 11, withheld deletion below threshold on five and lacked a usable crop on the remaining 72. The scene-plus-crop rule deleted both states on 79 pairs (@still-results).
+
 == What did the fixed-camera calibration measure?
 
 #include "calibration-finding.typ"

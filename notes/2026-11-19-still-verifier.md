@@ -1,5 +1,7 @@
 # Checking the trained STILL verifier on the scene-memory audit
 
+**20 November update.** The authors released a trained checkpoint and clarified the decision rule for supplied boxes. We completed the archived comparison. The text below records what we knew on 19 November. [Results and reproducible scores](2026-11-20-trained-still.md)
+
 19 November 2026. We found the authors' training, registration and scoring code. We could not verify a public copy of the trained Qwen3.5-9B verifier. We requested the checkpoint and its two-view evaluation settings from the first author. There are currently **zero trained STILL predictions** on our images. The paper's published detection scores use other images and a different endpoint. [STILL paper](https://arxiv.org/html/2611.18734v1) · [Authors' source at the inspected revision](https://github.com/Oran9er/STILL/tree/ef115fdfbcc69ca53f4874720c9e5eab429ec221)
 
 ## What is available

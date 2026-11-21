@@ -108,7 +108,9 @@ The earlier veto and cascade proposals stopped because the project could not val
 | [Label audit](notes/2026-11-16-development-support-audit.md) | Support labels, ambiguous fragments and review limits |
 | [Development pilot](notes/2026-11-16-development-pilot.md) | Completed runs, failed baseline qualification and next decisions |
 
-The repository provides the completed manuscript and its reproducible data. The only conditional comparison is the authors' trained STILL verifier on the archived images. [Checkpoint record](notes/2026-11-19-still-verifier.md)
+The revised paper includes a retrospective comparison of trained STILL and zero-shot Qwen on the same images.
+STILL missed 178 of 640 removals and falsely deleted 36 of 640 retained objects. Qwen missed 221 and falsely deleted 51.
+The original geometric comparison remains the primary test. [Comparison and example crops](notes/2026-11-20-trained-still.md) · [Reproduce the results](paper/README.md#reproduce-the-trained-still-comparison)
 
 ## Earlier development
 

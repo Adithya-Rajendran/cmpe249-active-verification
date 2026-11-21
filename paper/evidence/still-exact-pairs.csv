@@ -1,0 +1,7 @@
+method,exact_pairs,delete_both,unknown_both,other_non_delete_both
+homography,88,0,88,0
+dense,88,1,87,0
+registered_qwen,88,4,84,0
+still_place,88,11,72,5
+still_fused,88,79,0,9
+still_place_conservative,88,1,72,15
