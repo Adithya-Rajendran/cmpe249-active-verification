@@ -1,14 +1,16 @@
-"""Post-hoc headroom check for a one-extra-view study, on the public paper's main panel.
+"""Post hoc replay of switching to a second archived reference/revisit pair.
 
-Each layout has five camera stops (P1..P5), each with its own reference. An episode starts at one stop.
-If the verifier answers UNKNOWN there, a policy picks ONE other stop (same layout, engine, camera level,
-blocker condition and physical state) and the answer at that stop is final. Travel cost is ignored.
+Each layout has five camera stops (P1..P5), each with its own reference image and box.
+After UNKNOWN at the starting stop, a policy picks one other stop in the same layout, engine,
+camera level, blocker condition and physical state. Its saved answer uses that stop's
+reference image, box and revisit. The replay assumes stored references at every stop and
+ignores travel costs.
 Policies: none; next stop (P1->P2 ... P5->P4); random other stop (expected counts); visibility (the stop
 where the retained twin shows the largest share of the target, ties to the nearer stop; this uses the
 evaluator's masks); oracle (best outcome that
 any single other stop can give).
 Run from the repository root: python3 paper/archived_stop_replay.py
-Inspected development data. Not a study result.
+The replay uses previously inspected development data.
 """
 import collections
 import csv

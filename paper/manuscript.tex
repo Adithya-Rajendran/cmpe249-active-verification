@@ -17,8 +17,7 @@
 \maketitle
 
 \begin{abstract}
-A panel can conceal a remembered object and its empty location equally well.
-We audit a robot's decision to record removal using 1,280 two-image queries from 16 layouts shared by Isaac Sim and MuJoCo, rendering each object both retained and removed at the same camera pose.
+Should a robot erase a remembered object when a panel covers its shelf or tabletop location? We test this visual decision in simulation. We generated two layouts for each combination of two surfaces, two targets and two blockers. Isaac Sim and MuJoCo render the same 16 layouts with the object retained and removed, yielding 1,280 queries. Zero-shot Qwen3.5-9B serves only as a visual verifier of an earlier image, a target box and a revisit.
 After a 6\,cm shift and $3^\circ$ yaw with the blocker parked, dense registration increased correct removal decisions over homography from 67/80 to 76/80 in Isaac Sim and from 63/80 to 78/80 in MuJoCo, but two new false deletions on MuJoCo shelves failed the prespecified improvement criterion.
 At 88 fully hidden MuJoCo positions with identical inputs across states, homography abstained on every pair and dense geometry declared removal in both states on one pair.
 In a retrospective comparison, trained STILL missed 178 of 640 removals and falsely deleted 36 of 640 retained objects, compared with 221 misses and 51 false deletions for zero-shot Qwen3.5-9B.
@@ -28,8 +27,8 @@ STILL deleted both states on 11 of those 88 pairs, illustrating how even a physi
 
 \section{Introduction}
 
-A robot remembers a can on a shelf. On its next visit, a panel covers the place where the can sat.
-Should the robot erase the memory? A simulator can tell whether someone removed the can or merely placed the panel in front of it.
+A robot remembers a box on a shelf. A later image shows a panel where the box sat.
+Should the robot erase the memory? The cameras occupy predefined stops. The task ends with a memory decision and involves no navigation or manipulation. A simulator records whether the box remains behind the panel.
 The robot can receive exactly the same observation in either case (Figure~\ref{fig:shelf}).
 
 \begin{figure}[htbp]
@@ -62,7 +61,7 @@ If $x_P=x_R$, a deterministic verifier must return the same answer on both. A de
 This count applies to the balanced intervention design. Unequal pixels alone establish neither visibility nor the ability to decide.
 
 \paragraph{Scenes and interventions.}
-The main panel crosses two environments (shelf and tabletop), two targets (gelatin box and large marker), two blocker families (wide panel and white box), and two seeded layouts per combination. The 16 layouts, cameras and assets are shared across the simulators~\citep{ycb,posecnn,isaac,mujoco}.
+We generated the main panel by crossing two environments (shelf and tabletop), two YCB targets (gelatin box and large marker), and two blockers (wide panel and white box). For each combination the generator selected two layouts, each from its own seed block, using geometry and framing checks before scoring. Both engines rendered the same 16 layouts, cameras and assets~\citep{ycb,posecnn,isaac,mujoco}.
 Each of five camera stops supplies a clear, retained nominal reference. The revisit has the blocker parked or placed and the target retained or removed, at the nominal pose or after a 6\,cm horizontal shift and $3^\circ$ yaw. This gives 640 queries per simulator, half in each target state.
 Removal disables target rendering in an otherwise fixed scene. Simulator flags and instance masks establish the physical label. Verifiers receive only RGB and the reference box.
 Both decoded images are compared at scoring resolution and separately at native resolution. Appendix~\ref{app:design} gives the seed, rendering and input conventions.
@@ -105,7 +104,7 @@ Appendix~\ref{app:geometry} gives the per-target and full-panel results.
 
 \subsection{When hidden and removed produced identical evidence}
 
-The target contributed zero native mask pixels at the same 88 of 160 blocker-placed positions in both engines, spanning all 16 layouts. At all 88, MuJoCo produced identical inputs across the retained and removed states. None of the 320 Isaac pairs matched at either resolution. The cause of a pixel difference matters for interpretation. A shadow or renderer variation can change an image even when an object is completely hidden.
+The target contributed zero native mask pixels at the same 88 of 160 blocker-placed positions in both engines, spanning all 16 layouts. MuJoCo produced identical inputs across states at all 88. Isaac Sim produced unequal images at all 88, even before resizing. The median whole-frame mean absolute RGB difference was 0.293 on a 0--255 scale. Separate repeat captures showed both frame-to-frame variation and reproducible changes beside the blocker (Appendix~\ref{app:calibration}). The main pairs lack repeats that would separate these explanations at each position.
 
 Homography abstained on all 88 MuJoCo pairs. Dense geometry abstained on 87. At the remaining shelf position it aligned the blocker to the remembered location, obtained a target similarity of 0.391 and obstruction of 0.167, and declared removal in both states. The original Qwen gate passed four of the 88 pairs. Qwen declared removal on both members of every admitted pair. Figure~\ref{fig:shelf} shows one of them.
 
@@ -124,11 +123,11 @@ In a post hoc analysis, both members of a pair inherit the fraction of the isola
 
 \begin{table}[htbp]
   \centering
-  \caption{Deletion decisions at the tested operating points. Each engine contributed 320 removed and 320 retained targets. Withholding deletion on a removed object counts as a miss. The final column counts identical MuJoCo pairs on which the system deleted both states.}
+  \caption{Removal recall and false deletions across both simulators. The two rates include all 640 targets in each state, including abstentions. The last column counts identical MuJoCo pairs deleted in both states. The first three rows are the original verifiers. The remaining rows are retrospective STILL operating points.}
   \label{tab:deletion}
   \begin{tabular}{lrrr}
     \toprule
-    System & \shortstack[r]{Misses\\ / 640 removed} &
+    System & \shortstack[r]{Removal recall\\ / 640 removed} &
       \shortstack[r]{False deletions\\ / 640 retained} &
       \shortstack[r]{Deleted both\\ / 88 pairs} \\
     \midrule
@@ -160,21 +159,21 @@ On 80 retained MuJoCo queries the unmarked reference and revisit were identical 
 Improved alignment helped when camera motion made a clear removal difficult to recognize. The same registration could succeed on a panel that covered the remembered place. An appearance mismatch at that location then led the verifier to erase a retained object. The parked-blocker error also shows why an audit focused on occlusion needs ordinary clear controls.
 STILL found 63 more removals than dense geometry but falsely deleted 34 more retained targets. Which operating point is preferable depends on the cost of leaving a stale record and the cost of erasing a valid one.
 
-Another view can supply different evidence. In a post hoc replay of 640 blocker-placed starts, homography made 196 correct updates with one view. Choosing the most exposed alternative using an evaluator mask raised this to 292, with one false deletion under either rule. The ceiling was 319. This replay reused the inspected layouts and ignored travel costs. The proposed study on fresh layouts ended at design (Appendix~\ref{app:replay}).
+We replayed a memory system with an earlier reference image and target box at each camera stop. After an abstention, we substituted the saved decision from an alternate stop's own reference, box, and revisit. On 640 blocker-placed starts, homography gave 196 correct decisions at the starting stop and 292 when an evaluator mask selected the most exposed alternative. Each rule made one false deletion. The ceiling was 319. Estimating the gain from an extra revisit for a single stored reference requires keeping that reference image and box fixed (Appendix~\ref{app:replay}).
 
 Camera and room changes affected which views reached Qwen. On eight fresh service-corridor layouts, the declared oblique view yielded zero double-removal calls on eight identical MuJoCo pairs. A secondary frontal view yielded seven. When the same layouts became a furnished workshop, registration rejected all eight frontal pairs. The room changes altered several cues together (Appendix~\ref{app:rooms}).
 
 \section{Limitations}
 \label{sec:limitations}
 
-The main audit covered two target meshes, two blocker families and one lighting condition per engine. Both engines used the same layouts and camera trajectories. The 16 independent layout units limit precision, especially for individual environments and objects. The corridor and furnished workshop reused eight layouts while changing several visual cues at once. These comparisons cannot attribute a failure to a single room feature or to model training alone.
+The same researcher designed the layout generator, selected the outcome measures and evaluated the verifiers. The two engines repeat the same 16 layouts, with two target meshes, two blocker families and one lighting condition per engine. The resulting rates describe that panel. In the corridor and workshop, several cues changed together on the same eight layouts.
 
 Removing render geometry gives a controlled static intervention. It omits contact, settling, relocation and deformable occluders. The study supplies no real-camera risk estimate. Object-level changes in more varied scenes and physical captures would extend that scope.
 Exact equality certifies ambiguity for one subset. Different pixels may reflect a visible target, shadows, sampling or other renderer effects. Our fixed-camera photometric calibration detected all 20 clear interventions per simulator but missed its required yield on partly occluded views. In one shelf layout a three-pixel-wide sliver supplied too little local evidence to pass the calibration (Appendix~\ref{app:calibration}). Independent visual-support judgments and additional same-state repeats would be needed to interpret the unequal pairs.
-Within the tested interface, the exact pairs identify where a deletion must erase a retained object in one physically possible scene.
+An external test could hold the policy and planner fixed and vary the memory verifier on a RoboDojo grasp-and-place task in Isaac Sim~\citep{robodojo}. A language-model program could call a grasp primitive backed by cuRobo~\citep{codeaspolicies,curobo}. The benchmark's own task-success measure would test whether a false deletion also costs a successful grasp. We evaluated only the memory decision here.
 
 \clearpage
-\acknowledgments{Codex and Terra assisted with implementation, simulator operation, computational review and manuscript preparation. Claude reviewed the claims and performed the retrospective extra-view analysis. AI assistants checked both analysis implementations within the same project. Simulator interventions supplied physical-state labels. Pixel comparisons tested exact equality.}
+\acknowledgments{Codex and Terra assisted with implementation, simulator operation, computational review and manuscript preparation. Claude reviewed the claims and performed the retrospective stop replay. AI assistants checked both analysis implementations within the same project. Simulator interventions supplied physical-state labels. Pixel comparisons tested exact equality.}
 \bibliography{references}
 
 \clearpage

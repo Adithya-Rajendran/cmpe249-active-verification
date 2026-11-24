@@ -2,9 +2,11 @@
 
 Adithya Rajendran · CMPE 249, San José State University · Fall 2026
 
-**Concluded November 2026.** Dense registration found more clear removals in both simulators but introduced two false deletions on MuJoCo shelves. It failed the improvement rule. The final evaluation used Isaac Sim and MuJoCo only. Early camera photos checked the setup. The proposed one-extra-view study ended at design, before any fresh collection. [Paper](paper/Rajendran-counterfactual-scene-memory.pdf) · [Results](paper/evidence/summary.json)
+**Concluded November 2026.** A robot remembers a box on a shelf. On its next visit, a panel covers the spot. Should it erase the box from memory? This simulation study tested that decision on shelves and tabletops. Zero-shot Qwen3.5-9B served only as a visual verifier at camera poses set by a script.
 
-A robot saw an object on an earlier visit. When it looks again, should it keep that memory, record a removal, or wait for a clearer view?
+The researcher generated 16 layouts with two seeded arrangements for each combination of surface, target and blocker. Each shelf or tabletop held a gelatin box or a large marker. Either a wide panel or a white box served as the blocker. Isaac Sim and MuJoCo rendered the same layouts with each target retained and removed. [Layout records](paper/evidence/arrangements.csv) · [Study design](development/paper_audit/PROTOCOL.md)
+
+Dense geometry detected more clear removals after camera motion in both simulators. It also introduced two false deletions on MuJoCo shelves and failed the study’s improvement rule. The study ended before collecting real-camera evaluation data or running the proposed one-extra-view experiment. [Primary results](paper/evidence/summary.json)
 
 [Read the paper (PDF)](paper/Rajendran-counterfactual-scene-memory.pdf) · [Edit the CoRL LaTeX source (ZIP)](paper/Rajendran-counterfactual-scene-memory-latex.zip) · [Download the exact images and results](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1) · [Reproduce the comparison](paper/README.md#reproduce-the-main-comparison)
 
@@ -14,39 +16,37 @@ A yellow outline marks a gelatin box on a simulated MuJoCo shelf. A panel hides 
 
 ![MuJoCo shelf PAM01 at stop P5 with a moved camera. The marked reference precedes the pixel-identical “object hidden” and “object removed” revisits.](docs/figures/mujoco-hidden-removed.png)
 
-Each verifier received the same reference image and target box with one revisit at a time. The full revisits match pixel for pixel. Both passed the geometry check. The diagnostic Qwen3.5-9B reader answered `REMOVED` twice. Homography and dense geometry each answered `UNKNOWN` twice. Qwen's answer fit the empty spot but would erase a valid memory in the hidden case.
+Each verifier received the earlier image, the target box and one revisit. The two revisits match pixel for pixel. Both passed Qwen’s alignment check. Qwen answered `REMOVED` twice. Homography and dense geometry each answered `UNKNOWN` twice. Acting on Qwen’s answer would erase a valid memory in the scene where the box stayed.
 
 ### Simulation results
 
-Three methods with fixed settings scored 1,280 queries on 16 shelf and tabletop layouts shared by Isaac Sim and MuJoCo. At each camera and blocker position, the simulators kept or removed a gelatin box or a large marker. Each verifier could answer `PRESENT`, `REMOVED` or `UNKNOWN`.
+The three original verifiers could answer `PRESENT`, `REMOVED` or `UNKNOWN`. Homography aligned the images with one transformation. Dense geometry mapped individual points. Both used the same decision rule after alignment. When dense geometry could align enough of the remembered location, Qwen inspected the images and local crops.
 
-Homography aligned the images with one transformation. Dense geometry mapped individual points. Both used the same decision rule. When geometry could map enough of the remembered location, Qwen inspected the images and local crops.
+The table covers all 1,280 queries across both simulators. Removal recall counts detected removals among all 640 removed targets, including cases where the verifier abstained. A false deletion erases one of the 640 targets that stayed.
 
-For clear removals, the camera shifted 6 cm and turned 3° with the blocker out of the way. False removals count all `REMOVED` answers when the target stayed.
+| Verifier | Removal recall | False deletions |
+| --- | ---: | ---: |
+| Homography | 378/640 (59.1%) | 1/640 (0.16%) |
+| Dense geometry | 399/640 (62.3%) | 2/640 (0.31%) |
+| Zero-shot Qwen3.5-9B | 419/640 (65.5%) | 51/640 (7.97%) |
+| Trained STILL, registered crop (later comparison) | 462/640 (72.2%) | 36/640 (5.63%) |
 
-| Simulation outcome | Homography | Dense geometry | Qwen3.5-9B (diagnostic) |
-| --- | ---: | ---: | ---: |
-| Clear removals detected in Isaac Sim | 67/80 | 76/80 | 80/80 |
-| Clear removals detected in MuJoCo | 63/80 | 78/80 | 79/80 |
-| False removals in Isaac Sim | 0/320 | 0/320 | 24/320 |
-| False removals in MuJoCo | 1/320 | 2/320 | 27/320 |
+Qwen detected 20 more removals than dense geometry and falsely deleted 49 more retained objects. On 47 of Qwen’s 51 false deletions, the entire target remained visible. The other four targets were fully hidden. Seven false deletions came from unchanged MuJoCo images. Both geometric methods correctly kept the object on all 80 unchanged controls. [Full counts by simulator](paper/evidence/still-comparison-counts.csv) · [Per-query decisions](paper/evidence/queries.csv)
 
-Dense geometry avoided homography's MuJoCo error but introduced two others. The audit required zero new errors to call dense geometry an improvement. Qwen found 159 of 160 clear removals and falsely reported removal on 51 of 640 revisits where the target stayed.
+After inspecting the original results, the researcher calibrated the authors’ trained STILL verifier on ten separate layouts and scored the archived images. Its 36 false deletions involved 28 fully hidden targets and eight partly visible targets. [Comparison and example crops](notes/2026-11-20-trained-still.md) · [Reproduce the STILL comparison](paper/README.md#reproduce-the-trained-still-comparison)
 
-Across all 640 actual removals, dense geometry missed 241 and Qwen missed 221.
-After scoring, we compared the two readers on the views that passed their shared registration check.
-Qwen recovered 20 removals and added 49 false deletions relative to dense geometry.
-
-On 47 of its 51 false deletions, the complete target silhouette remained visible.
-Seven false deletions came from unchanged MuJoCo images. Both geometric methods correctly kept the object on all 80 unchanged controls.
-The Qwen screen used clear views and included no hidden target. [Per-query recount](paper/evidence/reader-comparison.json)
+The primary test compared the two geometric methods on clear removals after a 6 cm camera shift and a 3° turn. Dense geometry raised detections from 67/80 to 76/80 in Isaac Sim and from 63/80 to 78/80 in MuJoCo. It avoided homography’s one false deletion but introduced two others. Qwen detected 80/80 clear removals in Isaac Sim and 79/80 in MuJoCo. Its initial capability check used only clear views. [Geometric results](paper/evidence/summary.json) · [Qwen comparison](paper/evidence/reader-comparison.json)
 
 At 50% to below 90% exposure, homography answered 31 of 56 queries correctly. Dense geometry answered four correctly and abstained on the other 52.
 Both states use the target exposure in the paired retained view. Five layouts supplied these positions. [Answers by visibility](paper/evidence/answers-by-visibility.csv)
 
 ### Why match the pairs?
 
-Both simulators fully hid the target at the same 88 positions. MuJoCo produced identical images, target boxes and instructions across the two states at all 88. The same definite answer must be wrong in one scene. Isaac Sim produced zero pixel-identical pairs. Whether its pixel differences reveal removal remains open.
+Both simulators fully hid the target at the same 88 positions. MuJoCo produced identical images, target boxes and instructions across the two states at all 88. A definite answer must be wrong in one scene.
+
+In Isaac Sim, all 88 hidden pairs differed. On a 0–255 scale, the median whole-image mean absolute RGB difference was 0.293. On 80 unchanged views with the blocker parked, the median was 0.309.
+
+In four of five separate calibration views, a patch outside the target and blocker brightened after removal on both repeats. This is consistent with indirect lighting. The fixed capture order prevents identifying the cause for individual pairs. [Pixel measurements](paper/evidence/hidden-pair-pixels.txt) · [Tabletop example](paper/figures/isaac-hidden-patch.png)
 
 Homography abstained on all 88 identical pairs. Dense geometry called both states `REMOVED` on one pair. The geometry check returned `UNKNOWN` on 84 pairs before Qwen ran. Qwen answered `REMOVED` on all eight calls from the four remaining pairs. Across both simulators, geometry stopped 446 queries. Qwen itself chose `UNKNOWN` on two of its 834 calls.
 
@@ -83,13 +83,14 @@ The image verifier checks separate evidence for presence and removal.
 An agreement veto can reject its errors. A conditional cascade can add answers where it abstains.
 The evaluation measures unsupported answers and useful correct answers together.
 
-The main comparison tests two registration methods with the same decision rule. The paper also reports a zero-shot language-model diagnostic.
 The earlier veto and cascade proposals stopped because the project could not validate broader visual support labels.
+
+The same researcher designed the layouts, chose the evaluation rules and scored the verifiers. The measured error rates describe these scenes. A future study could change only the memory verifier on an independently designed RoboDojo grasp task in Isaac Sim. A vision-language model could call a grasp routine, with cuRobo planning the motion. Task success would show whether erasing a valid memory costs the robot a grasp. [RoboDojo](https://arxiv.org/abs/2607.04434) · [Code as Policies](https://arxiv.org/abs/2209.07753) · [cuRobo](https://arxiv.org/abs/2310.17274)
 
 | Read | Purpose |
 | --- | --- |
 | [Standalone introduction](CASE_STUDY.md) | Illustrated case study for a first reading |
-| [Paper](paper/Rajendran-counterfactual-scene-memory.pdf) | Two geometric methods on paired scenes, with a diagnostic language-model reader |
+| [Paper](paper/Rajendran-counterfactual-scene-memory.pdf) | Paired simulation audit, zero-shot Qwen results and the trained STILL follow-up |
 | [Document guide](docs/README.md) | Current research documents and historical records |
 | [Proposal](docs/PROPOSAL.md) | Research question, contribution and closest work |
 | [Method](docs/METHOD.md) | Inputs, labels, decision rule and controls |
@@ -108,11 +109,9 @@ The earlier veto and cascade proposals stopped because the project could not val
 | [Label audit](notes/2026-11-16-development-support-audit.md) | Support labels, ambiguous fragments and review limits |
 | [Development pilot](notes/2026-11-16-development-pilot.md) | Completed runs, failed baseline qualification and next decisions |
 
-The revised paper includes a retrospective comparison of trained STILL and zero-shot Qwen on the same images.
-STILL missed 178 of 640 removals and falsely deleted 36 of 640 retained objects. Qwen missed 221 and falsely deleted 51.
-The original geometric comparison remains the primary test. [Comparison and example crops](notes/2026-11-20-trained-still.md) · [Reproduce the results](paper/README.md#reproduce-the-trained-still-comparison)
-
 ## Earlier development
+
+Early physical-camera photos checked the capture setup. The final evaluation used simulation images throughout.
 
 The first study tested camera view selection. That study is complete, with important limits in its design.
 The final study tested whether the images support a decision about a remembered object.
