@@ -38,6 +38,11 @@ def read_csv(name):
         return list(csv.DictReader(stream))
 
 
+def count_and_rate(count, total, precision):
+    rate = (Decimal(count) * 100 / Decimal(total)).quantize(Decimal(precision), rounding=ROUND_HALF_UP)
+    return f"{count} ({rate}\\%)"
+
+
 def table_source():
     engines = json.loads((ROOT / TABLE_INPUTS[0]).read_text())["engines"]
     rows = {"PrimaryRows": [], "CoverageRows": [], "ExactRows": [], "DeletionRows": []}
@@ -70,7 +75,10 @@ def table_source():
     for method, label in DELETION.items():
         r = full[method]
         rows["DeletionRows"].append((
-            label, r["missed_removals"], r["false_deletions"], exact_pairs[method]["delete_both"],
+            label,
+            count_and_rate(r["detected_removals"], r["removed"], "0.1"),
+            count_and_rate(r["false_deletions"], r["retained"], "0.01"),
+            exact_pairs[method]["delete_both"],
         ))
 
     lines = ["% Generated from archived evidence. Run build.py to regenerate these rows."]
@@ -86,6 +94,8 @@ def package_source(output):
     files = [
         "manuscript.tex", "appendix.tex", "result-tables.tex", "references.bib",
         "corl_2026.sty", "corlabbrvnat.bst", "build.py", *TABLE_INPUTS,
+        "hidden_pair_pixels.py", "draw_hidden_patch.py", "evidence/hidden-pair-pixels.txt",
+        "evidence/queries.csv", "evidence/arrangements.csv", "evidence/isaac-input-pairs.csv",
     ]
     files.extend(p.relative_to(ROOT).as_posix() for p in (ROOT / "figures").glob("*.png"))
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:

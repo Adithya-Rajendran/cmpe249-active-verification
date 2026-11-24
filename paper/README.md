@@ -3,11 +3,15 @@
 Adithya Rajendran, San José State University.
 
 Read the paper or download the editable LaTeX source. [Paper (PDF)](Rajendran-counterfactual-scene-memory.pdf) · [Source for Overleaf (ZIP)](Rajendran-counterfactual-scene-memory-latex.zip)
-The main study tests decisions about a remembered object on a shelf or a tabletop.
+The main study tests whether to erase a remembered object on a shelf or a tabletop.
+We generated two layouts for each combination of two surfaces, two targets and two blockers.
+Isaac Sim and MuJoCo rendered the same 16 layouts.
+Zero-shot Qwen3.5-9B reads the images and reports present, removed or unknown when the alignment check passes.
+
 The manuscript uses the official CoRL 2026 preprint template and names the author. [Author instructions](https://2026.corl.org/contributions/instruction-for-authors)
 Two analysis programs from the same project check the original decisions.
 The [versioned release](https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1) contains the original paper, images, model outputs, native captures, and source.
-The LaTeX edition includes the trained STILL comparison, the visibility analysis and the retrospective estimate of one extra camera view.
+The LaTeX edition includes the trained STILL comparison, the visibility analysis and a replay with one reference per camera stop.
 
 The shelf follow-up repeats the original camera views at new angles.
 The corridor follow-up uses eight fresh layouts, different objects and a sliding door.
@@ -91,7 +95,7 @@ For fresh zero-shot Qwen inference, follow `software/README.md` in the [original
 Xie, Li and Meng describe the trained verifier and supply the released seed-2 weights. [STILL paper](https://doi.org/10.48550/arXiv.2611.18734) · [Exact checkpoint](https://huggingface.co/oran9er/STILL-Qwen3.5-9B/tree/81d9373e1dd9c07c537d5fb2436b36a26a2206b4)
 The original reader uses the Qwen Team's base release. [Qwen3.5 publication](https://qwen.ai/blog?id=qwen3.5) · [Exact base checkpoint](https://huggingface.co/Qwen/Qwen3.5-9B/tree/c202236235762e1c871ad0ccb60c8ee5ba337b9a)
 
-### Retrospective extra-view estimate
+### Retrospective replay with a reference at each stop
 
 The replay uses archived homography and dense answers from the original panel. It runs on a CPU and needs no new images.
 From the repository root, compare its output with the saved table.
@@ -100,7 +104,11 @@ From the repository root, compare its output with the saved table.
 python3 paper/archived_stop_replay.py | diff - paper/evidence/archived-stop-replay.txt
 ```
 
-After UNKNOWN, the replay permits one other stop in the same layout, simulator, camera level and physical state.
+After UNKNOWN, the replay uses the saved answer from one other stop.
+The simulator, layout, camera level, blocker position and target state stay fixed.
+That answer uses the other stop's earlier reference image, target box and revisit.
+To measure the gain from a new revisit with a single stored reference, keep the starting reference image and box fixed.
+
 The random choice averages all four alternatives. The visibility choice uses the retained twin's evaluator mask.
 The ceiling uses the true state and all alternative answers. The replay ignores travel costs.
 
@@ -186,8 +194,8 @@ The `native_exact` field compares the native reference and revisit images before
 
 ## Reproduce the paper
 
-The source archive contains the main text, appendix, references, six figures, and both official CoRL style files. [Main LaTeX file](manuscript.tex)
-It also contains the three evidence files and the program that generates the four result tables. [Editable source archive](Rajendran-counterfactual-scene-memory-latex.zip)
+The source archive contains the main text, appendix, references, seven figures, and both official CoRL style files. [Main LaTeX file](manuscript.tex)
+It includes the data and code for the four result tables and the hidden-pixel check. [Editable source archive](Rajendran-counterfactual-scene-memory-latex.zip)
 
 In Overleaf, upload the source archive as a new project.
 Select `manuscript.tex` as the main document and compile it with XeLaTeX.
@@ -260,5 +268,20 @@ python3 recount_calibration.py mujoco /path/to/native/mujoco/calibration
 python3 recount_calibration.py mujoco /path/to/native/mujoco/calibration --convention pixel-centers
 python3 render_differences.py mujoco /path/to/native/mujoco/calibration
 ```
+
+### Check the fully hidden Isaac Sim pairs
+
+Run the following commands from this repository's paper directory.
+Use the two native archives listed under “Other image sets.”
+
+```sh
+python3 hidden_pair_pixels.py /path/to/native-isaac-evaluation.zip /path/to/native-calibration.zip > hidden-pair-recount.txt
+diff -u evidence/hidden-pair-pixels.txt hidden-pair-recount.txt
+python3 draw_hidden_patch.py /path/to/native/isaac/calibration
+```
+
+The first command checks the main pairs and their scene records.
+It then checks separate calibration views with repeated captures.
+The final command uses the extracted calibration images for Figure 7. [Pixel measurements](evidence/hidden-pair-pixels.txt)
 
 See `software/README.md` in the supplement for simulator and scorer details.

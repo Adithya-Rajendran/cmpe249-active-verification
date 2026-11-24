@@ -91,7 +91,19 @@ Both simulators missed the required yield on partly visible targets. The shelf c
   \label{fig:sliver}
 \end{figure}
 
-Changing the midpoint convention for a half-open box changed seven local contrast values across the two engines. All positive-pair and qualification verdicts stayed the same. Five calibration pairs per simulator had zero visible target pixels. In Isaac Sim the median whole-image mean absolute difference at scoring resolution was 0.321 intensity levels across physical states and 0.326 within same-state repeats. Both medians were zero in MuJoCo. The similar Isaac Sim medians motivate a repeated-render test before attributing an unequal input to the object's state. This calibration establishes local photometric changes on eligible patches. It leaves semantic support unresolved on partial and moved-camera views.
+Changing the midpoint convention for a half-open box changed seven local contrast values across the two engines. All positive-pair and qualification verdicts stayed the same. Five calibration pairs per simulator had zero visible target pixels. In Isaac Sim the median whole-image mean absolute difference at scoring resolution was 0.321 intensity levels across physical states and 0.326 within same-state repeats. Both medians were zero in MuJoCo.
+
+\paragraph{Why the hidden Isaac Sim images differ.}
+We reexamined the 88 fully hidden pairs from the main panel at native resolution. Across the recorded object, shelf and camera fields, only target visibility differed between twins. The blocker mask covered the entire isolated target silhouette at every position. A pixel counted as changed if any RGB channel differed. The median share of changed pixels was 59.2\%, yet the median whole-image mean absolute difference was only 0.293 intensity levels. On 80 unchanged nominal views with the blocker parked, the corresponding median was 0.309. A median of 99.66\% of changed pixels fell outside the target's isolated silhouette, which itself occupies only a small part of the frame.
+
+To check for reproducible local changes, we revisited the five fully hidden calibration views in a post hoc analysis. We divided each original image pair into disjoint $16\times16$ native-pixel tiles and selected the tile with the greatest absolute difference in mean intensity across states. We then evaluated the same tile in two additional archived render pairs at that camera. In four views the tile was brighter after removal on both repeats and lay entirely outside the target and blocker footprints. Its smallest contrast across states exceeded its largest range within either state. The fifth tile reversed sign on one repeat. Figure~\ref{fig:indirect} shows the largest base contrast. A change in indirect lighting is plausible. Capture always rendered the placed, retained state before the placed, removed state, and there was no lighting ablation. These captures cannot identify a specific rendering mechanism or assign a cause to each of the 88 main pairs.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/isaac-hidden-patch.png}
+  \caption{Isaac Sim calibration, tabletop PAC04, stop P3. The left outline locates the enlarged crops. The crop outlines mark the same $16\times16$ tile on the exposed tabletop. The tile was 33.9 levels brighter in the removed frame of the base pair and 34.3 and 33.4 levels brighter in the two repeats. The retained foam brick was entirely hidden.}
+  \label{fig:indirect}
+\end{figure}
 
 \section{Camera and room sensitivity}
 \label{app:rooms}
@@ -102,12 +114,12 @@ Eight fresh service-corridor layouts placed a bottle or drill behind a sliding d
 
 The furnished workshop revisited the same eight layouts after changing the room and door bay. Its declared frontal test gave zero double-removal calls on eight identical MuJoCo pairs. All eight failed registration. Homography classified all 80 open-door controls correctly in each simulator and abstained on every closed-door query. The zero-shot system found all 40 open-door removals per simulator. It falsely deleted an exposed drill on 4/40 retained queries in Isaac Sim and 2/40 in MuJoCo. All six errors occurred on the two added robot camera mounts. The corridor and workshop share layouts, and the furnishing, light and door geometry changed together.
 
-\section{Retrospective extra-view replay}
+\section{Retrospective replay with a reference at each stop}
 \label{app:replay}
 
-The archived panel contains five stops for each combination of layout, camera-motion level, blocker and target state. For each of 640 blocker-placed starts, the replay kept the starting homography answer if definite. After an abstention, it took the saved answer from one of the other four stops. Physical state and camera-motion level were held fixed.
+The archived panel contains five stops for each combination of simulator, layout, camera-motion level, blocker position and target state. The replay kept any definite homography answer across 640 blocker-placed starts. After an abstention, it took the saved answer from one of the other four stops while holding the other conditions fixed. That answer used the alternate stop's own earlier reference image, target box, and revisit. Across the 1,772 alternate-stop choices for the 443 homography abstentions, both the reference image and its box differed from those at the starting stop.
 
-The starting view alone gave 196/640 correct updates (30.6\%). A uniform choice among the alternatives averaged 268.5 (42.0\%). Choosing the alternative with the greatest exposure in the retained twin's evaluator mask gave 292 (45.6\%). The starting and mask-assisted rules each made one false deletion. A ceiling that used both the true state and every alternative's answer reached 319 (49.8\%). These numbers quantify what an extra archived observation could change under the stated rule. The choice with access to the mask requires privileged information, and the replay accounts for no travel cost. The proposed extra-view study on fresh layouts ended before collection.
+The starting stop alone gave 196/640 correct decisions (30.6\%). A uniform choice among the alternatives averaged 268.5 (42.0\%). Choosing the alternative with the greatest exposure in the retained twin's evaluator mask gave 292 (45.6\%). The starting and mask-assisted rules each made one false deletion. A ceiling that used both the true state and every alternative's answer reached 319 (49.8\%). These numbers describe a system that stores a reference at each stop and switches to a second reference/revisit pair after abstaining. Evaluating an extra revisit with a single stored reference would require scoring the new revisit against the starting reference and box. The replay used the inspected layouts and omitted travel costs. The proposed study on fresh layouts ended before collection.
 
 \section{Relation to other evaluation designs}
 \label{app:related}
@@ -119,6 +131,6 @@ TRAPSBench pairs answerable and unanswerable physics questions. The Counterfactu
 \section{Data and reproducibility}
 \label{app:data}
 
-The \href{https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1}{versioned data release} contains the delivered RGB images and their hashes, native renders with evaluator masks, target assignments, case and pair tables, primary protocol, calibration measurements and original scorer outputs. It includes a second analysis implementation from the same project. The visibility analysis and extra-view replay reuse these archived cases.
+The \href{https://github.com/Adithya-Rajendran/cmpe249-active-verification/releases/tag/scene-memory-audit-v1}{versioned data release} contains the delivered RGB images and their hashes, native renders with evaluator masks, target assignments, case and pair tables, primary protocol, calibration measurements and original scorer outputs. It includes a second analysis implementation from the same project. The visibility analysis and alternate-stop replay reuse these archived cases.
 
 The \href{https://github.com/Adithya-Rajendran/cmpe249-active-verification/blob/a88d89fc5c92f4f18f7a7a1d5947bc59f3b37161/paper/README.md\#reproduce-the-trained-still-comparison}{trained-comparison guide} provides the development and main probabilities, registered boxes, operating points, restored per-query decisions, inference commands and CPU recount. It identifies the exact \href{https://huggingface.co/oran9er/STILL-Qwen3.5-9B/tree/81d9373e1dd9c07c537d5fb2436b36a26a2206b4}{trained STILL} and \href{https://huggingface.co/Qwen/Qwen3.5-9B/tree/c202236235762e1c871ad0ccb60c8ee5ba337b9a}{zero-shot Qwen} model revisions~\citep{still-weights,qwen-weights}. The labels record the simulator intervention. No human annotated support on unequal inputs.
